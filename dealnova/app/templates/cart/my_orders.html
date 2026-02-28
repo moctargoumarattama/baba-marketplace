@@ -1,0 +1,1199 @@
+{% extends "base.html" %}
+{% block title %}Mes commandes | {{ config.SITE_NAME }}{% endblock %}
+
+{% block head %}
+<style>
+:root {
+    --primary: #10B981;
+    --primary-dark: #047857;
+    --primary-light: #34D399;
+    --accent: #F59E0B;
+    --danger: #EF4444;
+    --success: #10B981;
+    --warning: #F59E0B;
+    --bg-gradient-start: #f0fdf4;
+    --bg-gradient-end: #dcfce7;
+    --card-bg: #ffffff;
+    --text-primary: #1f2937;
+    --text-secondary: #6b7280;
+    --border: #e5e7eb;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg-gradient-start: #0f172a;
+        --bg-gradient-end: #1e293b;
+        --card-bg: #1e293b;
+        --text-primary: #f1f5f9;
+        --text-secondary: #94a3b8;
+        --border: #334155;
+    }
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* Page principale */
+.orders-page {
+    min-height: 100vh;
+    background: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%);
+    position: relative;
+    overflow-x: hidden;
+}
+
+/* Particules d'arrière-plan */
+.bg-particles {
+    position: fixed;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+    z-index: 0;
+    pointer-events: none;
+}
+
+.particle-dot {
+    position: absolute;
+    background: radial-gradient(circle, rgba(16, 185, 129, 0.2) 0%, transparent 70%);
+    border-radius: 50%;
+    animation: particleFloat 15s infinite ease-in-out;
+}
+
+.particle-dot:nth-child(1) { width: 200px; height: 200px; top: 10%; left: 5%; animation-delay: 0s; }
+.particle-dot:nth-child(2) { width: 150px; height: 150px; top: 50%; right: 10%; animation-delay: -5s; }
+.particle-dot:nth-child(3) { width: 180px; height: 180px; bottom: 15%; left: 15%; animation-delay: -10s; 
+    background: radial-gradient(circle, rgba(245, 158, 11, 0.15) 0%, transparent 70%); }
+
+@keyframes particleFloat {
+    0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.6; }
+    33% { transform: translate(20px, -20px) scale(1.1); opacity: 0.8; }
+    66% { transform: translate(-15px, 25px) scale(0.9); opacity: 0.5; }
+}
+
+/* Container */
+.orders-container {
+    position: relative;
+    z-index: 1;
+    padding: 2rem 1rem;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+/* Header premium */
+.orders-header {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(20px) saturate(180%);
+    border-radius: 24px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+    box-shadow: 
+        0 20px 60px rgba(0, 0, 0, 0.08),
+        0 0 0 1px rgba(255, 255, 255, 0.5),
+        inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    position: relative;
+    overflow: hidden;
+    animation: slideInFromTop 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+    .orders-header {
+        background: rgba(30, 41, 59, 0.95);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+}
+
+@keyframes slideInFromTop {
+    from {
+        opacity: 0;
+        transform: translateY(-30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.orders-header::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #10B981, #34D399, #F59E0B, #10B981);
+    background-size: 200% 100%;
+    animation: gradientMove 3s linear infinite;
+}
+
+@keyframes gradientMove {
+    0% { background-position: 0% 50%; }
+    100% { background-position: 200% 50%; }
+}
+
+.header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.header-info {
+    flex: 1;
+    min-width: 250px;
+}
+
+.header-title {
+    font-size: 2rem;
+    font-weight: 900;
+    color: var(--text-primary);
+    letter-spacing: -0.02em;
+    margin-bottom: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.title-icon {
+    width: 48px;
+    height: 48px;
+    background: linear-gradient(135deg, #10B981, #047857);
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 1.5rem;
+    box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3);
+    animation: iconPulse 2s ease-in-out infinite;
+}
+
+@keyframes iconPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
+.phone-info {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0.05));
+    padding: 0.5rem 1rem;
+    border-radius: 50px;
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-size: 0.95rem;
+    border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.phone-icon {
+    color: var(--primary);
+    font-size: 1.1rem;
+}
+
+.phone-number {
+    color: var(--text-primary);
+    font-weight: 700;
+}
+
+/* Actions header */
+.header-actions {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.btn-action {
+    padding: 0.75rem 1.5rem;
+    border-radius: 14px;
+    font-weight: 700;
+    font-size: 0.95rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    text-decoration: none;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    border: none;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+}
+
+.btn-action::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.2) 50%, transparent 70%);
+    transform: translateX(-100%);
+    transition: transform 0.6s ease;
+}
+
+.btn-action:hover::before {
+    transform: translateX(100%);
+}
+
+.btn-outline-action {
+    background: transparent;
+    color: var(--text-primary);
+    border: 2px solid var(--border);
+}
+
+.btn-outline-action:hover {
+    background: rgba(16, 185, 129, 0.08);
+    border-color: var(--primary);
+    color: var(--primary);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(16, 185, 129, 0.15);
+}
+
+.btn-primary-action {
+    background: linear-gradient(135deg, #10B981, #047857);
+    color: white;
+    border: none;
+    box-shadow: 0 8px 24px rgba(16, 185, 129, 0.3);
+}
+
+.btn-primary-action:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 32px rgba(16, 185, 129, 0.4);
+}
+
+/* Flash messages */
+.flash-messages {
+    margin-bottom: 2rem;
+    animation: slideDown 0.5s ease;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.alert-premium {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(20px);
+    border-radius: 18px;
+    padding: 1.25rem 1.5rem;
+    border: 1px solid;
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    position: relative;
+    overflow: hidden;
+}
+
+@media (prefers-color-scheme: dark) {
+    .alert-premium {
+        background: rgba(30, 41, 59, 0.95);
+    }
+}
+
+.alert-premium::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: currentColor;
+}
+
+.alert-danger {
+    border-color: rgba(239, 68, 68, 0.3);
+    color: #991b1b;
+}
+
+.alert-success {
+    border-color: rgba(16, 185, 129, 0.3);
+    color: #065f46;
+}
+
+.alert-info {
+    border-color: rgba(59, 130, 246, 0.3);
+    color: #1e40af;
+}
+
+/* Empty state */
+.empty-state {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(20px);
+    border-radius: 24px;
+    padding: 4rem 2rem;
+    text-align: center;
+    box-shadow: 
+        0 20px 60px rgba(0, 0, 0, 0.08),
+        0 0 0 1px rgba(255, 255, 255, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    animation: fadeInScale 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+    .empty-state {
+        background: rgba(30, 41, 59, 0.95);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+}
+
+@keyframes fadeInScale {
+    from {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.empty-icon {
+    font-size: 5rem;
+    margin-bottom: 1.5rem;
+    animation: bounce 2s ease-in-out infinite;
+}
+
+@keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+}
+
+.empty-title {
+    font-size: 1.75rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    margin-bottom: 0.75rem;
+}
+
+.empty-text {
+    color: var(--text-secondary);
+    font-weight: 600;
+    margin-bottom: 2rem;
+    font-size: 1.05rem;
+}
+
+.btn-discover {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem 2rem;
+    background: linear-gradient(135deg, #ff6a00, #ff3d00);
+    color: white;
+    border-radius: 18px;
+    font-weight: 700;
+    font-size: 1.05rem;
+    text-decoration: none;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 12px 32px rgba(255, 61, 0, 0.3);
+}
+
+.btn-discover:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 16px 40px rgba(255, 61, 0, 0.4);
+    color: white;
+}
+
+/* Orders grid */
+.orders-grid {
+    display: grid;
+    gap: 1.5rem;
+    animation: fadeIn 0.6s ease 0.2s both;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* Order card */
+.order-card {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(20px) saturate(180%);
+    border-radius: 24px;
+    padding: 1.75rem;
+    box-shadow: 
+        0 12px 40px rgba(0, 0, 0, 0.06),
+        0 0 0 1px rgba(255, 255, 255, 0.5),
+        inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    position: relative;
+    overflow: hidden;
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    animation: slideInCard 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-color-scheme: dark) {
+    .order-card {
+        background: rgba(30, 41, 59, 0.95);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+}
+
+.order-card:nth-child(1) { animation-delay: 0.1s; }
+.order-card:nth-child(2) { animation-delay: 0.2s; }
+.order-card:nth-child(3) { animation-delay: 0.3s; }
+.order-card:nth-child(4) { animation-delay: 0.4s; }
+.order-card:nth-child(5) { animation-delay: 0.5s; }
+
+@keyframes slideInCard {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.order-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 
+        0 20px 60px rgba(0, 0, 0, 0.1),
+        0 0 0 1px rgba(255, 255, 255, 0.6);
+}
+
+.order-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, transparent, var(--primary), transparent);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.order-card:hover::before {
+    opacity: 1;
+}
+
+/* Order header */
+.order-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.order-info {
+    flex: 1;
+    min-width: 200px;
+}
+
+.order-id {
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+/* Status badge */
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 1rem;
+    border-radius: 50px;
+    font-weight: 700;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    animation: statusPulse 2s ease-in-out infinite;
+}
+
+@keyframes statusPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.03); }
+}
+
+.status-pending {
+    background: linear-gradient(135deg, #FEF3C7, #FDE68A);
+    color: #92400E;
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2);
+}
+
+.status-delivered {
+    background: linear-gradient(135deg, #D1FAE5, #A7F3D0);
+    color: #065F46;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+}
+
+.status-cancelled {
+    background: linear-gradient(135deg, #FEE2E2, #FECACA);
+    color: #991B1B;
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
+}
+
+.status-other {
+    background: linear-gradient(135deg, #E5E7EB, #D1D5DB);
+    color: #374151;
+    box-shadow: 0 4px 12px rgba(107, 114, 128, 0.2);
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+    animation: dotBlink 1.5s ease-in-out infinite;
+}
+
+@keyframes dotBlink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+
+/* Order meta */
+.order-meta {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.meta-item {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.meta-icon {
+    color: var(--primary);
+    font-size: 1rem;
+}
+
+/* Order price */
+.order-price-section {
+    text-align: right;
+}
+
+.order-total {
+    font-size: 1.5rem;
+    font-weight: 900;
+    background: linear-gradient(135deg, #ff6a00, #ff3d00);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 0.25rem;
+}
+
+.payment-method {
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-size: 0.85rem;
+}
+
+/* Divider */
+.order-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+    margin: 1.5rem 0;
+}
+
+/* Order footer */
+.order-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.shipping-info {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.shipping-icon {
+    color: var(--primary);
+    font-size: 1.2rem;
+    animation: truck 3s ease-in-out infinite;
+}
+
+@keyframes truck {
+    0%, 100% { transform: translateX(0); }
+    50% { transform: translateX(5px); }
+}
+
+/* Order actions */
+.order-actions {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.btn-order {
+    padding: 0.65rem 1.25rem;
+    border-radius: 12px;
+    font-weight: 700;
+    font-size: 0.9rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    text-decoration: none;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    border: none;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+}
+
+.btn-order::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.3) 50%, transparent 70%);
+    transform: translateX(-100%);
+    transition: transform 0.6s ease;
+}
+
+.btn-order:hover::after {
+    transform: translateX(100%);
+}
+
+.btn-order-outline {
+    background: transparent;
+    color: var(--text-primary);
+    border: 2px solid var(--border);
+}
+
+.btn-order-outline:hover {
+    background: rgba(16, 185, 129, 0.08);
+    border-color: var(--primary);
+    color: var(--primary);
+    transform: translateY(-2px);
+}
+
+.btn-order-whatsapp {
+    background: linear-gradient(135deg, #16a34a, #22c55e);
+    color: white;
+    border: none;
+    box-shadow: 0 6px 20px rgba(34, 197, 94, 0.3);
+}
+
+.btn-order-whatsapp:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 28px rgba(34, 197, 94, 0.4);
+    color: white;
+}
+
+.btn-order-issue {
+    border-color: rgba(245, 158, 11, 0.35);
+    color: #92400e;
+}
+
+.btn-order-issue:hover {
+    background: rgba(245, 158, 11, 0.10);
+    border-color: #f59e0b;
+    color: #92400e;
+}
+
+/* Footer note */
+.orders-footer {
+    margin-top: 2rem;
+    padding: 1.5rem;
+    background: rgba(255, 255, 255, 0.6);
+    backdrop-filter: blur(10px);
+    border-radius: 18px;
+    text-align: center;
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-size: 0.9rem;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+@media (prefers-color-scheme: dark) {
+    .orders-footer {
+        background: rgba(30, 41, 59, 0.6);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .orders-container {
+        padding: 1rem 0.75rem;
+    }
+
+    .orders-header {
+        padding: 1.5rem;
+        border-radius: 20px;
+    }
+
+    .header-title {
+        font-size: 1.5rem;
+    }
+
+    .title-icon {
+        width: 40px;
+        height: 40px;
+        font-size: 1.25rem;
+    }
+
+    .header-actions {
+        width: 100%;
+    }
+
+    .btn-action {
+        flex: 1;
+        justify-content: center;
+        min-width: 140px;
+    }
+
+    .order-card {
+        padding: 1.5rem;
+        border-radius: 20px;
+    }
+
+    .order-header {
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .order-price-section {
+        text-align: left;
+        width: 100%;
+    }
+
+    .order-total {
+        font-size: 1.35rem;
+    }
+
+    .order-footer {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .shipping-info {
+        justify-content: center;
+    }
+
+    .order-actions {
+        width: 100%;
+    }
+
+    .btn-order {
+        flex: 1;
+        justify-content: center;
+    }
+
+    .empty-state {
+        padding: 3rem 1.5rem;
+        border-radius: 20px;
+    }
+
+    .empty-icon {
+        font-size: 4rem;
+    }
+
+    .empty-title {
+        font-size: 1.5rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .header-title {
+        font-size: 1.35rem;
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .phone-info {
+        font-size: 0.85rem;
+        padding: 0.4rem 0.8rem;
+    }
+
+    .order-id {
+        font-size: 1.05rem;
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .status-badge {
+        font-size: 0.75rem;
+        padding: 0.35rem 0.85rem;
+    }
+
+    .order-meta {
+        font-size: 0.85rem;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+
+    .order-actions {
+        flex-direction: column;
+    }
+
+    .btn-order {
+        width: 100%;
+    }
+}
+
+/* Smooth scrollbar */
+::-webkit-scrollbar {
+    width: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(16, 185, 129, 0.3);
+    border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(16, 185, 129, 0.5);
+}
+
+/* Accessibility */
+.btn-action:focus-visible,
+.btn-order:focus-visible {
+    outline: 3px solid var(--primary);
+    outline-offset: 2px;
+}
+
+/* Print */
+@media print {
+    .bg-particles,
+    .header-actions,
+    .order-actions,
+    .orders-footer {
+        display: none;
+    }
+
+    .orders-page {
+        background: white;
+    }
+
+    .order-card,
+    .orders-header {
+        box-shadow: none;
+        border: 1px solid #ccc;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="orders-page">
+    <!-- Particules d'arrière-plan -->
+    <div class="bg-particles">
+        <div class="particle-dot"></div>
+        <div class="particle-dot"></div>
+        <div class="particle-dot"></div>
+    </div>
+
+    <div class="orders-container">
+        <!-- Header premium -->
+        <div class="orders-header">
+            <div class="header-content">
+                <div class="header-info">
+                    <h1 class="header-title">
+                        <span class="title-icon">
+                            <i class="fas fa-shopping-bag"></i>
+                        </span>
+                        Mes commandes
+                    </h1>
+                    <div class="phone-info">
+                        <i class="fas fa-phone phone-icon"></i>
+                        <span>Numéro :</span>
+                        <span class="phone-number">{{ phone }}</span>
+                    </div>
+                </div>
+
+                <div class="header-actions">
+                    <a href="{{ url_for('cart.track_by_phone') }}" class="btn-action btn-outline-action">
+                        <i class="fas fa-edit"></i>
+                        <span>Changer numéro</span>
+                    </a>
+                    <a href="{{ url_for('shop.home') }}" class="btn-action btn-primary-action">
+                        <i class="fas fa-store"></i>
+                        <span>Boutique</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            <div class="flash-messages">
+                {% for category, message in messages %}
+                <div class="alert-premium alert-{{ 'danger' if category in ['error','danger'] else 'success' if category == 'success' else 'info' }}">
+                    <div>
+                        <i class="fas {{ 'fa-exclamation-circle' if category in ['error','danger'] else 'fa-check-circle' if category == 'success' else 'fa-info-circle' }}"></i>
+                    </div>
+                    <div>{{ message }}</div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        {% endwith %}
+
+        {% if not orders %}
+            <!-- Empty state -->
+            <div class="empty-state">
+                <div class="empty-icon">🛒</div>
+                <h2 class="empty-title">Aucune commande trouvée</h2>
+                <p class="empty-text">
+                    Vérifiez le numéro ou passez une nouvelle commande
+                </p>
+                <a href="{{ url_for('shop.home') }}" class="btn-discover">
+                    <i class="fas fa-shopping-bag"></i>
+                    <span>Découvrir les produits</span>
+                </a>
+            </div>
+        {% else %}
+            <!-- Orders grid -->
+            <div class="orders-grid">
+                {% for o in orders %}
+                <div class="order-card">
+                    <!-- Order header -->
+                    <div class="order-header">
+                        <div class="order-info">
+                            <div class="order-id">
+                                <span>Commande #{{ o.id }}</span>
+                                {% set _ds = (o.delivery_status or '').lower() %}
+                                <span class="status-badge status-{{
+                                    'pending' if _ds in ['new', 'assigned', 'picked_up', 'delivering'] else
+                                    'delivered' if _ds == 'delivered' else
+                                    'cancelled' if _ds in ['canceled', 'cancelled'] else
+                                    'other' }}">
+                                    <span class="status-dot"></span>
+                                    <span>{{ label_delivery_status(_ds if _ds else o.status, current_lang) }}</span>
+                                </span>
+                            </div>
+                            <div class="order-meta">
+                                {% if o.created_at %}
+                                <div class="meta-item">
+                                    <i class="fas fa-clock meta-icon"></i>
+                                    <span>{{ o.created_at.strftime("%d/%m/%Y %H:%M") }}</span>
+                                </div>
+                                {% endif %}
+                                {% if o.city %}
+                                <div class="meta-item">
+                                    <i class="fas fa-map-marker-alt meta-icon"></i>
+                                    <span>{{ o.city }}</span>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="order-price-section">
+                            <div class="order-total">
+                                {{ "%.2f"|format((o.total or 0) / 100) }} MAD
+                            </div>
+                            <div class="payment-method">
+                                💵 Paiement à la livraison
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Divider -->
+                    <div class="order-divider"></div>
+
+                    <!-- Order footer -->
+                    <div class="order-footer">
+                        <div class="shipping-info">
+                            <i class="fas fa-truck shipping-icon"></i>
+                            <span>Livraison : {{ "%.2f"|format((o.shipping or 0) / 100) }} MAD</span>
+                        </div>
+
+                        <div class="order-actions">
+                            <a href="{{ url_for('cart.track', token=o.token) }}" 
+                               class="btn-order btn-order-outline">
+                                <i class="fas fa-eye"></i>
+                                <span>Voir suivi</span>
+                            </a>
+
+                            <a href="https://wa.me/{{ config.DELIVERY_WHATSAPP_NUMBER }}text={{ ('Bonjour, je veux des nouvelles de ma commande #' ~ o.id ~ ' (tel: ' ~ phone ~ ')')|urlencode }}"
+                               target="_blank"
+                               rel="noopener noreferrer"
+                               class="btn-order btn-order-whatsapp">
+                                <i class="fab fa-whatsapp"></i>
+                                <span>WhatsApp</span>
+                            </a>
+
+                            <button type="button"
+                                    class="btn-order btn-order-outline btn-order-issue"
+                                    data-wa-issue
+                                    data-order-id="{{ o.id }}"
+                                    data-order-url="{{ url_for('cart.track', token=o.token, _external=True) }}"
+                                    title="Signaler un problème">
+                                <i class="fas fa-triangle-exclamation"></i>
+                                <span>Signaler</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Footer note -->
+            <div class="orders-footer">
+                <i class="fas fa-info-circle"></i>
+                Les commandes livrees peuvent disparaitre du suivi apres 72h selon la configuration
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+(function() {
+    'use strict';
+
+    // Add ripple effect to buttons
+    document.querySelectorAll('.btn-action, .btn-order, .btn-discover').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            const ripple = document.createElement('span');
+            const rect = this.getBoundingClientRect();
+            const size = Math.max(rect.width, rect.height);
+            const x = e.clientX - rect.left - size / 2;
+            const y = e.clientY - rect.top - size / 2;
+
+            ripple.style.cssText = `
+                position: absolute;
+                width: ${size}px;
+                height: ${size}px;
+                border-radius: 50%;
+                background: rgba(255, 255, 255, 0.6);
+                left: ${x}px;
+                top: ${y}px;
+                transform: scale(0);
+                animation: ripple 0.6s ease-out;
+                pointer-events: none;
+                z-index: 100;
+            `;
+
+            this.appendChild(ripple);
+            setTimeout(() => ripple.remove(), 600);
+        });
+    });
+
+    // Add ripple animation
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes ripple {
+            to {
+                transform: scale(4);
+                opacity: 0;
+            }
+        }
+    `;
+    document.head.appendChild(style);
+
+    // Animate order cards on intersection
+    if ('IntersectionObserver' in window) {
+        const observerOptions = {
+            threshold: 0.1,
+            rootMargin: '0px 0px -50px 0px'
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.style.opacity = '1';
+                    entry.target.style.transform = 'translateY(0)';
+                    observer.unobserve(entry.target);
+                }
+            });
+        }, observerOptions);
+
+        document.querySelectorAll('.order-card').forEach(card => {
+            observer.observe(card);
+        });
+    }
+
+    // Copy order ID on click
+    document.querySelectorAll('.order-id').forEach(el => {
+        el.style.cursor = 'pointer';
+        el.title = 'Cliquer pour copier le numéro';
+        
+        el.addEventListener('click', function(e) {
+            if (e.target.closest('.status-badge')) return;
+            
+            const match = this.textContent.match(/#(\d+)/);
+            const orderId = match ? match[1] : null;
+            if (orderId) {
+                navigator.clipboard.writeText(orderId).then(() => {
+                    const feedback = document.createElement('div');
+                    feedback.textContent = '✓ Copié';
+                    feedback.style.cssText = `
+                        position: fixed;
+                        top: 50%;
+                        left: 50%;
+                        transform: translate(-50%, -50%);
+                        background: rgba(16, 185, 129, 0.95);
+                        color: white;
+                        padding: 1rem 2rem;
+                        border-radius: 12px;
+                        font-weight: 700;
+                        z-index: 10000;
+                        animation: fadeInOut 2s ease;
+                        box-shadow: 0 8px 24px rgba(16, 185, 129, 0.4);
+                    `;
+                    
+                    document.body.appendChild(feedback);
+                    setTimeout(() => feedback.remove(), 2000);
+                }).catch(() => {
+                    console.log('Copy failed');
+                });
+            }
+        });
+    });
+
+    // Add fadeInOut animation
+    const copyStyle = document.createElement('style');
+    copyStyle.textContent = `
+        @keyframes fadeInOut {
+            0%, 100% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+            15%, 85% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+        }
+    `;
+    document.head.appendChild(copyStyle);
+
+    // Smooth scroll behavior
+    document.documentElement.style.scrollBehavior = 'smooth';
+
+    // Performance: Reduce animations on low-end devices
+    if (navigator.hardwareConcurrency && navigator.hardwareConcurrency < 4) {
+        document.querySelectorAll('.particle-dot').forEach(p => p.remove());
+    }
+    // Removed legacy auto-refresh block.
+
+    console.log('✨ Orders page loaded successfully');
+})();
+</script>
+{% endblock %}

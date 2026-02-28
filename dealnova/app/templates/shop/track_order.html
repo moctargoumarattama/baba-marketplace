@@ -1,0 +1,452 @@
+{% extends "base.html" %}
+{% block title %}Suivi commande #{{ order.id }} | Baba Market{% endblock %}
+
+{% block head %}
+<style>
+  .track-page {
+    min-height: 100vh;
+    background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+    padding: 1rem 0.75rem 2rem;
+  }
+
+  .track-shell {
+    max-width: 960px;
+    margin: 0 auto;
+    display: grid;
+    gap: 1rem;
+  }
+
+  .track-card {
+    background: #fff;
+    border: 1px solid #dbe5e1;
+    border-radius: 20px;
+    box-shadow: 0 14px 32px rgba(0, 0, 0, 0.08);
+    overflow: hidden;
+  }
+
+  .track-header {
+    padding: 1.1rem 1rem;
+    background: linear-gradient(135deg, #10b981, #047857);
+    color: #fff;
+  }
+
+  .track-title {
+    margin: 0;
+    font-size: 1.35rem;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+
+  .track-sub {
+    margin-top: 0.3rem;
+    font-size: 0.9rem;
+    opacity: 0.9;
+  }
+
+  .track-body {
+    padding: 1rem;
+    display: grid;
+    gap: 1rem;
+  }
+
+  .live-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  .live-note {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 0.84rem;
+    color: #047857;
+    font-weight: 700;
+  }
+
+  .live-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #10b981;
+    animation: blink 1.5s ease infinite;
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    border-radius: 999px;
+    padding: 0.45rem 0.85rem;
+    font-size: 0.84rem;
+    font-weight: 800;
+    border: 1px solid transparent;
+  }
+
+  .badge-new { background: #e2e8f0; color: #334155; border-color: #cbd5e1; }
+  .badge-assigned { background: #dbeafe; color: #1d4ed8; border-color: #93c5fd; }
+  .badge-picked_up { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
+  .badge-delivering { background: #ffedd5; color: #9a3412; border-color: #fdba74; }
+  .badge-delivered { background: #dcfce7; color: #166534; border-color: #86efac; }
+  .badge-canceled { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+
+  .timeline {
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    padding: 0.75rem;
+    display: grid;
+    gap: 0.65rem;
+    background: #fcfffe;
+  }
+
+  .timeline-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.65rem;
+    padding: 0.35rem 0;
+  }
+
+  .timeline-marker {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 2px solid #cbd5e1;
+    background: #fff;
+    color: #94a3b8;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.72rem;
+    font-weight: 900;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  .timeline-step.done .timeline-marker {
+    background: #16a34a;
+    border-color: #16a34a;
+    color: #fff;
+  }
+
+  .timeline-step.active .timeline-marker {
+    background: #0ea5e9;
+    border-color: #0ea5e9;
+    color: #fff;
+  }
+
+  .timeline-text {
+    min-width: 0;
+  }
+
+  .timeline-title {
+    font-weight: 800;
+    color: #0f172a;
+    font-size: 0.92rem;
+  }
+
+  .timeline-time {
+    color: #64748b;
+    font-size: 0.8rem;
+    margin-top: 0.15rem;
+  }
+
+  .track-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+
+  .info-box {
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 0.75rem;
+    background: #fff;
+  }
+
+  .info-k {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .info-v {
+    margin-top: 0.25rem;
+    font-size: 0.92rem;
+    color: #0f172a;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+  }
+
+  .track-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.55rem;
+  }
+
+  .track-actions .btn {
+    border-radius: 10px;
+    font-weight: 700;
+  }
+
+  .warn-box {
+    border: 1px solid #fcd34d;
+    background: #fffbeb;
+    color: #92400e;
+    border-radius: 12px;
+    padding: 0.75rem;
+    font-size: 0.88rem;
+    font-weight: 700;
+  }
+
+  .danger-box {
+    border: 1px solid #fca5a5;
+    background: #fef2f2;
+    color: #991b1b;
+    border-radius: 12px;
+    padding: 0.75rem;
+    font-size: 0.88rem;
+    font-weight: 700;
+  }
+
+  @media (max-width: 900px) {
+    .track-grid { grid-template-columns: 1fr; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+{% set ds = current_delivery_status if current_delivery_status else ((order.delivery_status or 'new')|lower) %}
+{% set flow = ['new', 'assigned', 'picked_up', 'delivering', 'delivered'] %}
+{% set current_idx = flow.index(ds) if ds in flow else 0 %}
+<div class="track-page"
+     id="trackOrderPage"
+     data-token="{{ order.token|e }}"
+     data-initial-status="{{ ds|e }}"
+     data-initial-label="{{ (delivery_status_label or label_delivery_status(ds, current_lang))|e }}"
+     data-order-id="{{ order.id }}">
+  <div class="track-shell">
+    <section class="track-card">
+      <header class="track-header">
+        <h1 class="track-title"><i class="fas fa-truck"></i>Suivi commande #{{ order.id }}</h1>
+        <div class="track-sub">{{ source_label or label_source(order.delivery_source, current_lang) }}</div>
+      </header>
+
+      <div class="track-body">
+        <div class="live-row">
+          <div class="live-note"><span class="live-dot"></span><span id="liveText">Mise a jour en direct</span></div>
+          <span id="statusBadge" class="status-badge">{{ delivery_status_label or label_delivery_status(ds, current_lang) }}</span>
+        </div>
+
+        {% if ds == 'canceled' %}
+          <div class="danger-box">Commande annulee. Le suivi est clos.</div>
+        {% endif %}
+
+        {% if ds == 'delivered' and order.delivered_at and elapsed_hours and elapsed_hours > 72 and (current_user.is_anonymous or current_user.role != 'admin') %}
+          <div class="warn-box">Cette commande est livree depuis plus de 72h. Le suivi detaille peut expirer.</div>
+        {% endif %}
+
+        <div class="timeline" id="timeline">
+          {% for step in flow %}
+            {% set is_done = ds in flow and flow.index(step) < current_idx %}
+            {% set is_active = ds == step %}
+            <div class="timeline-step {{ 'done' if is_done else '' }} {{ 'active' if is_active else '' }}" data-step="{{ step }}">
+              <span class="timeline-marker">{% if is_done %}<i class="fas fa-check"></i>{% else %}{{ loop.index }}{% endif %}</span>
+              <div class="timeline-text">
+                <div class="timeline-title">{{ label_delivery_status(step, current_lang) }}</div>
+                <div class="timeline-time" id="time-{{ step }}">
+                  {% if step == 'new' and order.created_at %}
+                    {{ order.created_at.strftime('%d/%m/%Y %H:%M') }}
+                  {% elif step == 'assigned' and order.assigned_at %}
+                    {{ order.assigned_at.strftime('%d/%m/%Y %H:%M') }}
+                  {% elif step == 'picked_up' and order.picked_up_at %}
+                    {{ order.picked_up_at.strftime('%d/%m/%Y %H:%M') }}
+                  {% elif step == 'delivered' and order.delivered_at %}
+                    {{ order.delivered_at.strftime('%d/%m/%Y %H:%M') }}
+                  {% else %}
+                    -
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+
+        <div class="track-grid">
+          <div class="info-box">
+            <div class="info-k">Client</div>
+            <div class="info-v">{{ order.full_name or 'N/A' }}</div>
+            <div class="info-v" style="font-size:0.82rem;font-weight:600;">{{ order.phone or 'N/A' }}</div>
+          </div>
+          <div class="info-box">
+            <div class="info-k">Livraison</div>
+            <div class="info-v">{{ order.delivery_city or order.city or 'N/A' }}</div>
+            <div class="info-v" style="font-size:0.82rem;font-weight:600;">{{ order.delivery_address or order.address or 'N/A' }}</div>
+          </div>
+          <div class="info-box">
+            <div class="info-k">Montant</div>
+            <div class="info-v">{{ '%.2f'|format((order.total or 0) / 100) }} MAD</div>
+            <div class="info-v" style="font-size:0.82rem;font-weight:600;">Part Baba: {{ '%.2f'|format((order.delivery_platform_fee_cents or 0) / 100) }} MAD</div>
+          </div>
+        </div>
+
+        <div class="track-actions">
+          <a href="{{ url_for('cart.track', token=order.token) }}" class="btn btn-success" id="refreshBtn"><i class="fas fa-rotate"></i>Rafraichir</a>
+          <button type="button" class="btn btn-outline-secondary" id="copyBtn"><i class="far fa-copy"></i>Copier lien</button>
+          <button type="button" class="btn btn-outline-primary" id="shareBtn"><i class="fas fa-share-nodes"></i>Partager</button>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+(function () {
+  const page = document.getElementById("trackOrderPage");
+  const dataset = page ? page.dataset : {};
+  const orderToken = String(dataset.token || "");
+  const statusBadge = document.getElementById("statusBadge");
+  const liveText = document.getElementById("liveText");
+  const flow = ["new", "assigned", "picked_up", "delivering", "delivered"];
+  const fallbackLabels = { _fallback: "En cours" };
+  document.querySelectorAll(".timeline-step[data-step]").forEach((node) => {
+    const step = String(node.getAttribute("data-step") || "").trim();
+    const titleNode = node.querySelector(".timeline-title");
+    const label = titleNode ? String(titleNode.textContent || "").trim() : "";
+    if (step && label) {
+      fallbackLabels[step] = label;
+    }
+  });
+
+  function normalizeStatus(value) {
+    const raw = String(value || "").toLowerCase().trim();
+    if (raw === "cancelled") return "canceled";
+    return raw || "new";
+  }
+
+  function setBadge(status, label) {
+    if (!statusBadge) return;
+    const ds = normalizeStatus(status);
+    statusBadge.className = `status-badge badge-${ds}`;
+    statusBadge.textContent = label || fallbackLabels[ds] || fallbackLabels._fallback || ds;
+  }
+
+  function setTimeline(status) {
+    const ds = normalizeStatus(status);
+    const currentIdx = flow.indexOf(ds);
+    document.querySelectorAll(".timeline-step[data-step]").forEach((node) => {
+      const step = node.getAttribute("data-step");
+      const idx = flow.indexOf(step);
+      node.classList.remove("done", "active");
+      if (currentIdx > -1 && idx < currentIdx) node.classList.add("done");
+      if (currentIdx > -1 && idx === currentIdx) node.classList.add("active");
+      if (ds === "canceled") node.classList.remove("active");
+    });
+  }
+
+  function setTime(step, isoValue) {
+    const node = document.getElementById(`time-${step}`);
+    if (!node || !isoValue) return;
+    const dt = new Date(isoValue);
+    if (Number.isNaN(dt.getTime())) return;
+    node.textContent = dt.toLocaleString("fr-FR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
+  async function refreshStatus() {
+    if (!orderToken) return;
+    try {
+      const response = await fetch(`/cart/track/${orderToken}/status`, {
+        cache: "no-store",
+        headers: { Accept: "application/json" },
+      });
+      if (!response.ok) return;
+      const data = await response.json();
+      const ds = normalizeStatus(data.delivery_status || data.status);
+      setBadge(ds, data.delivery_status_label || data.status_label || ds);
+      setTimeline(ds);
+      setTime("assigned", data.assigned_at);
+      setTime("picked_up", data.picked_up_at);
+      setTime("delivered", data.delivered_at);
+      if (liveText) {
+        const now = new Date();
+        liveText.textContent = `Derniere mise a jour: ${now.toLocaleTimeString("fr-FR")}`;
+      }
+    } catch (_) {
+      // Keep page stable if polling fails.
+    }
+  }
+
+  function copyLink() {
+    const value = window.location.href;
+    const fallback = () => {
+      const input = document.createElement("input");
+      input.value = value;
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand("copy");
+      input.remove();
+    };
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(value).catch(fallback);
+    } else {
+      fallback();
+    }
+  }
+
+  const copyBtn = document.getElementById("copyBtn");
+  if (copyBtn) copyBtn.addEventListener("click", copyLink);
+
+  const shareBtn = document.getElementById("shareBtn");
+  if (shareBtn) {
+    shareBtn.addEventListener("click", async () => {
+      const orderId = Number(dataset.orderId || 0);
+      const title = orderId > 0 ? `Suivi commande #${orderId}` : "Suivi commande";
+      const payload = {
+        title,
+        text: title,
+        url: window.location.href,
+      };
+      if (navigator.share) {
+        try {
+          await navigator.share(payload);
+          return;
+        } catch (_) {}
+      }
+      copyLink();
+    });
+  }
+
+  const refreshBtn = document.getElementById("refreshBtn");
+  if (refreshBtn) {
+    refreshBtn.addEventListener("click", (event) => {
+      event.preventDefault();
+      refreshStatus();
+    });
+  }
+
+  const initialStatus = String(dataset.initialStatus || "new");
+  const initialLabel = String(dataset.initialLabel || "");
+  setBadge(initialStatus, initialLabel);
+  setTimeline(initialStatus);
+  refreshStatus();
+  setInterval(refreshStatus, 10000);
+})();
+</script>
+{% endblock %}

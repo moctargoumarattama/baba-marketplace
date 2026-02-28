@@ -1,0 +1,355 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Gestion des Boutiques | DealNova Admin{% endblock %}
+{% block page_title %}Boutiques{% endblock %}
+
+{% block head %}
+<style>
+  .shops-wrap {
+    display: grid;
+    gap: 1.5rem;
+  }
+
+  .shops-hero {
+    background: linear-gradient(135deg, rgba(255, 107, 53, 0.16), rgba(0, 78, 137, 0.08));
+    border: 1px solid rgba(255, 107, 53, 0.2);
+    border-radius: 20px;
+    padding: 1.6rem;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .shops-hero::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at top right, rgba(255, 255, 255, 0.55), transparent 60%);
+    opacity: 0.7;
+  }
+
+  .shops-hero-content {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .shops-title {
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: var(--dark);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+  }
+
+  .shops-title i {
+    width: 46px;
+    height: 46px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.85);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--primary);
+    font-size: 1.3rem;
+    box-shadow: 0 10px 18px rgba(0, 0, 0, 0.08);
+  }
+
+  .shops-subtitle {
+    color: #4B5563;
+    font-weight: 500;
+    margin: 0.35rem 0 0;
+  }
+
+  .shops-cta {
+    display: flex;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+  }
+
+  .shops-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 1rem;
+  }
+
+  .stat-card {
+    background: #fff;
+    border-radius: 16px;
+    border: 1px solid #E5E7EB;
+    padding: 1rem 1.1rem;
+    box-shadow: 0 10px 22px rgba(0, 0, 0, 0.06);
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+  }
+
+  .stat-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    background: rgba(245, 158, 11, 0.16);
+    color: #D97706;
+  }
+
+  .stat-icon-success {
+    background: rgba(16, 185, 129, 0.14);
+    color: #059669;
+  }
+
+  .stat-icon-muted {
+    background: rgba(107, 114, 128, 0.14);
+    color: #6B7280;
+  }
+
+  .stat-icon-info {
+    background: rgba(59, 130, 246, 0.14);
+    color: #2563EB;
+  }
+
+  .stat-label {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #6B7280;
+    font-weight: 700;
+  }
+
+  .stat-value {
+    font-size: 1.3rem;
+    font-weight: 800;
+    color: var(--dark);
+  }
+
+  .shops-card {
+    background: #fff;
+    border-radius: 16px;
+    border: 1px solid #E5E7EB;
+    box-shadow: 0 12px 26px rgba(0, 0, 0, 0.06);
+    overflow: hidden;
+  }
+
+  .shops-card-header {
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid #E5E7EB;
+    background: #F9FAFB;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .shops-card-header h5 {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--dark);
+  }
+
+  .filter-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1rem;
+    padding: 1.25rem;
+  }
+
+  .filter-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    align-items: end;
+  }
+
+  .table.shops-table th {
+    background: #F9FAFB;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #6B7280;
+    font-weight: 700;
+  }
+
+  .table.shops-table td {
+    font-size: 0.9rem;
+    vertical-align: middle;
+    border-color: #EEF2F7;
+  }
+
+  .shop-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    overflow: hidden;
+    background: linear-gradient(135deg, var(--primary), var(--accent));
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+  }
+
+  .shop-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .shop-name {
+    font-weight: 600;
+    color: var(--dark);
+  }
+
+  .shop-meta {
+    font-size: 0.8rem;
+    color: #6B7280;
+  }
+
+  .status-pill {
+    padding: 0.35rem 0.65rem;
+    border-radius: 999px;
+    font-weight: 600;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .shop-actions .btn {
+    border-radius: 10px;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 2.5rem 1rem;
+    color: #6B7280;
+  }
+
+  @media (max-width: 992px) {
+    .shops-card-header {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .shops-table thead {
+      display: none;
+    }
+
+    .shops-table,
+    .shops-table tbody,
+    .shops-table tr,
+    .shops-table td {
+      display: block;
+      width: 100%;
+    }
+
+    .shops-table tr {
+      border: 1px solid #E5E7EB;
+      border-radius: 16px;
+      margin: 0.85rem 0;
+      padding: 0.75rem 1rem;
+      background: #fff;
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.04);
+    }
+
+    .shops-table td {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0.4rem 0;
+      border: 0;
+    }
+
+    .shops-table td::before {
+      content: attr(data-label);
+      font-weight: 600;
+      color: #6B7280;
+    }
+
+    .shop-actions {
+      justify-content: flex-end;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .shops-title {
+      font-size: 1.35rem;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="shops-wrap">
+  <section class="shops-hero">
+    <div class="shops-hero-content">
+      <div>
+        <h2 class="shops-title">
+          <i class="bi bi-shop"></i>
+          Gestion des boutiques
+        </h2>
+        <p class="shops-subtitle">Gerez les vendeurs, statuts et informations de contact.</p>
+      </div>
+      <div class="shops-cta">
+        <a href="{{ url_for('admin_users.create_shop') }}" class="btn btn-primary">
+          <i class="bi bi-shop"></i> Nouvelle boutique
+        </a>
+      </div>
+    </div>
+  </section>
+
+  {% set ns = namespace(active=0, inactive=0) %}
+  {% for shop, vendor in shops_with_vendors %}
+    {% if shop.is_active %}
+      {% set ns.active = ns.active + 1 %}
+    {% else %}
+      {% set ns.inactive = ns.inactive + 1 %}
+    {% endif %}
+  {% endfor %}
+
+  <section class="shops-stats">
+    <div class="stat-card">
+      <div class="stat-icon"><i class="bi bi-shop"></i></div>
+      <div>
+        <div class="stat-label">Total boutiques</div>
+        <div class="stat-value">{{ pagination.total }}</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon stat-icon-success"><i class="bi bi-check-circle"></i></div>
+      <div>
+        <div class="stat-label">Actives (page)</div>
+        <div class="stat-value">{{ ns.active }}</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon stat-icon-muted"><i class="bi bi-slash-circle"></i></div>
+      <div>
+        <div class="stat-label">Inactives (page)</div>
+        <div class="stat-value">{{ ns.inactive }}</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon stat-icon-info"><i class="bi bi-layers"></i></div>
+      <div>
+        <div class="stat-label">Page</div>
+        <div class="stat-value">{{ pagination.page }} / {{ pagination.pages }}</div>
+      </div>
+    </div>
+  </section>
+
+  {% include "admin/partials/_shops_filters.html" %}
+
+  {% include "admin/partials/_shops_table.html" %}
+</div>
+
+{% endblock %}

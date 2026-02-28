@@ -1,0 +1,152 @@
+{% extends "admin/base.html" %}
+{% block title %}{{ category.name if category else 'Nouvelle catégorie' }} | Admin DealNova{% endblock %}
+{% block page_title %}{{ category.name if category else 'Nouvelle catégorie' }}{% endblock %}
+
+{% block head %}
+<style>
+  .category-form-wrap { display: grid; gap: 1.5rem; }
+  .category-hero {
+    background: linear-gradient(135deg, rgba(255, 107, 53, 0.16), rgba(0, 78, 137, 0.08));
+    border: 1px solid rgba(255, 107, 53, 0.2);
+    border-radius: 20px;
+    padding: 1.6rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .category-hero::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at top right, rgba(255, 255, 255, 0.55), transparent 60%);
+    opacity: 0.7;
+  }
+  .category-hero-content { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 0.5rem; }
+  .category-title {
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: var(--dark);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+  }
+  .category-title i {
+    width: 46px;
+    height: 46px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.85);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--primary);
+    font-size: 1.3rem;
+    box-shadow: 0 10px 18px rgba(0, 0, 0, 0.08);
+  }
+  .category-subtitle { color: #4B5563; font-weight: 500; margin: 0.35rem 0 0; }
+  .category-card {
+    background: #fff;
+    border-radius: 16px;
+    border: 1px solid #E5E7EB;
+    box-shadow: 0 12px 26px rgba(0, 0, 0, 0.06);
+    padding: 1.5rem;
+  }
+  .field-grid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  }
+  .field-card {
+    background: #F9FAFB;
+    border-radius: 14px;
+    padding: 0.95rem 1rem;
+    border: 1px solid #E5E7EB;
+    transition: all 0.2s ease;
+  }
+  .field-card:focus-within {
+    border-color: rgba(255, 107, 53, 0.45);
+    box-shadow: 0 10px 24px rgba(255, 107, 53, 0.12);
+  }
+  .field-card label {
+    font-weight: 600;
+    color: #374151;
+    font-size: 0.85rem;
+    margin-bottom: 0.4rem;
+  }
+  .field-card input,
+  .field-card select {
+    border: none;
+    background: transparent;
+    font-weight: 700;
+    font-size: 1.05rem;
+    padding: 0;
+  }
+  .field-card input:focus,
+  .field-card select:focus {
+    box-shadow: none;
+  }
+  .category-actions {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-top: 1.5rem;
+  }
+  .btn-save {
+    background: linear-gradient(135deg, #ff6b35, #f7b801);
+    border: none;
+    color: #fff;
+    font-weight: 700;
+    padding: 0.7rem 1.4rem;
+    border-radius: 12px;
+    box-shadow: 0 12px 22px rgba(255, 107, 53, 0.35);
+    transition: transform 0.2s ease;
+  }
+  .btn-save:hover { transform: translateY(-2px); }
+  @media (max-width: 768px) {
+    .category-title { font-size: 1.35rem; }
+    .field-grid { grid-template-columns: 1fr; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="category-form-wrap">
+  <section class="category-hero">
+    <div class="category-hero-content">
+      <h2 class="category-title">
+        <i class="bi bi-tags"></i>
+        {{ category.name if category else 'Nouvelle catégorie' }}
+      </h2>
+      <p class="category-subtitle">Définissez les catégories disponibles pour Produits ou Services.</p>
+    </div>
+  </section>
+
+  <form method="POST" class="category-card">
+    {% include "admin/partials/_csrf.html" %}
+
+    {% set selected_type = category.normalized_type if category else 'products' %}
+    <div class="field-grid">
+      <div class="field-card">
+        <label>Nom de la catégorie</label>
+        <input type="text" name="name" class="form-control" required value="{{ category.name if category else '' }}">
+      </div>
+      <div class="field-card">
+        <label>Type</label>
+        <select name="category_type" class="form-select" required>
+          {% for key, label in (category_type_labels or {}).items() %}
+          <option value="{{ key }}" {% if selected_type == key %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div class="category-actions">
+      <button class="btn-save">
+        <i class="bi bi-check-circle me-1"></i>Enregistrer
+      </button>
+      <a href="{{ url_for('admin_categories.index') }}" class="btn btn-outline-secondary">
+        Annuler
+      </a>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,143 @@
+{% extends "admin/base.html" %}
+{% block title %}Archives commandes | Admin DealNova{% endblock %}
+{% block page_title %}Archives commandes{% endblock %}
+
+{% block head %}
+<style>
+  .archives-wrap { display: grid; gap: 1rem; }
+  .card-shell {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    padding: 1rem;
+    box-shadow: 0 10px 22px rgba(2, 6, 23, .06);
+  }
+  .period-note { color: #64748b; font-size: .9rem; }
+  .delete-note { font-size: .8rem; color: #92400e; margin-top: .25rem; }
+  .table th { white-space: nowrap; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="archives-wrap">
+  <section class="card-shell">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <div>
+        <h5 class="mb-1">Commandes archivees</h5>
+        <div class="period-note">Suppression definitive admin uniquement apres {{ retention_days }} jours apres fermeture.</div>
+      </div>
+      <div class="d-flex gap-2">
+        <a class="btn btn-sm btn-outline-primary" href="{{ url_for('admin.all_orders') }}">
+          <i class="bi bi-arrow-left"></i> Commandes actives
+        </a>
+        <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('admin.order_periods') }}">
+          <i class="bi bi-calendar3"></i> Periodes
+        </a>
+      </div>
+    </div>
+
+    <form method="get" class="row g-2 mt-2">
+      <div class="col-md-4">
+        <label class="form-label mb-1">Filtrer par periode</label>
+        <select name="period_id" class="form-select form-select-sm">
+          <option value="">Toutes les periodes fermees</option>
+          {% for p in closed_periods %}
+            <option value="{{ p.id }}" {% if period_id == p.id %}selected{% endif %}>
+              #{{ p.id }} - {{ p.name }} (fermee {{ p.closed_at.strftime('%d/%m/%Y %H:%M') if p.closed_at else 'N/A' }})
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2 d-flex align-items-end">
+        <button class="btn btn-sm btn-primary w-100" type="submit">Filtrer</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="card-shell">
+    {% if orders %}
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Client</th>
+            <th>Total</th>
+            <th>Statut</th>
+            <th>Periode</th>
+            <th>Fermee le</th>
+            <th>Suppression possible</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for o in orders %}
+            {% set guard = delete_guards.get(o.id) %}
+            <tr>
+              <td>{{ o.id }}</td>
+              <td>
+                <div class="fw-semibold">{{ o.full_name }}</div>
+                <small class="text-muted">{{ o.phone }}</small>
+              </td>
+              <td>{{ "%.2f"|format((o.total or 0) / 100) }} MAD</td>
+              <td>{{ o.status }}</td>
+              <td>{{ o.period.name if o.period else 'N/A' }}</td>
+              <td>{{ o.period.closed_at.strftime('%d/%m/%Y %H:%M') if o.period and o.period.closed_at else 'N/A' }}</td>
+              <td>
+                {% if guard and guard.allowed %}
+                  <span class="badge text-bg-success">Oui</span>
+                {% else %}
+                  <span class="badge text-bg-secondary">Non</span>
+                  {% if guard and guard.message %}
+                    <div class="delete-note">{{ guard.message }}</div>
+                  {% endif %}
+                {% endif %}
+              </td>
+              <td>
+                <div class="d-flex gap-2">
+                  <a href="{{ url_for('admin.order_detail', oid=o.id) }}" class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-eye"></i>
+                  </a>
+                  {% if o.period_id %}
+                  <a href="{{ url_for('admin.all_orders', period_id=o.period_id) }}" class="btn btn-sm btn-outline-secondary" title="Voir la periode en consultation">
+                    <i class="bi bi-calendar-range"></i> Voir periode
+                  </a>
+                  {% endif %}
+                  <form method="post" action="{{ url_for('admin.delete_archived_order', oid=o.id) }}">
+                    {% include "admin/partials/_csrf.html" %}
+                    <button
+                      type="submit"
+                      class="btn btn-sm btn-outline-danger"
+                      {% if not (guard and guard.allowed) %}disabled title="{{ guard.message if guard else 'Suppression refusee' }}"{% endif %}
+                      data-confirm-click="Supprimer definitivement la commande #{{ o.id }} ?"
+                    >
+                      <i class="bi bi-trash3"></i>
+                    </button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if pagination and pagination.pages > 1 %}
+    <div class="mt-3">
+      {% set endpoint = 'admin.order_archives' %}
+      {% set params = {'period_id': period_id} %}
+      {% set iter_args = {'left_edge': 1, 'right_edge': 1, 'left_current': 1, 'right_current': 1} %}
+      {% set prev_label = '<i class="bi bi-chevron-left"></i>' %}
+      {% set next_label = '<i class="bi bi-chevron-right"></i>' %}
+      {% include "admin/partials/_pagination.html" %}
+    </div>
+    {% endif %}
+    {% else %}
+      <div class="text-center text-muted py-4">
+        <i class="bi bi-inbox" style="font-size:2rem;"></i>
+        <div class="mt-2">Aucune commande archivee.</div>
+      </div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

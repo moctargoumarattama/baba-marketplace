@@ -1,0 +1,654 @@
+{% extends "admin/base.html" %}
+{% block title %}Paramtres Marketplace | Admin DealNova{% endblock %}
+{% block page_title %}Paramtres Marketplace{% endblock %}
+
+{% block head %}
+<style>
+  .settings-wrap {
+    display: grid;
+    gap: 1.5rem;
+  }
+
+  /* Hero section */
+  .settings-hero {
+    background: linear-gradient(135deg, rgba(255, 107, 53, 0.18), rgba(0, 78, 137, 0.08));
+    border: 1px solid rgba(255, 107, 53, 0.2);
+    border-radius: 20px;
+    padding: 1.6rem;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .settings-hero::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at top right, rgba(255, 255, 255, 0.55), transparent 60%);
+    opacity: 0.7;
+  }
+
+  .settings-hero-content {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .settings-title {
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: var(--dark);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    flex-wrap: wrap;
+  }
+
+  .settings-title i {
+    width: 46px;
+    height: 46px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.85);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--primary);
+    font-size: 1.3rem;
+    box-shadow: 0 10px 18px rgba(0, 0, 0, 0.08);
+  }
+
+  .settings-subtitle {
+    color: #4B5563;
+    font-weight: 500;
+    margin: 0.35rem 0 0;
+  }
+
+  .settings-note {
+    background: rgba(0, 78, 137, 0.08);
+    border: 1px solid rgba(0, 78, 137, 0.15);
+    color: #1f3a5f;
+    border-radius: 12px;
+    padding: 0.75rem 1rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  /* Navigation par sections */
+  .settings-nav {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+  }
+
+  .settings-nav-item {
+    padding: 0.5rem 1rem;
+    border-radius: 999px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    background: #fff;
+    border: 1px solid #E5E7EB;
+    color: #6B7280;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .settings-nav-item:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    transform: translateY(-1px);
+  }
+
+  .settings-nav-item.active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: white;
+    box-shadow: 0 8px 16px rgba(255, 107, 53, 0.25);
+  }
+
+  .settings-nav-item i {
+    font-size: 1rem;
+  }
+
+  /* Cards */
+  .settings-card {
+    background: #fff;
+    border-radius: 18px;
+    border: 1px solid #E5E7EB;
+    box-shadow: 0 12px 26px rgba(0, 0, 0, 0.06);
+    overflow: hidden;
+  }
+
+  .settings-card-header {
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid #E5E7EB;
+    background: #F9FAFB;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .settings-card-header i {
+    font-size: 1.2rem;
+    color: var(--primary);
+  }
+
+  .settings-card-header h3 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin: 0;
+    color: var(--dark);
+  }
+
+  .settings-card-body {
+    padding: 1.6rem;
+  }
+
+  .settings-section {
+    display: block;
+  }
+
+  .settings-section.hidden {
+    display: none;
+  }
+
+  /* Champs */
+  .field-card {
+    background: #F9FAFB;
+    border-radius: 14px;
+    padding: 0.95rem 1rem;
+    border: 1px solid #E5E7EB;
+    transition: all 0.2s ease;
+    height: 100%;
+  }
+
+  .field-card:focus-within {
+    border-color: rgba(255, 107, 53, 0.45);
+    box-shadow: 0 10px 24px rgba(255, 107, 53, 0.12);
+  }
+
+  .field-card label {
+    font-weight: 600;
+    color: #374151;
+    font-size: 0.85rem;
+    margin-bottom: 0.4rem;
+    display: block;
+  }
+
+  .field-card input {
+    border: none;
+    background: transparent;
+    font-weight: 700;
+    font-size: 1.05rem;
+    padding: 0;
+    width: 100%;
+  }
+
+  .field-card input:focus {
+    box-shadow: none;
+    outline: none;
+  }
+
+  .field-card small {
+    display: block;
+    margin-top: 0.5rem;
+  }
+
+  /* Grille pour les villes */
+  .cities-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+  }
+
+  /* Footer */
+  .settings-footer {
+    background: #F9FAFB;
+    border-top: 1px solid #E5E7EB;
+    padding: 1rem 1.5rem;
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .btn-save {
+    background: linear-gradient(135deg, #ff6b35, #f7b801);
+    border: none;
+    color: #fff;
+    font-weight: 700;
+    padding: 0.7rem 2rem;
+    border-radius: 12px;
+    box-shadow: 0 12px 22px rgba(255, 107, 53, 0.35);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+  }
+
+  .btn-save:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 16px 28px rgba(255, 107, 53, 0.45);
+  }
+
+  .btn-save:active {
+    transform: translateY(0);
+  }
+
+  /* Bouton retour en haut */
+  .back-to-top {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: var(--primary);
+    color: white;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    z-index: 100;
+    border: none;
+  }
+
+  .back-to-top.show {
+    opacity: 1;
+  }
+
+  /* Version mobile */
+  @media (max-width: 768px) {
+    .settings-title {
+      font-size: 1.35rem;
+    }
+    
+    .settings-card-body {
+      padding: 1.2rem;
+    }
+    
+    .settings-nav {
+      justify-content: center;
+    }
+    
+    .settings-nav-item {
+      font-size: 0.8rem;
+      padding: 0.4rem 0.8rem;
+    }
+    
+    .cities-grid {
+      grid-template-columns: 1fr;
+    }
+    
+    .settings-footer {
+      flex-direction: column;
+    }
+    
+    .btn-save {
+      width: 100%;
+      justify-content: center;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .settings-nav-item {
+      width: calc(50% - 0.25rem);
+      justify-content: center;
+    }
+    
+    .settings-hero {
+      padding: 1.2rem;
+    }
+    
+    .settings-title i {
+      width: 40px;
+      height: 40px;
+      font-size: 1.1rem;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="settings-wrap">
+  <!-- Bouton retour en haut -->
+  <button class="back-to-top" id="backToTop" title="Retour en haut">
+    <i class="bi bi-arrow-up"></i>
+  </button>
+
+  <!-- Hero section -->
+  <section class="settings-hero">
+    <div class="settings-hero-content">
+      <div>
+        <h2 class="settings-title">
+          <i class="bi bi-sliders"></i>
+          Paramtres Marketplace
+        </h2>
+        <p class="settings-subtitle">Ajustez les tarifs livraison, la part Baba fixe et la commission location.</p>
+      </div>
+      <div class="settings-note">
+        <i class="bi bi-info-circle"></i>
+        Ces paramtres sappliquent aux nouvelles commandes et aux nouveaux deals location
+      </div>
+    </div>
+  </section>
+
+  <!-- Navigation par sections -->
+  <div class="settings-nav">
+    <button type="button" class="settings-nav-item active" data-section="commission">
+      <i class="bi bi-percent"></i>
+      <span>Location</span>
+    </button>
+    <button type="button" class="settings-nav-item" data-section="shipping">
+      <i class="bi bi-truck"></i>
+      <span>Livraison</span>
+    </button>
+    <button type="button" class="settings-nav-item" data-section="alerts">
+      <i class="bi bi-bell"></i>
+      <span>Alertes</span>
+    </button>
+  </div>
+
+  <!-- Formulaire principal - Soumission normale -->
+  <form method="POST" class="settings-card" id="settingsForm">
+    {% include "admin/partials/_csrf.html" %}
+    
+    <!-- Section Commission -->
+    <div id="commission-section" class="settings-section">
+      <div class="settings-card-header">
+        <i class="bi bi-percent"></i>
+        <h3>Commission location</h3>
+      </div>
+      <div class="settings-card-body">
+        <div class="cities-grid">
+          <div class="field-card">
+            <label class="form-label">Location : commission Baba Market (%)</label>
+            <input
+              type="number"
+              name="rental_success_commission_percent"
+              min="0"
+              max="100"
+              step="0.1"
+              class="form-control"
+              value="{{ (settings.rental_success_commission_bps / 100)|round(2) }}"
+              required
+            >
+            <small class="text-muted">
+              <i class="bi bi-info-circle"></i>
+              Exemple : 30 = 30%
+            </small>
+          </div>
+        </div>
+        <div class="small text-muted mt-3">
+          Location : pas dabonnement. Le propritaire ne peut pas modifier cette commission interne.
+          Cette commission est en pourcentage uniquement (pas de fixe) et sapplique  la clture dun deal taken
+          sur la base des frais propritaire (pas sur le loyer).
+        </div>
+      </div>
+    </div>
+
+    <!-- Section Livraison -->
+    <div id="shipping-section" class="settings-section hidden">
+      <div class="settings-card-header">
+        <i class="bi bi-truck"></i>
+        <h3>Livraison et part Baba</h3>
+      </div>
+      <div class="settings-card-body">
+        <div class="cities-grid">
+          <div class="field-card">
+            <label class="form-label">Knitra (MAD)</label>
+            <input
+              type="number"
+              step="1"
+              min="0"
+              name="shipping_kenitra"
+              class="form-control"
+              value="{{ settings.shipping_kenitra / 100 }}"
+              required
+            >
+          </div>
+          <div class="field-card">
+            <label class="form-label">Tmara (MAD)</label>
+            <input
+              type="number"
+              step="1"
+              min="0"
+              name="shipping_temara"
+              class="form-control"
+              value="{{ settings.shipping_temara / 100 }}"
+              required
+            >
+          </div>
+          <div class="field-card">
+            <label class="form-label">Rabat (MAD)</label>
+            <input
+              type="number"
+              step="1"
+              min="0"
+              name="shipping_rabat"
+              class="form-control"
+              value="{{ settings.shipping_rabat / 100 }}"
+              required
+            >
+          </div>
+          <div class="field-card">
+            <label class="form-label">Sal (MAD)</label>
+            <input
+              type="number"
+              step="1"
+              min="0"
+              name="shipping_sale"
+              class="form-control"
+              value="{{ settings.shipping_sale / 100 }}"
+              required
+            >
+          </div>
+          <div class="field-card">
+            <label class="form-label">Part Baba par livraison (DH)</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              name="delivery_platform_fee_fixed_dh"
+              class="form-control"
+              value="{{ ((settings.delivery_platform_fee_fixed_cents or 0) / 100)|round(2) }}"
+            >
+            <small class="text-muted">
+              <i class="bi bi-info-circle"></i>
+              Ex: 5 = Baba prend 5 DH par livraison livree.
+            </small>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section Alertes -->
+    <div id="alerts-section" class="settings-section hidden">
+      <div class="settings-card-header">
+        <i class="bi bi-bell"></i>
+        <h3>Alertes vendeur</h3>
+      </div>
+      <div class="settings-card-body">
+        <div class="field-card">
+          <label class="form-label">Seuil stock faible (units)</label>
+          <input
+            type="number"
+            name="low_stock_threshold"
+            min="0"
+            max="9999"
+            step="1"
+            class="form-control"
+            value="{{ settings.low_stock_threshold }}"
+            required
+          >
+          <small class="text-muted">
+            <i class="bi bi-info-circle"></i>
+            Exemple : 5 = alerte si stock  5
+          </small>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer avec actions -->
+    <div class="settings-footer">
+      <button type="submit" class="btn-save" id="saveBtn">
+        <i class="bi bi-check-circle"></i>
+        Enregistrer
+      </button>
+    </div>
+  </form>
+</div>
+
+<!-- Script pour la navigation uniquement -->
+<script>
+(function() {
+  // Configuration
+  const STORAGE_KEY = 'settings_active_section';
+  const backToTopBtn = document.getElementById('backToTop');
+  
+  // Navigation par sections
+  const navItems = document.querySelectorAll('.settings-nav-item');
+  const sections = {
+    commission: document.getElementById('commission-section'),
+    shipping: document.getElementById('shipping-section'),
+    alerts: document.getElementById('alerts-section')
+  };
+
+  // Fonction pour changer de section
+  function switchSection(sectionId) {
+    // Mettre  jour les classes actives
+    navItems.forEach(item => {
+      if (item.dataset.section === sectionId) {
+        item.classList.add('active');
+      } else {
+        item.classList.remove('active');
+      }
+    });
+
+    // Afficher/masquer les sections
+    Object.keys(sections).forEach(key => {
+      if (key === sectionId) {
+        sections[key].classList.remove('hidden');
+      } else {
+        sections[key].classList.add('hidden');
+      }
+    });
+
+    // Sauvegarder la section active
+    localStorage.setItem(STORAGE_KEY, sectionId);
+  }
+
+  // Ajouter les vnements de clic sur la navigation
+  navItems.forEach(item => {
+    item.addEventListener('click', () => {
+      const sectionId = item.dataset.section;
+      switchSection(sectionId);
+      
+      // Animation de scroll fluide vers le formulaire
+      document.getElementById('settingsForm').scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'start' 
+      });
+    });
+  });
+
+  // Restaurer la dernire section active
+  const savedSection = localStorage.getItem(STORAGE_KEY);
+  if (savedSection && sections[savedSection]) {
+    switchSection(savedSection);
+  }
+
+  // Gestion du bouton retour en haut
+  function toggleBackToTop() {
+    if (window.scrollY > 300) {
+      backToTopBtn.classList.add('show');
+    } else {
+      backToTopBtn.classList.remove('show');
+    }
+  }
+
+  backToTopBtn.addEventListener('click', () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  window.addEventListener('scroll', toggleBackToTop);
+
+  // Sauvegarde de la position
+  function savePosition() {
+    const scrollY = window.scrollY;
+    const viewportHeight = window.innerHeight;
+    const documentHeight = document.documentElement.scrollHeight;
+    const scrollPercentage = (scrollY / (documentHeight - viewportHeight)) * 100;
+    
+    const positionData = {
+      scrollPercentage: scrollPercentage,
+      scrollY: scrollY,
+      activeSection: document.querySelector('.settings-nav-item.active')?.dataset.section,
+      timestamp: Date.now()
+    };
+    
+    localStorage.setItem('settings_page_position', JSON.stringify(positionData));
+  }
+
+  // Restauration de la position
+  function restorePosition() {
+    const savedData = localStorage.getItem('settings_page_position');
+    if (!savedData) return;
+    
+    try {
+      const positionData = JSON.parse(savedData);
+      const isRecent = (Date.now() - positionData.timestamp) < 10 * 60 * 1000;
+      
+      if (isRecent && positionData.activeSection) {
+        switchSection(positionData.activeSection);
+        
+        setTimeout(() => {
+          const documentHeight = document.documentElement.scrollHeight;
+          const viewportHeight = window.innerHeight;
+          const targetScrollY = (positionData.scrollPercentage / 100) * (documentHeight - viewportHeight);
+          
+          window.scrollTo({
+            top: targetScrollY,
+            behavior: 'smooth'
+          });
+        }, 100);
+      }
+      
+      localStorage.removeItem('settings_page_position');
+    } catch (e) {
+      console.error('Erreur de restauration:', e);
+    }
+  }
+
+  // Sauvegarde priodique de la position
+  let scrollTimeout;
+  window.addEventListener('scroll', () => {
+    clearTimeout(scrollTimeout);
+    scrollTimeout = setTimeout(savePosition, 500);
+  });
+
+  window.addEventListener('beforeunload', savePosition);
+
+  // Sauvegarde avant de quitter via les liens
+  document.querySelectorAll('a').forEach(link => {
+    link.addEventListener('click', savePosition);
+  });
+
+  // Initialisation
+  restorePosition();
+  toggleBackToTop();
+
+})();
+</script>
+{% endblock %}

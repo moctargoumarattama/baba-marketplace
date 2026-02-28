@@ -1,0 +1,1235 @@
+{% extends "base.html" %}
+{% block title %}Mes commandes{% endblock %}
+
+{% block body_attrs %}
+data-notify-url="{{ url_for('vendor.orders_notifications') }}"
+data-notify-interval="15000"
+data-notify-key="vendorLastOrderId"
+{% endblock %}
+
+{% block head %}
+<style>
+  :root {
+    --vo-primary: #10b981;
+    --vo-primary-dark: #047857;
+    --vo-accent: #f59e0b;
+    --vo-dark: #0f172a;
+    --vo-muted: #64748b;
+    --vo-line: #e2e8f0;
+    --vo-soft: #f8fafc;
+  }
+
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html {
+    font-size: 16px;
+  }
+
+  .vendor-orders-page {
+    display: grid;
+    gap: 1rem;
+    padding-bottom: 2rem;
+  }
+
+  /* ===== HERO HEADER ===== */
+  .orders-hero {
+    border-radius: 1.25rem;
+    padding: 1.25rem;
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    background:
+      radial-gradient(120% 120% at 100% 0%, rgba(245, 158, 11, 0.22) 0%, rgba(245, 158, 11, 0) 48%),
+      linear-gradient(135deg, rgba(16, 185, 129, 0.16), rgba(15, 23, 42, 0.04));
+    box-shadow: 0 0.75rem 1.625rem rgba(15, 23, 42, 0.08);
+    animation: fadeInUp 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(1rem);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .orders-hero-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  .orders-title {
+    margin: 0;
+    font-size: clamp(1.25rem, 3vw, 1.75rem);
+    font-weight: 800;
+    color: var(--vo-dark);
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+  }
+
+  .orders-subtitle {
+    margin: 0.375rem 0 0;
+    color: var(--vo-muted);
+    font-size: 0.875rem;
+    font-weight: 600;
+    line-height: 1.4;
+  }
+
+  .orders-total-pill {
+    border: 1px solid rgba(16, 185, 129, 0.25);
+    background: rgba(255, 255, 255, 0.9);
+    color: var(--vo-primary-dark);
+    font-weight: 800;
+    padding: 0.5rem 0.875rem;
+    border-radius: 62.4375rem;
+    box-shadow: 0 0.375rem 0.875rem rgba(2, 132, 199, 0.08);
+    white-space: nowrap;
+    font-size: 0.875rem;
+    animation: scaleIn 0.3s 0.1s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+  }
+
+  @keyframes scaleIn {
+    from {
+      transform: scale(0.8);
+      opacity: 0;
+    }
+    to {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+
+  /* ===== STATS GRID ===== */
+  .orders-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+    gap: 0.75rem;
+    margin-top: 1rem;
+  }
+
+  .orders-stat {
+    border: 1px solid #e5e7eb;
+    border-radius: 1rem;
+    padding: 0.875rem;
+    background: rgba(255, 255, 255, 0.9);
+    box-shadow: 0 0.5rem 1rem rgba(15, 23, 42, 0.05);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    animation: slideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) backwards;
+  }
+
+  .orders-stat:nth-child(1) { animation-delay: 0.05s; }
+  .orders-stat:nth-child(2) { animation-delay: 0.1s; }
+  .orders-stat:nth-child(3) { animation-delay: 0.15s; }
+  .orders-stat:nth-child(4) { animation-delay: 0.2s; }
+  .orders-stat:nth-child(5) { animation-delay: 0.25s; }
+
+  @keyframes slideIn {
+    from {
+      opacity: 0;
+      transform: translateX(-0.5rem);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  .orders-stat:hover {
+    transform: translateY(-0.125rem);
+    box-shadow: 0 0.75rem 1.5rem rgba(15, 23, 42, 0.1);
+  }
+
+  .orders-stat-label {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    color: var(--vo-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    line-height: 1.2;
+  }
+
+  .orders-stat-value {
+    margin-top: 0.375rem;
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--vo-dark);
+    line-height: 1;
+  }
+
+  /* ===== DESKTOP TABLE VIEW ===== */
+  .orders-board {
+    border-radius: 1.25rem;
+    border: 1px solid var(--vo-line);
+    background: rgba(255, 255, 255, 0.95);
+    box-shadow: 0 0.875rem 1.75rem rgba(15, 23, 42, 0.08);
+    overflow: hidden;
+    animation: fadeInUp 0.5s 0.2s cubic-bezier(0.4, 0, 0.2, 1) backwards;
+  }
+
+  .orders-board-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--vo-line);
+    background: linear-gradient(180deg, #ffffff, #f8fafc);
+  }
+
+  .orders-board-title {
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 800;
+    color: var(--vo-dark);
+  }
+
+  .orders-board-subtitle {
+    margin: 0;
+    font-size: 0.8125rem;
+    color: var(--vo-muted);
+    font-weight: 600;
+  }
+
+  .orders-table-wrap {
+    overflow-x: auto;
+  }
+
+  .orders-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .orders-table thead th {
+    background: #f8fafc;
+    padding: 0.875rem 1rem;
+    border-bottom: 1px solid var(--vo-line);
+    font-size: 0.75rem;
+    color: var(--vo-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    font-weight: 800;
+    white-space: nowrap;
+  }
+
+  .orders-table tbody td {
+    padding: 1rem;
+    border-bottom: 1px solid #edf2f7;
+    font-size: 0.9375rem;
+    color: #1f2937;
+    vertical-align: middle;
+  }
+
+  .orders-table tbody tr {
+    transition: all 0.2s ease;
+  }
+
+  .orders-table tbody tr:hover {
+    background: #f8fafc;
+    transform: scale(1.005);
+  }
+
+  .order-id {
+    font-weight: 800;
+    color: var(--vo-dark);
+  }
+
+  .client-main {
+    font-weight: 700;
+    color: var(--vo-dark);
+  }
+
+  .client-sub {
+    margin-top: 0.25rem;
+    color: var(--vo-muted);
+    font-size: 0.8125rem;
+  }
+
+  .amount-main {
+    font-weight: 800;
+    color: #0f766e;
+    white-space: nowrap;
+  }
+
+  .product-list-mini {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+  }
+
+  .product-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem 0.625rem;
+    border-radius: 62.4375rem;
+    background: #ecfdf5;
+    color: #065f46;
+    font-weight: 800;
+    font-size: 0.75rem;
+    border: 1px solid #bbf7d0;
+  }
+
+  .product-more {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--vo-muted);
+  }
+
+  .count-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.125rem;
+    padding: 0.25rem 0.625rem;
+    border-radius: 62.4375rem;
+    background: #eef2ff;
+    color: #3730a3;
+    font-weight: 800;
+    font-size: 0.8125rem;
+    border: 1px solid #c7d2fe;
+  }
+
+  .status-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.8125rem;
+    font-weight: 800;
+    border-radius: 62.4375rem;
+    padding: 0.375rem 0.75rem;
+    border: 1px solid transparent;
+    white-space: nowrap;
+  }
+
+  .status-pending {
+    background: #fef3c7;
+    color: #92400e;
+    border-color: #fcd34d;
+  }
+
+  .status-shipped {
+    background: #dbeafe;
+    color: #1e40af;
+    border-color: #93c5fd;
+  }
+
+  .status-delivered {
+    background: #d1fae5;
+    color: #065f46;
+    border-color: #6ee7b7;
+  }
+
+  .status-cancelled {
+    background: #e5e7eb;
+    color: #374151;
+    border-color: #d1d5db;
+  }
+
+  .status-unknown {
+    background: #111827;
+    color: #fff;
+    border-color: #111827;
+  }
+
+  .order-date {
+    font-weight: 700;
+    color: #0f172a;
+    white-space: nowrap;
+  }
+
+  .order-action {
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .order-action .btn {
+    border-radius: 0.625rem;
+    font-weight: 700;
+    padding: 0.5rem 0.875rem;
+    font-size: 0.875rem;
+  }
+
+  .pay-form {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+
+  .pay-input {
+    border-radius: 0.625rem;
+    border: 1px solid #d6e6dd;
+    padding: 0.4375rem 0.625rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #102a23;
+    min-width: 8.75rem;
+    max-width: 13.75rem;
+  }
+
+  .pay-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    border-radius: 62.4375rem;
+    padding: 0.5rem 0.875rem;
+    border: none;
+    background: linear-gradient(135deg, #12b981, #0f766e);
+    color: #fff;
+    font-weight: 700;
+    font-size: 0.8125rem;
+    box-shadow: 0 0.375rem 0.875rem rgba(18, 185, 129, 0.25);
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .pay-btn:hover {
+    transform: translateY(-0.125rem);
+    box-shadow: 0 0.5rem 1rem rgba(18, 185, 129, 0.3);
+  }
+
+  .pay-btn:active {
+    transform: scale(0.98);
+  }
+
+  .pay-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.4375rem 0.75rem;
+    border-radius: 62.4375rem;
+    background: rgba(16, 185, 129, 0.18);
+    color: #065f46;
+    font-weight: 700;
+    font-size: 0.8125rem;
+  }
+
+  /* ===== MOBILE GRID VIEW ===== */
+  .orders-grid {
+    display: none;
+    grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+    gap: 1rem;
+    animation: fadeInUp 0.5s 0.2s cubic-bezier(0.4, 0, 0.2, 1) backwards;
+  }
+
+  .order-card {
+    border-radius: 1rem;
+    border: 1px solid var(--vo-line);
+    background: rgba(255, 255, 255, 0.95);
+    box-shadow: 0 0.5rem 1rem rgba(15, 23, 42, 0.06);
+    overflow: hidden;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    animation: cardSlideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+  }
+
+  @keyframes cardSlideIn {
+    from {
+      opacity: 0;
+      transform: scale(0.95) translateY(1rem);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+  }
+
+  .order-card:active {
+    transform: scale(0.98);
+  }
+
+  .order-card:hover {
+    transform: translateY(-0.25rem);
+    box-shadow: 0 1rem 2rem rgba(15, 23, 42, 0.12);
+    border-color: rgba(16, 185, 129, 0.3);
+  }
+
+  .order-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.875rem 1rem;
+    border-bottom: 1px solid var(--vo-line);
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.05), rgba(245, 158, 11, 0.03));
+  }
+
+  .order-card-id {
+    font-weight: 800;
+    color: var(--vo-dark);
+    font-size: 1rem;
+  }
+
+  .order-card-body {
+    padding: 1rem;
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .order-card-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .order-card-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--vo-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .order-card-value {
+    font-weight: 700;
+    color: var(--vo-dark);
+    font-size: 0.9375rem;
+    text-align: right;
+  }
+
+  .order-card-products {
+    margin-top: 0.5rem;
+  }
+
+  .order-card-footer {
+    padding: 0.875rem 1rem;
+    border-top: 1px solid var(--vo-line);
+    background: #f8fafc;
+  }
+
+  .order-card-footer .btn {
+    width: 100%;
+    border-radius: 0.75rem;
+    font-weight: 700;
+    padding: 0.625rem;
+    font-size: 0.875rem;
+  }
+
+  .order-card-footer .pay-form {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .order-card-footer .pay-input {
+    flex: 1;
+  }
+
+  .order-card-footer .pay-status {
+    width: 100%;
+    justify-content: center;
+    padding: 0.625rem;
+  }
+
+  /* ===== SKELETON LOADING ===== */
+  .orders-skeleton {
+    display: none;
+    grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+    gap: 1rem;
+  }
+
+  .skeleton-card {
+    border-radius: 1rem;
+    border: 1px solid var(--vo-line);
+    background: rgba(255, 255, 255, 0.95);
+    overflow: hidden;
+    height: 20rem;
+  }
+
+  .skeleton-header {
+    height: 3.5rem;
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+  }
+
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  .skeleton-body {
+    padding: 1rem;
+    display: grid;
+    gap: 0.875rem;
+  }
+
+  .skeleton-line {
+    height: 1.25rem;
+    border-radius: 0.375rem;
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+  }
+
+  .skeleton-line:nth-child(1) { animation-delay: 0.1s; }
+  .skeleton-line:nth-child(2) { animation-delay: 0.2s; }
+  .skeleton-line:nth-child(3) { animation-delay: 0.3s; width: 70%; }
+  .skeleton-line:nth-child(4) { animation-delay: 0.4s; width: 85%; }
+
+  .skeleton-footer {
+    padding: 1rem;
+    background: #f8fafc;
+    border-top: 1px solid var(--vo-line);
+    margin-top: auto;
+  }
+
+  .skeleton-button {
+    height: 2.5rem;
+    border-radius: 0.75rem;
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+  }
+
+  /* ===== PAGINATION ===== */
+  .orders-pagination {
+    padding: 1rem;
+    border-top: 1px solid var(--vo-line);
+    background: #fff;
+    border-radius: 0 0 1.25rem 1.25rem;
+  }
+
+  .orders-pagination .pagination {
+    margin: 0;
+    gap: 0.375rem;
+  }
+
+  .orders-pagination .page-link {
+    border-radius: 0.625rem;
+    border: 1px solid #dbe3ed;
+    color: #334155;
+    font-weight: 700;
+    min-width: 2.5rem;
+    text-align: center;
+    box-shadow: 0 0.1875rem 0.5rem rgba(15, 23, 42, 0.05);
+    transition: all 0.2s ease;
+  }
+
+  .orders-pagination .page-link:hover {
+    transform: translateY(-0.125rem);
+    box-shadow: 0 0.375rem 0.75rem rgba(15, 23, 42, 0.08);
+  }
+
+  .orders-pagination .page-item.active .page-link {
+    background: linear-gradient(135deg, var(--vo-primary), var(--vo-primary-dark));
+    border-color: transparent;
+    color: #fff;
+    box-shadow: 0 0.375rem 0.75rem rgba(16, 185, 129, 0.3);
+  }
+
+  /* ===== EMPTY STATE ===== */
+  .orders-empty {
+    border-radius: 1.25rem;
+    border: 1px solid #dbeafe;
+    background: linear-gradient(180deg, #eff6ff, #ffffff);
+    color: #1e3a8a;
+    box-shadow: 0 0.625rem 1.25rem rgba(30, 58, 138, 0.08);
+    padding: 2rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    text-align: center;
+    animation: fadeInUp 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .orders-empty i {
+    font-size: 3rem;
+    opacity: 0.5;
+  }
+
+  .orders-empty-title {
+    font-weight: 800;
+    font-size: 1.25rem;
+    margin: 0;
+  }
+
+  .orders-empty-text {
+    font-weight: 600;
+    opacity: 0.8;
+    margin: 0;
+  }
+
+  /* ===== TOAST NOTIFICATION ===== */
+  .admin-order-toast {
+    position: fixed;
+    top: 5.625rem;
+    right: 1.5rem;
+    z-index: 1050;
+    background: #0f172a;
+    color: #fff;
+    border-radius: 1rem;
+    padding: 0.875rem 1.125rem;
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    box-shadow: 0 1.125rem 2.25rem rgba(15, 23, 42, 0.35);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(1.25rem);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .admin-order-toast.show {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateX(0);
+  }
+
+  .admin-order-toast .toast-icon {
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 0.75rem;
+    background: rgba(16, 185, 129, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #34d399;
+    font-size: 1.25rem;
+    flex-shrink: 0;
+  }
+
+  .admin-order-toast .toast-title {
+    font-weight: 800;
+    margin-bottom: 0.125rem;
+  }
+
+  .admin-order-toast .toast-text {
+    font-size: 0.875rem;
+    opacity: 0.9;
+  }
+
+  /* ===== RESPONSIVE BREAKPOINTS ===== */
+  @media (max-width: 991.98px) {
+    html {
+      font-size: 15px;
+    }
+
+    .orders-board {
+      display: none;
+    }
+
+    .orders-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+    }
+
+    .admin-order-toast {
+      right: 1rem;
+      left: 1rem;
+      top: auto;
+      bottom: 1rem;
+      transform: translateY(120%);
+    }
+
+    .admin-order-toast.show {
+      transform: translateY(0);
+    }
+  }
+
+  @media (max-width: 575.98px) {
+    html {
+      font-size: 14px;
+    }
+
+    .orders-hero {
+      padding: 1rem;
+    }
+
+    .orders-title {
+      font-size: 1.25rem;
+    }
+
+    .orders-stats {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    .pay-form {
+      flex-direction: column;
+      width: 100%;
+    }
+
+    .pay-input {
+      width: 100%;
+      max-width: 100%;
+    }
+
+    .pay-btn {
+      width: 100%;
+      justify-content: center;
+    }
+  }
+
+  @media (min-width: 992px) {
+    .orders-stats {
+      grid-template-columns: repeat(5, 1fr);
+    }
+  }
+
+  /* ===== LOADING STATE ===== */
+  .is-loading .orders-grid {
+    display: none;
+  }
+
+  .is-loading .orders-skeleton {
+    display: grid;
+  }
+
+  /* ===== SMOOTH SCROLL ===== */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* ===== FOCUS STATES ===== */
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible {
+    outline: 0.125rem solid var(--vo-primary);
+    outline-offset: 0.125rem;
+  }
+
+  /* ===== PRINT STYLES ===== */
+  @media print {
+    .orders-hero,
+    .orders-pagination,
+    .admin-order-toast {
+      display: none;
+    }
+
+    .orders-board {
+      box-shadow: none;
+      border: 1px solid #000;
+    }
+  }
+
+  /* ===== ACCESSIBILITY ===== */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+{% set total_count = pagination.total if pagination else (orders|length if orders else 0) %}
+{% set ns = namespace(pending=0, shipped=0, delivered=0, cancelled=0) %}
+{% set vendor_totals = namespace(qty=0, total=0) %}
+{% for order in orders %}
+  {% if order.status == "pending" %}
+    {% set ns.pending = ns.pending + 1 %}
+  {% elif order.status == "shipped" %}
+    {% set ns.shipped = ns.shipped + 1 %}
+  {% elif order.status == "delivered" %}
+    {% set ns.delivered = ns.delivered + 1 %}
+  {% elif order.status == "cancelled" %}
+    {% set ns.cancelled = ns.cancelled + 1 %}
+  {% endif %}
+  {% for item in order.items %}
+    {% if item.product and item.product.vendor_id == current_user.id %}
+      {% set vendor_totals.qty = vendor_totals.qty + (item.quantity or 0) %}
+      {% set vendor_totals.total = vendor_totals.total + ((item.price or 0) * (item.quantity or 0)) %}
+    {% endif %}
+  {% endfor %}
+{% endfor %}
+
+<section class="vendor-orders-page">
+  <!-- HERO HEADER -->
+  <header class="orders-hero">
+    <div class="orders-hero-top">
+      <div>
+        <h2 class="orders-title">Mes commandes</h2>
+        <p class="orders-subtitle">
+          {% if current_user.role == 'admin' %}
+            Suivi rapide des commandes et statuts en un seul écran
+          {% else %}
+            Confirmez vos encaissements par période, commande par commande
+          {% endif %}
+        </p>
+      </div>
+      <div class="orders-total-pill">{{ total_count }} commande(s)</div>
+    </div>
+
+    <!-- FILTRE PÉRIODE -->
+    <div class="d-flex flex-wrap align-items-center gap-2 mt-3">
+      <form method="get" class="d-flex flex-wrap align-items-center gap-2" style="max-width: 100%;">
+        <div class="text-muted fw-semibold">Période</div>
+        <select class="form-select form-select-sm js-auto-submit" name="period" style="min-width: 220px;">
+          {% for p in periods %}
+            <option value="{{ p.id }}" {% if selected_period and p.id == selected_period.id %}selected{% endif %}>
+              {{ p.name }}{% if p.status == 'open' %} (ouverte){% endif %}
+            </option>
+          {% endfor %}
+        </select>
+        {% if request.args.get('page') %}
+          <input type="hidden" name="page" value="1">
+        {% endif %}
+      </form>
+      <a href="{{ url_for('vendor.periods') }}" class="btn btn-sm btn-outline-secondary" style="border-radius: 999px;">
+        <i class="bi bi-calendar3"></i> Gérer
+      </a>
+    </div>
+
+    <!-- STATS -->
+    <div class="orders-stats">
+      {% if current_user.role == 'admin' %}
+        <article class="orders-stat">
+          <div class="orders-stat-label">Total</div>
+          <div class="orders-stat-value">{{ total_count }}</div>
+        </article>
+        <article class="orders-stat">
+          <div class="orders-stat-label">En attente</div>
+          <div class="orders-stat-value">{{ ns.pending }}</div>
+        </article>
+        <article class="orders-stat">
+          <div class="orders-stat-label">En livraison</div>
+          <div class="orders-stat-value">{{ ns.shipped }}</div>
+        </article>
+        <article class="orders-stat">
+          <div class="orders-stat-label">Livrées</div>
+          <div class="orders-stat-value">{{ ns.delivered }}</div>
+        </article>
+        <article class="orders-stat">
+          <div class="orders-stat-label">Annulées</div>
+          <div class="orders-stat-value">{{ ns.cancelled }}</div>
+        </article>
+      {% else %}
+        <article class="orders-stat">
+          <div class="orders-stat-label">Commandes</div>
+          <div class="orders-stat-value">{{ total_count }}</div>
+        </article>
+        <article class="orders-stat">
+          <div class="orders-stat-label">Produits</div>
+          <div class="orders-stat-value">{{ vendor_totals.qty }}</div>
+        </article>
+        <article class="orders-stat">
+          <div class="orders-stat-label">Total</div>
+          <div class="orders-stat-value">{{ (vendor_totals.total / 100)|round(2) }} MAD</div>
+        </article>
+      {% endif %}
+    </div>
+  </header>
+
+  {% if orders %}
+    <!-- DESKTOP TABLE VIEW -->
+    <section class="orders-board">
+      <div class="orders-board-head">
+        <h3 class="orders-board-title">Liste des commandes</h3>
+        <p class="orders-board-subtitle">Tri du plus récent au plus ancien</p>
+      </div>
+
+      <div class="orders-table-wrap">
+        <table class="orders-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              {% if current_user.role == 'admin' %}
+              <th>Client</th>
+              {% else %}
+              <th>Produits</th>
+              <th>Nb produits</th>
+              {% endif %}
+              <th>Total</th>
+              {% if current_user.role == 'admin' %}
+              <th>Statut</th>
+              <th>Date</th>
+              {% endif %}
+              <th class="text-end">Détail</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for order in orders %}
+            {% set vendor_qty = namespace(val=0) %}
+            {% set vendor_total = namespace(val=0) %}
+            {% for item in order.items %}
+              {% if item.product and item.product.vendor_id == current_user.id %}
+                {% set vendor_qty.val = vendor_qty.val + (item.quantity or 0) %}
+                {% set vendor_total.val = vendor_total.val + ((item.price or 0) * (item.quantity or 0)) %}
+              {% endif %}
+            {% endfor %}
+            <tr>
+              <td>
+                <span class="order-id">#{{ order.id }}</span>
+              </td>
+
+              {% if current_user.role == 'admin' %}
+                <td>
+                  <div class="client-main">{{ order.buyer.username if order.buyer else order.full_name }}</div>
+                  <div class="client-sub">{{ order.phone }}</div>
+                </td>
+              {% else %}
+                <td>
+                  <div class="product-list-mini">
+                    {% set shown = namespace(count=0) %}
+                    {% for item in order.items %}
+                      {% if item.product and item.product.vendor_id == current_user.id %}
+                        {% if shown.count < 3 %}
+                          <span class="product-chip">{{ item.product.name }} ×{{ item.quantity }}</span>
+                        {% endif %}
+                        {% set shown.count = shown.count + 1 %}
+                      {% endif %}
+                    {% endfor %}
+                    {% if shown.count == 0 %}
+                      <span class="product-more">-</span>
+                    {% elif shown.count > 3 %}
+                      <span class="product-more">+{{ shown.count - 3 }} autres</span>
+                    {% endif %}
+                  </div>
+                </td>
+                <td>
+                  <span class="count-pill">{{ vendor_qty.val }}</span>
+                </td>
+              {% endif %}
+
+              <td>
+                {% if current_user.role == 'admin' %}
+                  <span class="amount-main">{{ (order.total / 100)|round(2) }} MAD</span>
+                {% else %}
+                  <span class="amount-main">{{ (vendor_total.val / 100)|round(2) }} MAD</span>
+                {% endif %}
+              </td>
+
+              {% if current_user.role == 'admin' %}
+                <td>
+                  {% if order.status == "pending" %}
+                    <span class="status-chip status-pending"><i class="bi bi-clock"></i> {{ label_order_status(order.status, current_lang) }}</span>
+                  {% elif order.status == "shipped" %}
+                    <span class="status-chip status-shipped"><i class="bi bi-truck"></i> {{ label_order_status(order.status, current_lang) }}</span>
+                  {% elif order.status == "delivered" %}
+                    <span class="status-chip status-delivered"><i class="bi bi-check-circle"></i> {{ label_order_status(order.status, current_lang) }}</span>
+                  {% elif order.status == "cancelled" %}
+                    <span class="status-chip status-cancelled"><i class="bi bi-x-circle"></i> {{ label_order_status(order.status, current_lang) }}</span>
+                  {% else %}
+                    <span class="status-chip status-unknown"><i class="bi bi-question-circle"></i> {{ label_order_status(order.status, current_lang) }}</span>
+                  {% endif %}
+                </td>
+
+                <td>
+                  <span class="order-date">{{ order.created_at.strftime('%d/%m/%Y %H:%M') }}</span>
+                </td>
+              {% endif %}
+
+              <td class="order-action">
+                {% if current_user.role == 'admin' %}
+                  <a class="btn btn-sm btn-primary" href="{{ url_for('vendor.order_detail', oid=order.id) }}">
+                    <i class="bi bi-eye"></i> Voir
+                  </a>
+                {% else %}
+                  {% set receipt = receipt_map.get(order.id) %}
+                  {% if receipt %}
+                    <span class="pay-status" title="{{ receipt.received_at.strftime('%d/%m/%Y %H:%M') if receipt.received_at else '' }}">
+                      <i class="bi bi-check2-circle"></i> Confirmé
+                    </span>
+                  {% else %}
+                    <form method="post" action="{{ url_for('vendor.confirm_receipt', oid=order.id) }}" class="pay-form">
+                      {% include "partials/_csrf.html" %}
+                      <input class="pay-input" name="note" placeholder="Description" maxlength="255">
+                      <button class="pay-btn" type="submit"><i class="bi bi-check-circle"></i> Je suis payé</button>
+                    </form>
+                  {% endif %}
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      {% if pagination and pagination.pages > 1 %}
+      <nav class="orders-pagination">
+        <ul class="pagination justify-content-center">
+          <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+            <a class="page-link" href="{{ url_for('vendor.orders', page=pagination.prev_num) if pagination.has_prev else '#' }}">
+              <i class="bi bi-chevron-left"></i>
+            </a>
+          </li>
+          {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=1) %}
+            {% if p %}
+              <li class="page-item {% if p == pagination.page %}active{% endif %}">
+                <a class="page-link" href="{{ url_for('vendor.orders', page=p) }}">{{ p }}</a>
+              </li>
+            {% else %}
+              <li class="page-item disabled"><span class="page-link">...</span></li>
+            {% endif %}
+          {% endfor %}
+          <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+            <a class="page-link" href="{{ url_for('vendor.orders', page=pagination.next_num) if pagination.has_next else '#' }}">
+              <i class="bi bi-chevron-right"></i>
+            </a>
+          </li>
+        </ul>
+      </nav>
+      {% endif %}
+    </section>
+
+    <!-- MOBILE GRID VIEW -->
+    <div class="orders-grid">
+      {% for order in orders %}
+      {% set vendor_qty = namespace(val=0) %}
+      {% set vendor_total = namespace(val=0) %}
+      {% for item in order.items %}
+        {% if item.product and item.product.vendor_id == current_user.id %}
+          {% set vendor_qty.val = vendor_qty.val + (item.quantity or 0) %}
+          {% set vendor_total.val = vendor_total.val + ((item.price or 0) * (item.quantity or 0)) %}
+        {% endif %}
+      {% endfor %}
+      <article class="order-card">
+        <div class="order-card-header">
+          <span class="order-card-id">#{{ order.id }}</span>
+          {% if current_user.role == 'admin' %}
+            {% if order.status == "pending" %}
+              <span class="status-chip status-pending"><i class="bi bi-clock"></i> {{ label_order_status(order.status, current_lang) }}</span>
+            {% elif order.status == "shipped" %}
+              <span class="status-chip status-shipped"><i class="bi bi-truck"></i> {{ label_order_status(order.status, current_lang) }}</span>
+            {% elif order.status == "delivered" %}
+              <span class="status-chip status-delivered"><i class="bi bi-check-circle"></i> {{ label_order_status(order.status, current_lang) }}</span>
+            {% elif order.status == "cancelled" %}
+              <span class="status-chip status-cancelled"><i class="bi bi-x-circle"></i> {{ label_order_status(order.status, current_lang) }}</span>
+            {% else %}
+              <span class="status-chip status-unknown"><i class="bi bi-question-circle"></i> {{ label_order_status(order.status, current_lang) }}</span>
+            {% endif %}
+          {% else %}
+            <span class="count-pill">{{ vendor_qty.val }} produit(s)</span>
+          {% endif %}
+        </div>
+
+        <div class="order-card-body">
+          {% if current_user.role == 'admin' %}
+            <div class="order-card-row">
+              <span class="order-card-label">Client</span>
+              <span class="order-card-value">{{ order.buyer.username if order.buyer else order.full_name }}</span>
+            </div>
+            <div class="order-card-row">
+              <span class="order-card-label">Téléphone</span>
+              <span class="order-card-value">{{ order.phone }}</span>
+            </div>
+            <div class="order-card-row">
+              <span class="order-card-label">Date</span>
+              <span class="order-card-value">{{ order.created_at.strftime('%d/%m/%Y') }}</span>
+            </div>
+          {% else %}
+            <div class="order-card-products">
+              <div class="order-card-label" style="margin-bottom: 0.5rem;">Produits</div>
+              <div class="product-list-mini">
+                {% set shown = namespace(count=0) %}
+                {% for item in order.items %}
+                  {% if item.product and item.product.vendor_id == current_user.id %}
+                    {% if shown.count < 3 %}
+                      <span class="product-chip">{{ item.product.name }} ×{{ item.quantity }}</span>
+                    {% endif %}
+                    {% set shown.count = shown.count + 1 %}
+                  {% endif %}
+                {% endfor %}
+                {% if shown.count == 0 %}
+                  <span class="product-more">Aucun produit</span>
+                {% elif shown.count > 3 %}
+                  <span class="product-more">+{{ shown.count - 3 }} autres</span>
+                {% endif %}
+              </div>
+            </div>
+          {% endif %}
+
+          <div class="order-card-row">
+            <span class="order-card-label">Total</span>
+            <span class="order-card-value amount-main">
+              {% if current_user.role == 'admin' %}
+                {{ (order.total / 100)|round(2) }} MAD
+              {% else %}
+                {{ (vendor_total.val / 100)|round(2) }} MAD
+              {% endif %}
+            </span>
+          </div>
+        </div>
+
+        <div class="order-card-footer">
+          {% if current_user.role == 'admin' %}
+            <a class="btn btn-primary w-100" href="{{ url_for('vendor.order_detail', oid=order.id) }}">
+              <i class="bi bi-eye"></i> Voir les détails
+            </a>
+          {% else %}
+            {% set receipt = receipt_map.get(order.id) %}
+            {% if receipt %}
+              <div class="pay-status" title="{{ receipt.received_at.strftime('%d/%m/%Y %H:%M') if receipt.received_at else '' }}">
+                <i class="bi bi-check2-circle"></i> Confirmé
+              </div>
+            {% else %}
+              <form method="post" action="{{ url_for('vendor.confirm_receipt', oid=order.id) }}" class="pay-form">
+                {% include "partials/_csrf.html" %}
+                <input class="pay-input" name="note" placeholder="Description (optionnelle)" maxlength="255">
+                <button class="pay-btn" type="submit"><i class="bi bi-check-circle"></i> Je suis payé</button>
+              </form>
+            {% endif %}
+          {% endif %}
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+
+    <!-- SKELETON LOADING (initially hidden) -->
+    <div class="orders-skeleton">
+      {% for i in range(6) %}
+      <div class="skeleton-card">
+        <div class="skeleton-header"></div>
+        <div class="skeleton-body">
+          <div class="skeleton-line"></div>
+          <div class="skeleton-line"></div>
+          <div class="skeleton-line"></div>
+          <div class="skeleton-line"></div>
+        </div>
+        <div class="skeleton-footer">
+          <div class="skeleton-button"></div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+  {% else %}
+    <!-- EMPTY STATE -->
+    <div class="orders-empty">
+      <i class="bi bi-inbox"></i>
+      <h3 class="orders-empty-title">Aucune commande</h3>
+      <p class="orders-empty-text">Vous n'avez pas encore de commandes à afficher</p>
+    </div>
+  {% endif %}
+</section>
+
+<!-- TOAST NOTIFICATION -->
+<div id="admin-order-toast" class="admin-order-toast" role="alert" aria-live="polite" aria-atomic="true">
+  <div class="toast-icon"><i class="bi bi-bell"></i></div>
+  <div>
+    <div class="toast-title">Nouvelle commande</div>
+    <div class="toast-text" id="admin-order-toast-text">Nouvelle commande reçue</div>
+  </div>
+</div>
+
+<script>
+  // Simulate loading state (remove this in production)
+  // document.body.classList.add('is-loading');
+  // setTimeout(() => document.body.classList.remove('is-loading'), 2000);
+
+  // Add staggered animation to cards
+  document.querySelectorAll('.order-card').forEach((card, index) => {
+    card.style.animationDelay = `${index * 0.05}s`;
+  });
+
+  // Smooth scroll to top on pagination
+  document.querySelectorAll('.pagination .page-link').forEach(link => {
+    link.addEventListener('click', function(e) {
+      if (this.getAttribute('href') !== '#') {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    });
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,440 @@
+{% extends "base.html" %}
+
+{% block title %}Mes locations | {{ config.SITE_NAME }}{% endblock %}
+
+{% block head %}
+<style>
+  .owner-shell {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 1rem;
+    display: grid;
+    gap: 1rem;
+  }
+  .owner-hero {
+    background: linear-gradient(135deg, #065f46, #10b981);
+    border-radius: 18px;
+    padding: 1rem;
+    color: #fff;
+    box-shadow: 0 16px 34px rgba(6, 95, 70, 0.24);
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.9rem;
+    flex-wrap: wrap;
+  }
+  .owner-hero h1 {
+    margin: 0 0 0.35rem;
+    font-size: 1.3rem;
+    font-weight: 900;
+  }
+  .owner-hero p {
+    margin: 0;
+    opacity: 0.93;
+    max-width: 680px;
+  }
+  .owner-hero-actions {
+    display: flex;
+    gap: 0.55rem;
+    flex-wrap: wrap;
+  }
+  .owner-stats {
+    display: grid;
+    gap: 0.7rem;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .owner-stat {
+    background: #fff;
+    border: 1px solid #dbe5ef;
+    border-radius: 14px;
+    padding: 0.75rem 0.85rem;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+  }
+  .owner-stat .label {
+    color: #64748b;
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .owner-stat .value {
+    color: #0f172a;
+    font-size: 1.15rem;
+    font-weight: 900;
+    margin-top: 0.18rem;
+  }
+  .owner-layout {
+    display: grid;
+    grid-template-columns: 1.6fr 1fr;
+    gap: 1rem;
+    align-items: start;
+  }
+  .owner-card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    box-shadow: 0 12px 26px rgba(15, 23, 42, 0.06);
+    overflow: hidden;
+  }
+  .owner-card-head {
+    padding: 0.8rem 1rem;
+    border-bottom: 1px solid #eef2f7;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.65rem;
+    flex-wrap: wrap;
+  }
+  .owner-card-head strong {
+    color: #0f172a;
+    font-size: 0.96rem;
+  }
+  .owner-card-body {
+    padding: 0.9rem;
+  }
+  .owner-filter-form {
+    display: grid;
+    gap: 0.55rem;
+    grid-template-columns: 1.2fr 1fr 0.8fr auto auto;
+    align-items: center;
+  }
+  .owner-filter-form .form-control,
+  .owner-filter-form .form-select {
+    min-height: 2.25rem;
+    border-radius: 10px;
+  }
+  .listing-list {
+    display: grid;
+    gap: 0.65rem;
+  }
+  .listing-item {
+    border: 1px solid #dde7f0;
+    border-radius: 14px;
+    padding: 0.75rem;
+    display: grid;
+    gap: 0.45rem;
+    background: #fbfdff;
+  }
+  .listing-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.55rem;
+    flex-wrap: wrap;
+  }
+  .listing-title {
+    margin: 0;
+    color: #0f172a;
+    font-size: 0.97rem;
+    font-weight: 800;
+    max-width: 700px;
+  }
+  .listing-meta {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 0.45rem 0.8rem;
+    color: #475569;
+    font-size: 0.84rem;
+    font-weight: 600;
+  }
+  .listing-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+  }
+  .listing-actions .btn,
+  .listing-actions form .btn {
+    min-height: 2rem;
+  }
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 0.2rem 0.6rem;
+    font-size: 0.73rem;
+    font-weight: 800;
+    border: 1px solid transparent;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+  .status-pill.active {
+    background: #dcfce7;
+    color: #166534;
+    border-color: #bbf7d0;
+  }
+  .status-pill.reserved {
+    background: #fef3c7;
+    color: #92400e;
+    border-color: #fde68a;
+  }
+  .status-pill.taken {
+    background: #e2e8f0;
+    color: #334155;
+    border-color: #cbd5e1;
+  }
+  .status-pill.expired {
+    background: #fee2e2;
+    color: #991b1b;
+    border-color: #fecaca;
+  }
+  .shop-list {
+    display: grid;
+    gap: 0.55rem;
+  }
+  .shop-item {
+    border: 1px dashed #cbd5e1;
+    border-radius: 12px;
+    background: #f8fafc;
+    padding: 0.68rem;
+  }
+  .shop-item .name {
+    color: #0f172a;
+    font-weight: 800;
+    margin-bottom: 0.25rem;
+  }
+  .shop-item .meta {
+    color: #64748b;
+    font-size: 0.82rem;
+    font-weight: 700;
+  }
+  .mini-list {
+    display: grid;
+    gap: 0.45rem;
+    margin-top: 0.7rem;
+  }
+  .mini-row {
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 0.55rem 0.65rem;
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+    font-size: 0.83rem;
+    color: #475569;
+    font-weight: 700;
+  }
+  .archive-teaser {
+    border: 1px solid #cce2ff;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #eff6ff, #f8fbff);
+    padding: 0.75rem;
+    display: grid;
+    gap: 0.45rem;
+  }
+  .archive-teaser .value {
+    color: #0f172a;
+    font-size: 1.1rem;
+    font-weight: 900;
+  }
+  .archive-teaser .hint {
+    color: #64748b;
+    font-size: 0.83rem;
+    font-weight: 700;
+  }
+  .empty-box {
+    border: 1px dashed #cbd5e1;
+    border-radius: 12px;
+    padding: 0.9rem;
+    text-align: center;
+    color: #64748b;
+    font-weight: 700;
+    background: #fafcff;
+  }
+  @media (max-width: 1024px) {
+    .owner-layout {
+      grid-template-columns: 1fr;
+    }
+    .owner-stats {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  @media (max-width: 760px) {
+    .owner-shell {
+      padding: 0.7rem;
+    }
+    .owner-stats {
+      grid-template-columns: 1fr 1fr;
+    }
+    .owner-filter-form {
+      grid-template-columns: 1fr;
+    }
+    .listing-actions .btn,
+    .listing-actions form {
+      flex: 1 1 calc(50% - 0.45rem);
+    }
+    .listing-actions form .btn,
+    .listing-actions .btn {
+      width: 100%;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="owner-shell">
+  <section class="owner-hero">
+    <div>
+      <h1>Mes annonces location</h1>
+      <p>Tableau principal propre et rapide pour gerer vos annonces. Les archives sont maintenant sur une page dediee, conservees 30 jours avec traces.</p>
+    </div>
+    <div class="owner-hero-actions">
+      <a class="btn btn-light" href="{{ url_for('rentals.owner_location_new') }}">
+        <i class="bi bi-plus-circle me-1"></i> Nouvelle annonce
+      </a>
+      <a class="btn btn-outline-light" href="{{ url_for('rentals.owner_locations_archives') }}">
+        <i class="bi bi-archive me-1"></i> Archives 30 jours
+      </a>
+    </div>
+  </section>
+
+  <section class="owner-stats">
+    <article class="owner-stat"><div class="label">Annonces</div><div class="value">{{ listings|length }}</div></article>
+    <article class="owner-stat"><div class="label">Consultations</div><div class="value">{{ total_views }}</div></article>
+    <article class="owner-stat"><div class="label">Actives</div><div class="value">{{ active_count }}</div></article>
+    <article class="owner-stat"><div class="label">Expirees</div><div class="value">{{ expired_count }}</div></article>
+  </section>
+
+  <section class="owner-layout">
+    <div class="owner-main">
+      <article class="owner-card">
+        <div class="owner-card-head">
+          <strong>Filtres annonces</strong>
+        </div>
+        <div class="owner-card-body">
+          <form method="get" class="owner-filter-form">
+            <input class="form-control form-control-sm" type="text" name="q" value="{{ q }}" placeholder="Titre, ville, zone...">
+            <select class="form-select form-select-sm" name="shop">
+              <option value="">Toutes boutiques</option>
+              {% for shop in shops %}
+                <option value="{{ shop.id }}" {{ 'selected' if selected_shop_id == shop.id else '' }}>{{ shop.name }}</option>
+              {% endfor %}
+            </select>
+            <select class="form-select form-select-sm" name="status">
+              <option value="">Tous statuts</option>
+              {% for st in ['active', 'reserved', 'taken', 'expired'] %}
+                <option value="{{ st }}" {{ 'selected' if status == st else '' }}>{{ st }}</option>
+              {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-success btn-sm">
+              <i class="bi bi-funnel me-1"></i> Filtrer
+            </button>
+            <a href="{{ url_for('rentals.owner_locations') }}" class="btn btn-outline-secondary btn-sm">Reset</a>
+          </form>
+        </div>
+      </article>
+
+      <article class="owner-card">
+        <div class="owner-card-head">
+          <strong>Annonces en cours</strong>
+          <span class="text-muted small fw-semibold">{{ listings|length }} resultat(s)</span>
+        </div>
+        <div class="owner-card-body">
+          {% if listings %}
+            <div class="listing-list">
+              {% for listing in listings %}
+                {% set listing_commission = commission_amount_from_owner_fee(listing.owner_fee_cents, settings.rental_success_commission_bps) %}
+                <article class="listing-item">
+                  <div class="listing-top">
+                    <h3 class="listing-title">{{ listing.title }}</h3>
+                    <span class="status-pill {{ listing.status if listing.status in ['active','reserved','taken','expired'] else 'active' }}">{{ listing.status }}</span>
+                  </div>
+                  <div class="listing-meta">
+                    <span>{{ listing.city }}{% if listing.area %}, {{ listing.area }}{% endif %}</span>
+                    <span>{{ 'Mensuel' if listing.listing_type == 'monthly' else 'Journalier' }} · {{ listing.property_type }}</span>
+                    <span>{{ cents_to_dh(listing.rent_cents) }}</span>
+                  </div>
+                  <div class="listing-meta">
+                    <span><i class="bi bi-eye me-1"></i>{{ listing.view_count }} consultations</span>
+                    <span>Expire: {{ listing.expires_at.strftime('%d/%m/%Y %H:%M') if listing.expires_at else '-' }}</span>
+                    <span>Commission interne: {{ bps_to_percent(settings.rental_success_commission_bps) }}% · {{ cents_to_dh(listing_commission) }}</span>
+                  </div>
+                  <div class="listing-actions">
+                    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('rentals.owner_location_edit', listing_id=listing.id) }}">
+                      <i class="bi bi-pencil-square me-1"></i> Modifier
+                    </a>
+                    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('rentals.location_detail', slug=listing.slug) }}" target="_blank">
+                      <i class="bi bi-box-arrow-up-right me-1"></i> Vue client
+                    </a>
+                    {% if listing.status != 'taken' %}
+                      <form method="post" action="{{ url_for('rentals.owner_location_close', listing_id=listing.id) }}">
+                        {% include "partials/_csrf.html" %}
+                        <input type="hidden" name="status" value="taken">
+                        <button class="btn btn-warning btn-sm" type="submit">
+                          <i class="bi bi-check2-circle me-1"></i> Marquer prise
+                        </button>
+                      </form>
+                    {% endif %}
+                    <form method="post"
+                          action="{{ url_for('rentals.owner_location_delete', listing_id=listing.id) }}"
+                          data-confirm-submit="Supprimer cette annonce ?">
+                      {% include "partials/_csrf.html" %}
+                      <button class="btn btn-outline-danger btn-sm" type="submit">
+                        <i class="bi bi-trash me-1"></i> Supprimer
+                      </button>
+                    </form>
+                  </div>
+                </article>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="empty-box">Aucune annonce pour ces filtres.</div>
+          {% endif %}
+        </div>
+      </article>
+    </div>
+
+    <aside class="owner-side">
+      <article class="owner-card">
+        <div class="owner-card-head">
+          <strong>Boutiques (type location)</strong>
+        </div>
+        <div class="owner-card-body">
+          <div class="shop-list">
+            {% for shop in shops %}
+              {% set stats = shop_stats.get(shop.id, {'count': 0, 'views': 0}) %}
+              <div class="shop-item">
+                <div class="name">{{ shop.name }}</div>
+                <div class="meta">{{ stats.count }} annonce(s)</div>
+                <div class="meta"><i class="bi bi-eye me-1"></i>{{ stats.views }} consultations</div>
+              </div>
+            {% endfor %}
+          </div>
+          {% if top_viewed %}
+            <div class="mini-list">
+              {% for item in top_viewed %}
+                <div class="mini-row">
+                  <span>{{ item.title|truncate(34) }}</span>
+                  <span><i class="bi bi-eye me-1"></i>{{ item.view_count }}</span>
+                </div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+      </article>
+
+      <article class="owner-card">
+        <div class="owner-card-head">
+          <strong>Archives locations</strong>
+        </div>
+        <div class="owner-card-body">
+          <div class="archive-teaser">
+            <div class="value">{{ owner_archives_last_30_count }}</div>
+            <div class="hint">archives sur les 30 derniers jours</div>
+            <div class="hint">Derniere trace:
+              {% if latest_archive_at %}
+                {{ latest_archive_at.strftime('%d/%m/%Y %H:%M') }}
+              {% else %}
+                -
+              {% endif %}
+            </div>
+            <a class="btn btn-primary btn-sm" href="{{ url_for('rentals.owner_locations_archives') }}">
+              <i class="bi bi-archive me-1"></i> Ouvrir la page archives
+            </a>
+          </div>
+        </div>
+      </article>
+    </aside>
+  </section>
+</div>
+{% endblock %}

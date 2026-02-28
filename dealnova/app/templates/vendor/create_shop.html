@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+
+{% block title %}Créer ma boutique | DealNova{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <!-- En-tête -->
+            <div class="mb-4">
+                <a href="{{ url_for('vendor.manage_shop') }}" class="btn btn-outline-secondary mb-3">
+                    <i class="bi bi-arrow-left"></i> Retour
+                </a>
+                <h1 class="fw-bold">
+                    <i class="bi bi-plus-circle text-primary"></i> Créer ma boutique
+                </h1>
+                <p class="text-muted">Remplissez les informations pour créer votre boutique</p>
+            </div>
+            
+            <!-- Formulaire -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-4">
+                    <form method="POST" enctype="multipart/form-data">
+                        {% include "partials/_csrf.html" %}
+                        <!-- Nom de la boutique -->
+                        <div class="mb-3">
+                            <label for="name" class="form-label fw-bold">
+                                <i class="bi bi-shop"></i> Nom de la boutique *
+                            </label>
+                            <input type="text" 
+                                   class="form-control" 
+                                   id="name" 
+                                   name="name" 
+                                   required
+                                   placeholder="Ex: Ma Super Boutique">
+                            <div class="form-text">C'est le nom qui apparaîtra pour les clients</div>
+                        </div>
+                        
+                        <!-- Description -->
+                        <div class="mb-3">
+                            <label for="description" class="form-label fw-bold">
+                                <i class="bi bi-card-text"></i> Description
+                            </label>
+                            <textarea class="form-control" 
+                                      id="description" 
+                                      name="description" 
+                                      rows="3"
+                                      placeholder="Décrivez votre boutique, vos produits, votre philosophie..."></textarea>
+                            <div class="form-text">Une bonne description attire plus de clients</div>
+                        </div>
+
+                        <!-- Type principal -->
+                        <div class="mb-3">
+                            <label for="primary_type" class="form-label fw-bold">
+                                <i class="bi bi-diagram-3"></i> Type principal *
+                            </label>
+                            <select class="form-select" id="primary_type" name="primary_type" required>
+                                {% for shop_type in shop_type_order %}
+                                <option value="{{ shop_type }}" {% if shop_type == 'products' %}selected{% endif %}>
+                                    {{ shop_type_labels.get(shop_type, shop_type|title) }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text">Le type active au depart. Les modes mixtes sont geres par l'admin.</div>
+                        </div>
+                        
+                        <!-- Logo -->
+                        <div class="mb-3">
+                            <label for="logo" class="form-label fw-bold">
+                                <i class="bi bi-image"></i> Logo
+                            </label>
+                            <input type="file" 
+                                   class="form-control" 
+                                   id="logo" 
+                                   name="logo"
+                                   accept="image/*">
+                            <div class="form-text">PNG, JPG, JPEG, WEBP (max 5MB)</div>
+                        </div>
+                        
+                        <!-- Informations de contact -->
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="contact_email" class="form-label fw-bold">
+                                    <i class="bi bi-envelope"></i> Email de contact
+                                </label>
+                                <input type="email" 
+                                       class="form-control" 
+                                       id="contact_email" 
+                                       name="contact_email"
+                                       value="{{ current_user.email }}"
+                                       placeholder="contact@example.com">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="contact_phone" class="form-label fw-bold">
+                                    <i class="bi bi-telephone"></i> Téléphone
+                                </label>
+                                <input type="tel" 
+                                       class="form-control" 
+                                       id="contact_phone" 
+                                       name="contact_phone"
+                                       placeholder="+212 600 000 000">
+                            </div>
+                        </div>
+                        
+                        <!-- Adresse -->
+                        <div class="mb-4">
+                            <label for="address" class="form-label fw-bold">
+                                <i class="bi bi-geo-alt"></i> Adresse
+                            </label>
+                            <textarea class="form-control" 
+                                      id="address" 
+                                      name="address" 
+                                      rows="2"
+                                      placeholder="Adresse complète de votre boutique"></textarea>
+                        </div>
+                        
+                        <!-- Boutons -->
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="bi bi-check-circle"></i> Créer la boutique
+                            </button>
+                            <a href="{{ url_for('vendor.manage_shop') }}" class="btn btn-outline-secondary btn-lg">
+                                Annuler
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Info importante -->
+            <div class="alert alert-info mt-4">
+                <h5><i class="bi bi-info-circle"></i> Important</h5>
+                <ul class="mb-0">
+                    <li>Votre boutique sera visible immédiatement après création</li>
+                    <li>Vous pourrez la modifier à tout moment</li>
+                    <li>Tous vos produits existants seront automatiquement associés à cette boutique</li>
+                    <li>Vous pourrez ajouter/modifier/supprimer des produits à tout moment</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

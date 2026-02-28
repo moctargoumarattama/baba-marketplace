@@ -1,0 +1,82 @@
+<div class="table-responsive">
+  <table class="table align-middle orders-table-list mb-0">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Client</th>
+        <th>Ville</th>
+        <th>Produits</th>
+        <th>Total</th>
+        <th>Livraison</th>
+        <th>Part Baba</th>
+        <th>Net livreur</th>
+        <th>Livreur</th>
+        <th>Statut</th>
+        <th>Date</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for o in orders %}
+      <tr class="{% if o.status == 'pending' %}order-row-pending{% endif %}" data-order-id="{{ o.id }}" data-order-section="all">
+        <td>{{ o.id }}</td>
+        <td>
+          <div class="fw-semibold">{{ o.full_name }}</div>
+          <small class="text-muted">{{ o.phone }}</small>
+        </td>
+        <td>{{ o.city }}</td>
+        <td>
+          <div class="product-lines">
+            {% for item in o.items %}
+            <div class="product-line">
+              <span>{{ item.product.name if item.product else 'Produit #' ~ item.product_id }}</span>
+              <span class="text-muted">{{ "%.2f"|format((item.price or 0) / 100) }} MAD x{{ item.quantity }}</span>
+            </div>
+            {% else %}
+            <span class="text-muted">-</span>
+            {% endfor %}
+          </div>
+        </td>
+        <td>{{ "%.2f"|format(o.total / 100) }} MAD</td>
+        <td>{{ "%.2f"|format((o.delivery_price_cents or o.shipping or 0) / 100) }} MAD</td>
+        <td>
+          <span class="badge bg-warning text-dark">{{ "%.2f"|format((o.delivery_platform_fee_cents or 0) / 100) }} MAD</span>
+          {% if o.baba_fee_settled_at %}
+            <div class="small text-success">Remis</div>
+          {% endif %}
+        </td>
+        <td>{{ "%.2f"|format((o.delivery_courier_net_cents or 0) / 100) }} MAD</td>
+        <td>
+          {% if o.courier %}
+            <span class="badge bg-info">{{ o.courier.username }}</span>
+          {% else %}
+            <span class="text-muted">Non assignee</span>
+          {% endif %}
+        </td>
+        <td data-order-status>
+          {% if o.status == "pending" %}
+            <span class="status-pill status-pending"><i class="bi bi-clock"></i> En attente</span>
+          {% elif o.status == "delivered" %}
+            <span class="status-pill status-delivered"><i class="bi bi-check-circle"></i> Livree</span>
+          {% elif o.status == "cancelled" %}
+            <span class="status-pill status-cancelled"><i class="bi bi-x-circle"></i> Annulee</span>
+          {% else %}
+            <span class="status-pill status-pending">{{ o.status }}</span>
+          {% endif %}
+        </td>
+        <td><small>{{ o.created_at.strftime('%d/%m/%Y %H:%M') }}</small></td>
+        <td class="order-actions">
+          <div class="d-flex gap-2 flex-wrap">
+            <a href="{{ url_for('admin.order_detail', oid=o.id) }}" class="btn btn-sm btn-primary">
+              <i class="bi bi-eye"></i>
+            </a>
+            <a href="tel:{{ o.phone }}" class="btn btn-sm btn-outline-primary">
+              <i class="bi bi-telephone"></i>
+            </a>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

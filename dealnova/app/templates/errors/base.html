@@ -1,0 +1,191 @@
+{% extends 'base.html' %}
+
+{% block title %}Erreur {{ error_code }} | {{ config.SITE_NAME }}{% endblock %}
+
+{% block head %}
+<style>
+  .error-page {
+    min-height: 70vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: clamp(2rem, 4vw, 4rem) 1.25rem;
+  }
+  .error-card {
+    width: min(980px, 100%);
+    background: linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%);
+    border: 1px solid #E5E7EB;
+    border-radius: 24px;
+    box-shadow: 0 24px 60px rgba(15, 23, 42, 0.12);
+    padding: clamp(1.5rem, 4vw, 3rem);
+    position: relative;
+    overflow: hidden;
+  }
+  .error-card::before {
+    content: "";
+    position: absolute;
+    left: -20%;
+    right: -20%;
+    top: -40%;
+    height: 220px;
+    background: radial-gradient(closest-side, rgba(59, 130, 246, 0.18), transparent 70%);
+    pointer-events: none;
+  }
+  .error-grid {
+    display: grid;
+    gap: 1.75rem;
+  }
+  @media (min-width: 900px) {
+    .error-grid {
+      grid-template-columns: 1.1fr 0.9fr;
+      align-items: center;
+    }
+  }
+  .error-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.85rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-weight: 700;
+    background: #E2E8F0;
+    color: #0F172A;
+    border: 1px solid #CBD5F5;
+  }
+  .error-badge[data-tone="danger"] { background: #FEE2E2; color: #B91C1C; border-color: #FECACA; }
+  .error-badge[data-tone="warning"] { background: #FEF3C7; color: #92400E; border-color: #FDE68A; }
+  .error-badge[data-tone="info"] { background: #DBEAFE; color: #1D4ED8; border-color: #BFDBFE; }
+  .error-code {
+    font-size: clamp(2.4rem, 6vw, 4.8rem);
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    color: #0F172A;
+    margin: 0.4rem 0 0;
+  }
+  .error-title {
+    font-size: clamp(1.4rem, 3vw, 2.3rem);
+    margin: 0.4rem 0 0.8rem;
+    color: #0F172A;
+  }
+  .error-message {
+    color: #475569;
+    max-width: 60ch;
+    margin: 0;
+    font-size: 1rem;
+  }
+  .error-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+  }
+  .error-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.65rem 1.2rem;
+    border-radius: 999px;
+    text-decoration: none;
+    font-weight: 600;
+    border: 1px solid transparent;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .error-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
+  }
+  .error-btn-primary { background: #0F172A; color: #FFFFFF; }
+  .error-btn-secondary { background: #FFFFFF; color: #0F172A; border-color: #E2E8F0; }
+  .error-meta {
+    margin-top: 1.25rem;
+    font-size: 0.9rem;
+    color: #64748B;
+  }
+  .error-side {
+    background: #0F172A;
+    color: #E2E8F0;
+    border-radius: 18px;
+    padding: 1.5rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .error-side::after {
+    content: "";
+    position: absolute;
+    inset: auto -30% -40% -30%;
+    height: 200px;
+    background: radial-gradient(closest-side, rgba(56, 189, 248, 0.35), transparent 70%);
+  }
+  .error-side h3 {
+    font-size: 1.1rem;
+    margin: 0 0 0.75rem;
+    color: #FFFFFF;
+  }
+  .error-side p {
+    margin: 0 0 1rem;
+    color: #CBD5F5;
+  }
+  .error-side ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: 0.6rem;
+  }
+  .error-side li {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    color: #E2E8F0;
+    font-size: 0.95rem;
+  }
+  .error-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #38BDF8;
+    margin-top: 0.4rem;
+    flex-shrink: 0;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="error-page">
+  <div class="error-card">
+    <div class="error-grid">
+      <div>
+        <span class="error-badge" data-tone="{{ error_tone|default('info') }}">Erreur {{ error_code }}</span>
+        <div class="error-code">{{ error_code }}</div>
+        <h1 class="error-title">{{ error_title }}</h1>
+        <p class="error-message">{{ error_message }}</p>
+        {% block error_extra %}{% endblock %}
+        <div class="error-actions">
+          {% block error_actions %}
+          <a class="error-btn error-btn-primary" href="{{ url_for('landing') }}">Retour a l'accueil</a>
+          <a class="error-btn error-btn-secondary" href="{{ request.path or url_for('landing') }}">Reessayer</a>
+          {% endblock %}
+        </div>
+        {% if error_hint %}
+          <div class="error-meta">{{ error_hint }}</div>
+        {% endif %}
+      </div>
+      <aside class="error-side">
+        {% block error_side %}
+        <h3>Que faire maintenant ?</h3>
+        <p>Voici quelques options pour continuer sans perdre votre temps.</p>
+        <ul>
+          <li><span class="error-dot"></span>Revenir a l'accueil et relancer votre navigation.</li>
+          <li><span class="error-dot"></span>Verifier vos informations avant de reessayer.</li>
+          <li><span class="error-dot"></span>Contacter le support si le probleme persiste.</li>
+        </ul>
+        {% endblock %}
+      </aside>
+    </div>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,879 @@
+﻿{% extends "admin/base.html" %}
+
+{% block title %}Maintenance systeme | Admin{% endblock %}
+{% block page_title %}Maintenance systeme{% endblock %}
+
+{% block head %}
+<style>
+  .maintenance-wrap {
+    --monitor-bg: #f4f7fb;
+    --monitor-card: #ffffff;
+    --monitor-border: #dbe4ef;
+    --monitor-muted: #64748b;
+    --monitor-text: #0f172a;
+    --monitor-primary: #0f766e;
+    --monitor-primary-soft: #ccfbf1;
+    --monitor-danger: #b91c1c;
+    --monitor-hero-a: #0f766e;
+    --monitor-hero-b: #0b5f7f;
+    --monitor-hero-c: #1e3a8a;
+  }
+  .maintenance-wrap[data-theme="noc"] {
+    --monitor-bg: #0b1220;
+    --monitor-card: #111b2d;
+    --monitor-border: #23344f;
+    --monitor-muted: #9fb1cc;
+    --monitor-text: #e2e8f0;
+    --monitor-primary: #22d3ee;
+    --monitor-primary-soft: #0f2b40;
+    --monitor-danger: #f87171;
+    --monitor-hero-a: #061326;
+    --monitor-hero-b: #0c1b33;
+    --monitor-hero-c: #123b5a;
+  }
+  .maintenance-wrap { display: grid; gap: 1rem; background: var(--monitor-bg); padding: .35rem; border-radius: 18px; }
+  .monitor-hero {
+    background: linear-gradient(140deg, var(--monitor-hero-a) 0%, var(--monitor-hero-b) 55%, var(--monitor-hero-c) 100%);
+    border-radius: 18px;
+    padding: 1rem 1.1rem;
+    color: #f8fafc;
+    border: 1px solid rgba(148, 163, 184, .28);
+    box-shadow: 0 14px 28px rgba(15, 23, 42, .18);
+  }
+  .monitor-hero h4 {
+    margin: 0;
+    font-weight: 800;
+    letter-spacing: .01em;
+    display: flex;
+    align-items: center;
+    gap: .55rem;
+  }
+  .monitor-hero p {
+    margin: .3rem 0 0;
+    font-size: .9rem;
+    color: rgba(241, 245, 249, .92);
+  }
+  .monitor-hero-kpis {
+    margin-top: .85rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: .55rem;
+  }
+  .hero-kpi {
+    border-radius: 12px;
+    background: rgba(15, 23, 42, .22);
+    border: 1px solid rgba(226, 232, 240, .24);
+    padding: .55rem .65rem;
+  }
+  .hero-kpi strong {
+    display: block;
+    font-size: .72rem;
+    text-transform: uppercase;
+    color: rgba(226, 232, 240, .88);
+  }
+  .hero-kpi span {
+    display: block;
+    margin-top: .2rem;
+    font-size: 1.06rem;
+    font-weight: 800;
+    color: #ffffff;
+  }
+  .card-shell {
+    background: var(--monitor-card);
+    border: 1px solid var(--monitor-border);
+    border-radius: 16px;
+    padding: 1rem;
+    box-shadow: 0 10px 22px rgba(15, 23, 42, .07);
+  }
+  .theme-toggle {
+    border: 1px solid rgba(226, 232, 240, .35);
+    background: rgba(15, 23, 42, .24);
+    color: #f8fafc;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: .8rem;
+    padding: .35rem .75rem;
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    cursor: pointer;
+  }
+  .maintenance-wrap[data-theme="noc"] .theme-toggle {
+    background: rgba(56, 189, 248, .16);
+    border-color: rgba(103, 232, 249, .35);
+  }
+  .report-top {
+    border: 1px solid rgba(15, 118, 110, .28);
+    background: linear-gradient(180deg, #ffffff, #f0fdfa);
+  }
+  .sla-pill {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: .16rem .46rem;
+    font-size: .68rem;
+    font-weight: 800;
+    letter-spacing: .03em;
+    border: 1px solid transparent;
+  }
+  .sla-p1 { background: #fee2e2; color: #991b1b; border-color: #fecaca; }
+  .sla-p2 { background: #fef3c7; color: #92400e; border-color: #fde68a; }
+  .sla-p3 { background: #dcfce7; color: #166534; border-color: #86efac; }
+  .sla-na { background: #e2e8f0; color: #334155; border-color: #cbd5e1; }
+  .metric-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .4rem;
+    flex-wrap: wrap;
+  }
+  .metric-tags {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+  }
+  .sparkline {
+    margin-top: .45rem;
+    height: 8px;
+    border-radius: 999px;
+    background: #e2e8f0;
+    overflow: hidden;
+    border: 1px solid #dbe4ef;
+  }
+  .sparkline > span {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #14b8a6, #0ea5e9, #3b82f6);
+    transition: width .2s ease;
+  }
+  .section-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: .65rem;
+    flex-wrap: wrap;
+    margin-bottom: .55rem;
+  }
+  .section-title {
+    margin: 0;
+    color: var(--monitor-text);
+    font-size: 1.02rem;
+    font-weight: 800;
+    display: inline-flex;
+    align-items: center;
+    gap: .45rem;
+  }
+  .section-sub {
+    margin: 0;
+    font-size: .82rem;
+    color: var(--monitor-muted);
+  }
+  .monitor-table {
+    border: 1px solid var(--monitor-border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .monitor-table thead th {
+    background: #f1f5f9;
+    color: #334155;
+    font-size: .74rem;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    font-weight: 800;
+  }
+  .health-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: .85rem;
+  }
+  .health-item {
+    border: 1px solid var(--monitor-border);
+    border-radius: 12px;
+    padding: .75rem .85rem;
+    background: linear-gradient(180deg, #ffffff, #f8fbff);
+  }
+  .health-label {
+    font-size: .74rem;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--monitor-muted);
+    font-weight: 700;
+  }
+  .health-value {
+    margin-top: .35rem;
+    font-size: 1.18rem;
+    font-weight: 800;
+    color: var(--monitor-text);
+    word-break: break-word;
+  }
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: .25rem .6rem;
+    font-size: .74rem;
+    font-weight: 700;
+    border: 1px solid transparent;
+  }
+  .status-ok { background: #dcfce7; color: #166534; border-color: #86efac; }
+  .status-warn { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
+  .status-danger { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+  .status-na { background: #e2e8f0; color: #334155; border-color: #cbd5e1; }
+  .status-off { background: #e2e8f0; color: #334155; border-color: #cbd5e1; }
+  .status-live { background: var(--monitor-primary-soft); color: #115e59; border-color: #99f6e4; }
+  .actions-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: .85rem;
+  }
+  .action-box {
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: .85rem;
+    background: #fff;
+  }
+  .action-box h6 {
+    margin: 0 0 .5rem;
+    font-weight: 800;
+    color: var(--monitor-text);
+  }
+  .action-box p {
+    margin: 0 0 .65rem;
+    color: var(--monitor-muted);
+    font-size: .88rem;
+  }
+  .report-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: .65rem;
+  }
+  .report-item {
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: .6rem .7rem;
+    background: #f8fafc;
+  }
+  .maintenance-wrap[data-theme="noc"] .report-item {
+    border-color: var(--monitor-border);
+    background: #0f1a2d;
+  }
+  .maintenance-wrap[data-theme="noc"] .health-item,
+  .maintenance-wrap[data-theme="noc"] .action-box {
+    border-color: var(--monitor-border);
+    background: #0f1a2d;
+  }
+  .maintenance-wrap[data-theme="noc"] .monitor-table thead th {
+    background: #17253c;
+    color: #c8d6ea;
+  }
+  .maintenance-wrap[data-theme="noc"] .monitor-table td {
+    color: #e2e8f0;
+    border-color: var(--monitor-border);
+  }
+  .maintenance-wrap[data-theme="noc"] .form-control,
+  .maintenance-wrap[data-theme="noc"] .form-select,
+  .maintenance-wrap[data-theme="noc"] textarea {
+    background: #0b1424;
+    border-color: var(--monitor-border);
+    color: #dbe7f8;
+  }
+  .maintenance-wrap[data-theme="noc"] .form-control::placeholder,
+  .maintenance-wrap[data-theme="noc"] textarea::placeholder {
+    color: #8ea5c6;
+  }
+  .maintenance-wrap[data-theme="noc"] .btn-outline-primary,
+  .maintenance-wrap[data-theme="noc"] .btn-outline-secondary,
+  .maintenance-wrap[data-theme="noc"] .btn-outline-success,
+  .maintenance-wrap[data-theme="noc"] .btn-outline-danger {
+    border-color: #35537d;
+    color: #c8d9f2;
+  }
+  .maintenance-wrap[data-theme="noc"] .sparkline {
+    background: #1d2c43;
+    border-color: #27415f;
+  }
+  .report-item strong {
+    display: block;
+    font-size: .76rem;
+    text-transform: uppercase;
+    color: var(--monitor-muted);
+    margin-bottom: .2rem;
+  }
+  .report-item span {
+    font-size: 1rem;
+    font-weight: 800;
+    color: var(--monitor-text);
+  }
+  .danger-zone {
+    border: 1px solid #fecaca;
+    background: linear-gradient(180deg, #fff, #fef2f2);
+  }
+  .danger-note {
+    font-size: .85rem;
+    color: #991b1b;
+    font-weight: 600;
+  }
+  @media (max-width: 991.98px) {
+    .monitor-hero-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 767.98px) {
+    .maintenance-wrap { padding: .2rem; }
+    .card-shell { padding: .85rem; border-radius: 14px; }
+    .monitor-hero { padding: .85rem; border-radius: 14px; }
+    .monitor-hero h4 { font-size: 1.05rem; }
+    .monitor-hero p { font-size: .82rem; }
+    .monitor-hero-kpis { grid-template-columns: 1fr; }
+    .section-title { font-size: .95rem; }
+    .health-grid { grid-template-columns: 1fr; }
+    .report-list { grid-template-columns: 1fr; }
+    .actions-grid { grid-template-columns: 1fr; }
+    .monitor-table thead { display: none; }
+    .monitor-table,
+    .monitor-table tbody,
+    .monitor-table tr,
+    .monitor-table td { display: block; width: 100%; }
+    .monitor-table tr {
+      border-bottom: 1px solid var(--monitor-border);
+      padding: .55rem .65rem;
+      background: #fff;
+    }
+    .monitor-table td {
+      border: none;
+      display: flex;
+      justify-content: space-between;
+      gap: .65rem;
+      padding: .25rem 0;
+      text-align: left !important;
+      font-size: .86rem;
+    }
+    .monitor-table td::before {
+      content: attr(data-label);
+      color: var(--monitor-muted);
+      font-size: .74rem;
+      text-transform: uppercase;
+      font-weight: 700;
+      letter-spacing: .04em;
+      min-width: 90px;
+    }
+    .monitor-table td.text-end {
+      justify-content: flex-start;
+    }
+    .monitor-table td.text-end::before {
+      min-width: 90px;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="maintenance-wrap">
+  <section class="monitor-hero">
+    <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
+      <h4><i class="bi bi-speedometer2"></i> Monitoring plateforme</h4>
+      <button type="button" class="theme-toggle" id="maintenanceThemeToggle">
+        <i class="bi bi-moon-stars"></i> Theme NOC
+      </button>
+    </div>
+    <p>Centre de supervision maintenance, trafic live, erreurs et operations critiques.</p>
+    <div class="monitor-hero-kpis">
+      <div class="hero-kpi">
+        <strong>Derniere execution</strong>
+        <span>{{ last_run_label }}</span>
+      </div>
+      <div class="hero-kpi">
+        <strong>Total 500 (24h)</strong>
+        <span>{{ errors_block.total_500_last_24h }}</span>
+      </div>
+      <div class="hero-kpi">
+        <strong>Mode maintenance</strong>
+        <span>{{ 'ON' if maintenance_mode.active else 'OFF' }}</span>
+      </div>
+      <div class="hero-kpi">
+        <strong>Trafic live</strong>
+        <span>{{ 'Disponible' if live_traffic.available else 'N/A' }}</span>
+      </div>
+    </div>
+  </section>
+
+  {% if report and report_cleanup %}
+  <section class="card-shell report-top" id="last-report">
+    <div class="section-head">
+      <div>
+        <h5 class="section-title"><i class="bi bi-file-earmark-text"></i> Dernier rapport de maintenance</h5>
+        <p class="section-sub">Snapshot principal place en tete pour suivi rapide.</p>
+      </div>
+    </div>
+    <div class="report-list">
+      <div class="report-item"><strong>Mode</strong><span>{{ report.mode or (last_run.mode if last_run else 'N/A') }}</span></div>
+      <div class="report-item"><strong>Date execution</strong><span>{{ report.ran_at or ((last_run.finished_at or last_run.started_at).strftime('%d/%m/%Y %H:%M:%S') if last_run else 'N/A') }}</span></div>
+      <div class="report-item"><strong>Duree</strong><span>{{ report.duration_ms if report.duration_ms is not none else (last_run.duration_ms if last_run else 'N/A') }} ms</span></div>
+      <div class="report-item"><strong>Fichiers supprimes</strong><span>{{ report_cleanup.get('files_deleted', 'N/A') }}</span></div>
+      <div class="report-item"><strong>Orphelins supprimes</strong><span>{{ report_cleanup.get('orphan_media_removed', 'N/A') }}</span></div>
+      <div class="report-item"><strong>Locations purgees</strong><span>{{ report_cleanup.get('locations_purged', 'N/A') }}</span></div>
+      <div class="report-item"><strong>Cache vide</strong><span>{{ 'oui' if report_cleanup.get('cache_cleared') else 'non' }}</span></div>
+      <div class="report-item"><strong>Sessions supprimees</strong><span>{{ report_cleanup.get('sessions_deleted', 'N/A') if report_cleanup.get('sessions_cleaned') else 'non supporte' }}</span></div>
+      <div class="report-item"><strong>ErrorLog purges</strong><span>{{ report_cleanup.get('error_logs_purged', 0) }}</span></div>
+    </div>
+
+    {% set cleanup_errors = report_cleanup.get('errors', []) %}
+    {% if cleanup_errors %}
+      <div class="alert alert-warning mt-3 mb-0">
+        <strong>Erreurs detectees:</strong>
+        <ul class="mb-0 mt-1">
+          {% for err in cleanup_errors[:12] %}
+            <li>{{ err }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  <section class="card-shell">
+    <div class="section-head">
+      <div>
+        <h5 class="section-title"><i class="bi bi-heart-pulse"></i> Sante systeme (dernier rapport CLI)</h5>
+        <p class="section-sub">Seuils preventifs et metriques issues du dernier run CLI.</p>
+      </div>
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <form method="get" class="d-flex align-items-center gap-2">
+          <label class="small text-muted mb-0" for="days">Seuil jours:</label>
+          <input id="days" name="days" type="number" class="form-control form-control-sm" min="1" max="365" value="{{ days }}" style="width: 90px;">
+          <button class="btn btn-sm btn-outline-primary" type="submit">Actualiser</button>
+        </form>
+        <span class="small text-muted">
+          Derniere execution:
+          <strong>{{ last_run_label }}</strong>
+        </span>
+      </div>
+    </div>
+<div class="health-grid">
+  <article class="health-item">
+    <div class="metric-head">
+      <div class="health-label">Taille uploads</div>
+      {% set uploads_badge = health_badges.get('uploads_size_gb') %}
+      {% set uploads_level = uploads_badge.level if uploads_badge else 'na' %}
+      <div class="metric-tags">
+        <span class="sla-pill {{ 'sla-p1' if uploads_level == 'danger' else ('sla-p2' if uploads_level == 'warning' else ('sla-p3' if uploads_level == 'ok' else 'sla-na')) }}">
+          {{ 'P1' if uploads_level == 'danger' else ('P2' if uploads_level == 'warning' else ('P3' if uploads_level == 'ok' else 'N/A')) }}
+        </span>
+        <span class="status-pill {{ uploads_badge.class_name if uploads_badge else 'status-na' }}">{{ uploads_badge.label if uploads_badge else 'N/A' }}</span>
+      </div>
+    </div>
+
+    <div class="health-value">{{ health.uploads_size or 'N/A' }}</div>
+    <div class="small text-muted">{{ health.uploads_file_count if health.uploads_file_count is not none else 'N/A' }} fichiers</div>
+
+    {# SAFE: uploads_size_gb peut être None ou "N/A" -> float(0) #}
+    {% set uploads_gb_num = (health.uploads_size_gb | float(0)) %}
+    {% set uploads_pct = [(((uploads_gb_num / 6.0) * 100) | int), 100] | min %}
+    <div class="sparkline"><span style="width: {{ uploads_pct }}%"></span></div>
+  </article>
+
+  <article class="health-item">
+    <div class="metric-head">
+      <div class="health-label">Locations > {{ health.days_threshold or days }} jours</div>
+      {% set expired_badge = health_badges.get('expired_locations_gt_days') %}
+      {% set expired_level = expired_badge.level if expired_badge else 'na' %}
+      <div class="metric-tags">
+        <span class="sla-pill {{ 'sla-p1' if expired_level == 'danger' else ('sla-p2' if expired_level == 'warning' else ('sla-p3' if expired_level == 'ok' else 'sla-na')) }}">
+          {{ 'P1' if expired_level == 'danger' else ('P2' if expired_level == 'warning' else ('P3' if expired_level == 'ok' else 'N/A')) }}
+        </span>
+        <span class="status-pill {{ expired_badge.class_name if expired_badge else 'status-na' }}">{{ expired_badge.label if expired_badge else 'N/A' }}</span>
+      </div>
+    </div>
+
+    <div class="health-value">
+      {{ health.expired_locations_gt_days if health.expired_locations_gt_days is not none else (health.expired_locations_count if health.expired_locations_count is not none else 'N/A') }}
+    </div>
+
+    {# SAFE: loc_val peut être None ou "N/A" -> int(0) #}
+    {% set loc_val_raw = (health.expired_locations_gt_days if health.expired_locations_gt_days is not none else health.expired_locations_count) %}
+    {% set loc_val = (loc_val_raw | int(0)) %}
+    {% set loc_pct = [(((loc_val / 100.0) * 100) | int), 100] | min %}
+    <div class="sparkline"><span style="width: {{ loc_pct }}%"></span></div>
+  </article>
+
+  <article class="health-item">
+    <div class="metric-head">
+      <div class="health-label">Medias orphelins</div>
+      {% set orphan_badge = health_badges.get('orphan_media_count') %}
+      {% set orphan_level = orphan_badge.level if orphan_badge else 'na' %}
+      <div class="metric-tags">
+        <span class="sla-pill {{ 'sla-p1' if orphan_level == 'danger' else ('sla-p2' if orphan_level == 'warning' else ('sla-p3' if orphan_level == 'ok' else 'sla-na')) }}">
+          {{ 'P1' if orphan_level == 'danger' else ('P2' if orphan_level == 'warning' else ('P3' if orphan_level == 'ok' else 'N/A')) }}
+        </span>
+        <span class="status-pill {{ orphan_badge.class_name if orphan_badge else 'status-na' }}">{{ orphan_badge.label if orphan_badge else 'N/A' }}</span>
+      </div>
+    </div>
+
+    <div class="health-value">{{ health.orphan_media_count if health.orphan_media_count is not none else 'N/A' }}</div>
+
+    {# SAFE: force en int même si c'est "N/A" #}
+    {% set orphan_count = (health.orphan_media_count | int(0)) %}
+    {% set orphan_pct = [(((orphan_count / 200.0) * 100) | int), 100] | min %}
+    <div class="sparkline"><span style="width: {{ orphan_pct }}%"></span></div>
+  </article>
+
+  <article class="health-item">
+    <div class="health-label">Cache</div>
+    <div class="health-value">
+      {% set cache_ok = (health.cache_status == 'OK') %}
+      <span class="status-pill {{ 'status-ok' if cache_ok else 'status-off' }}">{{ health.cache_status or 'N/A' }}</span>
+    </div>
+    <div class="sparkline"><span style="width: {{ 100 if cache_ok else 12 }}%"></span></div>
+  </article>
+
+  <article class="health-item">
+    <div class="metric-head">
+      <div class="health-label">Base de donnees</div>
+      {% set db_badge = health_badges.get('db_size_mb') %}
+      {% set db_level = db_badge.level if db_badge else 'na' %}
+      <div class="metric-tags">
+        <span class="sla-pill {{ 'sla-p1' if db_level == 'danger' else ('sla-p2' if db_level == 'warning' else ('sla-p3' if db_level == 'ok' else 'sla-na')) }}">
+          {{ 'P1' if db_level == 'danger' else ('P2' if db_level == 'warning' else ('P3' if db_level == 'ok' else 'N/A')) }}
+        </span>
+        <span class="status-pill {{ db_badge.class_name if db_badge else 'status-na' }}">{{ db_badge.label if db_badge else 'N/A' }}</span>
+      </div>
+    </div>
+
+    <div class="health-value">{{ health.db_size or 'N/A' }}</div>
+    <div class="small text-muted">Moteur: {{ health.db_engine or 'N/A' }}</div>
+
+    {# SAFE: db_size_mb peut être None ou "N/A" -> float(0) #}
+    {% set db_size_mb_num = (health.db_size_mb | float(0)) %}
+    {% set db_pct = [(((db_size_mb_num / 800.0) * 100) | int), 100] | min %}
+    <div class="sparkline"><span style="width: {{ db_pct }}%"></span></div>
+  </article>
+</div>
+
+{% if health.errors %}
+  <div class="alert alert-warning mt-3 mb-0">
+    <strong>Metriques partielles:</strong>
+    <ul class="mb-0 mt-1">
+      {% for err in health.errors[:6] %}
+        <li>{{ err }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+{% endif %}
+</section>
+  <section class="card-shell">
+    <div class="section-head">
+      <div>
+        <h5 class="section-title"><i class="bi bi-broadcast"></i> Trafic live</h5>
+        <p class="section-sub">Flux temps reel non persistant, fallback automatique en N/A.</p>
+      </div>
+      <span class="status-pill {{ 'status-live' if live_traffic.available else 'status-na' }}">
+        {{ 'LIVE' if live_traffic.available else 'N/A' }}
+      </span>
+    </div>
+    <div class="report-list">
+      <div class="report-item">
+        <strong>Requetes / minute</strong>
+        <span>{{ live_traffic.rpm if live_traffic.rpm is not none else 'N/A' }}</span>
+      </div>
+      <div class="report-item">
+        <strong>Visiteurs actifs (5 min)</strong>
+        <span>{{ live_traffic.active_visitors_5m if live_traffic.active_visitors_5m is not none else 'N/A' }}</span>
+      </div>
+      <div class="report-item">
+        <strong>Commandes / heure</strong>
+        <span>{{ live_traffic.orders_per_hour if live_traffic.orders_per_hour is not none else 'N/A' }}</span>
+      </div>
+    </div>
+    {% if live_traffic.error %}
+      <div class="alert alert-secondary mt-3 mb-0">Source live indisponible: {{ live_traffic.error }}</div>
+    {% endif %}
+  </section>
+
+  <section class="card-shell">
+    <div class="section-head">
+      <div>
+        <h5 class="section-title"><i class="bi bi-tools"></i> Mode maintenance</h5>
+        <p class="section-sub">Activation immediate ou planifiee, admins non bloques.</p>
+      </div>
+      <span class="status-pill {{ 'status-danger' if maintenance_mode.active else 'status-ok' }}">
+        {{ 'ON' if maintenance_mode.active else 'OFF' }}
+      </span>
+    </div>
+    <div class="report-list mb-3">
+      <div class="report-item"><strong>Message actuel</strong><span>{{ maintenance_mode.message or 'N/A' }}</span></div>
+      <div class="report-item"><strong>Activation manuelle</strong><span>{{ 'ON' if maintenance_mode.manual_enabled else 'OFF' }}</span></div>
+      <div class="report-item"><strong>Date activation</strong><span>{{ maintenance_mode.enabled_at_label }}</span></div>
+      <div class="report-item"><strong>Debut programme</strong><span>{{ maintenance_mode.starts_at_label }}</span></div>
+      <div class="report-item"><strong>Fin programmee</strong><span>{{ maintenance_mode.ends_at_label }}</span></div>
+    </div>
+
+    <div class="actions-grid">
+      <article class="action-box">
+        <h6>Activer / desactiver</h6>
+        <form method="post" action="{{ url_for('admin.maintenance_mode_enable') }}" class="mb-2">
+          {% include "admin/partials/_csrf.html" %}
+          <input type="hidden" name="days" value="{{ days }}">
+          <label class="form-label small mb-1">Message maintenance</label>
+          <textarea name="message" class="form-control form-control-sm" rows="2" placeholder="Maintenance technique en cours">{{ maintenance_mode.message or '' }}</textarea>
+          <button type="submit" class="btn btn-sm btn-warning mt-2">Activer maintenant</button>
+        </form>
+        <form method="post" action="{{ url_for('admin.maintenance_mode_disable') }}">
+          {% include "admin/partials/_csrf.html" %}
+          <input type="hidden" name="days" value="{{ days }}">
+          <button type="submit" class="btn btn-sm btn-outline-success">Desactiver</button>
+        </form>
+      </article>
+
+      <article class="action-box">
+        <h6>Programmer</h6>
+        <form method="post" action="{{ url_for('admin.maintenance_mode_schedule') }}">
+          {% include "admin/partials/_csrf.html" %}
+          <input type="hidden" name="days" value="{{ days }}">
+          <div class="mb-2">
+            <label class="form-label small mb-1">Debut</label>
+            <input type="datetime-local" name="starts_at" class="form-control form-control-sm" value="{{ maintenance_mode.starts_at_local }}">
+          </div>
+          <div class="mb-2">
+            <label class="form-label small mb-1">Fin</label>
+            <input type="datetime-local" name="ends_at" class="form-control form-control-sm" value="{{ maintenance_mode.ends_at_local }}">
+          </div>
+          <div class="mb-2">
+            <label class="form-label small mb-1">Message</label>
+            <textarea name="message" class="form-control form-control-sm" rows="2" placeholder="Maintenance planifiee">{{ maintenance_mode.message or '' }}</textarea>
+          </div>
+          <button type="submit" class="btn btn-sm btn-outline-primary">Programmer</button>
+        </form>
+      </article>
+    </div>
+    {% if maintenance_mode.available is defined and not maintenance_mode.available %}
+      <div class="alert alert-warning mt-3 mb-0">
+        Maintenance mode indisponible: {{ maintenance_mode.error or 'etat settings inaccessible' }}
+      </div>
+    {% endif %}
+  </section>
+
+  <section class="card-shell">
+    <div class="section-head">
+      <div>
+        <h5 class="section-title"><i class="bi bi-clock-history"></i> Historique nettoyage</h5>
+        <p class="section-sub">Derniers runs quick/full et indicateurs d’erreurs.</p>
+      </div>
+      {% if report %}
+        <a class="btn btn-sm btn-outline-primary" href="#last-report">Voir dernier rapport</a>
+      {% else %}
+        <button class="btn btn-sm btn-outline-secondary" type="button" disabled>Voir dernier rapport</button>
+      {% endif %}
+    </div>
+    <div class="report-list">
+      <div class="report-item">
+        <strong>Dernier quick</strong>
+        <span>
+          {% if last_quick_run %}
+            {{ (last_quick_run.finished_at or last_quick_run.started_at).strftime('%d/%m/%Y %H:%M:%S') if (last_quick_run.finished_at or last_quick_run.started_at) else 'N/A' }}
+          {% else %}
+            N/A
+          {% endif %}
+        </span>
+        <div class="small text-muted mt-1">Duree: {{ last_quick_run.duration_ms if last_quick_run and last_quick_run.duration_ms is not none else 'N/A' }} ms</div>
+      </div>
+      <div class="report-item">
+        <strong>Dernier full</strong>
+        <span>
+          {% if last_full_run %}
+            {{ (last_full_run.finished_at or last_full_run.started_at).strftime('%d/%m/%Y %H:%M:%S') if (last_full_run.finished_at or last_full_run.started_at) else 'N/A' }}
+          {% else %}
+            Jamais execute
+          {% endif %}
+        </span>
+        <div class="small text-muted mt-1">Duree: {{ (last_full_run.duration_ms ~ ' ms') if last_full_run and last_full_run.duration_ms is not none else '-' }}</div>
+      </div>
+      <div class="report-item">
+        <strong>Erreurs dernier run</strong>
+        <span>{{ last_run.error_count if last_run else 'N/A' }}</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="card-shell">
+    <div class="section-head">
+      <div>
+        <h5 class="section-title"><i class="bi bi-terminal"></i> Actions maintenance</h5>
+        <p class="section-sub">Execution HTTP bloquee, commandes CLI recommandees.</p>
+      </div>
+    </div>
+    <div class="actions-grid">
+      <article class="action-box">
+        <h6>Nettoyage rapide (CLI)</h6>
+        <p>Execution hors HTTP uniquement. Cette commande enregistre aussi un rapport persistant.</p>
+        <div class="report-item"><strong>Commande</strong><span><code>flask cleanup --mode quick --days {{ days }}</code></span></div>
+        <form method="post" action="{{ url_for('admin.run_maintenance', mode='quick') }}" class="mt-2">
+          {% include "admin/partials/_csrf.html" %}
+          <input type="hidden" name="days" value="{{ days }}">
+          <button type="submit" class="btn btn-sm btn-outline-primary">Afficher la commande</button>
+        </form>
+      </article>
+      <article class="action-box">
+        <h6>Nettoyage complet (CLI)</h6>
+        <p>Rapide + purge locations stale + purge archives + nettoyage sessions filesystem + purge ErrorLog > 7 jours.</p>
+        <div class="report-item"><strong>Commande</strong><span><code>flask cleanup --mode full --days {{ days }}</code></span></div>
+        <form method="post" action="{{ url_for('admin.run_maintenance', mode='full') }}" class="mt-2">
+          {% include "admin/partials/_csrf.html" %}
+          <input type="hidden" name="days" value="{{ days }}">
+          <button type="submit" class="btn btn-sm btn-outline-primary">Afficher la commande</button>
+        </form>
+      </article>
+    </div>
+  </section>
+
+  <section class="card-shell">
+    <div class="section-head">
+      <div>
+        <h5 class="section-title"><i class="bi bi-exclamation-triangle"></i> Erreurs recentes (24h)</h5>
+        <p class="section-sub">Journal 500 pagine avec actions de purge securisees.</p>
+      </div>
+      {% if errors_block.available and errors_block.get('items') %}
+      <form method="post" action="{{ url_for('admin.maintenance_errors_purge') }}" data-confirm-submit="Supprimer toutes les erreurs 500 des 24h ?" class="d-inline-flex align-items-center gap-2">
+        {% include "admin/partials/_csrf.html" %}
+        <input type="hidden" name="days" value="{{ days }}">
+        <input type="hidden" name="errors_page" value="{{ errors_block.page or 1 }}">
+        <button type="submit" class="btn btn-sm btn-outline-danger">
+          <i class="bi bi-trash3"></i> Supprimer toutes (24h)
+        </button>
+      </form>
+      {% endif %}
+    </div>
+    <div class="report-list">
+      <div class="report-item">
+        <strong>Total 500 (24h)</strong>
+        <span>{{ errors_block.total_500_last_24h }}</span>
+      </div>
+    </div>
+    {% if errors_block.available %}
+      {% if errors_block.get('items') %}
+        <div class="table-responsive mt-3">
+          <table class="table table-sm align-middle mb-0 monitor-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Methode</th>
+                <th>Route</th>
+                <th>Status</th>
+                <th>Message</th>
+                <th class="text-end">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for err in errors_block.get('items', []) %}
+                <tr>
+                  <td data-label="Date">{{ err.created_at.strftime('%d/%m/%Y %H:%M:%S') if err.created_at else 'N/A' }}</td>
+                  <td data-label="Methode">{{ err.method or 'N/A' }}</td>
+                  <td data-label="Route"><code>{{ err.path or 'N/A' }}</code></td>
+                  <td data-label="Status">{{ err.status_code or 'N/A' }}</td>
+                  <td data-label="Message">{{ err.short_message or 'N/A' }}</td>
+                  <td data-label="Action" class="text-end">
+                    <form method="post" action="{{ url_for('admin.maintenance_error_delete', error_id=err.id) }}" data-confirm-submit="Supprimer cette erreur ?" class="d-inline">
+                      {% include "admin/partials/_csrf.html" %}
+                      <input type="hidden" name="days" value="{{ days }}">
+                      <input type="hidden" name="errors_page" value="{{ errors_block.page or 1 }}">
+                      <button type="submit" class="btn btn-sm btn-outline-danger">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </form>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% set errors_pagination = errors_block.get('pagination') %}
+        {% if errors_pagination and errors_pagination.pages > 1 %}
+          <nav class="mt-3" aria-label="Pagination erreurs 500">
+            <ul class="pagination pagination-sm mb-0 flex-wrap">
+              <li class="page-item {% if not errors_pagination.has_prev %}disabled{% endif %}">
+                <a class="page-link" href="{{ url_for('admin.maintenance', days=days, errors_page=errors_pagination.prev_num) }}">Prec</a>
+              </li>
+              {% for p in errors_pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                {% if p %}
+                  <li class="page-item {% if p == errors_pagination.page %}active{% endif %}">
+                    <a class="page-link" href="{{ url_for('admin.maintenance', days=days, errors_page=p) }}">{{ p }}</a>
+                  </li>
+                {% else %}
+                  <li class="page-item disabled"><span class="page-link">…</span></li>
+                {% endif %}
+              {% endfor %}
+              <li class="page-item {% if not errors_pagination.has_next %}disabled{% endif %}">
+                <a class="page-link" href="{{ url_for('admin.maintenance', days=days, errors_page=errors_pagination.next_num) }}">Suiv</a>
+              </li>
+            </ul>
+          </nav>
+        {% endif %}
+      {% else %}
+        <div class="alert alert-light border mt-3 mb-0">Aucune erreur 500 sur les 24 dernieres heures.</div>
+      {% endif %}
+    {% else %}
+      <div class="alert alert-secondary mt-3 mb-0">{{ errors_block.note or 'N/A (source de logs indisponible)' }}</div>
+    {% endif %}
+  </section>
+
+  <section class="card-shell danger-zone">
+    <h5 class="mb-2">Reset base (admin uniquement)</h5>
+    <p class="danger-note mb-2">Supprime toutes les donnees applicatives et conserve uniquement les comptes admin.</p>
+    <form method="post" action="{{ url_for('admin.maintenance_reset_data') }}" data-confirm-submit="Cette action est irreversible. Continuer ?" class="row g-2">
+      {% include "admin/partials/_csrf.html" %}
+      <input type="hidden" name="days" value="{{ days }}">
+      <div class="col-12">
+        <label class="form-label">Dossier backup (optionnel)</label>
+        <input type="text" name="backup_dir" class="form-control" placeholder="Ex: C:\backups\dealnova (sinon dossier par defaut)">
+        <small class="text-muted">Le backup SQLite est cree avant la suppression des donnees.</small>
+      </div>
+      <div class="col-md-5">
+        <label class="form-label">Mot de passe admin</label>
+        <input type="password" name="password" class="form-control" required>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Tapez RESET</label>
+        <input type="text" name="confirm_text" class="form-control" placeholder="RESET" required>
+      </div>
+      <div class="col-md-3 d-flex align-items-end">
+        <button type="submit" class="btn btn-outline-danger w-100"><i class="bi bi-trash3"></i> Reinitialiser la base</button>
+      </div>
+    </form>
+    {% if reset_result %}
+      <div class="alert alert-success mt-3 mb-0">
+        Reinitialisation terminee. Comptes admin conserves: <strong>{{ reset_result.admins_kept }}</strong>
+        {% if reset_result.backup %}
+          <div class="small mt-2">
+            <div><strong>Backup DB:</strong> {{ reset_result.backup.backup_file }}</div>
+            <div><strong>Manifest:</strong> {{ reset_result.backup.manifest_file }}</div>
+          </div>
+        {% endif %}
+      </div>
+    {% endif %}
+  </section>
+</div>
+<script>
+(function () {
+  var root = document.querySelector('.maintenance-wrap');
+  var btn = document.getElementById('maintenanceThemeToggle');
+  if (!root || !btn) return;
+  var KEY = 'admin-theme-mode';
+  function setTheme(mode) {
+    if (mode === 'noc') {
+      root.setAttribute('data-theme', 'noc');
+      btn.innerHTML = '<i class="bi bi-sun"></i> Theme Clair';
+    } else {
+      root.setAttribute('data-theme', 'default');
+      btn.innerHTML = '<i class="bi bi-moon-stars"></i> Theme NOC';
+    }
+  }
+  var saved = localStorage.getItem(KEY) || document.documentElement.getAttribute('data-admin-theme') || 'default';
+  setTheme(saved);
+  btn.addEventListener('click', function () {
+    var current = root.getAttribute('data-theme') === 'noc' ? 'noc' : 'default';
+    var next = current === 'noc' ? 'default' : 'noc';
+    localStorage.setItem(KEY, next);
+    document.documentElement.setAttribute('data-admin-theme', next);
+    setTheme(next);
+  });
+})();
+</script>
+{% endblock %}

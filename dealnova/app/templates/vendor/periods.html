@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+{% block title %}Mes périodes{% endblock %}
+
+{% block head %}
+{{ super() }}
+<style>
+  .vp-wrap { display: grid; gap: 1rem; padding-bottom: 2rem; }
+  .vp-hero {
+    border-radius: 1.25rem;
+    padding: 1.25rem;
+    border: 1px solid rgba(16,185,129,.2);
+    background:
+      radial-gradient(120% 120% at 100% 0%, rgba(245,158,11,.18) 0%, rgba(245,158,11,0) 48%),
+      linear-gradient(135deg, rgba(16,185,129,.14), rgba(15,23,42,.04));
+    box-shadow: 0 .75rem 1.625rem rgba(15,23,42,.08);
+  }
+  .vp-title { margin: 0; font-weight: 900; letter-spacing: -0.02em; color: #0f172a; }
+  .vp-sub { margin: .25rem 0 0; color: #64748b; font-weight: 600; }
+
+  .vp-grid { display: grid; gap: 1rem; grid-template-columns: 1.2fr .8fr; }
+  @media (max-width: 992px){ .vp-grid { grid-template-columns: 1fr; } }
+
+  .vp-card {
+    border-radius: 1.25rem;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    box-shadow: 0 .75rem 1.5rem rgba(15,23,42,.06);
+    overflow: hidden;
+  }
+  .vp-card-h {
+    padding: 1rem 1.1rem;
+    border-bottom: 1px solid #eef2f7;
+    display: flex; align-items: center; justify-content: space-between; gap: .75rem;
+  }
+  .vp-card-b { padding: 1rem 1.1rem; }
+  .vp-badge {
+    display: inline-flex; align-items: center; gap: .35rem;
+    padding: .35rem .65rem;
+    border-radius: 999px;
+    font-weight: 800;
+    font-size: .8rem;
+    border: 1px solid rgba(16,185,129,.25);
+    background: rgba(16,185,129,.10);
+    color: #047857;
+    white-space: nowrap;
+  }
+  .vp-badge.closed{
+    border-color: rgba(100,116,139,.35);
+    background: rgba(100,116,139,.10);
+    color: #334155;
+  }
+  .vp-form-row { display: grid; gap: .75rem; grid-template-columns: 1fr 220px; }
+  @media (max-width: 576px){ .vp-form-row{ grid-template-columns: 1fr; } }
+  .vp-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: .45rem;
+    border-radius: 999px;
+    padding: .55rem .95rem;
+    font-weight: 800;
+    border: 1px solid rgba(16,185,129,.35);
+    background: linear-gradient(135deg, #10b981, #0ea5e9);
+    color: #fff;
+    text-decoration: none;
+    transition: transform .15s ease, filter .15s ease;
+  }
+  .vp-btn:hover { transform: translateY(-1px); filter: brightness(1.03); color: #fff; }
+  .vp-btn.secondary {
+    background: #fff;
+    color: #0f172a;
+    border-color: #e2e8f0;
+  }
+  .vp-btn.secondary:hover { color: #0f172a; }
+
+  .vp-table { width: 100%; }
+  .vp-table th { font-size: .82rem; text-transform: uppercase; letter-spacing: .04em; color: #64748b; }
+  .vp-table td { vertical-align: middle; }
+  .vp-muted { color: #64748b; font-weight: 600; }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="vp-wrap">
+  <header class="vp-hero">
+    <h1 class="vp-title">Mes périodes</h1>
+    <p class="vp-sub">Organisez vos encaissements en périodes, puis fermez et archivez.</p>
+  </header>
+
+  <div class="vp-grid">
+    <article class="vp-card">
+      <div class="vp-card-h">
+        <div>
+          <div class="vp-muted" style="font-size:.9rem;">Période active</div>
+          <div style="font-weight:900; font-size:1.05rem; color:#0f172a;">
+            {% if open_period %}{{ open_period.name }}{% else %}Aucune période ouverte{% endif %}
+          </div>
+        </div>
+        {% if open_period %}
+          <span class="vp-badge"><i class="bi bi-unlock"></i> Ouverte</span>
+        {% else %}
+          <span class="vp-badge closed"><i class="bi bi-lock"></i> Fermée</span>
+        {% endif %}
+      </div>
+      <div class="vp-card-b">
+        {% if open_period %}
+          <div class="vp-muted">Début : {{ open_period.start_at.strftime('%d/%m/%Y') if open_period.start_at else '-' }}</div>
+          <div class="mt-3 d-flex flex-wrap gap-2">
+            <form method="post" action="{{ url_for('vendor.close_period', period_id=open_period.id) }}">
+              {% include "partials/_csrf.html" %}
+              <button class="vp-btn secondary" type="submit" data-coach="vendor_close_period" data-coach-priority="8" data-coach-text="Astuce : fermez une période pour archiver. S'il reste des commandes à confirmer, on vous avertira avant la clôture.">
+                <i class="bi bi-check2-circle"></i> Fermer la période
+              </button>
+            </form>
+            <a class="vp-btn" href="{{ url_for('vendor.orders') }}">
+              <i class="bi bi-receipt"></i> Voir les commandes
+            </a>
+          </div>
+        {% else %}
+          <form method="post" action="{{ url_for('vendor.open_period') }}">
+            {% include "partials/_csrf.html" %}
+            <div class="vp-form-row">
+              <div>
+                <label class="form-label vp-muted mb-1">Nom</label>
+                <input class="form-control" name="name" placeholder="Ex: Période Février" maxlength="120">
+              </div>
+              <div>
+                <label class="form-label vp-muted mb-1">Date début</label>
+                <input class="form-control" type="date" name="start_date">
+              </div>
+            </div>
+            <div class="mt-3">
+              <button class="vp-btn" type="submit">
+                <i class="bi bi-plus-circle"></i> Ouvrir une période
+              </button>
+            </div>
+          </form>
+        {% endif %}
+      </div>
+    </article>
+
+    <aside class="vp-card">
+      <div class="vp-card-h">
+        <div style="font-weight:900; color:#0f172a;">Raccourcis</div>
+      </div>
+      <div class="vp-card-b d-grid gap-2">
+        <a class="vp-btn secondary" href="{{ url_for('vendor.earnings') }}">
+          <i class="bi bi-graph-up"></i> Encaissements
+        </a>
+        <a class="vp-btn secondary" href="{{ url_for('vendor.security') }}">
+          <i class="bi bi-shield-lock"></i> Sécurité historique
+        </a>
+      </div>
+    </aside>
+  </div>
+
+  <article class="vp-card">
+    <div class="vp-card-h">
+      <div style="font-weight:900; color:#0f172a;">Toutes les périodes</div>
+      <div class="vp-muted">{{ periods|length }} période(s)</div>
+    </div>
+    <div class="vp-card-b">
+      {% if periods %}
+        <div class="table-responsive">
+          <table class="table vp-table align-middle mb-0">
+            <thead>
+              <tr>
+                <th>Nom</th>
+                <th>Début</th>
+                <th>Fin</th>
+                <th class="text-end">Statut</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for p in periods %}
+              <tr>
+                <td style="font-weight:900; color:#0f172a;">{{ p.name }}</td>
+                <td class="vp-muted">{{ p.start_at.strftime('%d/%m/%Y') if p.start_at else '-' }}</td>
+                <td class="vp-muted">{{ p.end_at.strftime('%d/%m/%Y') if p.end_at else '-' }}</td>
+                <td class="text-end">
+                  {% if p.status == 'open' %}
+                    <span class="vp-badge"><i class="bi bi-unlock"></i> Ouverte</span>
+                  {% else %}
+                    <span class="vp-badge closed"><i class="bi bi-lock"></i> Fermée</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="vp-muted">Aucune période.</div>
+      {% endif %}
+    </div>
+  </article>
+</section>
+{% endblock %}

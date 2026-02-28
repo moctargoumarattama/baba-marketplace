@@ -1,0 +1,391 @@
+﻿{% extends "base.html" %}
+{% block title %}BABA Market - Produits Frais & Livraison Rapide{% endblock %}
+
+{% block head %}
+<link rel="preload" as="image" href="{{ url_for('static', filename='logo.png') }}">
+<link rel="preload" as="image" href="{{ url_for('static', filename='images/produit.jpeg') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/home_shell.css', v=app_static_version) }}">
+{% endblock %}
+
+{% block content %}
+<!-- HERO SECTION WITH BACKGROUND IMAGE -->
+<section class="hero-background glow-line">
+  <div class="hero-content">
+    <div class="hero-eyebrow reveal" style="--i: 0">
+      <span class="hero-eyebrow-text">BIENVENUE</span>
+    </div>
+    <h1 class="hero-title reveal" style="--i: 1">
+      <span class="hero-brand">
+        <span class="hero-brand-main">BABA</span>
+        <span class="hero-brand-accent">Market</span>
+      </span>
+      <span class="hero-tagline">Tout au même endroit.</span>
+    </h1>
+
+    <div class="hero-buttons reveal" style="--i: 4">
+      <a href="{{ url_for('shop.home') }}" class="btn-hero btn-hero-primary premium-hover shine">
+        <i class="bi bi-bag-check"></i>
+        Acheter et réserver
+      </a>
+      <a href="{{ url_for('rentals.locations_home') }}" class="btn-hero btn-hero-outline premium-hover">
+        <i class="bi bi-house-door"></i>
+        Explorer les locations
+      </a>
+    </div>
+  </div>
+
+  <div class="hero-visual reveal" style="--i: 2">
+    <div class="hero-card premium-hover">
+      <div class="hero-card-top">
+        <span class="hero-card-chip">Top offres</span>
+        <span class="hero-card-price">Marketplace</span>
+      </div>
+      <img src="{{ url_for('static', filename='images/produit.jpeg') }}"
+           alt="Offres marketplace"
+           class="hero-card-image"
+           loading="eager"
+           fetchpriority="high">
+      <div class="hero-card-bottom">
+        <span class="hero-card-delivery"><i class="bi bi-grid-3x3-gap"></i> 3 univers actifs</span>
+        <span class="hero-card-rating"><i class="bi bi-star-fill"></i> 4.9</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="market-universes section-shell glow-line">
+  <div class="market-universes-title reveal" style="--i: 0">
+    <h2>Que cherchez-vous aujourd'hui </h2>
+    <p>Choisissez votre univers pour aller directement au bon contenu.</p>
+  </div>
+  <div class="universe-grid">
+    <a href="{{ url_for('shop.home', kind='physical') }}" class="universe-card products reveal" style="--i: 1">
+      <span class="universe-icon"><i class="bi bi-box-seam"></i></span>
+      <span class="universe-content">
+        <span class="universe-label">Produits</span>
+        <span class="universe-note">Livraison</span>
+        <span class="universe-count">{{ market_stats.get('products', 0) }} offre(s)</span>
+      </span>
+    </a>
+    <a href="{{ url_for('shop.home', kind='service') }}" class="universe-card services reveal" style="--i: 2">
+      <span class="universe-icon"><i class="bi bi-calendar-check"></i></span>
+      <span class="universe-content">
+        <span class="universe-label">Services</span>
+        <span class="universe-note">Rendez-vous</span>
+        <span class="universe-count">{{ market_stats.get('services', 0) }} offre(s)</span>
+      </span>
+    </a>
+    <a href="{{ url_for('rentals.locations_home') }}" class="universe-card locations reveal" style="--i: 3">
+      <span class="universe-icon"><i class="bi bi-house-door"></i></span>
+      <span class="universe-content">
+        <span class="universe-label">Locations</span>
+        <span class="universe-note">Immobilier</span>
+        <span class="universe-count">{{ market_stats.get('locations', 0) }} offre(s)</span>
+      </span>
+    </a>
+    <a href="{{ url_for('delivery_special.delivery_form') }}" class="universe-card delivery reveal" style="--i: 4">
+      <span class="universe-icon"><i class="bi bi-truck"></i></span>
+      <span class="universe-content">
+        <span class="universe-label">Livraison</span>
+        <span class="universe-note">Spéciale</span>
+        <span class="universe-count">Tarif par ville</span>
+      </span>
+    </a>
+  </div>
+</section>
+
+<!-- PRODUCTS SECTION -->
+<div class="products-container section-shell glow-line">
+  {% if data %}
+  <div class="products-header reveal" style="--i: 0">
+    <div>
+      <h2 class="products-title underline-animated">Produits, services et locations du moment</h2>
+      <p class="products-subtitle">Sélection mixte pour achat rapide, réservation et visite.</p>
+    </div>
+  </div>
+  <div class="products-grid">
+    {% for item in data %}
+    {% set product = item[0] %}
+    {% set final_price = item[1] %}
+    {% set discount = item[2] if item|length > 2 else None %}
+    
+    {% set product_images = product.image_file.split('|') if product.image_file and '|' in product.image_file else [product.image_file] if product.image_file else [] %}
+    {% set first_image = product_images[0] if product_images|length > 0 else '' %}
+    
+    <div class="product-card premium-hover reveal" style="--i: {{ loop.index0 }}">
+      <!-- Product Badges -->
+      <div class="product-badges">
+        {% if discount and discount > 0 %}
+        <div class="badge badge-discount">
+          <i class="bi bi-percent"></i>
+          <span>-{{ discount }}%</span>
+        </div>
+        {% endif %}
+        
+        {% if product.kind == 'service' %}
+        <div class="badge badge-service">
+          <i class="bi bi-calendar-check"></i>
+          <span>Service</span>
+        </div>
+        {% elif product.kind == 'location' %}
+        <div class="badge badge-location">
+          <i class="bi bi-house-door"></i>
+          <span>Location</span>
+        </div>
+        {% else %}
+          {% if product.stock == 0 %}
+          <div class="badge badge-stock-out">
+            <i class="bi bi-x-circle"></i>
+            <span>Rupture</span>
+          </div>
+          {% elif product.stock is defined and product.stock < 5 %}
+          <div class="badge badge-stock-low">
+            <i class="bi bi-exclamation-triangle"></i>
+            <span>Stock bas</span>
+          </div>
+          {% elif product.stock is defined and product.stock > 0 %}
+          <div class="badge badge-stock">
+            <i class="bi bi-check-circle"></i>
+            <span>En stock</span>
+          </div>
+          {% endif %}
+        {% endif %}
+      </div>
+
+      <!-- Product Image -->
+      <div class="product-image-container">
+        {% if first_image %}
+          {% if product.kind == 'location' %}
+          <img src="{{ url_for('static', filename=first_image) }}"
+               alt="{{ product.name }}"
+               class="product-image"
+               loading="lazy"
+               decoding="async"
+               width="300"
+               height="300"
+               data-fallback-src="https://images.unsplash.com/photo-1560518883-ce09059eeffaauto=format&fit=crop&w=400&q=80">
+          {% else %}
+          <img src="{{ url_for('static', filename='uploads/' ~ image_variant(first_image, 'thumb')) }}"
+               alt="{{ product.name }}"
+               class="product-image"
+               loading="lazy"
+               decoding="async"
+               width="300"
+               height="300"
+               data-fallback-src="https://images.unsplash.com/photo-1556909114-f6e7ad7d3136auto=format&fit=crop&w=400&q=80">
+          {% endif %}
+        {% else %}
+          <div class="image-placeholder">
+            <i class="bi bi-bag"></i>
+          </div>
+        {% endif %}
+      </div>
+      
+      <!-- Product Info -->
+      <div class="product-content">
+        <h3 class="product-name">
+          {% if product.kind == 'location' %}
+          <a href="{{ url_for('rentals.location_detail', slug=product.slug) }}">
+            {{ product.name }}
+          </a>
+          {% else %}
+          <a href="{{ url_for('shop.product_detail', pid=product.id) }}">
+            {{ product.name }}
+          </a>
+          {% endif %}
+        </h3>
+        
+        <div class="product-price-container">
+          <div class="current-price">{{ "%.2f"|format(final_price) }} DH</div>
+          
+          {% if product.kind == 'location' %}
+          <div class="discount-text">{{ 'Mensuel' if product.listing_type == 'monthly' else 'Journalier' }}</div>
+          {% elif product.price and product.price > final_price %}
+          <div class="old-price">{{ "%.2f"|format(product.price) }} DH</div>
+          {% if discount and discount > 0 %}
+          <div class="discount-text">Économisez {{ discount }}%</div>
+          {% endif %}
+          {% endif %}
+        </div>
+
+        <div class="product-actions">
+          {% if product.kind == 'location' %}
+          <a href="{{ url_for('rentals.location_detail', slug=product.slug) }}" class="btn-detail premium-hover">
+            <i class="bi bi-eye"></i>
+            <span>Détails</span>
+          </a>
+          {% else %}
+          <a href="{{ url_for('shop.product_detail', pid=product.id) }}" class="btn-detail premium-hover">
+            <i class="bi bi-eye"></i>
+            <span>Détails</span>
+          </a>
+          {% endif %}
+          
+          {% if product.kind == 'service' %}
+          <a href="{{ url_for('booking.book', pid=product.id) }}" class="btn-book premium-hover">
+            <i class="bi bi-calendar-check"></i>
+            <span>Réserver</span>
+          </a>
+          {% elif product.kind == 'location' %}
+          <a href="{{ url_for('rentals.location_inquiry', slug=product.slug) }}" class="btn-book premium-hover">
+            <i class="bi bi-whatsapp"></i>
+            <span>Demander visite</span>
+          </a>
+          {% elif product.stock is not defined or product.stock > 0 %}
+          <form method="post" action="{{ url_for('cart.add', pid=product.id) }}" class="d-inline add-to-cart-form">
+            {% include "partials/_csrf.html" %}
+            <button type="submit"
+                    class="btn-cart add-to-cart premium-hover"
+                    data-name="{{ product.name|e }}"
+                    data-pid="{{ product.id }}">
+              <i class="bi bi-cart-plus"></i>
+              <span>Panier</span>
+            </button>
+          </form>
+          {% else %}
+          <button type="button" class="btn-cart premium-hover" disabled>
+            <i class="bi bi-x-circle"></i>
+            <span>Indisponible</span>
+          </button>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Pagination -->
+  {% if pagination and pagination.pages > 1 %}
+  <div class="pagination">
+    {% if pagination.has_prev %}
+      <a href="{{ url_for('shop.home', page=pagination.prev_num, q=q, cat=cat, sort=sort, min_price=min_price, max_price=max_price, promo=promo_only, stock=in_stock) }}"
+         class="page-link">
+        <i class="bi bi-chevron-left"></i>
+      </a>
+    {% else %}
+      <span class="page-link disabled">
+        <i class="bi bi-chevron-left"></i>
+      </span>
+    {% endif %}
+
+    {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=1) %}
+      {% if p %}
+        {% if p == pagination.page %}
+          <span class="page-link active">{{ p }}</span>
+        {% else %}
+          <a href="{{ url_for('shop.home', page=p, q=q, cat=cat, sort=sort, min_price=min_price, max_price=max_price, promo=promo_only, stock=in_stock) }}"
+             class="page-link">{{ p }}</a>
+        {% endif %}
+      {% else %}
+        <span class="page-link disabled">…</span>
+      {% endif %}
+    {% endfor %}
+
+    {% if pagination.has_next %}
+      <a href="{{ url_for('shop.home', page=pagination.next_num, q=q, cat=cat, sort=sort, min_price=min_price, max_price=max_price, promo=promo_only, stock=in_stock) }}"
+         class="page-link">
+        <i class="bi bi-chevron-right"></i>
+      </a>
+    {% else %}
+      <span class="page-link disabled">
+        <i class="bi bi-chevron-right"></i>
+      </span>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% else %}
+  <!-- Empty State -->
+  <div class="empty-state reveal">
+    <div class="empty-icon">
+      <i class="bi bi-search"></i>
+    </div>
+    <h3 class="empty-title">Aucun produit trouvé</h3>
+    <p class="empty-text">
+      Essayez avec d'autres critères de recherche.
+    </p>
+    <a href="{{ url_for('shop.home') }}" class="btn-cart premium-hover" style="display: inline-flex; max-width: 200px; margin: 0 auto;">
+      <i class="bi bi-arrow-clockwise"></i>
+      Voir tous les produits
+    </a>
+  </div>
+  {% endif %}
+</div>
+<!-- Section boutiques -->
+{% if featured_shops %}
+<section class="featured-shops section-shell glow-line">
+  <div class="section-head">
+    <div class="section-title-group">
+      <span class="section-kicker">Boutiques</span>
+      <h2 class="section-title underline-animated">Boutiques en vedette</h2>
+      <p class="section-subtitle">Découvrez les meilleures boutiques du moment.</p>
+    </div>
+    <a href="{{ url_for('shops.list_shops') }}" class="btn-soft premium-hover">
+      Voir toutes <i class="bi bi-arrow-right ms-1"></i>
+    </a>
+  </div>
+
+  <div class="shop-grid">
+    {% for shop in featured_shops %}
+    <div class="shop-card premium-hover reveal" style="--i: {{ loop.index0 }}">
+      <div class="shop-avatar">
+        {% if shop.logo %}
+          <img src="{{ url_for('static', filename='uploads/' + shop.logo) }}"
+               alt="{{ shop.name }}"
+               loading="lazy"
+               decoding="async"
+               width="72"
+               height="72">
+        {% else %}
+          <i class="bi bi-shop"></i>
+        {% endif %}
+      </div>
+
+      <h5 class="shop-title">
+        <a href="{{ url_for('shops.shop_detail', shop_slug=shop.slug) }}">
+          {{ shop.name }}
+        </a>
+      </h5>
+
+      <div class="shop-meta">
+        <span><i class="bi bi-box"></i> {{ shop.product_count or 0 }} produits</span>
+        <span><i class="bi bi-star-fill"></i> {{ shop.rating|round(1) if shop.rating else "N/A" }}</span>
+      </div>
+
+      <a href="{{ url_for('shops.shop_detail', shop_slug=shop.slug) }}" class="shop-cta">
+        Visiter
+      </a>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+<!-- Floating Cart -->
+{% if cart_count > 0 %}
+<a href="{{ url_for('cart.view') }}" class="floating-cart premium-hover shine">
+  <i class="bi bi-cart3"></i>
+  <span>Panier</span>
+  <span class="cart-count">{{ cart_count }}</span>
+</a>
+{% endif %}
+
+<button class="scroll-top premium-hover" type="button" aria-label="Retour en haut">
+  <i class="bi bi-arrow-up"></i>
+</button>
+
+<!-- Toast Notification -->
+<div id="toast" class="toast">
+  <i id="toast-icon" class="bi bi-info-circle"></i>
+  
+  <span id="toast-message"></span>
+  <button type="button" id="toast-close" style="background: none; border: none; color: white; cursor: pointer; margin-left: auto;">
+    <i class="bi bi-x"></i>
+  </button>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/home_shell.js', v=app_static_version) }}" defer></script>
+{% endblock %}
+
+

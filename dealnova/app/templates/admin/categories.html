@@ -1,0 +1,364 @@
+{% extends "admin/base.html" %}
+{% block title %}Catégories | Admin{% endblock %}
+{% block page_title %}Catégories{% endblock %}
+
+{% block head %}
+<style>
+/* kill base 3D */
+.admin-card,.card{transform:none!important;transition:none!important;animation:none!important;}
+
+:root{
+  --white:#fff;--bg:#f8fafc;--border:#e5e7eb;
+  --text:#0f172a;--mid:#475569;--muted:#94a3b8;
+  --primary:#3b82f6;--r:10px;--sh:0 1px 5px rgba(0,0,0,.07);
+}
+
+.cw{display:flex;flex-direction:column;gap:.85rem;padding-bottom:2rem;}
+
+/* HERO */
+.c-hero{
+  background:linear-gradient(135deg,rgba(255,107,53,.1),rgba(0,78,137,.06));
+  border:1px solid rgba(255,107,53,.18);
+  border-radius:var(--r);padding:.85rem 1rem;
+  display:flex;align-items:center;justify-content:space-between;
+  gap:.75rem;flex-wrap:wrap;
+}
+.c-hero-left{display:flex;align-items:center;gap:.65rem;}
+.c-hero-icon{
+  width:40px;height:40px;border-radius:10px;
+  background:rgba(255,255,255,.85);
+  display:inline-flex;align-items:center;justify-content:center;
+  color:var(--primary);font-size:1.1rem;
+  box-shadow:0 4px 10px rgba(0,0,0,.07);flex-shrink:0;
+}
+.c-hero-title{font-size:1.1rem;font-weight:800;color:var(--text);margin:0;line-height:1.2;}
+.c-hero-sub{font-size:.75rem;color:var(--mid);margin:.1rem 0 0;font-weight:500;}
+.btn-new{
+  display:inline-flex;align-items:center;gap:.3rem;
+  height:36px;padding:0 .9rem;border-radius:8px;
+  background:var(--primary);color:#fff;border:none;
+  font-size:.78rem;font-weight:700;text-decoration:none;
+  transition:background .15s;white-space:nowrap;
+}
+.btn-new:hover{background:#2563eb;color:#fff;}
+
+/* FILTER BAR */
+.lc{background:var(--white);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--sh);overflow:hidden;}
+.lc-hd{display:flex;align-items:center;justify-content:space-between;padding:.65rem .9rem;border-bottom:1px solid var(--border);background:var(--bg);flex-wrap:wrap;gap:.4rem;}
+.lc-hd h6{margin:0;font-size:.85rem;font-weight:700;color:var(--text);display:flex;align-items:center;gap:.35rem;}
+.lc-hd .sub{font-size:.72rem;color:var(--muted);}
+.lc-body{padding:.75rem .9rem;}
+
+.fbar{display:flex;gap:.45rem;flex-wrap:wrap;align-items:flex-end;}
+.fbar .fg{display:flex;flex-direction:column;gap:.18rem;flex:1;min-width:130px;}
+.fbar label{font-size:.68rem;font-weight:700;color:var(--mid);}
+.fc,.fs{height:36px;font-size:.79rem;border-radius:7px;border:1px solid var(--border);padding:.3rem .6rem;background:var(--white);outline:none;width:100%;transition:border-color .15s;}
+.fc:focus,.fs:focus{border-color:var(--primary);}
+.fg-btns{display:flex;gap:.38rem;align-items:flex-end;flex-shrink:0;}
+.btn-r{height:36px;padding:0 .75rem;border-radius:7px;background:var(--white);color:var(--mid);border:1px solid var(--border);font-size:.75rem;font-weight:600;text-decoration:none;display:inline-flex;align-items:center;gap:.24rem;cursor:pointer;}
+.btn-r:hover{background:var(--bg);}
+
+/* LIVE */
+.live-b{font-size:.65rem;font-weight:700;color:#16a34a;background:#dcfce7;border:1px solid #bbf7d0;border-radius:999px;padding:.12rem .45rem;display:inline-flex;align-items:center;gap:.2rem;}
+.live-b .dot{width:5px;height:5px;border-radius:50%;background:#16a34a;animation:blink 1.4s ease infinite;}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:.25;}}
+.search-ind{width:13px;height:13px;border:2px solid #e2e8f0;border-top-color:var(--primary);border-radius:50%;animation:spin .6s linear infinite;display:none;}
+.search-ind.on{display:inline-block;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* TABLE */
+.lt{width:100%;border-collapse:collapse;font-size:.8rem;}
+.lt thead th{padding:.45rem .7rem;text-align:left;font-size:.67rem;text-transform:uppercase;letter-spacing:.05em;font-weight:700;color:var(--muted);background:var(--bg);border-bottom:1px solid var(--border);white-space:nowrap;}
+.lt tbody td{padding:.55rem .7rem;border-bottom:1px solid #f1f5f9;vertical-align:middle;}
+.lt tbody tr:last-child td{border-bottom:none;}
+.lt tbody tr:hover{background:#fafbfc;}
+.lt .empty td{text-align:center;padding:2rem;color:var(--muted);}
+
+/* TYPE PILLS */
+.tp{display:inline-flex;align-items:center;gap:.28rem;padding:.2rem .55rem;border-radius:999px;font-weight:700;font-size:.72rem;border:1px solid transparent;}
+.tp-products{color:#047857;background:rgba(16,185,129,.12);border-color:rgba(16,185,129,.28);}
+.tp-services{color:#1D4ED8;background:rgba(37,99,235,.1);border-color:rgba(37,99,235,.25);}
+
+/* ACTIONS */
+.act-btns{display:flex;gap:.28rem;flex-wrap:nowrap;}
+.btn-edit,.btn-del{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:7px;border:1px solid var(--border);font-size:.8rem;cursor:pointer;transition:background .12s,border-color .12s;text-decoration:none;}
+.btn-edit{background:#fffbeb;color:#b45309;border-color:#fde68a;}
+.btn-edit:hover{background:#fef3c7;}
+.btn-del{background:#fef2f2;color:#dc2626;border-color:#fecaca;}
+.btn-del:hover{background:#fee2e2;}
+
+/* LOADING */
+.tbl-wrap{position:relative;}
+.tbl-mask{position:absolute;inset:0;background:rgba(255,255,255,.72);display:none;align-items:center;justify-content:center;z-index:5;}
+.tbl-mask.on{display:flex;}
+.spinner{width:20px;height:20px;border:3px solid #e2e8f0;border-top-color:var(--primary);border-radius:50%;animation:spin .65s linear infinite;}
+
+/* FADE */
+.fade-in{animation:fi .18s ease;}
+@keyframes fi{from{opacity:0;}to{opacity:1;}}
+
+/* PAGINATION */
+.pg{display:flex;align-items:center;justify-content:center;gap:.26rem;padding:.65rem .9rem;border-top:1px solid var(--border);flex-wrap:wrap;}
+.pg a,.pg span{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:30px;padding:0 .5rem;border:1px solid var(--border);border-radius:6px;background:var(--white);color:var(--mid);font-size:.74rem;font-weight:700;text-decoration:none;transition:border-color .12s,background .12s;cursor:pointer;}
+.pg a:hover{border-color:var(--primary);color:var(--primary);background:#eff6ff;}
+.pg .cur{background:var(--primary);border-color:var(--primary);color:#fff;}
+.pg .dis{opacity:.32;pointer-events:none;cursor:default;}
+.pg .pinfo{border:none;background:transparent;font-size:.7rem;color:var(--muted);padding:0 .2rem;min-width:auto;}
+
+/* MOBILE */
+@media(max-width:640px){
+  .hide-sm{display:none;}
+  .fbar .fg{min-width:calc(50% - .23rem);}
+  .c-hero{padding:.7rem .85rem;}
+  .c-hero-title{font-size:1rem;}
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="cw">
+
+  <!-- HERO -->
+  <div class="c-hero">
+    <div class="c-hero-left">
+      <span class="c-hero-icon"><i class="bi bi-tags"></i></span>
+      <div>
+        <h2 class="c-hero-title">Gestion des catégories</h2>
+        <p class="c-hero-sub">Organisez vos produits et services par catégorie.</p>
+      </div>
+    </div>
+    <a href="{{ url_for('admin_categories.add_category') }}" class="btn-new">
+      <i class="bi bi-plus-circle"></i> Nouvelle catégorie
+    </a>
+  </div>
+
+  <!-- FILTER -->
+  <div class="lc">
+    <div class="lc-hd">
+      <h6><i class="bi bi-funnel"></i> Filtres</h6>
+      <div style="display:flex;align-items:center;gap:.5rem;">
+        <span class="search-ind" id="searchInd"></span>
+        <span class="live-b"><span class="dot"></span> Temps réel</span>
+      </div>
+    </div>
+    <div class="lc-body">
+      <div class="fbar">
+        <div class="fg">
+          <label>Recherche</label>
+          <input class="fc" type="text" id="fq" value="{{ q }}" placeholder="Nom, slug…" autocomplete="off">
+        </div>
+        <div class="fg">
+          <label>Type</label>
+          <select class="fs" id="ftype">
+            <option value="">Tous</option>
+            {% for key, label in category_type_labels.items() %}
+              <option value="{{ key }}" {{ 'selected' if type_filter==key }}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="fg-btns">
+          <button class="btn-r" id="btnReset" type="button"><i class="bi bi-x"></i> Reset</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TABLE -->
+  <div class="lc">
+    <div class="lc-hd">
+      <h6><i class="bi bi-list-ul"></i> Liste des catégories</h6>
+      <span class="sub" id="catSub">{{ total }} catégorie{{ 's' if total != 1 }} · page {{ pagination.page }}/{{ [pagination.pages,1]|max }}</span>
+    </div>
+    <div class="tbl-wrap">
+      <div class="tbl-mask" id="catMask"><div class="spinner"></div></div>
+      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+        <table class="lt">
+          <thead>
+            <tr>
+              <th>Nom</th>
+              <th>Type</th>
+              <th class="hide-sm">Slug</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="catTbody">
+            {% if categories %}
+              {% for cat in categories %}
+              <tr>
+                <td style="font-weight:700;color:var(--text)">{{ cat.name }}</td>
+                <td>
+                  <span class="tp tp-{{ cat.normalized_type }}">
+                    <i class="bi {{ 'bi-box-seam' if cat.normalized_type == 'products' else 'bi-calendar-check' }}"></i>
+                    {{ category_type_labels.get(cat.normalized_type, 'Produits') }}
+                  </span>
+                </td>
+                <td class="hide-sm" style="font-size:.75rem;color:var(--muted)">{{ cat.slug }}</td>
+                <td>
+                  <div class="act-btns">
+                    <a class="btn-edit" href="{{ url_for('admin_categories.edit_category', cid=cat.id) }}" title="Modifier">
+                      <i class="bi bi-pencil-square"></i>
+                    </a>
+                    <form action="{{ url_for('admin_categories.delete_category', cid=cat.id) }}" method="POST" style="margin:0">
+                      {% include "admin/partials/_csrf.html" %}
+                      <button class="btn-del" type="submit" data-confirm-click="Supprimer {{ cat.name }} ?" title="Supprimer">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr class="empty"><td colspan="4"><i class="bi bi-tags"></i> Aucune catégorie.</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- PAGINATION -->
+      <div class="pg" id="catPg">
+        {% if pagination.pages > 1 %}
+          {% if pagination.has_prev %}
+            <a data-p="{{ pagination.prev_num }}"><i class="bi bi-chevron-left"></i></a>
+          {% else %}<span class="dis"><i class="bi bi-chevron-left"></i></span>{% endif %}
+
+          {% for p in pagination.iter_pages(left_edge=1,right_edge=1,left_current=2,right_current=2) %}
+            {% if p %}
+              <a class="{{ 'cur' if p==pagination.page }}" data-p="{{ p }}">{{ p }}</a>
+            {% else %}
+              <span class="dis">…</span>
+            {% endif %}
+          {% endfor %}
+
+          <span class="pinfo">{{ pagination.page }}/{{ pagination.pages }} · {{ pagination.total }}</span>
+
+          {% if pagination.has_next %}
+            <a data-p="{{ pagination.next_num }}"><i class="bi bi-chevron-right"></i></a>
+          {% else %}<span class="dis"><i class="bi bi-chevron-right"></i></span>{% endif %}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+</div><!-- /cw -->
+
+<!-- Jinja vars safely in JSON -->
+<script id="pv" type="application/json">
+{
+  "q":          {{ q|tojson }},
+  "type_filter":{{ type_filter|tojson }},
+  "page":       {{ pagination.page }},
+  "base_url":   {{ url_for('admin_categories.index')|tojson }}
+}
+</script>
+
+<script>
+(function(){
+'use strict';
+
+var PV   = JSON.parse(document.getElementById('pv').textContent);
+var BASE = PV.base_url;
+
+var state = { q: PV.q, type: PV.type_filter, page: PV.page };
+
+var fq       = document.getElementById('fq');
+var ftype    = document.getElementById('ftype');
+var btnReset = document.getElementById('btnReset');
+var catMask  = document.getElementById('catMask');
+var catTbody = document.getElementById('catTbody');
+var catPg    = document.getElementById('catPg');
+var catSub   = document.getElementById('catSub');
+var searchInd= document.getElementById('searchInd');
+
+function buildURL(page) {
+  var p = new URLSearchParams();
+  if (state.q)    p.set('q', state.q);
+  if (state.type) p.set('cat_type', state.type);
+  p.set('page', page || state.page);
+  return BASE + '?' + p.toString();
+}
+
+function loadPage(page) {
+  var scrollY = window.scrollY;
+  state.page  = page;
+  catMask.classList.add('on');
+
+  fetch(buildURL(page), { headers: {'X-Requested-With':'XMLHttpRequest'} })
+    .then(function(r){ return r.text(); })
+    .then(function(html){
+      var doc = new DOMParser().parseFromString(html, 'text/html');
+
+      var nb = doc.getElementById('catTbody');
+      if (nb) {
+        catTbody.innerHTML = nb.innerHTML;
+        catTbody.classList.add('fade-in');
+        setTimeout(function(){ catTbody.classList.remove('fade-in'); }, 200);
+      }
+
+      var np = doc.getElementById('catPg');
+      if (np) { catPg.innerHTML = np.innerHTML; bindPg(); }
+
+      var ns = doc.getElementById('catSub');
+      if (ns) catSub.textContent = ns.textContent;
+
+      window.history.replaceState(null, '', buildURL(page));
+      catMask.classList.remove('on');
+      window.scrollTo({ top: scrollY, behavior: 'instant' }); /* no jump */
+    })
+    .catch(function(){
+      catMask.classList.remove('on');
+      window.location.href = buildURL(page);
+    });
+}
+
+function bindPg() {
+  catPg.querySelectorAll('[data-p]').forEach(function(el){
+    el.addEventListener('click', function(e){
+      e.preventDefault();
+      loadPage(parseInt(el.dataset.p));
+    });
+  });
+}
+bindPg();
+
+/* search debounce 700ms */
+var debTimer = null;
+
+function applyFilters() {
+  state.q    = fq ? fq.value.trim() : '';
+  state.type = ftype ? ftype.value : '';
+  state.page = 1;
+  searchInd.classList.remove('on');
+  loadPage(1);
+}
+
+if (fq) {
+  fq.addEventListener('input', function(){
+    searchInd.classList.add('on');
+    clearTimeout(debTimer);
+    debTimer = setTimeout(applyFilters, 700);
+  });
+  fq.addEventListener('keydown', function(e){
+    if (e.key === 'Enter') { e.preventDefault(); clearTimeout(debTimer); applyFilters(); }
+  });
+}
+
+if (ftype) {
+  ftype.addEventListener('change', function(){
+    clearTimeout(debTimer);
+    applyFilters();
+  });
+}
+
+if (btnReset) {
+  btnReset.addEventListener('click', function(){
+    if (fq)    fq.value    = '';
+    if (ftype) ftype.value = '';
+    clearTimeout(debTimer);
+    applyFilters();
+  });
+}
+
+})();
+</script>
+{% endblock %}

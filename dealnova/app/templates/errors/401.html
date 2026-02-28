@@ -1,0 +1,11 @@
+{% extends 'errors/base.html' %}
+{% set error_code = 401 %}
+{% set error_title = 'Connexion requise' %}
+{% set error_message = 'Vous devez vous connecter pour acceder a cette page.' %}
+{% set error_tone = 'info' %}
+{% set error_hint = 'Code 401 - Authentification requise' %}
+
+{% block error_actions %}
+<a class="error-btn error-btn-primary" href="{{ url_for('auth.login') }}">Se connecter</a>
+<a class="error-btn error-btn-secondary" href="{{ url_for('landing') }}">Retour a l'accueil</a>
+{% endblock %}

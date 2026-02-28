@@ -1,0 +1,1006 @@
+{% extends "base.html" %}
+
+{% block title %}Recherche instantanee | {{ config.SITE_NAME }}{% endblock %}
+
+{% block head %}
+<style>
+  .search-page {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 1.5rem 0.75rem 4rem;
+    overflow-x: hidden;
+  }
+
+  .search-page * {
+    min-width: 0;
+  }
+
+  .search-hero {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(4, 120, 87, 0.1));
+    border: 1px solid rgba(16, 185, 129, 0.18);
+    border-radius: 24px;
+    padding: 1.6rem 1.4rem;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+  }
+
+  .search-hero::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at top right, rgba(255, 255, 255, 0.4), transparent 60%);
+    opacity: 0.6;
+  }
+
+  .hero-icon {
+    width: 54px;
+    height: 54px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.7);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--secondary-green);
+    font-size: 1.4rem;
+    box-shadow: 0 10px 20px rgba(15, 23, 42, 0.15);
+    position: relative;
+    z-index: 1;
+  }
+
+  .search-hero h1 {
+    font-family: "Poppins", sans-serif;
+    font-size: clamp(1.4rem, 2.5vw, 2rem);
+    font-weight: 800;
+    margin: 0.85rem 0 0.35rem;
+    color: var(--text-primary);
+    position: relative;
+    z-index: 1;
+  }
+
+  .search-hero p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-weight: 500;
+    position: relative;
+    z-index: 1;
+  }
+
+  .search-bar {
+    margin-top: 1.4rem;
+    background: #fff;
+    border-radius: 18px;
+    border: 1px solid var(--border-color);
+    padding: 0.35rem 0.55rem;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
+  }
+
+  .search-bar i {
+    color: var(--text-secondary);
+    margin-left: 0.35rem;
+  }
+
+  #search-input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    font-size: 1rem;
+    padding: 0.8rem 0.4rem;
+    outline: none;
+  }
+
+  .search-clear {
+    border: none;
+    background: rgba(16, 185, 129, 0.12);
+    color: var(--secondary-green);
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.2s ease;
+  }
+
+  .search-clear:hover {
+    transform: translateY(-1px);
+  }
+
+  .search-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 1rem 0 0.5rem;
+  }
+
+  .pill {
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    background: rgba(16, 185, 129, 0.08);
+    color: var(--secondary-green);
+    padding: 0.4rem 0.9rem;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+  }
+
+  .pill:hover {
+    background: var(--primary-green);
+    color: #fff;
+    transform: translateY(-1px);
+  }
+
+  .loading-indicator {
+    display: none;
+    text-align: center;
+    margin-top: 1.2rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+
+  .loading-indicator.show {
+    display: block;
+  }
+
+  .loading-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    background: var(--primary-green);
+    border-radius: 50%;
+    margin: 0 2px;
+    animation: pulse 1.4s infinite;
+  }
+
+  .loading-dot:nth-child(2) { animation-delay: 0.2s; }
+  .loading-dot:nth-child(3) { animation-delay: 0.4s; }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 1; }
+  }
+
+  .results-section {
+    margin-top: 1.6rem;
+  }
+
+  .results-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+  }
+
+  .results-header h3 {
+    font-size: 0.95rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--text-secondary);
+    margin: 0;
+  }
+
+  .results-count {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--primary-green);
+    background: rgba(16, 185, 129, 0.12);
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+  }
+
+  .products-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 1rem;
+  }
+
+  .product-card {
+    background: #fff;
+    border-radius: 16px;
+    overflow: hidden;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    box-shadow: 0 12px 26px rgba(15, 23, 42, 0.08);
+    text-decoration: none;
+    color: inherit;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .product-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 18px 32px rgba(15, 23, 42, 0.12);
+  }
+
+  .product-media {
+    height: 130px;
+    position: relative;
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(4, 120, 87, 0.1));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .product-media img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .product-badge {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: var(--primary-green);
+    color: #fff;
+    font-size: 0.7rem;
+    padding: 0.2rem 0.55rem;
+    border-radius: 8px;
+    font-weight: 700;
+  }
+
+  .product-body {
+    padding: 0.85rem;
+    overflow-wrap: anywhere;
+  }
+
+  .product-name {
+    font-size: 0.9rem;
+    font-weight: 700;
+    margin-bottom: 0.3rem;
+    color: var(--text-primary);
+    line-height: 1.2;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+
+  .product-price {
+    font-size: 1rem;
+    font-weight: 800;
+    color: var(--secondary-green);
+  }
+
+  .product-meta {
+    margin-top: 0.35rem;
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  .btn-add-cart {
+    width: 100%;
+    margin-top: 0.6rem;
+    padding: 0.55rem;
+    border-radius: 10px;
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    background: rgba(16, 185, 129, 0.12);
+    color: var(--secondary-green);
+    font-weight: 700;
+    font-size: 0.85rem;
+    transition: all 0.2s ease;
+    cursor: pointer;
+  }
+
+  .btn-add-cart:hover {
+    background: var(--primary-green);
+    color: #fff;
+    border-color: var(--primary-green);
+  }
+
+  .btn-add-cart.service {
+    border-color: rgba(37, 99, 235, 0.25);
+    background: rgba(37, 99, 235, 0.12);
+    color: #1d4ed8;
+  }
+
+  .btn-add-cart.service:hover {
+    border-color: #2563eb;
+    background: #2563eb;
+    color: #fff;
+  }
+
+  .shops-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 1rem;
+  }
+
+  .shop-card {
+    background: #fff;
+    border-radius: 16px;
+    padding: 0.9rem;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    box-shadow: 0 12px 26px rgba(15, 23, 42, 0.08);
+    display: flex;
+    gap: 0.8rem;
+    text-decoration: none;
+    color: inherit;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    overflow-wrap: anywhere;
+  }
+
+  .shop-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 18px 32px rgba(15, 23, 42, 0.12);
+  }
+
+  .shop-logo {
+    width: 56px;
+    height: 56px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, var(--primary-green), var(--secondary-green));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 1.4rem;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+
+  .shop-logo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .shop-info h4 {
+    font-size: 1rem;
+    font-weight: 700;
+    margin-bottom: 0.3rem;
+  }
+
+  .shop-description {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.4rem;
+    line-height: 1.3;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+
+  .shop-stats {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  .categories-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+  }
+
+  .locations-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 1rem;
+  }
+
+  .location-card {
+    background: #fff;
+    border-radius: 16px;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    box-shadow: 0 12px 26px rgba(15, 23, 42, 0.08);
+    overflow: hidden;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .location-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 18px 32px rgba(15, 23, 42, 0.12);
+  }
+
+  .location-media-link {
+    display: block;
+    text-decoration: none;
+    color: inherit;
+  }
+
+  .location-media {
+    height: 130px;
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(180, 83, 9, 0.08));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #b45309;
+    font-size: 1.65rem;
+  }
+
+  .location-media img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .location-body {
+    padding: 0.85rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    flex: 1;
+  }
+
+  .location-title {
+    font-size: 0.9rem;
+    font-weight: 700;
+    margin-bottom: 0.35rem;
+    color: var(--text-primary);
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+
+  .location-meta {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.35rem;
+  }
+
+  .location-price {
+    font-size: 1rem;
+    font-weight: 800;
+    color: #b45309;
+  }
+
+  .location-actions {
+    margin-top: auto;
+    display: flex;
+  }
+
+  .btn-location-detail {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    background: rgba(16, 185, 129, 0.1);
+    color: #047857;
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-decoration: none;
+    padding: 0.42rem 0.72rem;
+    border-radius: 10px;
+    transition: all 0.2s ease;
+  }
+
+  .btn-location-detail:hover {
+    background: #10b981;
+    border-color: #10b981;
+    color: #fff;
+  }
+
+  .category-tag {
+    background: rgba(16, 185, 129, 0.1);
+    color: var(--secondary-green);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    padding: 0.5rem 1rem;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  .category-tag:hover {
+    background: var(--primary-green);
+    color: #fff;
+    text-decoration: none;
+  }
+
+  .empty-results {
+    text-align: center;
+    padding: 3rem 1rem;
+  }
+
+  .empty-icon {
+    font-size: 3rem;
+    color: var(--border-color);
+    margin-bottom: 1rem;
+    opacity: 0.6;
+  }
+
+  .empty-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 0.35rem;
+  }
+
+  .empty-text {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+  }
+
+  .search-toast {
+    position: fixed;
+    top: 100px;
+    right: 20px;
+    padding: 0.75rem 1rem;
+    border-radius: 10px;
+    color: #fff;
+    font-weight: 600;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.2);
+    z-index: 9999;
+    animation: slideIn 0.3s ease;
+  }
+
+  .search-toast.success {
+    background: #10b981;
+  }
+
+  .search-toast.error {
+    background: #ef4444;
+  }
+
+  @keyframes slideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+
+  @keyframes slideOut {
+    from { transform: translateX(0); opacity: 1; }
+    to { transform: translateX(100%); opacity: 0; }
+  }
+
+  @media (min-width: 768px) {
+    .search-page {
+      padding: 2.5rem 1.5rem 5rem;
+    }
+
+    .product-media {
+      height: 150px;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="search-page">
+  <section class="search-hero">
+    <div class="hero-icon">
+      <i class="bi bi-search"></i>
+    </div>
+    <h1>Recherche instantanee</h1>
+    <p>Trouvez vos produits, services, locations et boutiques en quelques secondes.</p>
+  </section>
+
+  <div class="search-bar">
+    <i class="bi bi-search"></i>
+    <input type="text"
+           id="search-input"
+           placeholder="Rechercher produit, service, location, boutique..."
+           autocomplete="off">
+    <button class="search-clear" type="button" id="search-clear" aria-label="Effacer">
+      <i class="bi bi-x-lg"></i>
+    </button>
+  </div>
+
+  <div class="search-pills">
+
+    <button class="pill" type="button" data-query="poulet">chambre </button>
+    <button class="pill" type="button" data-query="fruit">Fruits</button>
+    <button class="pill" type="button" data-query="huile">coiffure</button>
+    <button class="pill" type="button" data-query="epices">studio</button>
+  </div>
+
+  <div class="loading-indicator" id="loading">
+    <span class="loading-dot"></span>
+    <span class="loading-dot"></span>
+    <span class="loading-dot"></span>
+  </div>
+
+  <div id="search-results"></div>
+</div>
+
+<script>
+const searchInput = document.getElementById('search-input');
+const resultsContainer = document.getElementById('search-results');
+const loadingIndicator = document.getElementById('loading');
+const clearButton = document.getElementById('search-clear');
+const pills = document.querySelectorAll('.pill');
+let searchTimeout = null;
+const uiLang = (document.body.dataset.lang || 'fr').toLowerCase();
+const i18n = {
+  fr: {
+    products: 'Produits',
+    shops: 'Boutiques',
+    categories: 'Categories',
+    locations: 'Locations',
+    add: 'Ajouter',
+    reserve: 'Reserver',
+    noDesc: 'Aucune description',
+    items: 'produits',
+    cityMissing: 'Ville non précisée',
+    daily: 'Journalier',
+    monthly: 'Mensuel',
+    viewDetail: 'Voir detail',
+  },
+  en: {
+    products: 'Products',
+    shops: 'Shops',
+    categories: 'Categories',
+    locations: 'Rentals',
+    add: 'Add',
+    reserve: 'Book',
+    noDesc: 'No description',
+    items: 'items',
+    cityMissing: 'City not specified',
+    daily: 'Daily',
+    monthly: 'Monthly',
+    viewDetail: 'View details',
+  },
+  ary: {
+    products: 'mntjat',
+    shops: 'mtajr',
+    categories: 'fyat',
+    locations: 'ijarat',
+    add: 'zid',
+    reserve: 'hjez',
+    noDesc: 'bla wasf',
+    items: 'mntj',
+    cityMissing: 'mdina ma mktoba-sh',
+    daily: 'b nhar',
+    monthly: 'b chhar',
+    viewDetail: 'chof tafasil',
+  },
+};
+const t = i18n[uiLang] || i18n.fr;
+
+function escapeHtml(value) {
+  const div = document.createElement('div');
+  div.textContent = value == null ? '' : String(value);
+  return div.innerHTML;
+}
+
+function safeUrl(url) {
+  const u = String(url || '');
+  if (u.startsWith('/') || u.startsWith('http://') || u.startsWith('https://')) {
+    return u;
+  }
+  return '#';
+}
+
+function safeFile(file) {
+  return encodeURIComponent(String(file || '').replace(/[\\/]/g, ''));
+}
+
+function safeMediaUrl(value) {
+  const raw = String(value || '').trim();
+  if (!raw) {
+    return '';
+  }
+  if (raw.startsWith('/') || raw.startsWith('http://') || raw.startsWith('https://')) {
+    return raw;
+  }
+  const normalized = raw.replace(/\\/g, '/').replace(/^\/+/, '');
+  if (normalized.startsWith('uploads/')) {
+    return `/static/${encodeURI(normalized)}`;
+  }
+  if (normalized.startsWith('static/')) {
+    return `/${encodeURI(normalized)}`;
+  }
+  return `/static/uploads/rentals/${encodeURIComponent(normalized)}`;
+}
+
+searchInput.focus();
+
+resultsContainer.addEventListener('click', function (event) {
+  const bookingBtn = event.target.closest('[data-booking-url]');
+  if (bookingBtn) {
+    event.preventDefault();
+    event.stopPropagation();
+    const bookingUrl = safeUrl(bookingBtn.getAttribute('data-booking-url') || '#');
+    if (bookingUrl && bookingUrl !== '#') {
+      window.location.href = bookingUrl;
+    }
+    return;
+  }
+
+  const addBtn = event.target.closest('[data-add-cart-id]');
+  if (addBtn) {
+    event.preventDefault();
+    event.stopPropagation();
+    const productId = Number.parseInt(addBtn.getAttribute('data-add-cart-id') || '0', 10);
+    if (Number.isFinite(productId) && productId > 0) {
+      addToCart(productId);
+    }
+  }
+});
+
+function toggleClearButton() {
+  clearButton.style.display = searchInput.value.trim() ? 'inline-flex' : 'none';
+}
+
+toggleClearButton();
+
+clearButton.addEventListener('click', () => {
+  searchInput.value = '';
+  toggleClearButton();
+  resultsContainer.innerHTML = '';
+  loadingIndicator.classList.remove('show');
+  searchInput.focus();
+});
+
+pills.forEach(pill => {
+  pill.addEventListener('click', () => {
+    searchInput.value = pill.dataset.query || '';
+    toggleClearButton();
+    searchInput.dispatchEvent(new Event('input'));
+  });
+});
+
+async function addToCart(productId) {
+  try {
+    const response = await fetch(`/cart/api/add/${productId}`, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': window.csrfToken
+      },
+      credentials: 'same-origin'
+    });
+    const data = await response.json();
+
+    if (data.success) {
+      const cartBadge = document.querySelector('.cart-badge');
+      if (cartBadge) {
+        cartBadge.textContent = data.cart_count;
+      }
+      showNotification(`Ajoute au panier (${data.product_qty})`, 'success');
+    } else {
+      showNotification(data.message, 'error');
+    }
+  } catch (error) {
+    console.error('Erreur:', error);
+    showNotification("Erreur lors de l'ajout au panier", 'error');
+  }
+}
+
+function showNotification(message, type) {
+  let notification = document.getElementById('search-notification');
+  if (!notification) {
+    notification = document.createElement('div');
+    notification.id = 'search-notification';
+    notification.className = 'search-toast';
+    document.body.appendChild(notification);
+  }
+  notification.classList.remove('success', 'error');
+  notification.classList.add(type);
+  const safeMessage = escapeHtml(message);
+  notification.innerHTML = `
+    <div class="d-flex align-items-center gap-2">
+      <i class="bi ${type === 'success' ? 'bi-check-circle-fill' : 'bi-exclamation-circle-fill'}"></i>
+      <span>${safeMessage}</span>
+    </div>
+  `;
+
+  setTimeout(() => {
+    notification.style.animation = 'slideOut 0.3s ease';
+    setTimeout(() => notification.remove(), 300);
+  }, 2500);
+}
+
+searchInput.addEventListener('input', function() {
+  clearTimeout(searchTimeout);
+  const query = this.value.trim();
+  toggleClearButton();
+
+  if (query.length >= 2) {
+    loadingIndicator.classList.add('show');
+  } else {
+    loadingIndicator.classList.remove('show');
+    resultsContainer.innerHTML = '';
+    return;
+  }
+
+  searchTimeout = setTimeout(async () => {
+    try {
+      const [productsRes, shopsRes, categoriesRes, locationsRes] = await Promise.all([
+        fetch(`/api/search/products?q=${encodeURIComponent(query)}&limit=8`),
+        fetch(`/api/search/shops?q=${encodeURIComponent(query)}&limit=6`),
+        fetch(`/api/search/categories?q=${encodeURIComponent(query)}&limit=8`),
+        fetch(`/api/search/locations?q=${encodeURIComponent(query)}&limit=6`)
+      ]);
+
+      const [productsData, shopsData, categoriesData, locationsData] = await Promise.all([
+        productsRes.json(),
+        shopsRes.json(),
+        categoriesRes.json(),
+        locationsRes.json()
+      ]);
+
+      let html = '';
+      let hasResults = false;
+
+      if (productsData.products && productsData.products.length > 0) {
+        hasResults = true;
+        html += `<section class="results-section">`;
+        html += `<div class="results-header">
+                  <h3>${t.products}</h3>
+                  <span class="results-count">${productsData.products.length}</span>
+                 </div>`;
+        html += `<div class="products-grid">`;
+        productsData.products.forEach(p => {
+          const productUrl = safeUrl(p.url);
+          const productName = escapeHtml(p.name || '');
+          const productPrice = escapeHtml((p.price ?? ''));
+          const shopName = escapeHtml(p.shop_name || t.shops);
+          const imageFile = safeFile(p.image_file);
+          const productId = Number.parseInt(p.id, 10);
+          const promoValue = p.promo_value ? escapeHtml(p.promo_value) : '';
+          const isService = (p.kind || '') === 'service';
+          const bookingUrl = safeUrl(p.booking_url || productUrl);
+          const actionHtml = isService
+            ?
+             `<button type="button" class="btn-add-cart service text-center text-decoration-none d-inline-block" data-stop-nav data-booking-url="${bookingUrl}"><i class="bi bi-calendar-check me-1"></i>${t.reserve}</button>`
+            : `<button type="button" class="btn-add-cart" data-stop-nav data-add-cart-id="${Number.isFinite(productId) ? productId : 0}"><i class="bi bi-cart-plus me-1"></i>${t.add}</button>`;
+          html += `
+            <a href="${productUrl}" class="product-card">
+              <div class="product-media">
+                ${p.image_file
+                  ?
+                  `<img src="/static/uploads/${imageFile}" alt="${productName}" loading="lazy">` :
+                  `<i class="bi bi-box text-success"></i>`
+                }
+                ${p.promo_value ? `<span class="product-badge">-${promoValue}%</span>` : ''}
+              </div>
+              <div class="product-body">
+                <div class="product-name">${productName}</div>
+                <div class="product-price">${productPrice} MAD</div>
+                <div class="product-meta">
+                  <i class="bi bi-shop"></i> ${shopName}
+                </div>
+                ${actionHtml}
+              </div>
+            </a>`;
+        });
+        html += `</div></section>`;
+      }
+
+      if (shopsData.shops && shopsData.shops.length > 0) {
+        hasResults = true;
+        html += `<section class="results-section">`;
+        html += `<div class="results-header">
+                  <h3>${t.shops}</h3>
+                  <span class="results-count">${shopsData.shops.length}</span>
+                 </div>`;
+        html += `<div class="shops-grid">`;
+        shopsData.shops.forEach(s => {
+          const shopUrl = safeUrl(s.url);
+          const shopName = escapeHtml(s.name || '');
+          const shopDescription = escapeHtml(s.description || t.noDesc);
+          const shopLogo = safeFile(s.logo);
+          const productCount = Number(s.product_count || 0);
+          html += `
+            <a href="${shopUrl}" class="shop-card">
+              <div class="shop-logo">
+                ${s.logo
+                  ?
+                  `<img src="/static/uploads/${shopLogo}" alt="${shopName}" loading="lazy">` :
+                  `<i class="bi bi-shop"></i>`
+                }
+              </div>
+              <div class="shop-info">
+                <h4>${shopName}</h4>
+                <p class="shop-description">${shopDescription}</p>
+                <div class="shop-stats">
+                  <i class="bi bi-box"></i> ${productCount} ${t.items}
+                </div>
+              </div>
+            </a>`;
+        });
+        html += `</div></section>`;
+      }
+
+      if (categoriesData.categories && categoriesData.categories.length > 0) {
+        hasResults = true;
+        html += `<section class="results-section">`;
+        html += `<div class="results-header">
+                  <h3>${t.categories}</h3>
+                  <span class="results-count">${categoriesData.categories.length}</span>
+                 </div>`;
+        html += `<div class="categories-grid">`;
+        categoriesData.categories.forEach(c => {
+          const catId = Number.parseInt(c.id, 10);
+          const catUrl = Number.isFinite(catId) ? `/shop?cat=${catId}` : '#';
+          const catName = escapeHtml(c.name || '');
+          html += `
+            <a href="${catUrl}" class="category-tag">
+              <i class="bi bi-tag"></i> ${catName}
+            </a>`;
+        });
+        html += `</div></section>`;
+      }
+
+      if (locationsData.locations && locationsData.locations.length > 0) {
+        hasResults = true;
+        html += `<section class="results-section">`;
+        html += `<div class="results-header">
+                  <h3>${t.locations}</h3>
+                  <span class="results-count">${locationsData.locations.length}</span>
+                 </div>`;
+        html += `<div class="locations-grid">`;
+        locationsData.locations.forEach((l) => {
+          const title = escapeHtml(l.title || '');
+          const city = escapeHtml([l.city, l.area].filter(Boolean).join(', '));
+          const listingType = l.listing_type === 'daily' ? t.daily : t.monthly;
+          const rentDh = Number(l.rent_dh || 0).toFixed(2);
+          const locationUrl = safeUrl(l.url || '#');
+          const coverUrl = safeMediaUrl(l.cover_url || l.cover || '');
+          html += `
+            <article class="location-card">
+              <a href="${locationUrl}" class="location-media-link">
+                <div class="location-media">
+                  ${coverUrl ? `<img src="${coverUrl}" alt="${title}" loading="lazy">` : `<i class="bi bi-house-door"></i>`}
+                </div>
+              </a>
+              <div class="location-body">
+                <div class="location-title">${title}</div>
+                <div class="location-meta">${city || t.cityMissing} • ${listingType}</div>
+                <div class="location-price">${rentDh} DH</div>
+                <div class="location-actions">
+                  <a href="${locationUrl}" class="btn-location-detail">
+                    <i class="bi bi-eye"></i>${t.viewDetail}
+                  </a>
+                </div>
+              </div>
+            </article>`;
+        });
+        html += `</div></section>`;
+      }
+
+      if (!hasResults) {
+        html = `
+          <div class="empty-results">
+            <div class="empty-icon"><i class="bi bi-search"></i></div>
+            <div class="empty-title">Aucun resultat trouve</div>
+            <div class="empty-text">Essayez d'autres mots cles.</div>
+          </div>
+        `;
+      }
+
+      resultsContainer.innerHTML = html;
+    } catch (error) {
+      console.error('Erreur de recherche:', error);
+      resultsContainer.innerHTML = `
+        <div class="empty-results">
+          <div class="empty-icon"><i class="bi bi-exclamation-circle"></i></div>
+          <div class="empty-title">Erreur de recherche</div>
+          <div class="empty-text">Veuillez reessayer.</div>
+        </div>
+      `;
+    } finally {
+      loadingIndicator.classList.remove('show');
+    }
+  }, 300);
+});
+
+searchInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    searchInput.value = '';
+    toggleClearButton();
+    resultsContainer.innerHTML = '';
+    loadingIndicator.classList.remove('show');
+  }
+});
+</script>
+{% endblock %}

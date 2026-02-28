@@ -1,0 +1,122 @@
+<section class="users-card">
+  <div class="users-card-header">
+    <h5>Utilisateurs ({{ pagination.total }})</h5>
+    <span class="text-muted">Page {{ pagination.page }} sur {{ pagination.pages }}</span>
+  </div>
+  {% if users %}
+  <div class="table-responsive">
+    <table class="table table-hover align-middle users-table mb-0">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Utilisateur</th>
+          <th>Email</th>
+          <th>Role</th>
+          <th>Inscription</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for user in users %}
+        <tr>
+          <td data-label="ID">{{ user.id }}</td>
+          <td data-label="Utilisateur">
+            <div class="d-flex align-items-center gap-3">
+              <div class="avatar-pill">
+                {% if user.profile_image %}
+                  <img src="{{ url_for('static', filename='uploads/profiles/' + user.profile_image) }}"
+                       alt="{{ user.username }}">
+                {% else %}
+                  <i class="bi bi-person"></i>
+                {% endif %}
+              </div>
+              <div>
+                <div class="user-name">{{ user.username }}</div>
+                {% if user.full_name %}
+                  <div class="user-meta">{{ user.full_name }}</div>
+                {% endif %}
+              </div>
+            </div>
+          </td>
+          <td data-label="Email">{{ user.email }}</td>
+          <td data-label="Role">
+            <span class="badge role-pill role-{{ user.role }}">
+              {{ user.role|title }}
+            </span>
+            <span class="badge status-pill bg-{{ 'success' if user.is_active else 'secondary' }} ms-1"
+                  data-user-status="{{ user.id }}"
+                  data-active-text="Actif"
+                  data-inactive-text="Inactif"
+                  data-active-class="bg-success"
+                  data-inactive-class="bg-secondary">
+              {{ 'Actif' if user.is_active else 'Inactif' }}
+            </span>
+            {% if user.role == 'courier' %}
+              <div class="user-meta mt-1">
+                Disponibilite: {{ 'Oui' if user.courier_is_available else 'Non' }} ·
+                Equipe active: {{ 'Oui' if user.courier_is_active else 'Non' }} ·
+                Livrees: {{ user.courier_delivered_count or 0 }}
+              </div>
+            {% endif %}
+          </td>
+          <td data-label="Inscription">
+            {{ user.created_at.strftime('%d/%m/%Y') }}
+            <div class="user-meta">{{ user.created_at.strftime('%H:%M') }}</div>
+          </td>
+          <td data-label="Actions" class="users-actions">
+            <div class="btn-group btn-group-sm" role="group">
+              <a href="{{ url_for('admin_users.user_detail', user_id=user.id) }}"
+                 class="btn btn-outline-primary" title="Voir">
+                <i class="bi bi-eye"></i>
+              </a>
+              <form method="post"
+                    action="{{ url_for('admin_users.toggle_user_active', user_id=user.id) }}"
+                    class="d-inline"
+                    data-ajax="true"
+                    data-action="toggle-user"
+                    data-confirm="Voulez-vous activer/desactiver cet utilisateur ?">
+                {% include "admin/partials/_csrf.html" %}
+                <button type="submit"
+                        class="btn btn-outline-{{ 'danger' if user.is_active else 'success' }}"
+                        data-active-text="Desactiver"
+                        data-inactive-text="Activer"
+                        data-active-icon="bi bi-person-x"
+                        data-inactive-icon="bi bi-person-check"
+                        data-active-class="btn-outline-danger"
+                        data-inactive-class="btn-outline-success"
+                        title="{{ 'Desactiver' if user.is_active else 'Activer' }}">
+                  <i class="bi bi-{{ 'person-x' if user.is_active else 'person-check' }}"></i>
+                </button>
+              </form>
+              <form method="post"
+                    action="{{ url_for('admin_users.delete_user', user_id=user.id) }}"
+                    class="d-inline"
+                    data-ajax="true"
+                    data-action="delete-user"
+                    data-confirm="Supprimer cet utilisateur ?"
+                    data-remove-target="tr">
+                {% include "admin/partials/_csrf.html" %}
+                <button type="submit" class="btn btn-outline-danger" title="Supprimer">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <div class="empty-state">Aucun utilisateur trouve.</div>
+  {% endif %}
+
+  {% if pagination.pages > 1 %}
+  <div class="card-footer">
+    {% set endpoint = 'admin_users.manage_users' %}
+    {% set params = {'role': role_filter, 'search': search} %}
+    {% set iter_args = {'left_edge': 2, 'left_current': 2, 'right_current': 3, 'right_edge': 2} %}
+    {% include "admin/partials/_pagination.html" %}
+  </div>
+  {% endif %}
+</section>

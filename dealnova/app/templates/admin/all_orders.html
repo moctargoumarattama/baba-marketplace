@@ -1,0 +1,992 @@
+﻿{% extends "admin/base.html" %}
+{% block title %}Commandes | Admin DealNova{% endblock %}
+{% block page_title %}Commandes{% endblock %}
+{% block body_attrs %}data-live=""{% endblock %}
+
+{% block head %}
+<style>
+  .orders-wrap {
+    display: grid;
+    gap: 1.5rem;
+  }
+
+  .orders-hero {
+    background: linear-gradient(135deg, rgba(255, 107, 53, 0.16), rgba(0, 78, 137, 0.08));
+    border: 1px solid rgba(255, 107, 53, 0.2);
+    border-radius: 20px;
+    padding: 1.6rem;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .orders-hero::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at top right, rgba(255, 255, 255, 0.55), transparent 60%);
+    opacity: 0.7;
+  }
+
+  .orders-hero-content {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .orders-title {
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: var(--dark);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    flex-wrap: wrap;
+  }
+
+  .orders-title i {
+    width: 46px;
+    height: 46px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.8);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--primary);
+    font-size: 1.3rem;
+    box-shadow: 0 10px 18px rgba(0, 0, 0, 0.08);
+  }
+
+  .orders-subtitle {
+    color: #4B5563;
+    font-weight: 500;
+    margin: 0.35rem 0 0;
+  }
+
+  .orders-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+  }
+
+  .orders-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.85rem;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.7);
+    border: 1px solid rgba(255, 107, 53, 0.2);
+    color: var(--primary);
+  }
+
+  .orders-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1rem;
+  }
+
+  .orders-stat {
+    background: #fff;
+    border-radius: 16px;
+    border: 1px solid #E5E7EB;
+    padding: 1.1rem 1.25rem;
+    box-shadow: 0 12px 26px rgba(0, 0, 0, 0.06);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .orders-stat h6 {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #6B7280;
+    margin-bottom: 0.4rem;
+    font-weight: 600;
+  }
+
+  .orders-stat .stat-value {
+    font-size: 1.8rem;
+    font-weight: 800;
+    color: var(--dark);
+    margin: 0;
+  }
+
+  .orders-stat .stat-note {
+    font-size: 0.8rem;
+    color: #6B7280;
+  }
+
+  .orders-stat .stat-icon {
+    width: 46px;
+    height: 46px;
+    border-radius: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+  }
+
+  .stat-icon.primary {
+    background: rgba(255, 107, 53, 0.15);
+    color: var(--primary);
+  }
+
+  .stat-icon.warning {
+    background: rgba(247, 184, 1, 0.2);
+    color: #B45309;
+  }
+
+  .stat-icon.success {
+    background: rgba(16, 185, 129, 0.15);
+    color: #0F766E;
+  }
+
+  .orders-table {
+    background: #fff;
+    border-radius: 16px;
+    border: 1px solid #E5E7EB;
+    overflow: hidden;
+    box-shadow: 0 12px 26px rgba(0, 0, 0, 0.06);
+  }
+
+  .orders-table-header {
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid #E5E7EB;
+    background: #F9FAFB;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .orders-table-header h5 {
+    font-size: 1.05rem;
+    font-weight: 700;
+    margin: 0;
+    color: var(--dark);
+  }
+
+  .orders-table-header span {
+    font-size: 0.85rem;
+    color: #6B7280;
+    font-weight: 600;
+  }
+
+  .orders-quick-search {
+    min-width: min(100%, 340px);
+    position: relative;
+  }
+
+  .orders-quick-search input {
+    border-radius: 12px;
+    padding-left: 2.2rem;
+    font-size: 0.9rem;
+    border: 1px solid #D1D5DB;
+  }
+
+  .orders-quick-search i {
+    position: absolute;
+    left: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #6B7280;
+    pointer-events: none;
+  }
+
+  .orders-quick-meta {
+    font-size: 0.78rem;
+    color: #6B7280;
+  }
+
+  .map-inline-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    color: #0d6efd;
+    text-decoration: none;
+    font-weight: 600;
+  }
+
+  .map-inline-link:hover {
+    text-decoration: underline;
+  }
+
+  .map-inline-copy {
+    border: 0;
+    background: transparent;
+    color: #0d6efd;
+    font-size: 0.78rem;
+    padding: 0;
+    font-weight: 600;
+  }
+
+  /* Version Desktop */
+  .table.orders-table-list {
+    display: table;
+    width: 100%;
+  }
+
+  .table.orders-table-list th {
+    background: #F9FAFB;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #6B7280;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .table.orders-table-list td {
+    font-size: 0.9rem;
+    vertical-align: middle;
+  }
+
+  /* Version Mobile - Cards */
+  @media (max-width: 768px) {
+    .orders-title {
+      font-size: 1.35rem;
+    }
+
+    .orders-stats {
+      grid-template-columns: 1fr;
+    }
+
+    /* Cacher l'en-tete du tableau */
+    .table.orders-table-list thead {
+      display: none;
+    }
+
+    /* Transformer les lignes en cards */
+    .table.orders-table-list,
+    .table.orders-table-list tbody,
+    .table.orders-table-list tr,
+    .table.orders-table-list td {
+      display: block;
+      width: 100%;
+    }
+
+    .table.orders-table-list tr {
+      margin-bottom: 1rem;
+      padding: 1rem;
+      background: #fff;
+      border: 1px solid #E5E7EB;
+      border-radius: 12px;
+      position: relative;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .table.orders-table-list tr:active {
+      transform: scale(0.98);
+    }
+
+    .table.orders-table-list td {
+      display: flex;
+      align-items: flex-start;
+      padding: 0.5rem 0;
+      border: none;
+      text-align: left;
+    }
+
+    /* Ajouter des labels pour chaque cellule */
+    .table.orders-table-list td:before {
+      content: attr(data-label);
+      font-weight: 600;
+      color: #6B7280;
+      width: 90px;
+      min-width: 90px;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* Style special pour certaines cellules */
+    .table.orders-table-list td[data-label="Client"]:before,
+    .table.orders-table-list td[data-label="Produits"]:before,
+    .table.orders-table-list td[data-label="Action"]:before {
+      width: 90px;
+    }
+
+    /* Ajustements pour le contenu */
+    .table.orders-table-list td > * {
+      flex: 1;
+    }
+
+    /* Zone produits */
+    .product-lines {
+      max-width: none;
+      width: 100%;
+    }
+
+    .product-line {
+      flex-wrap: wrap;
+    }
+
+    /* Actions */
+    .order-actions .d-flex {
+      justify-content: flex-start;
+    }
+
+    /* Badge de statut */
+    .status-pill {
+      display: inline-flex;
+    }
+
+    /* Ligne en attente */
+    .order-row-pending {
+      border-left: none;
+      border-top: 4px solid rgba(247, 184, 1, 0.6);
+    }
+
+    /* Indicateur de scroll persistant */
+    .scroll-position-indicator {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: var(--primary);
+      color: white;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      z-index: 100;
+    }
+
+    .scroll-position-indicator.show {
+      opacity: 1;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .table.orders-table-list td:before {
+      width: 80px;
+      min-width: 80px;
+      font-size: 0.75rem;
+    }
+
+    .table.orders-table-list td {
+      font-size: 0.85rem;
+      flex-wrap: wrap;
+    }
+
+    .product-line {
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .order-actions .btn {
+      padding: 0.25rem 0.5rem;
+      font-size: 0.8rem;
+    }
+
+    .btn-group {
+      flex-wrap: wrap;
+      gap: 0.25rem;
+    }
+  }
+
+  .status-pill {
+    padding: 0.35rem 0.7rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  .status-pending {
+    background: rgba(247, 184, 1, 0.2);
+    color: #92400E;
+  }
+
+  .status-delivered {
+    background: rgba(16, 185, 129, 0.15);
+    color: #065F46;
+  }
+
+  .status-cancelled {
+    background: rgba(239, 68, 68, 0.15);
+    color: #991B1B;
+  }
+
+  .order-row-pending {
+    border-left: 4px solid rgba(247, 184, 1, 0.6);
+  }
+
+  .order-actions .btn {
+    border-radius: 10px;
+  }
+
+  .order-actions .dropdown-menu {
+    min-width: 13rem;
+  }
+
+  .order-actions .dropdown-item {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .product-lines {
+    display: grid;
+    gap: 0.25rem;
+    font-size: 0.82rem;
+    color: #4B5563;
+    max-width: 240px;
+  }
+
+  .product-line {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+
+  .orders-empty {
+    text-align: center;
+    padding: 2.5rem 1rem;
+    color: #6B7280;
+  }
+
+  /* Pagination responsive */
+  @media (max-width: 576px) {
+    .pagination {
+      flex-wrap: wrap;
+      gap: 0.25rem;
+    }
+    
+    .page-item {
+      margin: 0.125rem;
+    }
+    
+    .page-link {
+      padding: 0.375rem 0.75rem;
+      font-size: 0.875rem;
+    }
+  }
+
+  /* Bouton retour en haut */
+  .back-to-top {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: var(--primary);
+    color: white;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    z-index: 100;
+    border: none;
+  }
+
+  .back-to-top.show {
+    opacity: 1;
+  }
+
+  /* Loading indicator pour la restauration */
+  .position-loading {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255,255,255,0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+  }
+
+  .position-loading.show {
+    opacity: 1;
+    pointer-events: all;
+  }
+
+  .position-loading .spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid #f3f3f3;
+    border-top: 3px solid var(--primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="orders-wrap" data-orders-page="true">
+  <!-- Indicateur de chargement pour la restauration de position -->
+  <div class="position-loading" id="positionLoading">
+    <div class="spinner"></div>
+  </div>
+
+  <!-- Bouton retour en haut -->
+  <button type="button" class="back-to-top" id="backToTop" title="Retour en haut">
+    <i class="bi bi-arrow-up"></i>
+  </button>
+
+  <section class="orders-hero">
+    <div class="orders-hero-content">
+      <div class="orders-hero-top">
+        <div>
+          <h2 class="orders-title">
+            <i class="bi bi-clipboard-data"></i>
+            Commandes par periode
+          </h2>
+          <p class="orders-subtitle">Les metriques sont calculees uniquement sur la periode selectionnee.</p>
+        </div>
+        <div class="orders-actions">
+          <span class="orders-pill" id="pendingPill">
+            <i class="bi bi-exclamation-circle"></i>
+            <span id="pendingCount">{{ pending_count }}</span> en attente
+          </span>
+          {% if selected_period %}
+          <span class="orders-pill">
+            <i class="bi bi-calendar-check"></i>
+            Periode: {{ selected_period.name }}
+          </span>
+          {% else %}
+          <span class="orders-pill">
+            <i class="bi bi-exclamation-triangle"></i>
+            Aucune periode selectionnee
+          </span>
+          {% endif %}
+          {% if read_only %}
+          <span class="orders-pill">
+            <i class="bi bi-lock"></i>
+            Lecture seule
+          </span>
+          {% endif %}
+          <a class="btn btn-sm btn-outline-primary" href="{{ url_for('admin.order_archives') }}">
+            <i class="bi bi-archive"></i> Archives
+          </a>
+          <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('admin.order_periods') }}">
+            <i class="bi bi-calendar3"></i> Periodes
+          </a>
+        </div>
+      </div>
+
+      <form method="get" class="d-flex flex-wrap gap-2 align-items-end">
+        <div>
+          <label class="form-label small mb-1">Periode</label>
+          <select name="period_id" class="form-select form-select-sm">
+            <option value="">Periode ouverte (defaut)</option>
+            {% for p in periods %}
+              <option value="{{ p.id }}" {% if selected_period_id == p.id %}selected{% endif %}>
+                #{{ p.id }} - {{ p.name }}{% if p.status == 'closed' %} [fermee]{% endif %}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-check mb-2">
+          <input class="form-check-input" type="checkbox" value="1" id="ordersLegacy" name="include_legacy" {% if include_legacy %}checked{% endif %}>
+          <label class="form-check-label small" for="ordersLegacy">Inclure legacy period_id NULL</label>
+        </div>
+        <div>
+          <label class="form-label small mb-1">Source</label>
+          <select name="source" class="form-select form-select-sm">
+            <option value="" {% if not source_filter %}selected{% endif %}>Toutes</option>
+            <option value="marketplace" {% if source_filter == 'marketplace' %}selected{% endif %}>Marketplace</option>
+            <option value="special" {% if source_filter == 'special' %}selected{% endif %}>Speciale</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label small mb-1">Filtre livraison</label>
+          <select name="delivery_scope" class="form-select form-select-sm">
+            <option value="" {% if not delivery_scope %}selected{% endif %}>Toutes</option>
+            <option value="unassigned" {% if delivery_scope == 'unassigned' %}selected{% endif %}>Non assignees</option>
+            <option value="assigned" {% if delivery_scope == 'assigned' %}selected{% endif %}>Assignees</option>
+            <option value="delivered" {% if delivery_scope == 'delivered' %}selected{% endif %}>Livrees</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label small mb-1">Livreur</label>
+          <select name="courier_id" class="form-select form-select-sm">
+            <option value="">Tous</option>
+            {% for courier in courier_filters %}
+              <option value="{{ courier.id }}" {% if courier_id_filter == courier.id %}selected{% endif %}>
+                {{ courier.username }} · {{ courier.delivered_count }} livrees
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="d-flex gap-2 mb-2">
+          <button class="btn btn-sm btn-primary" type="submit"><i class="bi bi-funnel"></i> Appliquer</button>
+          <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('admin.all_orders') }}">Reset</a>
+        </div>
+      </form>
+
+      <div class="orders-stats">
+        <div class="orders-stat">
+          <div>
+            <h6>Total commandes</h6>
+            <div class="stat-value" id="totalOrdersStat">{{ total_orders }}</div>
+            <div class="stat-note">Dans la periode</div>
+          </div>
+          <div class="stat-icon primary"><i class="bi bi-bag-check"></i></div>
+        </div>
+        <div class="orders-stat">
+          <div>
+            <h6>En attente</h6>
+            <div class="stat-value" id="pendingStat">{{ pending_count }}</div>
+            <div class="stat-note">Commandes non validees</div>
+          </div>
+          <div class="stat-icon warning"><i class="bi bi-hourglass-split"></i></div>
+        </div>
+        <div class="orders-stat">
+          <div>
+            <h6>Part Baba totale</h6>
+            <div class="stat-value" id="totalCommissionStat">{{ "%.2f"|format(total_baba_fee) }} MAD</div>
+            <div class="stat-note">Dans la periode</div>
+          </div>
+          <div class="stat-icon success"><i class="bi bi-cash-stack"></i></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="orders-table">
+    <div class="orders-table-header">
+      <h5>Commandes de la periode selectionnee</h5>
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <div class="orders-quick-search">
+          <i class="bi bi-search"></i>
+          <input id="ordersQuickSearch" type="search" class="form-control form-control-sm" placeholder="Recherche instantanee: id, client, telephone, ville...">
+        </div>
+        <span id="ordersPageCount">{{ orders|length }} commandes sur cette page</span>
+        <span id="ordersQuickMeta" class="orders-quick-meta"></span>
+      </div>
+    </div>
+    {% if orders %}
+    <div class="table-responsive">
+      <table class="table orders-table-list mb-0" id="ordersTable">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Client</th>
+            <th>Ville</th>
+            <th>Produits</th>
+            <th>Total</th>
+            <th>Livraison</th>
+            <th>Part Baba</th>
+            <th>Net livreur</th>
+            <th>Livreur</th>
+            <th>Statut</th>
+            <th>Date</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for o in orders %}
+          <tr class="{% if o.status == 'pending' %}order-row-pending{% endif %} order-row" 
+              data-order-id="{{ o.id }}" 
+              data-order-section="all"
+              data-row-index="{{ loop.index }}">
+            <td data-label="#">{{ o.id }}</td>
+            <td data-label="Client">
+              <div class="fw-semibold">{{ o.full_name }}</div>
+              <small class="text-muted">{{ o.phone }}</small>
+              <div class="small mt-1">
+                <span class="badge rounded-pill text-bg-info">{{ o._delivery_source_label if o._delivery_source_label else 'Marketplace' }}</span>
+              </div>
+              <div class="small text-muted mt-1">
+                <strong>Pickup:</strong> {{ o._delivery_pickup.shop_name if o._delivery_pickup else 'N/A' }} - {{ o._delivery_pickup.address if o._delivery_pickup else 'N/A' }}
+                {% if o._delivery_pickup and o._delivery_pickup.coords_text and o._delivery_pickup.coords_text != 'N/A' %}
+                  ({{ o._delivery_pickup.coords_text }})
+                {% endif %}
+                {% if o._delivery_pickup and o._delivery_pickup.maps_url %}
+                  · <a class="map-inline-link" data-stop-nav href="{{ o._delivery_pickup.maps_url }}" target="_blank" rel="noopener"><i class="bi bi-geo-alt"></i>Maps</a>
+                  · <button type="button" class="map-inline-copy" data-stop-nav data-copy-text="{{ o._delivery_pickup.maps_url }}">Copier</button>
+                {% endif %}
+              </div>
+              <div class="small text-muted">
+                <strong>Dropoff:</strong> {{ o._delivery_dropoff.address if o._delivery_dropoff else 'N/A' }}
+                {% if o._delivery_dropoff and o._delivery_dropoff.coords_text and o._delivery_dropoff.coords_text != 'N/A' %}
+                  ({{ o._delivery_dropoff.coords_text }})
+                {% endif %}
+                {% if o._delivery_dropoff and o._delivery_dropoff.maps_url %}
+                  · <a class="map-inline-link" data-stop-nav href="{{ o._delivery_dropoff.maps_url }}" target="_blank" rel="noopener"><i class="bi bi-geo"></i>Maps</a>
+                  · <button type="button" class="map-inline-copy" data-stop-nav data-copy-text="{{ o._delivery_dropoff.maps_url }}">Copier</button>
+                {% endif %}
+              </div>
+            </td>
+            <td data-label="Ville">{{ o.delivery_city or o.city }}</td>
+            <td data-label="Produits">
+              <div class="product-lines">
+                {% for item in o.items %}
+                <div class="product-line">
+                  <span>{{ item.product.name if item.product else 'Produit #' ~ item.product_id }}</span>
+                  <span class="text-muted">{{ "%.2f"|format((item.price or 0) / 100) }} MAD x{{ item.quantity }}</span>
+                </div>
+                {% else %}
+                <span class="text-muted">-</span>
+                {% endfor %}
+              </div>
+            </td>
+            <td data-label="Total">{{ "%.2f"|format(o.total / 100) }} MAD</td>
+            <td data-label="Livraison">{{ "%.2f"|format((o.delivery_price_cents or o.shipping or 0) / 100) }} MAD</td>
+            <td data-label="Part Baba">
+              <span class="badge bg-warning text-dark">{{ "%.2f"|format((o.delivery_platform_fee_cents or 0) / 100) }} MAD</span>
+              {% if o.baba_fee_settled_at %}
+                <div class="small text-success">Remis</div>
+              {% endif %}
+            </td>
+            <td data-label="Net livreur">{{ "%.2f"|format((o.delivery_courier_net_cents or 0) / 100) }} MAD</td>
+            <td data-label="Livreur">
+              {% if o.courier %}
+                <div class="small fw-semibold">Assigne a: {{ o.courier.username }}</div>
+              {% else %}
+                <div class="small text-muted">Non assignee</div>
+              {% endif %}
+              {% if not read_only %}
+                <form method="post" action="{{ url_for('admin.assign_courier', oid=o.id, next=request.full_path) }}" class="mt-1">
+                  {% include "admin/partials/_csrf.html" %}
+                  {% if couriers %}
+                    <div class="d-flex gap-1">
+                      <select name="courier_id" class="form-select form-select-sm">
+                        <option value="">--</option>
+                        {% for courier in couriers %}
+                          <option value="{{ courier.id }}" {% if o.courier_id == courier.id %}selected{% endif %}>
+                            {{ courier.username }} · {{ courier.delivered_count }} livrees
+                          </option>
+                        {% endfor %}
+                      </select>
+                      <button type="submit" class="btn btn-sm btn-outline-primary">Assigner</button>
+                    </div>
+                  {% else %}
+                    <div class="small text-muted">Aucun livreur disponible.</div>
+                    <a class="btn btn-sm btn-outline-secondary mt-1" href="{{ url_for('admin_users.manage_users', role='courier') }}">
+                      Voir tous les livreurs
+                    </a>
+                  {% endif %}
+                </form>
+              {% endif %}
+            </td>
+            <td data-label="Statut" data-order-status>
+              {% if o.status == "pending" %}
+                <span class="status-pill status-pending"><i class="bi bi-clock"></i> En attente</span>
+                {% if o.delivery_status in ['assigned', 'picked_up', 'delivering'] %}
+                  <div class="small text-muted mt-1">Livraison: {{ o.delivery_status }}</div>
+                {% endif %}
+              {% elif o.status == "delivered" %}
+                <span class="status-pill status-delivered"><i class="bi bi-check-circle"></i> Livree</span>
+              {% elif o.status == "cancelled" %}
+                <span class="status-pill status-cancelled"><i class="bi bi-x-circle"></i> Annulee</span>
+              {% else %}
+                <span class="status-pill status-pending">{{ o.status }}</span>
+              {% endif %}
+            </td>
+            <td data-label="Date"><small>{{ o.created_at.strftime('%d/%m/%Y %H:%M') }}</small></td>
+            <td data-label="Action" class="order-actions">
+              <div data-compact-actions>
+                <a href="{{ url_for('admin.order_detail', oid=o.id) }}"
+                   class="btn btn-sm btn-primary view-order-btn"
+                   title="Voir details"
+                   data-order-id="{{ o.id }}"
+                   data-row-index="{{ loop.index }}"
+                   data-primary-action data-stop-nav>
+                  <i class="bi bi-eye"></i><span class="d-none d-md-inline ms-1">Details</span>
+                </a>
+                {% if o.courier %}
+                <a href="{{ url_for('admin.courier_whatsapp', oid=o.id, next=request.full_path) }}"
+                   class="btn btn-sm btn-outline-success"
+                   title="WhatsApp livreur"
+                   data-secondary-action data-stop-nav>
+                  <i class="bi bi-whatsapp"></i><span class="d-none d-md-inline ms-1">WhatsApp</span>
+                </a>
+                {% endif %}
+                <div class="dropdown" data-actions-menu>
+                  <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" data-stop-nav>
+                    <i class="bi bi-three-dots"></i>
+                  </button>
+                  <ul class="dropdown-menu dropdown-menu-end">
+                    <li>
+                      <a class="dropdown-item" data-stop-nav href="tel:{{ o.phone }}">
+                        <i class="bi bi-telephone"></i>Appeler client
+                      </a>
+                    </li>
+                    {% if o._delivery_pickup and o._delivery_pickup.maps_url %}
+                    <li>
+                      <a class="dropdown-item" data-stop-nav href="{{ o._delivery_pickup.maps_url }}" target="_blank" rel="noopener">
+                        <i class="bi bi-geo-alt"></i>Ouvrir Maps pickup
+                      </a>
+                    </li>
+                    <li>
+                      <button type="button" class="dropdown-item" data-stop-nav data-copy-text="{{ o._delivery_pickup.maps_url }}">
+                        <i class="bi bi-clipboard"></i>Copier lien pickup
+                      </button>
+                    </li>
+                    {% endif %}
+                    {% if o._delivery_dropoff and o._delivery_dropoff.maps_url %}
+                    <li>
+                      <a class="dropdown-item" data-stop-nav href="{{ o._delivery_dropoff.maps_url }}" target="_blank" rel="noopener">
+                        <i class="bi bi-geo"></i>Ouvrir Maps dropoff
+                      </a>
+                    </li>
+                    <li>
+                      <button type="button" class="dropdown-item" data-stop-nav data-copy-text="{{ o._delivery_dropoff.maps_url }}">
+                        <i class="bi bi-clipboard-check"></i>Copier lien dropoff
+                      </button>
+                    </li>
+                    {% endif %}
+                  </ul>
+                </div>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if pagination and pagination.pages > 1 %}
+    <div class="mt-4">
+      {% set endpoint = 'admin.all_orders' %}
+      {% set params = {'period_id': selected_period_id, 'include_legacy': 1 if include_legacy else None, 'source': source_filter, 'delivery_scope': delivery_scope, 'courier_id': courier_id_filter} %}
+      {% set iter_args = {'left_edge': 1, 'right_edge': 1, 'left_current': 1, 'right_current': 1} %}
+      {% set prev_label = '<i class="bi bi-chevron-left"></i>' %}
+      {% set next_label = '<i class="bi bi-chevron-right"></i>' %}
+      {% include "admin/partials/_pagination.html" %}
+    </div>
+    {% endif %}
+    {% else %}
+      <div class="orders-empty">
+        <i class="bi bi-inbox" style="font-size: 3rem; opacity: 0.5;"></i>
+        <p class="mt-3">Aucune commande pour le moment.</p>
+      </div>
+    {% endif %}
+  </section>
+</div>
+
+<script>
+(function () {
+  const pageRoot = document.querySelector('[data-orders-page="true"]');
+  if (!pageRoot) return;
+
+  const loadingIndicator = document.getElementById('positionLoading');
+  const backToTopBtn = document.getElementById('backToTop');
+  const quickSearchInput = document.getElementById('ordersQuickSearch');
+  const quickMeta = document.getElementById('ordersQuickMeta');
+
+  function restoreY(y) {
+    if (typeof window.restoreInstantScroll === 'function') {
+      window.restoreInstantScroll(y);
+      return;
+    }
+    const target = Math.max(Number(y || 0), 0);
+    requestAnimationFrame(() => {
+      try {
+        window.scrollTo({ top: target, left: 0, behavior: 'instant' });
+      } catch (e) {
+        window.scrollTo(0, target);
+      }
+    });
+  }
+
+  function setLoading(on) {
+    if (!loadingIndicator) return;
+    loadingIndicator.classList.toggle('show', !!on);
+  }
+
+  function initQuickSearch() {
+    if (!quickSearchInput) return;
+    const rows = Array.from(document.querySelectorAll('#ordersTable tbody .order-row'));
+    if (!rows.length) return;
+    const query = (quickSearchInput.value || '').trim().toLowerCase();
+    let visible = 0;
+    rows.forEach((row) => {
+      const text = (row.textContent || '').toLowerCase();
+      const match = !query || text.includes(query);
+      row.style.display = match ? '' : 'none';
+      if (match) visible += 1;
+    });
+    if (quickMeta) {
+      quickMeta.textContent = query ? `${visible}/${rows.length} visibles` : '';
+    }
+  }
+
+  function bindAjaxPagination() {
+    document.querySelectorAll('.orders-table .page-link').forEach((link) => {
+      if (link.dataset.ajaxBound === '1') return;
+      link.dataset.ajaxBound = '1';
+      link.addEventListener('click', (event) => {
+        const href = link.getAttribute('href');
+        const parent = link.closest('.page-item');
+        if (!href || (parent && parent.classList.contains('disabled'))) return;
+        event.preventDefault();
+
+        const keepY = window.scrollY || 0;
+        setLoading(true);
+        fetch(href, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+          .then((response) => response.text())
+          .then((html) => {
+            const doc = new DOMParser().parseFromString(html, 'text/html');
+            const nextSection = doc.querySelector('.orders-table');
+            const currentSection = document.querySelector('.orders-table');
+            if (!nextSection || !currentSection) {
+              window.location.href = href;
+              return;
+            }
+            currentSection.innerHTML = nextSection.innerHTML;
+            window.history.replaceState({}, '', href);
+            if (typeof window.initAdminContent === 'function') {
+              window.initAdminContent(currentSection);
+            }
+            initQuickSearch();
+            bindAjaxPagination();
+            restoreY(keepY);
+          })
+          .catch(() => {
+            window.location.href = href;
+          })
+          .finally(() => setLoading(false));
+      });
+    });
+  }
+
+  bindAjaxPagination();
+  initQuickSearch();
+
+  if (quickSearchInput) {
+    quickSearchInput.addEventListener('input', initQuickSearch);
+  }
+
+  if (backToTopBtn) {
+    const onScroll = () => backToTopBtn.classList.toggle('show', (window.scrollY || 0) > 320);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    backToTopBtn.addEventListener('click', () => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  }
+})();
+</script>
+{% endblock %}
+
+

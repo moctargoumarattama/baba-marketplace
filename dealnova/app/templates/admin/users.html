@@ -1,0 +1,334 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Gestion des Utilisateurs | DealNova Admin{% endblock %}
+{% block page_title %}Utilisateurs{% endblock %}
+
+{% block head %}
+<style>
+  .users-wrap {
+    display: grid;
+    gap: 1.5rem;
+  }
+
+  .users-hero {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.16), rgba(16, 185, 129, 0.08));
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    border-radius: 20px;
+    padding: 1.6rem;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .users-hero::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at top right, rgba(255, 255, 255, 0.55), transparent 60%);
+    opacity: 0.7;
+  }
+
+  .users-hero-content {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .users-title {
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: var(--dark);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+  }
+
+  .users-title i {
+    width: 46px;
+    height: 46px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.85);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--primary);
+    font-size: 1.3rem;
+    box-shadow: 0 10px 18px rgba(0, 0, 0, 0.08);
+  }
+
+  .users-subtitle {
+    color: #4B5563;
+    font-weight: 500;
+    margin: 0.35rem 0 0;
+  }
+
+  .users-cta {
+    display: flex;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+  }
+
+  .users-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 1rem;
+  }
+
+  .stat-card {
+    background: #fff;
+    border-radius: 16px;
+    border: 1px solid #E5E7EB;
+    padding: 1rem 1.1rem;
+    box-shadow: 0 10px 22px rgba(0, 0, 0, 0.06);
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+  }
+
+  .stat-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    background: rgba(59, 130, 246, 0.14);
+    color: #2563EB;
+  }
+
+  .stat-icon-success {
+    background: rgba(16, 185, 129, 0.14);
+    color: #059669;
+  }
+
+  .stat-icon-danger {
+    background: rgba(239, 68, 68, 0.14);
+    color: #DC2626;
+  }
+
+  .stat-label {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #6B7280;
+    font-weight: 700;
+  }
+
+  .stat-value {
+    font-size: 1.3rem;
+    font-weight: 800;
+    color: var(--dark);
+  }
+
+  .users-card {
+    background: #fff;
+    border-radius: 16px;
+    border: 1px solid #E5E7EB;
+    box-shadow: 0 12px 26px rgba(0, 0, 0, 0.06);
+    overflow: hidden;
+  }
+
+  .users-card-header {
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid #E5E7EB;
+    background: #F9FAFB;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .users-card-header h5 {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--dark);
+  }
+
+  .filter-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1rem;
+    padding: 1.25rem;
+  }
+
+  .filter-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    align-items: end;
+  }
+
+  .table.users-table th {
+    background: #F9FAFB;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #6B7280;
+    font-weight: 700;
+  }
+
+  .table.users-table td {
+    font-size: 0.9rem;
+    vertical-align: middle;
+    border-color: #EEF2F7;
+  }
+
+  .avatar-pill {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    overflow: hidden;
+    background: linear-gradient(135deg, var(--primary), var(--accent));
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+  }
+
+  .avatar-pill img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .user-name {
+    font-weight: 600;
+    color: var(--dark);
+  }
+
+  .user-meta {
+    font-size: 0.8rem;
+    color: #6B7280;
+  }
+
+  .role-pill {
+    padding: 0.35rem 0.65rem;
+    border-radius: 999px;
+    font-weight: 600;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .role-vendor { background-color: #198754; color: #fff; }
+  .role-courier { background-color: #0ea5e9; color: #fff; }
+  .role-admin { background-color: #0d6efd; color: #fff; }
+
+  .users-actions .btn {
+    border-radius: 10px;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 2.5rem 1rem;
+    color: #6B7280;
+  }
+
+  @media (max-width: 992px) {
+    .users-card-header {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .users-table thead {
+      display: none;
+    }
+
+    .users-table,
+    .users-table tbody,
+    .users-table tr,
+    .users-table td {
+      display: block;
+      width: 100%;
+    }
+
+    .users-table tr {
+      border: 1px solid #E5E7EB;
+      border-radius: 16px;
+      margin: 0.85rem 0;
+      padding: 0.75rem 1rem;
+      background: #fff;
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.04);
+    }
+
+    .users-table td {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0.4rem 0;
+      border: 0;
+    }
+
+    .users-table td::before {
+      content: attr(data-label);
+      font-weight: 600;
+      color: #6B7280;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .users-title {
+      font-size: 1.35rem;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="users-wrap">
+  <section class="users-hero">
+    <div class="users-hero-content">
+      <div>
+        <h2 class="users-title">
+          <i class="bi bi-people"></i>
+          Gestion des utilisateurs
+        </h2>
+        <p class="users-subtitle">Centralisez les comptes, roles et acces en un coup d'oeil.</p>
+      </div>
+      <div class="users-cta">
+        <a href="{{ url_for('admin_users.create_user') }}" class="btn btn-primary">
+          <i class="bi bi-person-plus"></i> Nouvel utilisateur
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="users-stats">
+    <div class="stat-card">
+      <div class="stat-icon stat-icon-success"><i class="bi bi-shop"></i></div>
+      <div>
+        <div class="stat-label">Vendeurs</div>
+        <div class="stat-value">{{ roles_stats.vendor }}</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon stat-icon-danger"><i class="bi bi-shield-lock"></i></div>
+      <div>
+        <div class="stat-label">Admins</div>
+        <div class="stat-value">{{ roles_stats.admin }}</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon"><i class="bi bi-truck"></i></div>
+      <div>
+        <div class="stat-label">Livreurs</div>
+        <div class="stat-value">{{ roles_stats.courier }}</div>
+      </div>
+    </div>
+  </section>
+
+  {% include "admin/partials/_users_filters.html" %}
+
+  {% include "admin/partials/_users_table.html" %}
+</div>
+
+{% endblock %}

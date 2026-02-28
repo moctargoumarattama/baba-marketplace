@@ -1,0 +1,257 @@
+{% extends "base.html" %}
+
+{% block title %}{{ listing.title }} | Locations{% endblock %}
+
+{% block head %}
+<style>
+  .detail-shell { max-width: 1200px; margin: 0 auto; padding: 1rem; }
+  .detail-back { margin-bottom: .75rem; }
+  .detail-grid { display: grid; gap: 1rem; grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr); }
+  .detail-card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 20px;
+    box-shadow: 0 14px 30px rgba(2,6,23,.07);
+    overflow: hidden;
+  }
+  .gallery-main {
+    position: relative;
+    aspect-ratio: 16/10;
+    background: #ecf2f7;
+    overflow: hidden;
+  }
+  .gallery-track { display: flex; height: 100%; transition: transform .35s ease; }
+  .gallery-track > * { width: 100%; flex: 0 0 100%; height: 100%; object-fit: cover; }
+  .gallery-main img, .gallery-main video { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .gallery-chip {
+    position: absolute; top: .7rem; left: .7rem; z-index: 2;
+    padding: .3rem .7rem; border-radius: 999px; font-size: .72rem;
+    font-weight: 800; color: #fff; background: rgba(15,118,110,.92);
+  }
+  .gallery-nav {
+    position: absolute; inset-inline: 0; top: 50%; transform: translateY(-50%);
+    display: flex; justify-content: space-between; pointer-events: none; padding: 0 .55rem;
+  }
+  .gallery-btn {
+    width: 34px; height: 34px; border-radius: 999px; border: 0;
+    background: rgba(15,23,42,.56); color: #fff; pointer-events: auto;
+  }
+  .gallery-dots {
+    position: absolute; left: 50%; transform: translateX(-50%);
+    bottom: .65rem; display: flex; gap: .35rem;
+  }
+  .gallery-dot { width: 7px; height: 7px; border-radius: 999px; background: rgba(255,255,255,.55); transition: all .2s ease; }
+  .gallery-dot.active { width: 16px; background: #fff; }
+  .thumbs {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(82px, 1fr));
+    gap: .45rem;
+    padding: .75rem;
+    border-top: 1px solid #eef2f7;
+  }
+  .thumb-btn {
+    border: 1px solid #d5dce5;
+    border-radius: 11px;
+    padding: 0;
+    overflow: hidden;
+    background: #f8fafc;
+    position: relative;
+  }
+  .thumb-btn.active { border-color: #0f766e; box-shadow: 0 0 0 2px rgba(15,118,110,.15); }
+  .thumb-btn img, .thumb-btn video { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; }
+  .detail-body { padding: 1rem 1rem 1.1rem; }
+  .title { margin: 0 0 .45rem; color: #0f172a; font-weight: 900; font-size: clamp(1.15rem, 2.2vw, 1.55rem); }
+  .meta-row { display: flex; align-items: center; gap: .65rem; flex-wrap: wrap; margin-bottom: .6rem; }
+  .meta-pill {
+    display: inline-flex; align-items: center; gap: .35rem;
+    padding: .28rem .62rem; border-radius: 999px; font-size: .75rem;
+    font-weight: 700; color: #334155; background: #f1f5f9; border: 1px solid #e2e8f0;
+  }
+  .price { color: #0f766e; font-size: 1.5rem; font-weight: 900; margin: .35rem 0 .1rem; }
+  .desc-title { font-weight: 800; color: #0f172a; margin: .8rem 0 .4rem; }
+  .desc { white-space: pre-line; color: #334155; line-height: 1.6; margin: 0; }
+  .side-card { padding: 1rem; display: grid; gap: .75rem; }
+  .info-box { border: 1px solid #e2e8f0; border-radius: 14px; padding: .7rem .8rem; background: #f8fafc; }
+  .info-line { display: flex; justify-content: space-between; gap: .6rem; font-size: .9rem; font-weight: 650; color: #1e293b; padding: .4rem 0; border-bottom: 1px dashed #d8e0ea; }
+  .info-line:last-child { border-bottom: 0; }
+  .cta {
+    display: inline-flex; justify-content: center; align-items: center; gap: .45rem;
+    width: 100%; min-height: 46px; font-weight: 800; border-radius: 12px;
+  }
+  .note { color: #64748b; font-size: .86rem; line-height: 1.45; margin: 0; }
+  @media (max-width: 960px) {
+    .detail-grid { grid-template-columns: 1fr; }
+    .detail-shell { padding: .75rem; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="detail-shell">
+  <a href="{{ url_for('rentals.locations_home') }}" class="btn btn-outline-secondary btn-sm detail-back"><i class="bi bi-arrow-left"></i> Retour aux locations</a>
+
+  <div class="detail-grid">
+    <section class="detail-card">
+      {% set gallery = [] %}
+      {% for image in images %}
+        {% set _ = gallery.append({'kind': 'image', 'src': url_for('static', filename=image.file_path)}) %}
+      {% endfor %}
+      {% for video in videos %}
+        {% set _ = gallery.append({'kind': 'video', 'src': url_for('static', filename=video.file_path)}) %}
+      {% endfor %}
+
+      {% if gallery %}
+        <div class="gallery-main js-gallery">
+          <span class="gallery-chip">{{ 'Mensuel' if listing.listing_type == 'monthly' else 'Journalier' }}</span>
+          <div class="gallery-track">
+            {% for media in gallery %}
+              {% if media.kind == 'image' %}
+                <img src="{{ media.src }}" alt="{{ listing.title }}" loading="lazy">
+              {% else %}
+                <video controls playsinline preload="metadata">
+                  <source src="{{ media.src }}">
+                </video>
+              {% endif %}
+            {% endfor %}
+          </div>
+          {% if gallery|length > 1 %}
+            <div class="gallery-nav">
+              <button type="button" class="gallery-btn js-gallery-prev"><i class="bi bi-chevron-left"></i></button>
+              <button type="button" class="gallery-btn js-gallery-next"><i class="bi bi-chevron-right"></i></button>
+            </div>
+            <div class="gallery-dots">
+              {% for _ in gallery %}
+                <span class="gallery-dot {{ 'active' if loop.first else '' }}"></span>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        {% if gallery|length > 1 %}
+          <div class="thumbs js-gallery-thumbs">
+            {% for media in gallery %}
+              <button type="button" class="thumb-btn {{ 'active' if loop.first else '' }}" data-index="{{ loop.index0 }}">
+                {% if media.kind == 'image' %}
+                  <img src="{{ media.src }}" alt="Media {{ loop.index }}">
+                {% else %}
+                  <video preload="metadata" muted playsinline>
+                    <source src="{{ media.src }}">
+                  </video>
+                {% endif %}
+              </button>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% else %}
+        <div class="gallery-main d-flex align-items-center justify-content-center text-muted">
+          <div class="text-center">
+            <i class="bi bi-house fs-1"></i>
+            <div>Aucun média disponible</div>
+          </div>
+        </div>
+      {% endif %}
+
+      <div class="detail-body">
+        <h1 class="title">{{ listing.title }}</h1>
+        <div class="meta-row">
+          <span class="meta-pill"><i class="bi bi-geo-alt"></i> {{ listing.city }}{% if listing.area %}, {{ listing.area }}{% endif %}</span>
+          <span class="meta-pill"><i class="bi bi-building"></i> {{ listing.property_type }}</span>
+          <span class="meta-pill"><i class="bi bi-shop"></i> {{ listing.shop.name if listing.shop else '—' }}</span>
+        </div>
+        <div class="price">{{ cents_to_dh(listing.rent_cents) }}</div>
+        {% if listing.description %}
+          <h3 class="desc-title">Description</h3>
+          <p class="desc">{{ listing.description }}</p>
+        {% endif %}
+      </div>
+    </section>
+
+    <aside class="detail-card side-card">
+      <div class="info-box">
+        <div class="info-line"><span>Loyer</span><strong>{{ cents_to_dh(listing.rent_cents) }}</strong></div>
+        <div class="info-line"><span>Caution</span><strong>{% if listing.deposit_required %}{{ cents_to_dh(listing.deposit_cents) if listing.deposit_cents else 'Avec caution' }}{% else %}Sans caution{% endif %}</strong></div>
+        <div class="info-line">
+          <span>Frais propriétaire</span>
+          <strong>
+            {{ cents_to_dh(listing.owner_fee_cents) if listing.owner_fee_cents is not none else 'Non spécifié' }}
+            {% if listing.owner_fee_text %} · {{ listing.owner_fee_text }}{% endif %}
+          </strong>
+        </div>
+        <div class="info-line"><span>Publié</span><strong>{{ listing.created_at.strftime('%d/%m/%Y') if listing.created_at else '—' }}</strong></div>
+        <div class="info-line"><span>Consultations</span><strong>{{ listing.view_count }}</strong></div>
+      </div>
+
+      <a class="btn btn-success cta" href="{{ whatsapp_url }}">
+        <i class="bi bi-whatsapp"></i> Demander visite / infos
+      </a>
+      <p class="note">
+        Le contact direct propriétaire n'est pas affiché. Votre demande passe par l'agence.
+      </p>
+    </aside>
+  </div>
+</div>
+
+<script>
+  (function () {
+    const galleryRoot = document.querySelector('.js-gallery');
+    if (!galleryRoot) return;
+
+    const track = galleryRoot.querySelector('.gallery-track');
+    const slides = track ? track.children : [];
+    if (!track || !slides || slides.length <= 1) return;
+
+    const prev = galleryRoot.querySelector('.js-gallery-prev');
+    const next = galleryRoot.querySelector('.js-gallery-next');
+    const dots = galleryRoot.querySelectorAll('.gallery-dot');
+    const thumbs = document.querySelectorAll('.js-gallery-thumbs .thumb-btn');
+    let index = 0;
+    let touchStartX = 0;
+    let touchEndX = 0;
+
+    function render() {
+      track.style.transform = `translateX(-${index * 100}%)`;
+      dots.forEach((dot, dotIndex) => {
+        if (dotIndex === index) dot.classList.add('active');
+        else dot.classList.remove('active');
+      });
+      thumbs.forEach((thumb) => {
+        if (Number(thumb.dataset.index) === index) thumb.classList.add('active');
+        else thumb.classList.remove('active');
+      });
+    }
+
+    function go(step) {
+      index += step;
+      if (index >= slides.length) index = 0;
+      if (index < 0) index = slides.length - 1;
+      render();
+    }
+
+    if (prev) prev.addEventListener('click', function () { go(-1); });
+    if (next) next.addEventListener('click', function () { go(1); });
+
+    thumbs.forEach((thumb) => {
+      thumb.addEventListener('click', function () {
+        const target = Number(thumb.dataset.index);
+        if (Number.isInteger(target)) {
+          index = target;
+          render();
+        }
+      });
+    });
+
+    galleryRoot.addEventListener('touchstart', function (event) {
+      touchStartX = event.changedTouches[0].screenX;
+    }, { passive: true });
+    galleryRoot.addEventListener('touchend', function (event) {
+      touchEndX = event.changedTouches[0].screenX;
+      const delta = touchEndX - touchStartX;
+      if (Math.abs(delta) > 35) {
+        if (delta < 0) go(1);
+        else go(-1);
+      }
+    }, { passive: true });
+
+    render();
+  })();
+</script>
+{% endblock %}

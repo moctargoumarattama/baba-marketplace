@@ -1,0 +1,565 @@
+{% extends "base.html" %}
+
+{% block title %}DealNova — Panier{% endblock %}
+
+{% block content %}
+<div class="container py-4 py-lg-5 cart-page">
+  <!-- Header -->
+  <div class="text-center mb-4 mb-lg-5 cart-hero">
+    <h1 class="h2 fw-bold mb-2">
+      <i class="bi bi-cart3 text-primary me-2"></i>Mon Panier
+    </h1>
+    <p class="text-muted mb-0">Vérifiez vos articles avant de finaliser</p>
+  </div>
+
+  <!-- Cart Counter -->
+  <div class="alert alert-light border d-flex align-items-center justify-content-between mb-4" id="cartCounter">
+    <div>
+      <span class="badge bg-primary rounded-pill me-2" id="cartCount">{{ items|length }}</span>
+      <span>Article{% if items|length > 1 %}s{% endif %} dans votre panier</span>
+    </div>
+    {% if items %}
+    <button type="button" class="btn btn-outline-danger btn-sm" id="clearCartBtn">
+      <i class="bi bi-trash me-1"></i>Vider
+    </button>
+    {% endif %}
+  </div>
+
+  {% if items %}
+  <div class="row">
+    <!-- Cart Items -->
+    <div class="col-lg-8 mb-4 mb-lg-0">
+  <div class="card border-0 shadow-sm cart-panel">
+        <div class="card-body p-3 p-lg-4">
+          <div id="cartItems">
+            {% for product, qty, sub in items %}
+            <div class="cart-item border-bottom pb-3 mb-3" data-pid="{{ product.id }}">
+              <div class="row align-items-center">
+                <!-- Image -->
+                <div class="col-3 col-md-2">
+                  <div class="ratio ratio-1x1 bg-light rounded-2 overflow-hidden">
+                    {% if product.image_file %}
+                      {% set imgs = product.image_file.split('|') if product.image_file else [] %}
+                      <img src="{{ url_for('static', filename='uploads/' + image_variant(imgs[0], 'thumb')) if imgs else '' }}" 
+                           alt="{{ product.name }}" 
+                           class="img-fluid h-100 object-fit-cover"
+                           loading="lazy"
+                           decoding="async"
+                           width="120"
+                           height="120">
+                    {% else %}
+                      <div class="d-flex align-items-center justify-content-center h-100 text-muted">
+                        <i class="bi bi-box-seam fs-4"></i>
+                      </div>
+                    {% endif %}
+                  </div>
+                </div>
+
+                <!-- Details -->
+                <div class="col-5 col-md-6">
+                  <h6 class="fw-bold mb-1">{{ product.name }}</h6>
+                  <small class="text-muted d-block mb-1">
+                    {{ product.category.name if product.category else 'Non catégorisé' }}
+                  </small>
+                  <div class="d-flex align-items-center">
+                    <span class="text-primary fw-bold product-price">
+                      {{ "%.2f"|format(prix_final(product)) }} MAD
+                    </span>
+                  </div>
+                </div>
+
+                <!-- Quantity Controls -->
+                <div class="col-4 col-md-3">
+                  <div class="d-flex align-items-center">
+                    <button type="button" class="btn btn-outline-secondary btn-sm px-2 qty-btn qty-decrease">
+                      <i class="bi bi-dash"></i>
+                    </button>
+                    
+                    <input type="number" 
+                           class="form-control form-control-sm text-center mx-2 qty-input" 
+                           value="{{ qty }}" 
+                           min="1" 
+                           max="{{ product.stock if product.stock else 99 }}"
+                           style="width: 50px;">
+                    
+                    <button type="button" class="btn btn-outline-secondary btn-sm px-2 qty-btn qty-increase">
+                      <i class="bi bi-plus"></i>
+                    </button>
+                  </div>
+                  
+                  <button type="button" class="btn btn-link btn-sm text-danger p-0 mt-1 remove-item-btn">
+                    <small><i class="bi bi-trash me-1"></i>Supprimer</small>
+                  </button>
+                </div>
+
+                <!-- Subtotal -->
+                <div class="col-12 col-md-1 text-end mt-2 mt-md-0">
+                  <div class="fw-bold product-subtotal">
+                    {{ "%.2f"|format(sub) }} MAD
+                  </div>
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Order Summary -->
+    <div class="col-lg-4">
+      <div class="card border-0 shadow-sm sticky-top summary-card" style="top: 20px;">
+        <div class="card-body p-3 p-lg-4">
+          <h6 class="fw-bold mb-3">
+            <i class="bi bi-receipt text-primary me-2"></i>Récapitulatif
+          </h6>
+          
+          <div class="d-flex justify-content-between mb-2">
+            <span class="text-muted">Sous-total</span>
+            <span id="subtotalAmount">{{ "%.2f"|format(total) }} MAD</span>
+          </div>
+          
+          <div class="d-flex justify-content-between mb-2">
+            <span class="text-muted">Livraison</span>
+            <span class="text-info" id="shippingAmount">
+              <i class="bi bi-info-circle me-1"></i>À calculer
+            </span>
+          </div>
+          
+          <div class="d-flex justify-content-between mb-3">
+            <span class="text-muted">Taxes</span>
+            <span>Incluses</span>
+          </div>
+          
+          <div class="border-top pt-3">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <span class="fw-bold">Total estimé</span>
+              <span class="h5 fw-bold text-primary" id="totalAmount">{{ "%.2f"|format(total) }} MAD</span>
+            </div>
+            
+            <p class="small text-muted mb-3">
+              <i class="bi bi-info-circle text-info me-1"></i>
+              Les frais de livraison seront calculés après sélection de votre ville.
+            </p>
+            
+            <a href="{{ url_for('cart.checkout') }}" class="btn btn-primary w-100 py-3 btn-checkout">
+              <i class="bi bi-arrow-right me-2"></i>
+              Passer à la commande
+            </a>
+            
+            <div class="text-center mt-3">
+              <a href="{{ url_for('shop.home') }}" class="text-decoration-none">
+                <i class="bi bi-arrow-left me-1"></i>
+                Continuer mes achats
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <!-- Empty Cart -->
+  <div class="text-center py-5">
+    <div class="display-1 text-muted mb-3">
+      <i class="bi bi-cart-x"></i>
+    </div>
+    <h4 class="mb-3">Votre panier est vide</h4>
+    <p class="text-muted mb-4">Ajoutez des produits pour commencer vos achats</p>
+    <div class="d-flex gap-2 justify-content-center">
+      <a href="{{ url_for('shop.home') }}" class="btn btn-primary">
+        <i class="bi bi-shop me-2"></i>Boutique
+      </a>
+      <a href="{{ url_for('shop.home') }}" class="btn btn-outline-primary">
+        <i class="bi bi-house me-2"></i>Accueil
+      </a>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Toast for notifications -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+  <div id="cartToast" class="toast align-items-center text-white bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
+    <div class="d-flex">
+      <div class="toast-body" id="toastMessage"></div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+    </div>
+  </div>
+</div>
+
+<style>
+  :root {
+    --cart-accent: #10b981;
+    --cart-accent-dark: #059669;
+    --cart-ink: #0f172a;
+    --cart-border: rgba(148, 163, 184, 0.35);
+    --cart-soft: #f5f7fb;
+    --cart-shadow: 0 16px 32px rgba(15, 23, 42, 0.12);
+  }
+
+  .cart-page {
+    background: radial-gradient(circle at 10% 10%, rgba(16,185,129,0.08), transparent 45%),
+                radial-gradient(circle at 90% 20%, rgba(245,158,11,0.12), transparent 40%),
+                #f7f8fb;
+    border-radius: 16px;
+  }
+
+  .cart-hero h1 {
+    font-weight: 900;
+    color: var(--cart-ink);
+  }
+
+  .cart-panel {
+    border: 1px solid var(--cart-border);
+    box-shadow: var(--cart-shadow);
+    background: rgba(255,255,255,0.92);
+  }
+
+  .summary-card {
+    border: 1px solid var(--cart-border);
+    box-shadow: var(--cart-shadow);
+    background: linear-gradient(180deg, #ffffff, #f8fafc);
+  }
+
+  .btn-checkout {
+    background: linear-gradient(135deg, var(--cart-accent), var(--cart-accent-dark));
+    border: none;
+    box-shadow: 0 12px 24px rgba(16,185,129,0.28);
+  }
+
+  .btn-checkout:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 16px 30px rgba(16,185,129,0.35);
+  }
+
+  .cart-item {
+    transition: background-color 0.2s ease;
+  }
+  
+  .cart-item:hover {
+    background-color: rgba(0, 0, 0, 0.02);
+  }
+
+  .cart-item {
+    border-radius: 12px;
+    padding: 0.4rem 0.2rem;
+  }
+
+  .cart-item + .cart-item {
+    margin-top: 0.5rem;
+  }
+
+  .product-price {
+    transition: transform 0.3s ease, text-shadow 0.3s ease;
+  }
+
+  .cart-item:hover .product-price {
+    transform: translateY(-2px);
+    text-shadow: 0 6px 16px rgba(16,185,129,0.25);
+  }
+  
+  .qty-input {
+    appearance: textfield;
+    -moz-appearance: textfield;
+  }
+  
+  .qty-input::-webkit-outer-spin-button,
+  .qty-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  
+  .qty-btn {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .object-fit-cover {
+    object-fit: cover;
+  }
+  
+  @media (max-width: 768px) {
+    .cart-item .row > div {
+      margin-bottom: 10px;
+    }
+    
+    .qty-input {
+      width: 40px !important;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .product-price,
+    .btn-checkout {
+      transition: none;
+    }
+  }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const toastElement = document.getElementById('cartToast');
+  const cartToast =
+    (toastElement && window.bootstrap && window.bootstrap.Toast)
+      ? new bootstrap.Toast(toastElement)
+      : null;
+  
+  // Fonction pour afficher les notifications
+  function showToast(message, type = 'success') {
+    const toast = document.getElementById('cartToast');
+    const toastMessage = document.getElementById('toastMessage');
+    if (!toast || !toastMessage) return;
+    
+    toast.className = `toast align-items-center text-white border-0`;
+    toast.classList.add(`bg-${type === 'error' ? 'danger' : 'success'}`);
+    toastMessage.textContent = message;
+    
+    if (cartToast && typeof cartToast.show === 'function') {
+      cartToast.show();
+    }
+  }
+  
+  // Fonction pour mettre à jour les totaux
+  function updateCartTotals(data) {
+    if (data.cart_count !== undefined) {
+      const cartCountEl = document.getElementById('cartCount');
+      if (cartCountEl) {
+        cartCountEl.textContent = data.cart_count;
+      }
+    }
+    
+    if (data.total !== undefined) {
+      const subtotalEl = document.getElementById('subtotalAmount');
+      const totalEl = document.getElementById('totalAmount');
+      if (subtotalEl && totalEl) {
+        subtotalEl.textContent = data.total.toFixed(2) + ' MAD';
+        totalEl.textContent = data.total.toFixed(2) + ' MAD';
+
+        // Si on a les details de shipping
+        if (data.shipping !== undefined) {
+          const shippingEl = document.getElementById('shippingAmount');
+          if (shippingEl) {
+            shippingEl.textContent = data.shipping.toFixed(2) + ' MAD';
+            shippingEl.className = '';
+
+            if (data.shipping > 0) {
+              shippingEl.classList.add('text-info');
+            } else {
+              shippingEl.classList.add('text-success');
+              shippingEl.innerHTML = '<i class="bi bi-check-circle me-1"></i>Gratuite';
+            }
+          }
+
+          // Mettre a jour le total avec shipping
+          totalEl.textContent = (data.total + data.shipping).toFixed(2) + ' MAD';
+        }
+      }
+    }
+    
+    // Mettre à jour le compteur dans le header si existant
+    const headerCartCount = document.querySelector('.cart-count-badge');
+    if (headerCartCount && data.cart_count !== undefined) {
+      headerCartCount.textContent = data.cart_count;
+      headerCartCount.classList.remove('d-none');
+    }
+  }
+  
+  // Augmenter la quantité
+  document.querySelectorAll('.qty-increase').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const item = this.closest('.cart-item');
+      if (!item) return;
+      const pid = item.dataset.pid;
+      const input = item.querySelector('.qty-input');
+      if (!input) return;
+      const currentValue = parseInt(input.value);
+      const max = parseInt(input.max);
+      
+      if (currentValue < max) {
+        updateQuantity(pid, currentValue + 1);
+      } else {
+        showToast(`Quantité maximale: ${max}`, 'error');
+      }
+    });
+  });
+  
+  // Diminuer la quantité
+  document.querySelectorAll('.qty-decrease').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const item = this.closest('.cart-item');
+      if (!item) return;
+      const pid = item.dataset.pid;
+      const input = item.querySelector('.qty-input');
+      if (!input) return;
+      const currentValue = parseInt(input.value);
+      
+      if (currentValue > 1) {
+        updateQuantity(pid, currentValue - 1);
+      } else {
+        removeFromCart(pid);
+      }
+    });
+  });
+  
+  // Changement manuel de quantité
+  document.querySelectorAll('.qty-input').forEach(input => {
+    input.addEventListener('change', function() {
+      const item = this.closest('.cart-item');
+      if (!item) return;
+      const pid = item.dataset.pid;
+      const newQty = parseInt(this.value);
+      const max = parseInt(this.max);
+      
+      if (newQty > 0 && newQty <= max) {
+        updateQuantity(pid, newQty);
+      } else if (newQty > max) {
+        this.value = max;
+        showToast(`Quantité maximale: ${max}`, 'error');
+      }
+    });
+  });
+  
+  // Supprimer un produit
+  document.querySelectorAll('.remove-item-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const item = this.closest('.cart-item');
+      if (!item) return;
+      const pid = item.dataset.pid;
+      removeFromCart(pid);
+    });
+  });
+  
+  // Vider tout le panier
+  const clearCartBtn = document.getElementById('clearCartBtn');
+  if (clearCartBtn) {
+    clearCartBtn.addEventListener('click', function() {
+      if (confirm('Voulez-vous vraiment vider tout votre panier ')) {
+        clearCart();
+      }
+    });
+  }
+  
+  // Fonction AJAX pour mettre à jour la quantité
+  async function updateQuantity(pid, newQty) {
+    try {
+      const response = await fetch(`/cart/api/update/${pid}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': window.csrfToken
+        },
+        body: JSON.stringify({ quantity: newQty })
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        // Mettre à jour l'interface
+        const item = document.querySelector(`.cart-item[data-pid="${pid}"]`);
+        if (item) {
+          const input = item.querySelector('.qty-input');
+          const subtotalEl = item.querySelector('.product-subtotal');
+          const priceEl = item.querySelector('.product-price');
+          
+          input.value = data.product_qty;
+          
+          if (data.product_total !== undefined) {
+            subtotalEl.textContent = data.product_total.toFixed(2) + ' MAD';
+          }
+          
+          // Si quantité = 0, supprimer l'élément
+          if (data.product_qty === 0) {
+            item.remove();
+          }
+        }
+        
+        updateCartTotals(data);
+        showToast(data.message);
+      } else {
+        showToast(data.message, 'error');
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      showToast('Erreur de connexion', 'error');
+    }
+  }
+  
+  // Fonction AJAX pour supprimer un produit
+  async function removeFromCart(pid) {
+    try {
+      const response = await fetch(`/cart/api/remove/${pid}`, {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': window.csrfToken
+        },
+        credentials: 'same-origin'
+      });
+      const data = await response.json();
+      
+      if (data.success) {
+        const item = document.querySelector(`.cart-item[data-pid="${pid}"]`);
+        if (item) {
+          item.remove();
+        }
+        
+        updateCartTotals(data);
+        showToast(data.message);
+        
+        // Si panier vide, rediriger
+        if (data.cart_count === 0) {
+          setTimeout(() => location.reload(), 1000);
+        }
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      showToast('Erreur de connexion', 'error');
+    }
+  }
+  
+  // Fonction AJAX pour vider le panier
+  async function clearCart() {
+    try {
+      const response = await fetch('/cart/api/clear', {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': window.csrfToken
+        },
+        credentials: 'same-origin'
+      });
+      const data = await response.json();
+      
+      if (data.success) {
+        const cartItemsEl = document.getElementById('cartItems');
+        if (cartItemsEl) {
+          cartItemsEl.innerHTML = '';
+        }
+        updateCartTotals(data);
+        showToast(data.message);
+        
+        // Rediriger après un délai
+        setTimeout(() => location.reload(), 1500);
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      showToast('Erreur de connexion', 'error');
+    }
+  }
+  
+  // Animation d'entrée des articles
+  document.querySelectorAll('.cart-item').forEach((item, index) => {
+    item.style.opacity = '0';
+    item.style.transform = 'translateY(10px)';
+    
+    setTimeout(() => {
+      item.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+      item.style.opacity = '1';
+      item.style.transform = 'translateY(0)';
+    }, index * 50);
+  });
+});
+</script>
+{% endblock %}

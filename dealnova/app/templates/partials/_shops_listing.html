@@ -1,0 +1,221 @@
+<div id="shopsListing" data-ajax-listing data-ajax-scroll="preserve">
+  {% if shops %}
+  <div class="shops-grid">
+    {% for shop in shops %}
+    <div class="shop-card fade-in-shop" style="--i: {{ loop.index0 }}">
+      <div class="shop-banner">
+        {% if shop.banner %}
+          <img src="{{ url_for('static', filename='uploads/' + shop.banner) }}"
+               alt="{{ shop.name }}"
+               class="shop-banner-image"
+               loading="lazy"
+               data-img-fallback="remove">
+        {% elif shop.logo %}
+          <img src="{{ url_for('static', filename='uploads/' + shop.logo) }}"
+               alt="{{ shop.name }}"
+               class="shop-banner-image"
+               loading="lazy"
+               data-img-fallback="remove">
+        {% else %}
+          <div class="shop-banner-initials">
+            {{ shop.name[:2] }}
+          </div>
+        {% endif %}
+        <div class="shop-banner-overlay"></div>
+
+        {% if shop.is_open_now %}
+        <div class="open-badge open">
+          <i class="bi bi-check-circle-fill"></i>
+          Ouvert
+        </div>
+        {% else %}
+        <div class="open-badge closed">
+          <i class="bi bi-x-circle-fill"></i>
+          Ferme
+        </div>
+        {% endif %}
+
+        {% if shop.is_verified %}
+        <div class="verified-badge">
+          <i class="bi bi-check-circle-fill"></i>
+          Verifie
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="shop-card-content">
+        <h2 class="shop-name">
+          <a href="{{ url_for('shops.shop_detail', shop_slug=shop.slug) }}">
+            {{ shop.name }}
+          </a>
+        </h2>
+
+        {% set allowed_types = shop.allowed_types or [] %}
+        {% set products_only = ('products' in allowed_types) and ('services' not in allowed_types) and ('location' not in allowed_types) %}
+        {% set services_only = ('services' in allowed_types) and ('products' not in allowed_types) and ('location' not in allowed_types) %}
+        {% set location_only = ('location' in allowed_types) and ('products' not in allowed_types) and ('services' not in allowed_types) %}
+        {% set mixed_types = not (products_only or services_only or location_only) %}
+
+        <div class="shop-type-badges">
+          {% if 'products' in allowed_types %}
+            <span class="type-badge badge-physical">
+              <i class="bi bi-truck"></i>
+              Produits
+            </span>
+          {% endif %}
+          {% if 'services' in allowed_types %}
+            <span class="type-badge badge-service">
+              <i class="bi bi-calendar-check"></i>
+              Services
+            </span>
+          {% endif %}
+          {% if 'location' in allowed_types %}
+            <span class="type-badge badge-location">
+              <i class="bi bi-house-door"></i>
+              Location
+            </span>
+          {% endif %}
+          {% if not allowed_types %}
+            <span class="type-badge badge-generic">
+              <i class="bi bi-shop"></i>
+              Boutique
+            </span>
+          {% endif %}
+        </div>
+
+        <p class="shop-description">
+          {{ shop.description|truncate(120) if shop.description else "Boutique BABA Market" }}
+        </p>
+
+        <div class="shop-stats {% if mixed_types %}cols-3{% else %}cols-1{% endif %}">
+          {% if products_only %}
+            <div class="stat-item stat-physical">
+              <span class="stat-number">{{ shop.physical_count or 0 }}</span>
+              <span class="stat-label">Produits</span>
+            </div>
+          {% elif services_only %}
+            <div class="stat-item stat-service">
+              <span class="stat-number">{{ shop.service_count or 0 }}</span>
+              <span class="stat-label">Services</span>
+            </div>
+          {% elif location_only %}
+            <div class="stat-item stat-location">
+              <span class="stat-number">{{ shop.location_count or 0 }}</span>
+              <span class="stat-label">Locations</span>
+            </div>
+          {% else %}
+            {% if 'products' in allowed_types %}
+              <div class="stat-item stat-physical">
+                <span class="stat-number">{{ shop.physical_count or 0 }}</span>
+                <span class="stat-label">Produits</span>
+              </div>
+            {% endif %}
+            {% if 'services' in allowed_types %}
+              <div class="stat-item stat-service">
+                <span class="stat-number">{{ shop.service_count or 0 }}</span>
+                <span class="stat-label">Services</span>
+              </div>
+            {% endif %}
+            {% if 'location' in allowed_types %}
+              <div class="stat-item stat-location">
+                <span class="stat-number">{{ shop.location_count or 0 }}</span>
+                <span class="stat-label">Locations</span>
+              </div>
+            {% endif %}
+          {% endif %}
+        </div>
+
+        {% if shop.contact_phone and not location_only %}
+        <div class="shop-contact">
+          <i class="bi bi-telephone"></i>
+          <span>{{ shop.contact_phone }}</span>
+        </div>
+        {% endif %}
+
+        {% if ('services' in allowed_types) and shop.service_map_url %}
+         <a class="shop-map-link"
+            data-stop-nav
+            href="{{ shop.service_map_url }}"
+            target="_blank"
+            rel="noopener">
+          <i class="bi bi-geo-alt-fill"></i>
+          Ouvrir localisation
+        </a>
+        {% if shop.service_location_note %}
+        <div class="small text-muted mt-2">{{ shop.service_location_note }}</div>
+        {% endif %}
+        {% endif %}
+
+        <a href="{{ url_for('shops.shop_detail', shop_slug=shop.slug) }}"
+           class="shop-visit-btn"
+           data-stop-nav>
+          <i class="bi bi-box-arrow-in-right me-2"></i>
+          Visiter la boutique
+        </a>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state-shops">
+    <div class="empty-icon-shops">
+      <i class="bi bi-shop"></i>
+    </div>
+    <h3 class="empty-title-shops">
+      {% if q %}Aucune boutique trouvee{% else %}Aucune boutique disponible{% endif %}
+    </h3>
+    <p class="empty-text-shops">
+      {% if q %}
+      Aucune boutique ne correspond a votre recherche "{{ q }}"
+      {% else %}
+      Aucune boutique n'est actuellement disponible sur notre marketplace.
+      {% endif %}
+    </p>
+    <a href="{{ url_for('shops.list_shops') }}" class="shop-visit-btn" style="display: inline-block; max-width: 250px; margin: 0 auto;">
+      <i class="bi bi-arrow-clockwise me-2"></i>
+      {% if q %}Reinitialiser la recherche{% else %}Recharger{% endif %}
+    </a>
+  </div>
+  {% endif %}
+</div>
+
+<div id="shopsPagination" data-ajax-pagination>
+  {% if shops and pagination.pages > 1 %}
+  <div class="pagination-shops">
+    {% if pagination.has_prev %}
+    <a href="{{ url_for('shops.list_shops', page=pagination.prev_num, q=q, kind=kind) }}"
+       class="page-link-shops prev-link">
+      <i class="bi bi-chevron-left"></i> Precedent
+    </a>
+    {% else %}
+    <span class="page-link-shops prev-link disabled">
+      <i class="bi bi-chevron-left"></i> Precedent
+    </span>
+    {% endif %}
+
+    {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=1) %}
+      {% if p %}
+        {% if p == pagination.page %}
+        <span class="page-link-shops active">{{ p }}</span>
+        {% else %}
+        <a href="{{ url_for('shops.list_shops', page=p, q=q, kind=kind) }}"
+           class="page-link-shops">{{ p }}</a>
+        {% endif %}
+      {% else %}
+        <span class="page-link-shops disabled">...</span>
+      {% endif %}
+    {% endfor %}
+
+    {% if pagination.has_next %}
+    <a href="{{ url_for('shops.list_shops', page=pagination.next_num, q=q, kind=kind) }}"
+       class="page-link-shops next-link">
+      Suivant <i class="bi bi-chevron-right"></i>
+    </a>
+    {% else %}
+    <span class="page-link-shops next-link disabled">
+      Suivant <i class="bi bi-chevron-right"></i>
+    </span>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>

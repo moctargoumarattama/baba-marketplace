@@ -1,0 +1,11 @@
+{% extends 'errors/base.html' %}
+{% set error_code = 429 %}
+{% set error_title = 'Trop de requetes' %}
+{% set error_message = 'Vous avez effectue trop de requetes en peu de temps. Patientez quelques instants puis reessayez.' %}
+{% set error_tone = 'warning' %}
+{% set error_hint = 'Code 429 - Limitation temporaire' %}
+
+{% block error_actions %}
+<a class="error-btn error-btn-primary" href="{{ url_for('landing') }}">Retour a l'accueil</a>
+<a class="error-btn error-btn-secondary" href="{{ request.path or url_for('landing') }}">Reessayer</a>
+{% endblock %}

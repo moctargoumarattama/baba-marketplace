@@ -1,0 +1,708 @@
+{% extends "base.html" %}
+
+{% block title %}{{ product.name }} | DealNova{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3 py-lg-4 px-3 px-lg-4 product-detail">
+  <!-- Bouton Retour -->
+  <div class="mb-3">
+    <a href="{{ url_for('shop.home') }}"
+       class="btn btn-outline-secondary btn-sm back-btn">
+      <i class="bi bi-arrow-left me-1"></i>Retour
+    </a>
+  </div>
+
+  <div class="row g-3 g-lg-4">
+    <!-- Images Produit -->
+    <div class="col-lg-7">
+      <div class="bg-white rounded-3 shadow-sm p-3 p-lg-4 detail-card gallery-card animate-in" style="--delay: .05s">
+        <!-- Badges -->
+        <div class="d-flex gap-2 mb-3 badge-row">
+          {% if promo %}
+          <span class="badge bg-danger">
+            <i class="bi bi-percent"></i> -{{ promo.value }}%
+          </span>
+          {% endif %}
+          {% if product.kind == 'service' %}
+          <span class="badge bg-primary">
+            <i class="bi bi-calendar-check"></i> Service
+          </span>
+          {% else %}
+            {% if product.stock > 0 %}
+            <span class="badge bg-success">
+              <i class="bi bi-check-circle"></i> En stock
+            </span>
+            {% else %}
+            <span class="badge bg-danger">
+              <i class="bi bi-x-circle"></i> Rupture
+            </span>
+            {% endif %}
+          {% endif %}
+        </div>
+<div class="shop-info mb-3 shop-info-card">
+    <div class="d-flex align-items-center gap-2">
+        <i class="bi bi-shop text-primary"></i>
+<span>Boutique :</span>
+        <a href="{{ url_for('shops.shop_detail', shop_slug=product.shop.slug) }}" 
+           class="text-decoration-none fw-semibold">
+            {{ product.shop.name }}
+        </a>
+        {% if product.shop.is_verified %}
+        <span class="badge bg-success">
+            <i class="bi bi-check-circle-fill"></i> Vérifié
+        </span>
+        {% endif %}
+        <span class="text-muted ms-2">
+            <i class="bi bi-star-fill text-warning"></i> {{ product.shop.rating|round(1) if product.shop.rating else "Nouveau" }}
+        </span>
+    </div>
+</div>
+
+<div class="shop-contact mb-4 shop-contact-card">
+    <h6 class="fw-bold mb-2">
+        <i class="bi bi-shop text-primary me-2"></i>Boutique
+    </h6>
+    <div class="row g-2">
+        {% if product.shop.contact_phone %}
+        <div class="col-6">
+            <a href="tel:{{ product.shop.contact_phone }}" 
+               class="btn btn-outline-primary w-100">
+                <i class="bi bi-phone"></i> {{ product.shop.contact_phone }}
+            </a>
+        </div>
+        {% endif %}
+        <div class="col-6">
+            <a href="{{ url_for('shops.shop_detail', shop_slug=product.shop.slug) }}" 
+               class="btn btn-outline-success w-100">
+                <i class="bi bi-shop"></i> Voir la boutique
+            </a>
+        </div>
+        {% if product.kind == 'service'
+              and product.shop
+              and product.shop.allows('services')
+              and not product.shop.allows('products')
+              and product.shop.service_map_url %}
+        <div class="col-12">
+            <a href="{{ product.shop.service_map_url }}"
+               target="_blank"
+               rel="noopener"
+               class="btn btn-outline-info w-100">
+                <i class="bi bi-geo-alt"></i> Ouvrir localisation exacte
+            </a>
+            {% if product.shop.service_location_note %}
+            <div class="small text-muted mt-2">
+              <i class="bi bi-info-circle me-1"></i>{{ product.shop.service_location_note }}
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+        <!-- Image Principale -->
+        {% set imgs = (product.image_file.split('|') if product.image_file else []) %}
+        {% set main_img = (imgs[0] if imgs and imgs[0] else None) %}
+        
+        <div class="text-center mb-3 main-image-wrap">
+          {% if main_img %}
+            <img src="{{ url_for('static', filename='uploads/' + image_variant(main_img, 'large')) }}"
+                 class="img-fluid rounded-2"
+                 alt="{{ product.name }}"
+                 id="mainImage"
+                 loading="eager"
+                 decoding="async"
+                 width="900"
+                 height="900"
+                 style="max-height: 400px; width: auto; object-fit: contain;">
+          {% else %}
+            <div class="d-flex align-items-center justify-content-center bg-light rounded-2" style="height: 300px;">
+              <div class="text-center">
+                <i class="bi bi-image text-muted display-4"></i>
+                <p class="text-muted mt-2">Image non disponible</p>
+              </div>
+            </div>
+          {% endif %}
+        </div>
+
+        <!-- Miniatures -->
+          {% if imgs and imgs|length > 1 %}
+        <div class="d-flex gap-2 justify-content-center overflow-auto py-2 mini-gallery">
+          {% for img in imgs if img %}
+            <img src="{{ url_for('static', filename='uploads/' + image_variant(img, 'thumb')) }}"
+                 class="thumbnail rounded-1"
+                 alt="Miniature"
+                 loading="lazy"
+                 decoding="async"
+                 width="70"
+                 height="70"
+                 data-large="{{ url_for('static', filename='uploads/' + image_variant(img, 'large')) }}"
+                 data-stop-nav
+                 style="width: 70px; height: 70px; object-fit: cover; cursor: pointer; border: 2px solid transparent;"
+                 data-role="thumb-switch">
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Informations Produit -->
+    <div class="col-lg-5">
+      <div class="bg-white rounded-3 shadow-sm p-3 p-lg-4 h-100 detail-card info-card animate-in" style="--delay: .12s">
+        <!-- Catégorie et Vendeur -->
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <span class="badge bg-light text-dark border">
+            <i class="bi bi-tag"></i> {{ product.category.name if product.category else 'Non catégorisé' }}
+          </span>
+          <small class="text-muted">
+            <i class="bi bi-shop"></i> {{ product.vendor.username if product.vendor else 'DealNova' }}
+          </small>
+        </div>
+
+        <!-- Titre -->
+        <h1 class="h3 fw-bold mb-3 product-title">{{ product.name }}</h1>
+
+        <!-- Prix -->
+        <div class="mb-4 price-stack">
+          {% if promo %}
+            <div class="d-flex align-items-baseline">
+              <span class="h2 fw-bold text-primary">{{ final }} MAD</span>
+              <span class="text-muted text-decoration-line-through ms-3">{{ product.price }} MAD</span>
+            </div>
+            <small class="text-success">
+              <i class="bi bi-piggy-bank"></i> Economisez {{ (product.price - final)|round(2) }} MAD
+            </small>
+          {% else %}
+            <span class="h2 fw-bold text-primary">{{ product.price }} MAD</span>
+          {% endif %}
+          <p class="text-muted small mb-0 mt-1">{{ 'Tarif service' if product.kind == 'service' else '' }}</p>
+        </div>
+
+        <!-- Stock / Réservation -->
+        <div class="mb-4 info-grid">
+          <div class="row g-3">
+            {% if product.kind == 'service' %}
+              <div class="col-6">
+                <div class="border rounded-2 p-3 text-center">
+                  <i class="bi bi-calendar-check fs-4 text-primary mb-2"></i>
+                  <p class="mb-1 fw-semibold small">Sur rendez-vous</p>
+                </div>
+              </div>
+              <div class="col-6">
+                <div class="border rounded-2 p-3 text-center">
+                  <i class="bi bi-whatsapp fs-4 text-success mb-2"></i>
+                  <p class="mb-1 fw-semibold small">Confirmation WhatsApp</p>
+                </div>
+              </div>
+            {% else %}
+              <div class="col-6">
+                <div class="border rounded-2 p-3 text-center">
+                  <i class="bi bi-box-seam fs-4 text-primary mb-2"></i>
+                  <p class="mb-1 fw-semibold small">
+                    {% if product.stock > 10 %}
+                      En stock
+                    {% elif product.stock > 0 %}
+                      Derniers {{ product.stock }}
+                    {% else %}
+                      Rupture
+                    {% endif %}
+                  </p>
+                </div>
+              </div>
+              <div class="col-6">
+                <div class="border rounded-2 p-3 text-center">
+                  <i class="bi bi-truck fs-4 text-success mb-2"></i>
+                  <p class="mb-1 fw-semibold small">Livraison instantané-24h</p>
+                </div>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Boutons d'action -->
+        <div class="mb-4 action-stack">
+          <div class="d-grid gap-2">
+            {% if product.kind == 'service' %}
+              {% if shop_is_open_now %}
+                <a href="{{ url_for('booking.book', pid=product.id) }}" class="btn btn-primary btn-lg">
+                  <i class="bi bi-calendar-check me-2"></i>Réserver
+                </a>
+              {% elif product.shop and product.shop.contact_phone %}
+                <a href="{{ url_for('booking.book', pid=product.id) }}" class="btn btn-success btn-lg">
+                  <i class="bi bi-whatsapp me-2"></i>Demander un rendez-vous
+                </a>
+                <div class="small text-muted">Boutique fermée actuellement — demande via WhatsApp.</div>
+              {% else %}
+                <button type="button" class="btn btn-secondary btn-lg" disabled>
+                  <i class="bi bi-exclamation-triangle me-2"></i>Contact boutique manquant
+                </button>
+              {% endif %}
+            {% elif product.stock > 0 %}
+              {% if shop_is_open_now %}
+                <form method="post" action="{{ url_for('cart.add', pid=product.id) }}" class="d-inline">
+                  {% include "partials/_csrf.html" %}
+                  <button type="submit" class="btn btn-primary btn-lg">
+                    <i class="bi bi-cart-plus me-2"></i>Ajouter au panier
+                  </button>
+                </form>
+              {% else %}
+                <button type="button" class="btn btn-secondary btn-lg" disabled>
+                  <i class="bi bi-x-circle me-2"></i>Boutique fermée actuellement
+                </button>
+              {% endif %}
+            {% else %}
+              <button type="button" class="btn btn-secondary btn-lg" disabled>
+                <i class="bi bi-cart-x me-2"></i>Indisponible
+              </button>
+            {% endif %}
+            
+            <div class="d-flex gap-2">
+              <a href="{{ url_for('shop.home', kind='service' if product.kind == 'service' else 'physical') }}" class="btn btn-outline-secondary flex-fill">
+                <i class="bi bi-house"></i>
+                <span class="d-none d-md-inline">Accueil</span>
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Description -->
+        <div class="mb-4 description-box">
+          <h6 class="fw-bold mb-2">
+            <i class="bi bi-card-text text-primary me-2"></i>Description
+          </h6>
+          <div class="text-muted" style="max-height: 200px; overflow-y: auto;">
+            {{ product.description or "Aucune description disponible." }}
+          </div>
+        </div>
+
+        <!-- Garanties / Infos -->
+        <div class="border-top pt-3">
+          {% if product.kind == 'service' %}
+            <h6 class="fw-bold mb-3">
+              <i class="bi bi-info-circle text-primary me-2"></i>Informations
+            </h6>
+            <div class="row g-2 text-center">
+              <div class="col-4">
+                <div class="p-2">
+                  <i class="bi bi-calendar-check text-primary fs-5"></i>
+                  <p class="small mb-0">Rendez-vous</p>
+                </div>
+              </div>
+              <div class="col-4">
+                <div class="p-2">
+                  <i class="bi bi-whatsapp text-success fs-5"></i>
+                  <p class="small mb-0">WhatsApp</p>
+                </div>
+              </div>
+              <div class="col-4">
+                <div class="p-2">
+                  <i class="bi bi-shield-check text-success fs-5"></i>
+                  <p class="small mb-0">Prestataire</p>
+                </div>
+              </div>
+            </div>
+          {% else %}
+            <h6 class="fw-bold mb-3">
+              <i class="bi bi-shield-check text-success me-2"></i>Garanties
+            </h6>
+            <div class="row g-2 text-center">
+              <div class="col-4">
+                <div class="p-2">
+                  <i class="bi bi-shield-check text-success fs-5"></i>
+                  <p class="small mb-0">Qualité</p>
+                </div>
+              </div>
+              <div class="col-4">
+                <div class="p-2">
+                  <i class="bi bi-arrow-repeat text-primary fs-5"></i>
+                  <p class="small mb-0">Support</p>
+                </div>
+              </div>
+              <div class="col-4">
+                <div class="p-2">
+                  <i class="bi bi-truck text-warning fs-5"></i>
+                  <p class="small mb-0">Livraison</p>
+                </div>
+              </div>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Produits Similaires -->
+  {% if related_products %}
+  <div class="mt-4 mt-lg-5 related-wrap animate-in" style="--delay: .2s">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h5 class="fw-bold mb-0">
+        <i class="bi bi-grid-3x3-gap text-primary me-2"></i>{{ 'Services similaires' if product.kind == 'service' else 'Produits similaires' }}
+      </h5>
+      <a href="{{ url_for('shop.home', cat=product.category.id if product.category else None, kind='service' if product.kind == 'service' else 'physical') }}" class="btn btn-link btn-sm">
+        Voir tout <i class="bi bi-arrow-right"></i>
+      </a>
+    </div>
+    
+    <div class="row g-3">
+      {% for related in related_products[:4] %}
+      <div class="col-6 col-md-4 col-lg-3">
+        <a href="{{ url_for('shop.product_detail', pid=related.id) }}" class="text-decoration-none text-dark">
+          <div class="card border-0 shadow-sm h-100 hover-lift related-card">
+            {% set related_imgs = (related.image_file.split('|') if related.image_file else []) %}
+            {% set related_main = (related_imgs[0] if related_imgs and related_imgs[0] else None) %}
+            <div class="text-center p-3" style="height: 180px; background: #f8f9fa;">
+              <img src="{{ url_for('static', filename='uploads/' + image_variant(related_main, 'thumb')) if related_main else 'https://via.placeholder.com/150' }}" 
+                   class="img-fluid h-100"
+                   alt="{{ related.name }}"
+                   loading="lazy"
+                   decoding="async"
+                   width="300"
+                   height="300"
+                   style="object-fit: contain;">
+            </div>
+            <div class="card-body">
+              <h6 class="card-title mb-2" style="font-size: 0.9rem;">{{ related.name|truncate(40) }}</h6>
+              <p class="card-text fw-bold text-primary mb-1">{{ related.price }} MAD</p>
+              {% if related.kind == 'service' %}
+                <small class="text-primary">
+                  <i class="bi bi-calendar-check"></i> Service
+                </small>
+              {% elif related.stock <= 5 and related.stock > 0 %}
+                <small class="text-warning">
+                  <i class="bi bi-exclamation-triangle"></i> Derniers {{ related.stock }}
+                </small>
+              {% endif %}
+            </div>
+          </div>
+        </a>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<style>
+  :root {
+    --pd-surface: #ffffff;
+    --pd-soft: #f3f6fb;
+    --pd-border: rgba(148, 163, 184, 0.35);
+    --pd-glow: 0 18px 46px rgba(15, 23, 42, 0.14);
+    --pd-accent: #10b981;
+    --pd-accent-dark: #059669;
+    --pd-sky: #0ea5e9;
+    --pd-gold: #f59e0b;
+    --pd-ink: #0f172a;
+  }
+
+  .product-detail {
+    position: relative;
+    overflow: hidden;
+    border-radius: 26px;
+    background: radial-gradient(circle at 12% 8%, rgba(16,185,129,0.12), transparent 45%),
+                radial-gradient(circle at 90% 18%, rgba(14,165,233,0.16), transparent 50%),
+                #f7f8fb;
+  }
+  .product-detail::before,
+  .product-detail::after {
+    content: "";
+    position: absolute;
+    inset: -40% auto auto -20%;
+    width: 360px;
+    height: 360px;
+    background: radial-gradient(circle, rgba(255,255,255,0.55), transparent 70%);
+    opacity: 0.65;
+    z-index: 0;
+  }
+  .product-detail::after {
+    inset: auto -25% -30% auto;
+    width: 420px;
+    height: 420px;
+    opacity: 0.5;
+  }
+  .product-detail > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  .animate-in {
+    animation: fadeUp 0.7s ease both;
+    animation-delay: var(--delay, 0s);
+  }
+
+  .back-btn {
+    border-radius: 999px;
+    padding-inline: 0.9rem;
+    background: rgba(255,255,255,0.7);
+    border: 1px solid rgba(148,163,184,0.35);
+    box-shadow: 0 10px 20px rgba(15,23,42,0.08);
+  }
+
+  .detail-card {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--pd-border);
+    background: rgba(255,255,255,0.92);
+    box-shadow: var(--pd-glow);
+    border-radius: 20px;
+    transition: transform 0.35s ease, box-shadow 0.35s ease;
+  }
+  .detail-card::before {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    background: linear-gradient(135deg, rgba(16,185,129,0.25), rgba(14,165,233,0.18), rgba(245,158,11,0.2));
+    opacity: 0;
+    transition: opacity 0.35s ease;
+    z-index: 0;
+  }
+  .detail-card > * {
+    position: relative;
+    z-index: 1;
+  }
+  .detail-card:hover::before {
+    opacity: 1;
+  }
+  .detail-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 24px 60px rgba(15,23,42,0.18);
+  }
+
+  .gallery-card::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 20% 10%, rgba(16,185,129,0.18), transparent 55%);
+    opacity: 0.6;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .badge-row .badge {
+    border-radius: 999px;
+    padding: 0.4rem 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    animation: badgeFloat 3.8s ease-in-out infinite;
+  }
+  .badge-row .badge.bg-danger {
+    background: linear-gradient(135deg, #ef4444, #fb7185);
+  }
+  .badge-row .badge.bg-success {
+    background: linear-gradient(135deg, #10b981, #22c55e);
+  }
+  .badge-row .badge:nth-child(2) {
+    animation-delay: 0.3s;
+  }
+
+  .product-title {
+    color: var(--pd-ink);
+    text-shadow: 0 12px 24px rgba(15,23,42,0.15);
+  }
+
+  .shop-info-card,
+  .shop-contact-card {
+    background: linear-gradient(180deg, rgba(255,255,255,0.95), rgba(245,247,251,0.95));
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    border-radius: 14px;
+    padding: 0.85rem 1rem;
+    box-shadow: 0 12px 24px rgba(15,23,42,0.08);
+  }
+
+  .main-image-wrap img {
+    border-radius: 16px;
+    box-shadow: 0 18px 34px rgba(15, 23, 42, 0.18);
+    transition: transform 0.35s ease, box-shadow 0.35s ease;
+  }
+  @media (hover: hover) {
+    .main-image-wrap img:hover {
+      transform: translateY(-6px) scale(1.02);
+      box-shadow: 0 26px 46px rgba(15, 23, 42, 0.22);
+    }
+  }
+
+  .mini-gallery {
+    scroll-snap-type: x mandatory;
+  }
+  .mini-gallery .thumbnail {
+    border-radius: 12px;
+    transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    scroll-snap-align: center;
+  }
+  .mini-gallery .thumbnail:hover {
+    border-color: var(--pd-accent) !important;
+    transform: translateY(-3px);
+    box-shadow: 0 12px 22px rgba(15, 23, 42, 0.15);
+  }
+  .mini-gallery .thumbnail.active {
+    border-color: var(--pd-accent) !important;
+  }
+
+  .price-stack .h2,
+  .price-stack .h2.fw-bold {
+    color: var(--pd-accent);
+    text-shadow: 0 14px 26px rgba(16,185,129,0.3);
+  }
+  .price-stack .text-muted.text-decoration-line-through {
+    opacity: 0.7;
+  }
+
+  .info-grid .border {
+    border-radius: 16px !important;
+    border: 1px solid rgba(148, 163, 184, 0.3) !important;
+    background: linear-gradient(180deg, #ffffff, #f7f9fb);
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+  }
+  @media (hover: hover) {
+    .info-grid .border:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 16px 28px rgba(15, 23, 42, 0.14);
+    }
+  }
+
+  .action-stack .btn-primary {
+    background: linear-gradient(135deg, var(--pd-accent), var(--pd-accent-dark));
+    border: none;
+    box-shadow: 0 12px 26px rgba(16, 185, 129, 0.32);
+    position: relative;
+    overflow: hidden;
+  }
+  .action-stack .btn-primary::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(120deg, transparent, rgba(255,255,255,0.45), transparent);
+    transform: translateX(-120%);
+    transition: transform 0.6s ease;
+  }
+  .action-stack .btn-primary:hover::after {
+    transform: translateX(120%);
+  }
+  .action-stack .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 18px 34px rgba(16, 185, 129, 0.45);
+  }
+
+  .description-box .text-muted {
+    background: var(--pd-soft);
+    border-radius: 12px;
+    padding: 0.9rem 1rem;
+  }
+
+  .related-wrap h5 {
+    position: relative;
+  }
+  .related-wrap h5::after {
+    content: "";
+    display: block;
+    width: 46px;
+    height: 4px;
+    margin-top: 6px;
+    background: linear-gradient(135deg, var(--pd-accent), var(--pd-sky));
+    border-radius: 999px;
+  }
+
+  .related-card {
+    border-radius: 16px;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+  }
+  @media (hover: hover) {
+    .related-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 18px 32px rgba(15, 23, 42, 0.18);
+    }
+  }
+
+  @keyframes badgeFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-3px); }
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(18px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .badge-row .badge,
+    .main-image-wrap img,
+    .info-grid .border,
+    .related-card,
+    .animate-in {
+      animation: none;
+      transition: none;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .container-fluid {
+      padding-left: 12px;
+      padding-right: 12px;
+    }
+    .btn-lg {
+      padding: 0.75rem 1rem;
+      font-size: 1rem;
+    }
+    .product-title {
+      font-size: 1.5rem;
+    }
+    .h2 {
+      font-size: 1.75rem;
+    }
+  }
+
+  .text-muted::-webkit-scrollbar {
+    width: 4px;
+  }
+  .text-muted::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 2px;
+  }
+  .text-muted::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 2px;
+  }
+</style>
+
+<script>
+  // Changement d'image au clic sur les miniatures
+  function changeImage(src, element) {
+    document.getElementById('mainImage').src = src;
+    
+    // Retirer la classe active de toutes les miniatures
+    document.querySelectorAll('.thumbnail').forEach(function(thumb) {
+      thumb.style.borderColor = 'transparent';
+    });
+    
+    // Ajouter la classe active a la miniature clique
+    element.style.borderColor = '#0d6efd';
+  }
+
+  document.querySelectorAll('[data-role="thumb-switch"]').forEach(function (thumb) {
+    thumb.addEventListener('click', function () {
+      changeImage(thumb.dataset.large || thumb.src, thumb);
+    });
+  });
+  
+  // Zoom sur l'image principale
+  var mainImage = document.getElementById('mainImage');
+  if (mainImage) {
+    mainImage.addEventListener('click', function() {
+      var src = this.src;
+      var modal = document.createElement('div');
+      modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.9); display: flex; align-items: center; justify-content: center; z-index: 9999; cursor: zoom-out;';
+      
+      var img = document.createElement('img');
+      img.src = src;
+      img.style.cssText = 'max-width: 90%; max-height: 90%; object-fit: contain;';
+      
+      modal.appendChild(img);
+      modal.addEventListener('click', function() {
+        modal.remove();
+        document.body.style.overflow = 'auto';
+      });
+      
+      document.body.appendChild(modal);
+      document.body.style.overflow = 'hidden';
+    });
+  }
+</script>
+{% endblock %}

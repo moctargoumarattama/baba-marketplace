@@ -1,0 +1,16 @@
+{% extends 'errors/base.html' %}
+{% set error_code = 404 %}
+{% set error_title = 'Page introuvable' %}
+{% set error_message = 'La page demandee est introuvable. L adresse est peut-etre incorrecte ou la page a ete deplacee.' %}
+{% set error_tone = 'info' %}
+{% set error_hint = 'Code 404 - Ressource non trouvee' %}
+
+{% block error_side %}
+<h3>Besoin d aide ?</h3>
+<p>Essayez ces options pour repartir rapidement.</p>
+<ul>
+  <li><span class="error-dot"></span>Verifier l URL ou utiliser la recherche.</li>
+  <li><span class="error-dot"></span>Retourner a l accueil pour continuer vos achats.</li>
+  <li><span class="error-dot"></span>Contacter le support si la page devrait exister.</li>
+</ul>
+{% endblock %}

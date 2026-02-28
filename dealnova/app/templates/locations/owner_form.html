@@ -1,0 +1,512 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Modifier location' if listing else 'Nouvelle location' }} | {{ config.SITE_NAME }}{% endblock %}
+
+{% block head %}
+<style>
+  .r-form-shell { max-width: 1080px; margin: 0 auto; padding: 1rem; }
+  .r-form-grid { display: grid; gap: 1rem; grid-template-columns: 1.4fr .9fr; }
+  .r-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 16px; box-shadow: 0 12px 28px rgba(2,6,23,.06); }
+  .r-card .head { padding: .9rem 1rem; border-bottom: 1px solid #eef2f7; font-weight: 800; color: #0f172a; display: flex; justify-content: space-between; align-items: center; gap: .6rem; flex-wrap: wrap; }
+  .r-card .body { padding: 1rem; }
+  .media-grid { display: grid; gap: .6rem; grid-template-columns: repeat(auto-fill, minmax(120px,1fr)); }
+  .media-item { border: 1px solid #e2e8f0; border-radius: 12px; padding: .35rem; background: #f8fafc; }
+  .media-item img, .media-item video { width: 100%; aspect-ratio: 1; border-radius: 8px; object-fit: cover; }
+  .upload-preview-wrap { border: 1px dashed #cbd5e1; border-radius: 12px; padding: .7rem; background: #f8fafc; }
+  .upload-preview-head { display: flex; justify-content: space-between; align-items: center; gap: .6rem; margin-bottom: .55rem; flex-wrap: wrap; }
+  .upload-preview-grid { display: grid; gap: .55rem; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); }
+  .upload-preview-grid.video-grid { grid-template-columns: minmax(220px, 1fr); }
+  .upload-preview-item { position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #dbe2ea; background: #fff; }
+  .upload-preview-item img { width: 100%; height: 88px; object-fit: cover; display: block; }
+  .upload-preview-item video { width: 100%; max-height: 200px; object-fit: cover; display: block; background: #000; }
+  .upload-preview-remove { position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border: 0; border-radius: 999px; background: rgba(15,23,42,.72); color: #fff; font-size: .8rem; line-height: 1; }
+  .counter-pill { background: #e2e8f0; color: #0f172a; border-radius: 999px; padding: .1rem .5rem; font-weight: 700; font-size: .78rem; }
+  .counter-pill.limit { background: #fee2e2; color: #b91c1c; }
+  .meta-line { display:flex; justify-content:space-between; gap:.6rem; border-bottom:1px dashed #dbe2ea; padding:.42rem 0; font-weight:600; color:#334155; }
+  .meta-line:last-child{ border-bottom:0; }
+  .hint { font-size: .83rem; color: #64748b; font-weight: 600; }
+  .commission-showcase { background: linear-gradient(135deg, #0f766e, #10b981); color: #fff; border-radius: 14px; padding: .9rem 1rem; box-shadow: 0 14px 24px rgba(15,118,110,.22); }
+  .commission-showcase .cap { font-size: .74rem; opacity: .9; text-transform: uppercase; letter-spacing: .08em; font-weight: 700; }
+  .commission-showcase .eq { font-size: 1.04rem; font-weight: 800; margin-top: .25rem; display: flex; gap: .35rem; align-items: baseline; flex-wrap: wrap; }
+  .commission-showcase .eq strong { font-size: 1.2rem; }
+  .commission-showcase .note { margin-top: .35rem; font-size: .82rem; opacity: .95; }
+  @media (max-width: 900px) { .r-form-grid { grid-template-columns: 1fr; } .r-form-shell { padding: .7rem; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div
+  class="r-form-shell"
+  id="ownerFormShell"
+  data-existing-images="{{ owner_view.images|length if owner_view else 0 }}"
+  data-existing-videos="{{ owner_view.videos|length if owner_view else 0 }}"
+  data-max-images="{{ max_images }}"
+  data-rate-bps="{{ admin_rental_rate_bps or 0 }}"
+>
+  <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap mb-2">
+    <h2 class="mb-0">{{ 'Modifier annonce' if listing else 'Nouvelle annonce location' }}</h2>
+    <a href="{{ url_for('rentals.owner_locations') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left"></i> Retour</a>
+  </div>
+
+  <div class="r-form-grid">
+    <section class="r-card">
+      <div class="head">
+        <span>Informations annonce</span>
+        <span class="hint">Montants en DH </span>
+      </div>
+      <div class="body">
+        <form method="post" enctype="multipart/form-data">
+          {% include "partials/_csrf.html" %}
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label fw-bold">Titre</label>
+              <input class="form-control" type="text" name="title" value="{{ listing.title if listing else '' }}" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-bold">Boutique</label>
+              <select class="form-select" name="shop_id" required>
+                {% for shop in shops %}
+                  <option value="{{ shop.id }}" {{ 'selected' if listing and listing.shop_id == shop.id else '' }}>{{ shop.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-bold">Type annonce</label>
+              {% set cur_type = listing.listing_type if listing else 'monthly' %}
+              <select class="form-select" name="listing_type">
+                <option value="monthly" {{ 'selected' if cur_type == 'monthly' else '' }}>Mensuel</option>
+                <option value="daily" {{ 'selected' if cur_type == 'daily' else '' }}>Journalier</option>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-bold">Type bien</label>
+              {% set cur_prop = listing.property_type if listing else 'apartment' %}
+              <select class="form-select" name="property_type">
+                <option value="room" {{ 'selected' if cur_prop == 'room' else '' }}>Chambre</option>
+                <option value="apartment" {{ 'selected' if cur_prop == 'apartment' else '' }}>Appartement</option>
+                <option value="studio" {{ 'selected' if cur_prop == 'studio' else '' }}>Studio</option>
+                <option value="store" {{ 'selected' if cur_prop == 'store' else '' }}>Boutique  louer</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-bold">Ville</label>
+              <input class="form-control" type="text" name="city" value="{{ listing.city if listing else '' }}" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-bold">Quartier</label>
+              <input class="form-control" type="text" name="area" value="{{ listing.area if listing else '' }}">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-bold">Loyer (DH)</label>
+              <input class="form-control" type="number" step="0.01" min="0" name="rent" value="{{ ((listing.rent_cents or 0)/100) if listing else '' }}" required>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-bold">Caution</label>
+              {% set deposit_required = listing.deposit_required if listing else False %}
+              <select class="form-select" name="deposit_required" id="depositRequiredSelect">
+                <option value="0" {{ 'selected' if not deposit_required else '' }}>Sans caution</option>
+                <option value="1" {{ 'selected' if deposit_required else '' }}>Avec caution</option>
+              </select>
+            </div>
+            <div class="col-md-4" id="depositAmountWrap">
+              <label class="form-label fw-bold">Montant caution (DH)</label>
+              <input class="form-control" id="depositAmountInput" type="number" step="0.01" min="0" name="deposit" value="{{ ((listing.deposit_cents or 0)/100) if listing and listing.deposit_cents is not none else '' }}">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-bold">Frais commission  (DH)</label>
+              <input class="form-control" type="number" step="0.01" min="0" name="owner_fee" value="{{ ((listing.owner_fee_cents or 0)/100) if listing and listing.owner_fee_cents is not none else '' }}">
+            </div>
+            <div class="col-md-8">
+              <label class="form-label fw-bold">Texte frais propritaire (visible pour client)</label>
+              <input class="form-control" type="text" maxlength="255" name="owner_fee_text" value="{{ listing.owner_fee_text if listing and listing.owner_fee_text else '' }}" placeholder="Ex: ngociable, discuter ect....">
+            </div>
+            <div class="col-12">
+              {% set admin_rate_percent = bps_to_percent(admin_rental_rate_bps) %}
+              {% set est_commission = commission_amount_from_owner_fee((listing.owner_fee_cents if listing else 0), admin_rental_rate_bps) %}
+              <div class="commission-showcase">
+                <div class="cap">Commission Baba Market (interne)</div>
+                <div class="eq"><span id="adminRatePercentLabel">{{ admin_rate_percent }}</span><span>%</span><span>=</span><strong id="estCommissionDhLabel">{{ (est_commission / 100)|round(2) }}</strong><span>DH</span></div>
+                <div class="note">Calcul automatique: frais commission  taux baba market  </div>
+              </div>
+            </div>
+            <div class="col-12">
+              <label class="form-label fw-bold">Description</label>
+              <textarea class="form-control" rows="2" id="listingDescription" name="description" placeholder="Optionnel: dtails du bien, conditions, points forts...">{{ listing.description if listing else '' }}</textarea>
+            </div>
+            <div class="col-12">
+              <label class="form-label fw-bold">Photos (max {{ max_images }}, {{ max_image_mb }}MB chacune)</label>
+              <input class="form-control" id="newImagesInput" type="file" name="images" multiple accept="image/*,.jpg,.jpeg,.png,.webp,.gif,.bmp,.tif,.tiff,.jfif,.heic,.heif,.avif">
+              <div class="upload-preview-wrap mt-2">
+                <div class="upload-preview-head">
+                  <div class="hint mb-0"><span id="newImagesCount" class="counter-pill">0 / {{ max_images }}</span> photo(s) slectionne(s)</div>
+                  <button type="button" class="btn btn-sm btn-outline-danger" id="clearNewImagesBtn">Retirer toutes</button>
+                </div>
+                <div id="newImagesPreview" class="upload-preview-grid"></div>
+              </div>
+            </div>
+            <div class="col-12">
+              <label class="form-label fw-bold">Vido optionnelle (max {{ max_video_mb }}MB)</label>
+              <input class="form-control" id="newVideoInput" type="file" name="video" accept="video/*">
+              <div class="upload-preview-wrap mt-2">
+                <div class="upload-preview-head">
+                  <div class="hint mb-0"><span id="newVideoCount" class="counter-pill">0 / 1</span> vido slectionne</div>
+                  <button type="button" class="btn btn-sm btn-outline-danger" id="clearNewVideoBtn">Retirer vido</button>
+                </div>
+                <div id="newVideoHint" class="hint mb-2"></div>
+                <div id="newVideoPreview" class="upload-preview-grid video-grid"></div>
+              </div>
+            </div>
+          </div>
+          <div class="d-flex gap-2 mt-3 flex-wrap">
+            <button class="btn btn-success" type="submit"><i class="bi bi-save"></i> Enregistrer</button>
+            {% if listing %}
+              <a class="btn btn-outline-primary" href="{{ url_for('rentals.location_detail', slug=listing.slug) }}" target="_blank">Voir ct client</a>
+            {% endif %}
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <aside class="d-grid gap-3">
+      {% if owner_view %}
+        <section class="r-card">
+          <div class="head">Mdias actuels</div>
+          <div class="body">
+            {% if owner_view.images or owner_view.videos %}
+              <div class="media-grid">
+                {% for media in owner_view.images %}
+                  <div class="media-item">
+                    <img src="{{ url_for('static', filename=media.file_path) }}" alt="image">
+                    <form method="post" action="{{ url_for('rentals.owner_location_media_delete', listing_id=listing.id, media_id=media.id) }}" class="mt-1">
+                      {% include "partials/_csrf.html" %}
+                      <button class="btn btn-sm btn-outline-danger w-100" type="submit">Supprimer</button>
+                    </form>
+                  </div>
+                {% endfor %}
+                {% for media in owner_view.videos %}
+                  <div class="media-item">
+                    <video controls preload="metadata"><source src="{{ url_for('static', filename=media.file_path) }}"></video>
+                    <form method="post" action="{{ url_for('rentals.owner_location_media_delete', listing_id=listing.id, media_id=media.id) }}" class="mt-1">
+                      {% include "partials/_csrf.html" %}
+                      <button class="btn btn-sm btn-outline-danger w-100" type="submit">Supprimer</button>
+                    </form>
+                  </div>
+                {% endfor %}
+              </div>
+              <div class="hint mt-2">Les suppressions sont immdiates.</div>
+            {% else %}
+              <div class="text-muted">Aucun mdia.</div>
+            {% endif %}
+          </div>
+        </section>
+
+        <section class="r-card">
+          <div class="head">Statut & stats</div>
+          <div class="body">
+            <div class="meta-line"><span>Statut</span><strong>{{ listing.status }}</strong></div>
+            <div class="meta-line"><span>Consultations</span><strong>{{ listing.view_count }}</strong></div>
+            <div class="meta-line"><span>Cre le</span><strong>{{ format_dt(listing.created_at) }}</strong></div>
+            <div class="meta-line"><span>Expire le</span><strong>{{ format_dt(listing.expires_at) }}</strong></div>
+            {% set side_commission = commission_amount_from_owner_fee(listing.owner_fee_cents, listing.platform_commission_rate_bps) %}
+            <div class="meta-line"><span>Commission interne</span><strong>{{ bps_to_percent(listing.platform_commission_rate_bps) }}%  {{ cents_to_dh(side_commission) }}</strong></div>
+            <div class="d-flex gap-2 flex-wrap mt-3">
+              {% if listing.status != 'taken' %}
+                <form method="post" action="{{ url_for('rentals.owner_location_close', listing_id=listing.id) }}">
+                  {% include "partials/_csrf.html" %}
+                  <input type="hidden" name="status" value="reserved">
+                  <button type="submit" class="btn btn-outline-warning btn-sm">Marquer rserve</button>
+                </form>
+                <form method="post" action="{{ url_for('rentals.owner_location_close', listing_id=listing.id) }}">
+                  {% include "partials/_csrf.html" %}
+                  <input type="hidden" name="status" value="taken">
+                  <button type="submit" class="btn btn-warning btn-sm">Marquer prise</button>
+                </form>
+              {% endif %}
+              <form method="post" action="{{ url_for('rentals.owner_location_delete', listing_id=listing.id) }}" data-confirm-submit="Suppression irreversible ?">
+                {% include "partials/_csrf.html" %}
+                <button type="submit" class="btn btn-outline-danger btn-sm">Supprimer annonce</button>
+              </form>
+            </div>
+          </div>
+        </section>
+      {% endif %}
+    </aside>
+  </div>
+</div>
+<script>
+  (function () {
+    const ownerFormShell = document.getElementById('ownerFormShell');
+    const depositRequiredSelect = document.getElementById('depositRequiredSelect');
+    const depositAmountWrap = document.getElementById('depositAmountWrap');
+    const depositAmountInput = document.getElementById('depositAmountInput');
+    const ownerFeeInput = document.querySelector('input[name="owner_fee"]');
+    const output = document.getElementById('estCommissionDhLabel');
+    const descriptionInput = document.getElementById('listingDescription');
+    const newImagesInput = document.getElementById('newImagesInput');
+    const newImagesPreview = document.getElementById('newImagesPreview');
+    const newImagesCount = document.getElementById('newImagesCount');
+    const clearNewImagesBtn = document.getElementById('clearNewImagesBtn');
+    const newVideoInput = document.getElementById('newVideoInput');
+    const newVideoPreview = document.getElementById('newVideoPreview');
+    const newVideoCount = document.getElementById('newVideoCount');
+    const clearNewVideoBtn = document.getElementById('clearNewVideoBtn');
+    const newVideoHint = document.getElementById('newVideoHint');
+    const shellData = (ownerFormShell && ownerFormShell.dataset) ? ownerFormShell.dataset : {};
+    const existingImagesCount = Number.parseInt(shellData.existingImages || '0', 10) || 0;
+    const existingVideosCount = Number.parseInt(shellData.existingVideos || '0', 10) || 0;
+    const maxImages = Number.parseInt(shellData.maxImages || '4', 10) || 4;
+    const maxNewImages = Math.max(0, maxImages - existingImagesCount);
+    const selectedImages = [];
+    let selectedVideo = null;
+    const listingForm = document.querySelector('.r-card form[enctype="multipart/form-data"]');
+    const rateBps = Number.parseInt(shellData.rateBps || '0', 10) || 0;
+
+    function autoResizeDescription() {
+      if (!descriptionInput) return;
+      descriptionInput.style.height = 'auto';
+      descriptionInput.style.height = `${descriptionInput.scrollHeight}px`;
+    }
+
+    function toggleDepositAmountState() {
+      if (!depositRequiredSelect || !depositAmountInput || !depositAmountWrap) return;
+      const isRequired = depositRequiredSelect.value === '1';
+      depositAmountInput.disabled = !isRequired;
+      depositAmountInput.readOnly = !isRequired;
+      depositAmountInput.classList.toggle('bg-light', !isRequired);
+      depositAmountWrap.classList.toggle('d-none', !isRequired);
+      if (!isRequired) {
+        depositAmountInput.value = '';
+      }
+    }
+
+    function refreshEstimatedCommission() {
+      if (!ownerFeeInput || !output) return;
+      const value = parseFloat((ownerFeeInput.value || '0').replace(',', '.'));
+      if (!Number.isFinite(value) || value <= 0 || rateBps <= 0) {
+        output.textContent = '0';
+        return;
+      }
+      const ownerFeeCents = Math.round(value * 100);
+      const commissionCents = Math.round((ownerFeeCents * rateBps) / 10000);
+      output.textContent = (commissionCents / 100).toFixed(2);
+    }
+
+    function updateImagesCounter() {
+      if (!newImagesCount) return;
+      newImagesCount.textContent = `${selectedImages.length} / ${maxImages}`;
+      newImagesCount.classList.toggle('limit', maxNewImages <= 0 || selectedImages.length >= maxNewImages);
+    }
+
+    function createPreviewSource(file) {
+      return new Promise((resolve) => {
+        if (window.FileReader) {
+          const reader = new FileReader();
+          reader.onload = () => resolve({ src: String(reader.result || ''), objectUrl: null });
+          reader.onerror = () => {
+            const objectUrl = URL.createObjectURL(file);
+            resolve({ src: objectUrl, objectUrl });
+          };
+          reader.readAsDataURL(file);
+          return;
+        }
+        const objectUrl = URL.createObjectURL(file);
+        resolve({ src: objectUrl, objectUrl });
+      });
+    }
+
+    function syncNewImagesInput() {
+      updateImagesCounter();
+    }
+
+    function applySelectedImagesToInput() {
+      if (!newImagesInput) return;
+      const transfer = new DataTransfer();
+      selectedImages.forEach((item) => transfer.items.add(item.file));
+      newImagesInput.files = transfer.files;
+    }
+
+    function renderNewImagesPreview() {
+      if (!newImagesPreview) return;
+      newImagesPreview.innerHTML = '';
+      selectedImages.forEach((item, index) => {
+        const cell = document.createElement('div');
+        cell.className = 'upload-preview-item';
+        const image = document.createElement('img');
+        image.src = item.previewSrc;
+        image.alt = `photo-${index + 1}`;
+        image.onerror = () => {
+          image.alt = 'image non prvisualisable';
+          image.src = '';
+        };
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'upload-preview-remove';
+        remove.innerHTML = '&times;';
+        remove.title = 'Retirer';
+        remove.addEventListener('click', () => {
+          if (item.objectUrl) URL.revokeObjectURL(item.objectUrl);
+          selectedImages.splice(index, 1);
+          syncNewImagesInput();
+          renderNewImagesPreview();
+        });
+        cell.appendChild(image);
+        cell.appendChild(remove);
+        newImagesPreview.appendChild(cell);
+      });
+    }
+
+    async function appendSelectedImages(files) {
+      if (!files || !files.length) return;
+      for (const file of files) {
+        const mime = String(file.type || '').toLowerCase();
+        const isImageByMime = mime.startsWith('image/');
+        const isImageByName = /\.(jpg|jpeg|png|webp|gif|bmp|tif|tiff|jfif|heic|heif|avif)$/i.test(file.name || '');
+        if (!isImageByMime && !isImageByName) continue;
+        if (selectedImages.length >= maxNewImages) break;
+        const duplicate = selectedImages.some(
+          (item) => item.file.name === file.name && item.file.size === file.size && item.file.lastModified === file.lastModified
+        );
+        if (duplicate) continue;
+        const preview = await createPreviewSource(file);
+        selectedImages.push({ file, previewSrc: preview.src, objectUrl: preview.objectUrl });
+      }
+      if (newImagesInput) {
+        newImagesInput.value = '';
+      }
+      syncNewImagesInput();
+      renderNewImagesPreview();
+    }
+
+    function clearAllSelectedImages() {
+      selectedImages.forEach((item) => {
+        if (item.objectUrl) URL.revokeObjectURL(item.objectUrl);
+      });
+      selectedImages.splice(0, selectedImages.length);
+      syncNewImagesInput();
+      renderNewImagesPreview();
+    }
+
+    function syncNewVideoInput() {
+      if (!newVideoInput) return;
+      const transfer = new DataTransfer();
+      if (selectedVideo && selectedVideo.file) {
+        transfer.items.add(selectedVideo.file);
+      }
+      newVideoInput.files = transfer.files;
+      if (newVideoCount) {
+        const count = (selectedVideo && selectedVideo.file) ? 1 : 0;
+        newVideoCount.textContent = `${count} / 1`;
+        newVideoCount.classList.toggle('limit', existingVideosCount > 0 || count >= 1);
+      }
+      if (newVideoHint && !(selectedVideo && selectedVideo.file)) {
+        newVideoHint.textContent = '';
+      }
+    }
+
+    function renderNewVideoPreview() {
+      if (!newVideoPreview) return;
+      newVideoPreview.innerHTML = '';
+      if (!(selectedVideo && selectedVideo.file)) return;
+      const cell = document.createElement('div');
+      cell.className = 'upload-preview-item';
+      const video = document.createElement('video');
+      video.controls = true;
+      video.preload = 'metadata';
+      video.muted = true;
+      video.playsInline = true;
+      video.src = selectedVideo.url;
+      video.addEventListener('error', () => {
+        if (newVideoHint) {
+          newVideoHint.textContent = 'Prvisualisation impossible pour ce codec vido. Lupload peut quand mme fonctionner.';
+          newVideoHint.classList.add('text-danger');
+        }
+      });
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'upload-preview-remove';
+      remove.innerHTML = '&times;';
+      remove.title = 'Retirer';
+      remove.addEventListener('click', () => {
+        if (selectedVideo && selectedVideo.url) URL.revokeObjectURL(selectedVideo.url);
+        selectedVideo = null;
+        syncNewVideoInput();
+        renderNewVideoPreview();
+      });
+      cell.appendChild(video);
+      cell.appendChild(remove);
+      newVideoPreview.appendChild(cell);
+      video.load();
+    }
+
+    function setSelectedVideo(file) {
+      const mime = String((file && file.type) || '').toLowerCase();
+      const isVideoByMime = mime.startsWith('video/');
+      const isVideoByName = /\.(mp4|mov|webm|m4v|avi|mkv|3gp|mpeg|mpg|wmv)$/i.test((file && file.name) || '');
+      if (!file || (!isVideoByMime && !isVideoByName)) return;
+      if (selectedVideo && selectedVideo.url) URL.revokeObjectURL(selectedVideo.url);
+      selectedVideo = { file, url: URL.createObjectURL(file) };
+      if (newVideoHint) {
+        newVideoHint.textContent = '';
+        newVideoHint.classList.remove('text-danger');
+      }
+      syncNewVideoInput();
+      renderNewVideoPreview();
+    }
+
+    function clearSelectedVideo() {
+      if (selectedVideo && selectedVideo.url) URL.revokeObjectURL(selectedVideo.url);
+      selectedVideo = null;
+      syncNewVideoInput();
+      renderNewVideoPreview();
+    }
+
+    if (ownerFeeInput) {
+      ownerFeeInput.addEventListener('input', refreshEstimatedCommission);
+    }
+    if (depositRequiredSelect) {
+      depositRequiredSelect.addEventListener('change', toggleDepositAmountState);
+    }
+    if (descriptionInput) {
+      descriptionInput.addEventListener('input', autoResizeDescription);
+      autoResizeDescription();
+    }
+    if (newImagesInput) {
+      if (maxNewImages <= 0) {
+        newImagesInput.disabled = true;
+      } else {
+        newImagesInput.addEventListener('change', async (event) => {
+          await appendSelectedImages(Array.from(event.target.files || []));
+        });
+      }
+    }
+    if (clearNewImagesBtn) {
+      clearNewImagesBtn.addEventListener('click', clearAllSelectedImages);
+    }
+    if (newVideoInput) {
+      if (existingVideosCount > 0) {
+        newVideoInput.disabled = true;
+      } else {
+        newVideoInput.addEventListener('change', (event) => {
+          const files = Array.from(event.target.files || []);
+          if (!files.length) return;
+          setSelectedVideo(files[0]);
+        });
+      }
+    }
+    if (clearNewVideoBtn) {
+      clearNewVideoBtn.addEventListener('click', clearSelectedVideo);
+    }
+    toggleDepositAmountState();
+    refreshEstimatedCommission();
+    syncNewImagesInput();
+    syncNewVideoInput();
+
+    if (listingForm) {
+      listingForm.addEventListener('submit', () => {
+        applySelectedImagesToInput();
+        syncNewVideoInput();
+      });
+    }
+  })();
+</script>
+{% endblock %}

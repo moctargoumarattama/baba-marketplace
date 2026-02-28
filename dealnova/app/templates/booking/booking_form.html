@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Réserver | {{ config.SITE_NAME }}{% endblock %}
+
+{% block content %}
+<section class="py-4 py-lg-5" style="background:#f7f8fb;">
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-lg-7 col-xl-6">
+        <div class="card shadow-sm border-0 rounded-4 overflow-hidden">
+          <div class="card-header text-white text-center py-4"
+               style="background:linear-gradient(135deg,#2563eb,#1d4ed8)">
+            <h3 class="mb-0 fw-bold">
+              <i class="bi bi-calendar-check me-2"></i>Réservation
+            </h3>
+            <div class="opacity-75 fw-semibold mt-1">
+              Service <b>sur rendez-vous</b>
+            </div>
+          </div>
+
+          <div class="card-body p-4 p-lg-5">
+            <div class="alert alert-info rounded-4 border-0" style="background:rgba(59,130,246,.08); color:#0f172a;">
+              <div class="d-flex gap-3">
+                <i class="bi bi-scissors fs-4"></i>
+                <div class="w-100">
+                  <div class="fw-bold">{{ product.name }}</div>
+                  <div class="text-muted small mb-2">{{ product.description or "" }}</div>
+                  <div class="d-flex justify-content-between">
+                    <span class="fw-semibold">Prix</span>
+                    <span class="fw-bold">{{ "%.2f"|format(prix_final(product)) }} MAD</span>
+                  </div>
+                  {% if shop %}
+                  <div class="small text-muted mt-2">
+                    <i class="bi bi-shop me-1"></i>{{ shop.name }}
+                    {% if shop.address %} — {{ shop.address }}{% endif %}
+                  </div>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+
+            <form method="POST" action="{{ url_for('booking.book', pid=product.id) }}">
+              {% include "partials/_csrf.html" %}
+
+              <h5 class="mb-3 fw-bold">
+                <i class="bi bi-person-lines-fill me-2"></i>Vos informations
+              </h5>
+
+              <div class="row g-3 mb-4">
+                <div class="col-md-6">
+                  <label class="form-label fw-semibold">Nom complet</label>
+                  <input type="text" class="form-control form-control-lg rounded-3"
+                         name="full_name" required>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label fw-semibold">Téléphone</label>
+                  <input type="tel" class="form-control form-control-lg rounded-3"
+                         name="phone" value="{{ remembered_phone }}" required>
+                </div>
+                <div class="col-12">
+                  <label class="form-label fw-semibold">Date & heure souhaitées (optionnel)</label>
+                  <input type="datetime-local" class="form-control form-control-lg rounded-3"
+                         name="scheduled_for">
+                  <div class="form-text">Vous pouvez laisser vide si vous voulez confirmer sur WhatsApp.</div>
+                </div>
+                <div class="col-12">
+                  <label class="form-label fw-semibold">Note (optionnel)</label>
+                  <textarea class="form-control rounded-3" name="note" rows="3"
+                            placeholder="Ex: je préfère à domicile / merci de confirmer avant..."></textarea>
+                </div>
+              </div>
+
+              <div class="d-grid gap-2">
+                <button type="submit" class="btn btn-lg rounded-3 fw-bold text-white" id="bookingSubmitBtn"
+                        style="background:linear-gradient(135deg,#10b981,#059669); border:none;">
+                  <i class="bi bi-whatsapp me-2"></i>Envoyer ma réservation sur WhatsApp
+                </button>
+                <a href="{{ url_for('shop.product_detail', pid=product.id) }}" class="btn btn-outline-secondary btn-lg rounded-3">
+                  Retour au service
+                </a>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const form = document.querySelector('form[action*="/booking/"]');
+    const btn = document.getElementById('bookingSubmitBtn');
+    if (!form || !btn) return;
+    form.addEventListener('submit', function() {
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Ouverture WhatsApp…';
+    });
+  });
+</script>
+{% endblock %}

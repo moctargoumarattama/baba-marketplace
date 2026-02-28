@@ -1,0 +1,78 @@
+<div class="table-responsive">
+  <table class="table align-middle deliveries-table mb-0">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Client</th>
+        <th>Ville</th>
+        <th>Produits</th>
+        <th>Boutiques</th>
+        <th>Total</th>
+        <th>Livreur</th>
+        <th>Statut</th>
+        <th>Date</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody id="historyTableBody">
+      {% for o in history_orders %}
+      <tr class="{% if o.status == 'pending' %}order-row-pending{% endif %}" data-order-id="{{ o.id }}" data-order-section="history">
+        <td>{{ o.id }}</td>
+        <td>
+          <div class="fw-semibold">{{ o.full_name }}</div>
+          <small class="text-muted">{{ o.phone }}</small>
+        </td>
+        <td>{{ o.city }}</td>
+        <td><div class="list-text">{{ o._product_names|join(', ') }}</div></td>
+        <td><div class="list-text">{{ o._shop_names|join(', ') }}</div></td>
+        <td>{{ "%.2f"|format(o.total / 100) }} MAD</td>
+        <td>
+          {% if o.courier %}
+            <span class="badge bg-info">{{ o.courier.username }}</span>
+          {% else %}
+            <span class="text-muted">Non assignee</span>
+          {% endif %}
+        </td>
+        <td data-order-status>
+          {% if o.status == "pending" %}
+            <span class="status-pill status-pending"><i class="bi bi-clock"></i> En attente</span>
+          {% elif o.status == "delivered" %}
+            <span class="status-pill status-delivered"><i class="bi bi-check-circle"></i> Livree</span>
+          {% elif o.status == "cancelled" %}
+            <span class="status-pill status-cancelled"><i class="bi bi-x-circle"></i> Annulee</span>
+          {% else %}
+            <span class="status-pill status-pending">{{ o.status }}</span>
+          {% endif %}
+        </td>
+        <td><small>{{ o.created_at.strftime('%d/%m/%Y %H:%M') if o.created_at else '' }}</small></td>
+        <td class="order-actions">
+          <div class="d-flex gap-2 flex-wrap">
+            <a href="tel:{{ o.phone }}" class="btn btn-sm btn-outline-primary">
+              <i class="bi bi-telephone"></i>
+            </a>
+            {% if o.status == "pending" %}
+            <form method="POST" action="{{ url_for('admin.mark_delivered', oid=o.id, next=request.full_path) }}" class="d-inline"
+                  data-ajax="true" data-action="order-status" data-order-id="{{ o.id }}">
+              {% include "admin/partials/_csrf.html" %}
+              <button class="btn btn-success btn-sm">
+                <i class="bi bi-check-circle me-1"></i>Livree
+              </button>
+            </form>
+            <form method="POST"
+                  action="{{ url_for('admin.cancel_order', oid=o.id, next=request.full_path) }}"
+                  class="d-inline"
+                  data-ajax="true" data-action="order-status" data-order-id="{{ o.id }}"
+                  data-confirm="Annuler cette commande ?">
+              {% include "admin/partials/_csrf.html" %}
+              <button class="btn btn-outline-danger btn-sm">
+                <i class="bi bi-x-circle me-1"></i>Annuler
+              </button>
+            </form>
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

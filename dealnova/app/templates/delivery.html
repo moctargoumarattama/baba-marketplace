@@ -1,0 +1,383 @@
+{% extends "base.html" %}
+{% block title %}Livraison speciale | Baba Market{% endblock %}
+
+{% block head %}
+<style>
+  .delivery-wrap { max-width: 900px; margin: 1rem auto 2rem; padding: 0 0.75rem; }
+  .delivery-wrap,
+  .delivery-wrap * {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .delivery-hero {
+    background: linear-gradient(135deg, #0ea5a5, #10b981);
+    border-radius: 18px;
+    color: #fff;
+    padding: 1rem;
+    box-shadow: 0 16px 28px rgba(16, 185, 129, 0.25);
+    margin-bottom: 1rem;
+  }
+  .delivery-hero h1 { font-size: 1.35rem; font-weight: 800; margin: 0; }
+  .delivery-hero p { margin: .35rem 0 0; opacity: .95; }
+  .delivery-card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    padding: 1rem;
+    box-shadow: 0 12px 26px rgba(2, 6, 23, .06);
+  }
+  .price-box {
+    border: 1px solid #99f6e4;
+    background: #f0fdfa;
+    color: #115e59;
+    border-radius: 12px;
+    padding: .7rem .8rem;
+    font-weight: 700;
+    margin-bottom: .9rem;
+  }
+  .price-box.is-error {
+    border-color: #fecaca;
+    background: #fef2f2;
+    color: #991b1b;
+  }
+  .required-dot { color: #dc2626; }
+  .btn-wa {
+    min-height: 46px;
+    font-weight: 700;
+    border-radius: 12px;
+  }
+  .gps-panel {
+    border: 1px solid #d1d5db;
+    border-radius: 12px;
+    padding: .7rem;
+    background: #f8fafc;
+  }
+  .gps-meta {
+    font-size: .85rem;
+    color: #475569;
+    margin: .35rem 0;
+  }
+  .gps-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem;
+  }
+
+  .gps-actions .btn,
+  .gps-actions a {
+    min-height: 38px;
+  }
+
+  .delivery-card .form-control,
+  .delivery-card .form-select,
+  .gps-meta {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  @media (max-width: 767.98px) {
+    .delivery-hero h1 { font-size: 1.2rem; }
+    .delivery-card { padding: .85rem; }
+    .gps-actions .btn,
+    .gps-actions a {
+      flex: 1 1 calc(50% - .35rem);
+      justify-content: center;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="delivery-wrap">
+  <section class="delivery-hero">
+    <h1>Livraison speciale (hors marketplace)</h1>
+    <p>Remplissez le formulaire, le prix est calcule automatiquement par ville puis envoye sur WhatsApp.</p>
+  </section>
+
+  <section class="delivery-card">
+    <form id="specialDeliveryForm"
+          method="post"
+          action="{{ url_for('delivery_special.delivery_form') }}"
+          data-pricing-endpoint="{{ url_for('api.pricing_delivery') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div id="deliveryPriceBox" class="price-box">Prix livraison : N/A</div>
+      <input type="hidden" name="delivery_price_cents" id="deliveryPriceCents" value="">
+
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label">Ville <span class="required-dot">*</span></label>
+          <select name="city" id="deliveryCity" class="form-select" required>
+            <option value="">Choisir une ville</option>
+            {% for city in cities %}
+              <option value="{{ city }}">{{ city }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Nom <span class="required-dot">*</span></label>
+          <input type="text" name="name" class="form-control" required maxlength="150" placeholder="Votre nom">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Telephone <span class="required-dot">*</span></label>
+          <input type="tel" name="phone" class="form-control" required maxlength="40" placeholder="+2126...">
+        </div>
+
+        <div class="col-md-6">
+          <label class="form-label">Objet a livrer</label>
+          <input type="text" name="item_text" class="form-control" maxlength="255" placeholder="Ex: document, colis...">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Date/heure souhaitee</label>
+          <input type="datetime-local" name="desired_datetime" class="form-control">
+        </div>
+
+        <div class="col-md-6">
+          <label class="form-label">Adresse depart</label>
+          <input type="text" name="pickup_text" class="form-control" maxlength="255" placeholder="Point de depart">
+          <input type="hidden" name="pickup_lat" id="pickupLat">
+          <input type="hidden" name="pickup_lng" id="pickupLng">
+          <input type="hidden" name="pickup_maps_url" id="pickupMapsUrl">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Adresse arrivee</label>
+          <input type="text" name="dropoff_text" class="form-control" maxlength="255" placeholder="Point d'arrivee">
+          <input type="hidden" name="dropoff_lat" id="dropoffLat">
+          <input type="hidden" name="dropoff_lng" id="dropoffLng">
+          <input type="hidden" name="dropoff_maps_url" id="dropoffMapsUrl">
+        </div>
+
+        <div class="col-md-6">
+          <div class="gps-panel">
+            <div class="d-flex justify-content-between align-items-center gap-2">
+              <strong>GPS Depart</strong>
+              <button type="button" class="btn btn-sm btn-outline-primary" id="pickupGeoBtn">Utiliser ma position</button>
+            </div>
+            <div class="gps-meta" id="pickupGpsMeta">Position: N/A</div>
+            <div class="gps-actions">
+              <button type="button" class="btn btn-sm btn-outline-secondary" id="pickupCopyCoordsBtn" disabled>Copier coords</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary" id="pickupCopyMapBtn" disabled>Copier lien</button>
+              <a class="btn btn-sm btn-outline-success disabled" id="pickupOpenMapBtn" href="#" target="_blank" rel="noopener" aria-disabled="true">Ouvrir Maps</a>
+            </div>
+            <small class="text-muted d-block mt-2" id="pickupGeoHint"></small>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="gps-panel">
+            <div class="d-flex justify-content-between align-items-center gap-2">
+              <strong>GPS Arrivee</strong>
+              <button type="button" class="btn btn-sm btn-outline-primary" id="dropoffGeoBtn">Utiliser ma position</button>
+            </div>
+            <div class="gps-meta" id="dropoffGpsMeta">Position: N/A</div>
+            <div class="gps-actions">
+              <button type="button" class="btn btn-sm btn-outline-secondary" id="dropoffCopyCoordsBtn" disabled>Copier coords</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary" id="dropoffCopyMapBtn" disabled>Copier lien</button>
+              <a class="btn btn-sm btn-outline-success disabled" id="dropoffOpenMapBtn" href="#" target="_blank" rel="noopener" aria-disabled="true">Ouvrir Maps</a>
+            </div>
+            <small class="text-muted d-block mt-2" id="dropoffGeoHint"></small>
+          </div>
+        </div>
+
+        <div class="col-12">
+          <label class="form-label">Note / repere</label>
+          <textarea name="note_text" class="form-control" rows="2" maxlength="255" placeholder="Details utiles pour la livraison"></textarea>
+        </div>
+
+        <div class="col-12">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" value="1" id="deliveryUrgent" name="urgent">
+            <label class="form-check-label" for="deliveryUrgent">Urgent</label>
+          </div>
+        </div>
+
+        <div class="col-12">
+          <button id="deliverySubmitBtn" type="submit" class="btn btn-success w-100 btn-wa" disabled>
+            <i class="bi bi-whatsapp me-1"></i> Demander une livraison sur WhatsApp
+          </button>
+        </div>
+        <div class="col-12">
+          {% set support_wa = (config.get('SUPPORT_WHATSAPP_NUMBER') or config.get('ADMIN_PHONE') or '212770010264') %}
+          <a class="btn btn-outline-success w-100 btn-wa"
+             href="https://wa.me/{{ support_wa|replace('+','')|replace(' ','') }}?text={{ 'Bonjour%20je%20veux%20une%20livraison%20speciale.' }}"
+             target="_blank"
+             rel="noopener">
+            <i class="bi bi-whatsapp me-1"></i> Ouvrir WhatsApp (si echec)
+          </a>
+        </div>
+      </div>
+    </form>
+  </section>
+</div>
+
+<script src="{{ url_for('static', filename='js/delivery_pricing.js') }}" defer></script>
+<script>
+  (function () {
+    function boot() {
+    const citySelect = document.getElementById("deliveryCity");
+    const priceBox = document.getElementById("deliveryPriceBox");
+    const submitBtn = document.getElementById("deliverySubmitBtn");
+    const priceHidden = document.getElementById("deliveryPriceCents");
+    const deliveryForm = document.getElementById("specialDeliveryForm");
+    if (!citySelect || !priceBox || !submitBtn) return;
+
+    const decimals = 6;
+
+    async function copyText(text, button) {
+      if (!text) return false;
+      let ok = false;
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(text);
+          ok = true;
+        }
+      } catch (_) {}
+      if (!ok) {
+        const area = document.createElement("textarea");
+        area.value = text;
+        area.setAttribute("readonly", "");
+        area.style.position = "absolute";
+        area.style.left = "-9999px";
+        document.body.appendChild(area);
+        area.select();
+        try {
+          ok = document.execCommand("copy");
+        } catch (_) {
+          ok = false;
+        }
+        document.body.removeChild(area);
+      }
+      if (button) {
+        const prev = button.textContent;
+        button.textContent = ok ? "Copie OK" : "Echec";
+        setTimeout(() => { button.textContent = prev; }, 1200);
+      }
+      return ok;
+    }
+
+    function setLoading() {
+      priceBox.classList.remove("is-error");
+      priceBox.textContent = "Prix livraison : calcul en cours...";
+      submitBtn.disabled = true;
+      if (priceHidden) priceHidden.value = "";
+    }
+
+    function setError(message) {
+      priceBox.classList.add("is-error");
+      priceBox.textContent = message || "Prix indisponible";
+      submitBtn.disabled = true;
+      if (priceHidden) priceHidden.value = "";
+    }
+
+    function setPrice(priceCents) {
+      const cents = Math.max(0, Math.trunc(Number(priceCents || 0)));
+      priceBox.classList.remove("is-error");
+      priceBox.textContent = "Prix livraison : " + (cents / 100).toFixed(2) + " DH";
+      submitBtn.disabled = false;
+      if (priceHidden) priceHidden.value = String(cents);
+    }
+
+    function wireGps(prefix) {
+      const geoBtn = document.getElementById(prefix + "GeoBtn");
+      const latEl = document.getElementById(prefix + "Lat");
+      const lngEl = document.getElementById(prefix + "Lng");
+      const mapEl = document.getElementById(prefix + "MapsUrl");
+      const metaEl = document.getElementById(prefix + "GpsMeta");
+      const hintEl = document.getElementById(prefix + "GeoHint");
+      const copyCoordsBtn = document.getElementById(prefix + "CopyCoordsBtn");
+      const copyMapBtn = document.getElementById(prefix + "CopyMapBtn");
+      const openMapBtn = document.getElementById(prefix + "OpenMapBtn");
+      if (!geoBtn || !latEl || !lngEl || !mapEl || !metaEl || !copyCoordsBtn || !copyMapBtn || !openMapBtn) return;
+
+      function applyState(lat, lng, mapsUrl) {
+        const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
+        const coordsText = hasCoords ? lat.toFixed(decimals) + ", " + lng.toFixed(decimals) : "";
+        latEl.value = hasCoords ? String(lat.toFixed(decimals)) : "";
+        lngEl.value = hasCoords ? String(lng.toFixed(decimals)) : "";
+        mapEl.value = mapsUrl || "";
+        metaEl.textContent = "Position: " + (coordsText || "N/A");
+        copyCoordsBtn.disabled = !hasCoords;
+        copyMapBtn.disabled = !mapsUrl;
+        if (mapsUrl) {
+          openMapBtn.classList.remove("disabled");
+          openMapBtn.removeAttribute("aria-disabled");
+          openMapBtn.href = mapsUrl;
+        } else {
+          openMapBtn.classList.add("disabled");
+          openMapBtn.setAttribute("aria-disabled", "true");
+          openMapBtn.href = "#";
+        }
+      }
+
+      applyState(null, null, "");
+
+      geoBtn.addEventListener("click", () => {
+        hintEl.textContent = "";
+        if (!navigator.geolocation) {
+          hintEl.textContent = "Geolocalisation non disponible sur cet appareil.";
+          return;
+        }
+        geoBtn.disabled = true;
+        geoBtn.textContent = "Localisation...";
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const lat = Number(pos.coords.latitude);
+            const lng = Number(pos.coords.longitude);
+            const mapsUrl = "https://www.google.com/maps?q=" + lat.toFixed(decimals) + "," + lng.toFixed(decimals);
+            applyState(lat, lng, mapsUrl);
+            geoBtn.disabled = false;
+            geoBtn.textContent = "Utiliser ma position";
+          },
+          () => {
+            hintEl.textContent = "Autorisez la localisation pour enregistrer la position exacte.";
+            geoBtn.disabled = false;
+            geoBtn.textContent = "Utiliser ma position";
+          },
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        );
+      });
+
+      copyCoordsBtn.addEventListener("click", () => {
+        const value = metaEl.textContent.replace(/^Position:\s*/, "");
+        copyText(value && value !== "N/A" ? value : "", copyCoordsBtn);
+      });
+      copyMapBtn.addEventListener("click", () => {
+        copyText(mapEl.value || "", copyMapBtn);
+      });
+    }
+
+    let pricingEndpoint = "/api/pricing/delivery";
+    if (deliveryForm && typeof deliveryForm.dataset.pricingEndpoint === "string" && deliveryForm.dataset.pricingEndpoint.trim()) {
+      pricingEndpoint = deliveryForm.dataset.pricingEndpoint.trim();
+    }
+
+    if (window.DeliveryPricing && typeof window.DeliveryPricing.init === "function") {
+      window.DeliveryPricing.init({
+        citySelector: "#deliveryCity",
+        hiddenPriceSelector: "#deliveryPriceCents",
+        endpoint: pricingEndpoint,
+        source: "special",
+        debounceMs: 150,
+        onEmpty: function () {
+          priceBox.classList.remove("is-error");
+          priceBox.textContent = "Prix livraison : N/A";
+          submitBtn.disabled = true;
+          if (priceHidden) priceHidden.value = "";
+        },
+        onLoading: setLoading,
+        onPrice: setPrice,
+        onError: setError
+      });
+    } else {
+      setError("Prix livraison : N/A");
+    }
+
+    wireGps("pickup");
+    wireGps("dropoff");
+    }
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", boot, { once: true });
+    } else {
+      boot();
+    }
+  })();
+</script>
+{% endblock %}

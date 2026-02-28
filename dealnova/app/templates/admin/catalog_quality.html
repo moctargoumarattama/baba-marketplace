@@ -1,0 +1,810 @@
+{% extends 'admin/base.html' %}
+
+{% block title %}Catalogue | DealNova{% endblock %}
+{% block page_title %}Performance catalogue{% endblock %}
+
+{% block head %}
+<style>
+    .cat-wrap { display: grid; gap: 1.5rem; }
+    
+    /* Cards de statistiques */
+    .cat-stats { 
+        display: grid; 
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
+        gap: 1rem; 
+    }
+    
+    .cat-stat { 
+        background: #fff; 
+        border: 1px solid #E5E7EB; 
+        border-radius: 16px; 
+        padding: 1.25rem 1.5rem; 
+        box-shadow: 0 12px 26px rgba(0,0,0,0.06);
+        transition: transform 0.2s ease;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .cat-stat:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 16px 32px rgba(0,0,0,0.1);
+    }
+    
+    .cat-stat h6 { 
+        font-size: 0.8rem; 
+        text-transform: uppercase; 
+        letter-spacing: 0.08em; 
+        color: #6B7280; 
+        margin-bottom: 0.35rem;
+    }
+    
+    .stat-value {
+        font-size: 1.8rem;
+        font-weight: 800;
+        color: #111827;
+        line-height: 1.2;
+    }
+    
+    .stat-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+    }
+    
+    .stat-icon.warning { background: rgba(245, 158, 11, 0.15); color: #B45309; }
+    .stat-icon.danger { background: rgba(239, 68, 68, 0.15); color: #B91C1C; }
+    .stat-icon.secondary { background: rgba(107, 114, 128, 0.15); color: #4B5563; }
+    
+    /* Cards principales */
+    .cat-card { 
+        background: #fff; 
+        border: 1px solid #E5E7EB; 
+        border-radius: 16px; 
+        box-shadow: 0 12px 26px rgba(0,0,0,0.06); 
+        overflow: hidden; 
+    }
+    
+    .cat-card-header { 
+        padding: 1rem 1.25rem; 
+        border-bottom: 1px solid #E5E7EB; 
+        background: #F9FAFB; 
+        display: flex; 
+        align-items: center; 
+        justify-content: space-between; 
+        gap: 1rem; 
+        flex-wrap: wrap; 
+    }
+    
+    /* Table */
+    .table.cat-table th { 
+        background: #F9FAFB; 
+        font-size: 0.75rem; 
+        text-transform: uppercase; 
+        letter-spacing: 0.08em; 
+        color: #6B7280; 
+        font-weight: 700;
+        white-space: nowrap;
+    }
+    
+    .table.cat-table td {
+        vertical-align: middle;
+    }
+    
+    /* Badges de problèmes */
+    .issue-badge { 
+        background: rgba(239,68,68,0.12); 
+        color: #B91C1C; 
+        padding: 0.2rem 0.6rem; 
+        border-radius: 999px; 
+        font-size: 0.72rem; 
+        font-weight: 700; 
+        display: inline-flex; 
+        gap: 0.35rem; 
+        align-items: center;
+        margin-right: 0.25rem;
+        margin-bottom: 0.25rem;
+        white-space: nowrap;
+    }
+    
+    /* Filtres */
+    .filter-form {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+    
+    .filter-group {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+    
+    .filter-checkbox {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        background: #fff;
+        padding: 0.35rem 0.75rem;
+        border-radius: 999px;
+        border: 1px solid #E5E7EB;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    
+    .filter-checkbox:hover {
+        background: #F3F4F6;
+        border-color: #D1D5DB;
+    }
+    
+    .filter-checkbox input[type="checkbox"] {
+        margin: 0;
+    }
+    
+    /* Version mobile */
+    @media (max-width: 992px) {
+        .filter-form {
+            flex-direction: column;
+            align-items: stretch;
+            width: 100%;
+        }
+        
+        .filter-group {
+            justify-content: flex-start;
+        }
+        
+        .btn-group-mobile {
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .btn-group-mobile .btn {
+            flex: 1;
+        }
+    }
+    
+    @media (max-width: 768px) {
+        .cat-stats {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.75rem;
+        }
+        
+        .cat-stat {
+            padding: 1rem;
+        }
+        
+        .stat-value {
+            font-size: 1.4rem;
+        }
+        
+        .stat-icon {
+            width: 40px;
+            height: 40px;
+            font-size: 1.2rem;
+        }
+        
+        .cat-card-header {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        
+        .filter-group {
+            width: 100%;
+            justify-content: space-between;
+        }
+        
+        .filter-checkbox {
+            flex: 1;
+            justify-content: center;
+        }
+        
+        /* Transformation de la table */
+        .table.cat-table,
+        .table.cat-table thead,
+        .table.cat-table tbody,
+        .table.cat-table tr,
+        .table.cat-table td {
+            display: block;
+        }
+        
+        .table.cat-table thead {
+            display: none;
+        }
+        
+        .table.cat-table tr {
+            margin-bottom: 1rem;
+            padding: 1rem;
+            background: #fff;
+            border: 1px solid #E5E7EB;
+            border-radius: 12px;
+            position: relative;
+        }
+        
+        .table.cat-table td {
+            display: flex;
+            align-items: flex-start;
+            padding: 0.5rem 0;
+            border: none;
+            text-align: left;
+        }
+        
+        .table.cat-table td:before {
+            content: attr(data-label);
+            font-weight: 600;
+            color: #6B7280;
+            width: 100px;
+            min-width: 100px;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .table.cat-table td > * {
+            flex: 1;
+        }
+        
+        /* Ajustements pour les badges */
+        .issue-badge {
+            white-space: normal;
+            word-break: break-word;
+        }
+        
+        /* Actions */
+        .table.cat-table td[data-label="Action"] form {
+            width: 100%;
+        }
+        
+        .table.cat-table td[data-label="Action"] button {
+            width: 100%;
+        }
+    }
+    
+    @media (max-width: 480px) {
+        .cat-stats {
+            grid-template-columns: 1fr;
+        }
+        
+        .table.cat-table td:before {
+            width: 90px;
+            min-width: 90px;
+        }
+        
+        .cat-card-header h5 {
+            font-size: 1rem;
+        }
+        
+        .filter-group {
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+        
+        .filter-checkbox {
+            width: calc(50% - 0.25rem);
+            flex: none;
+        }
+        
+        .btn-group-mobile {
+            flex-direction: column;
+        }
+    }
+    
+    /* État vide */
+    .cat-empty {
+        text-align: center;
+        padding: 3rem 1rem;
+        color: #6B7280;
+    }
+    
+    .cat-empty i {
+        font-size: 3rem;
+        opacity: 0.5;
+        margin-bottom: 1rem;
+    }
+    
+    /* Animation pour les changements */
+    @keyframes highlight {
+        0% { background-color: rgba(255, 107, 53, 0.2); }
+        100% { background-color: transparent; }
+    }
+    
+    .row-updated {
+        animation: highlight 1s ease;
+    }
+    
+    /* Bouton retour en haut */
+    .back-to-top {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background: #FF6B35;
+        color: white;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        z-index: 100;
+        border: none;
+    }
+    
+    .back-to-top.show {
+        opacity: 1;
+    }
+    
+    /* Indicateur de filtre actif */
+    .filter-badge {
+        background: #FF6B35;
+        color: white;
+        padding: 0.25rem 0.5rem;
+        border-radius: 999px;
+        font-size: 0.7rem;
+        margin-left: 0.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid cat-wrap">
+    <!-- Bouton retour en haut -->
+    <button class="back-to-top" id="backToTop" title="Retour en haut">
+        <i class="bi bi-arrow-up"></i>
+    </button>
+
+    <!-- Statistiques -->
+    <section class="cat-stats">
+        <div class="cat-stat">
+            <div>
+                <h6>Sans image</h6>
+                <div class="stat-value" id="countNoImage">{{ count_no_image }}</div>
+            </div>
+            <div class="stat-icon warning"><i class="bi bi-image"></i></div>
+        </div>
+        <div class="cat-stat">
+            <div>
+                <h6>Sans description</h6>
+                <div class="stat-value" id="countNoDesc">{{ count_no_desc }}</div>
+            </div>
+            <div class="stat-icon danger"><i class="bi bi-file-text"></i></div>
+        </div>
+        <div class="cat-stat">
+            <div>
+                <h6>Stock = 0</h6>
+                <div class="stat-value" id="countOut">{{ count_out }}</div>
+            </div>
+            <div class="stat-icon secondary"><i class="bi bi-box"></i></div>
+        </div>
+    </section>
+
+    <!-- Filtres et actions -->
+    <section class="cat-card" id="catalogQualityCard">
+        <div class="cat-card-header">
+            <div>
+                <h5 class="m-0">
+                    Qualité catalogue
+                    {% if no_image or no_desc or out_of_stock or inactive %}
+                        <span class="filter-badge">Filtres actifs</span>
+                    {% endif %}
+                </h5>
+                <small class="text-muted">
+                    <i class="bi bi-layout-text-window"></i> 
+                    {{ pagination.total }} produits - Page {{ pagination.page }} / {{ pagination.pages }}
+                </small>
+            </div>
+            <div class="filter-form">
+                <form method="get" class="filter-form" id="filterForm">
+                    <div class="filter-group">
+                        <label class="filter-checkbox">
+                            <input class="form-check-input" type="checkbox" name="no_image" value="1" {% if no_image %}checked{% endif %}>
+                            <i class="bi bi-image"></i> Sans image
+                        </label>
+                        <label class="filter-checkbox">
+                            <input class="form-check-input" type="checkbox" name="no_desc" value="1" {% if no_desc %}checked{% endif %}>
+                            <i class="bi bi-file-text"></i> Sans description
+                        </label>
+                        <label class="filter-checkbox">
+                            <input class="form-check-input" type="checkbox" name="out_of_stock" value="1" {% if out_of_stock %}checked{% endif %}>
+                            <i class="bi bi-box"></i> Stock 0
+                        </label>
+                        <label class="filter-checkbox">
+                            <input class="form-check-input" type="checkbox" name="inactive" value="1" {% if inactive %}checked{% endif %}>
+                            <i class="bi bi-toggle-off"></i> Inactifs
+                        </label>
+                    </div>
+                    <div class="btn-group-mobile">
+                        <button class="btn btn-primary" type="submit">
+                            <i class="bi bi-funnel"></i> Filtrer
+                        </button>
+                        <a href="{{ url_for('admin_users.catalog_quality') }}" class="btn btn-outline-secondary">
+                            <i class="bi bi-x-circle"></i> Réinitialiser
+                        </a>
+                    </div>
+                </form>
+                <form method="post" action="{{ url_for('admin_users.catalog_hide_out_of_stock') }}" 
+                      class="d-inline" data-confirm-submit="Masquer tous les produits en stock 0 ?">
+                    {% include "admin/partials/_csrf.html" %}
+                    <button class="btn btn-outline-danger" type="submit">
+                        <i class="bi bi-eye-slash"></i> Masquer stock 0
+                    </button>
+                </form>
+            </div>
+        </div>
+        
+        <div class="table-responsive">
+            <table class="table cat-table mb-0" id="catalogTable">
+                <thead>
+                    <tr>
+                        <th>Produit</th>
+                        <th>Boutique</th>
+                        <th>Vendeur</th>
+                        <th>Problèmes</th>
+                        <th>Stock</th>
+                        <th>Actif</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in products %}
+                    <tr data-product-id="{{ p.id }}" data-product-name="{{ p.name }}">
+                        <td data-label="Produit">
+                            <div class="fw-semibold">{{ p.name }}</div>
+                            {% if p.category %}
+                                <small class="text-muted">{{ p.category.name }}</small>
+                            {% endif %}
+                        </td>
+                        <td data-label="Boutique">
+                            {% if p.shop %}
+                                <span class="fw-semibold">{{ p.shop.name }}</span>
+                            {% else %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td data-label="Vendeur">
+                            {% if p.vendor %}
+                                <div>{{ p.vendor.username or p.vendor.email }}</div>
+                                {% if p.vendor.phone %}
+                                    <small class="text-muted">{{ p.vendor.phone }}</small>
+                                    <div class="mt-1">
+                                        <a class="btn btn-sm btn-outline-success" 
+                                           href="https://wa.me/{{ p.vendor.phone|replace('+','')|replace(' ','') }}" 
+                                           target="_blank"
+                                           title="WhatsApp">
+                                            <i class="bi bi-whatsapp"></i>
+                                        </a>
+                                    </div>
+                                {% endif %}
+                            {% else %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td data-label="Problèmes">
+                            {% if not p.image_file %}
+                                <span class="issue-badge"><i class="bi bi-image"></i> Sans image</span>
+                            {% endif %}
+                            {% if not p.description %}
+                                <span class="issue-badge"><i class="bi bi-file-text"></i> Sans description</span>
+                            {% endif %}
+                            {% if p.stock <= 0 %}
+                                <span class="issue-badge"><i class="bi bi-box"></i> Stock 0</span>
+                            {% endif %}
+                            {% if not p.is_active %}
+                                <span class="issue-badge"><i class="bi bi-toggle-off"></i> Inactif</span>
+                            {% endif %}
+                            {% if p.image_file and p.description and p.stock > 0 and p.is_active %}
+                                <span class="badge bg-success"><i class="bi bi-check-circle"></i> OK</span>
+                            {% endif %}
+                        </td>
+                        <td data-label="Stock">
+                            <span class="badge bg-{{ 'danger' if p.stock <= 0 else 'success' }}">
+                                {{ p.stock }}
+                            </span>
+                        </td>
+                        <td data-label="Actif">
+                            {% if p.is_active %}
+                                <span class="badge bg-success"><i class="bi bi-check-circle"></i> Oui</span>
+                            {% else %}
+                                <span class="badge bg-secondary"><i class="bi bi-x-circle"></i> Non</span>
+                            {% endif %}
+                        </td>
+                        <td data-label="Action">
+                            <form method="post" action="{{ url_for('admin_users.catalog_toggle_product', product_id=p.id) }}"
+                                  class="d-inline toggle-form">
+                                {% include "admin/partials/_csrf.html" %}
+                                <button class="btn btn-sm btn-outline-primary" type="submit">
+                                    <i class="bi bi-arrow-repeat"></i> Basculer
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7">
+                            <div class="cat-empty">
+                                <i class="bi bi-inbox"></i>
+                                <p class="mt-2">Aucun produit pour ces filtres.</p>
+                                <a href="{{ url_for('admin_users.catalog_quality') }}" class="btn btn-outline-primary mt-2">
+                                    <i class="bi bi-x-circle"></i> Réinitialiser les filtres
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        {% if pagination.pages > 1 %}
+        <div class="card-footer">
+            {% set endpoint = 'admin_users.catalog_quality' %}
+            {% set params = page_params if page_params is not none else {} %}
+            {% set iter_args = {'left_edge': 2, 'left_current': 2, 'right_current': 3, 'right_edge': 2} %}
+            {% include "admin/partials/_pagination.html" %}
+        </div>
+        {% endif %}
+    </section>
+</div>
+
+<!-- Script pour les fonctionnalités dynamiques -->
+<script>
+(function() {
+    const USE_LOCAL_SCROLL = !window.__adminGlobalScrollLock;
+    // Configuration
+    const STORAGE_KEY = 'catalog_page_position';
+    const backToTopBtn = document.getElementById('backToTop');
+    
+    // Sauvegarde de la position
+    function savePosition() {
+        if (!USE_LOCAL_SCROLL) return;
+        const scrollY = window.scrollY;
+        const viewportHeight = window.innerHeight;
+        const documentHeight = document.documentElement.scrollHeight;
+        const scrollPercentage = (scrollY / (documentHeight - viewportHeight)) * 100;
+        
+        const urlParams = new URLSearchParams(window.location.search);
+        const currentPage = urlParams.get('page') || '1';
+        
+        const positionData = {
+            scrollPercentage: scrollPercentage,
+            scrollY: scrollY,
+            page: currentPage,
+            filters: {
+                no_image: urlParams.get('no_image'),
+                no_desc: urlParams.get('no_desc'),
+                out_of_stock: urlParams.get('out_of_stock'),
+                inactive: urlParams.get('inactive')
+            },
+            timestamp: Date.now()
+        };
+        
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(positionData));
+    }
+    
+    // Restauration de la position
+    function restorePosition() {
+        if (!USE_LOCAL_SCROLL) return;
+        const savedData = localStorage.getItem(STORAGE_KEY);
+        if (!savedData) return;
+        
+        try {
+            const positionData = JSON.parse(savedData);
+            const isRecent = (Date.now() - positionData.timestamp) < 5 * 60 * 1000;
+            
+            if (!isRecent) {
+                localStorage.removeItem(STORAGE_KEY);
+                return;
+            }
+            
+            const urlParams = new URLSearchParams(window.location.search);
+            const currentPage = urlParams.get('page') || '1';
+            
+            // Vérifier si les filtres correspondent
+            const currentFilters = {
+                no_image: urlParams.get('no_image'),
+                no_desc: urlParams.get('no_desc'),
+                out_of_stock: urlParams.get('out_of_stock'),
+                inactive: urlParams.get('inactive')
+            };
+            
+            const filtersMatch = JSON.stringify(positionData.filters) === JSON.stringify(currentFilters);
+            
+            if (positionData.page !== currentPage || !filtersMatch) {
+                localStorage.removeItem(STORAGE_KEY);
+                return;
+            }
+            
+            setTimeout(() => {
+                const documentHeight = document.documentElement.scrollHeight;
+                const viewportHeight = window.innerHeight;
+                const targetScrollY = (positionData.scrollPercentage / 100) * (documentHeight - viewportHeight);
+                
+                window.scrollTo({
+                    top: targetScrollY,
+                    behavior: 'smooth'
+                });
+                
+                localStorage.removeItem(STORAGE_KEY);
+            }, 100);
+            
+        } catch (e) {
+            console.error('Erreur de restauration:', e);
+            localStorage.removeItem(STORAGE_KEY);
+        }
+    }
+    
+    // Gestion du bouton retour en haut
+    function toggleBackToTop() {
+        if (window.scrollY > 300) {
+            backToTopBtn.classList.add('show');
+        } else {
+            backToTopBtn.classList.remove('show');
+        }
+    }
+    
+    // Animation lors du toggle d'un produit
+    function setupToggleForms() {
+        document.querySelectorAll('.toggle-form').forEach(form => {
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const button = this.querySelector('button');
+                const originalText = button.innerHTML;
+                
+                // Désactiver le bouton pendant l'envoi
+                button.disabled = true;
+                button.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>...';
+                
+                // Soumettre le formulaire
+                fetch(this.action, {
+                    method: 'POST',
+                    body: new FormData(this),
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Mettre à jour la ligne
+                        const row = this.closest('tr');
+                        row.classList.add('row-updated');
+                        
+                        // Mettre à jour le statut
+                        const statusCell = row.querySelector('td[data-label="Actif"] .badge');
+                        if (statusCell) {
+                            if (data.is_active) {
+                                statusCell.className = 'badge bg-success';
+                                statusCell.innerHTML = '<i class="bi bi-check-circle"></i> Oui';
+                            } else {
+                                statusCell.className = 'badge bg-secondary';
+                                statusCell.innerHTML = '<i class="bi bi-x-circle"></i> Non';
+                            }
+                        }
+                        
+                        setTimeout(() => {
+                            row.classList.remove('row-updated');
+                        }, 1000);
+                    }
+                })
+                .catch(error => console.error('Erreur:', error))
+                .finally(() => {
+                    button.disabled = false;
+                    button.innerHTML = originalText;
+                });
+            });
+        });
+    }
+    
+    // Mise à jour du compteur de filtres actifs
+    function updateFilterBadge() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const hasFilters = urlParams.get('no_image') || urlParams.get('no_desc') || 
+                          urlParams.get('out_of_stock') || urlParams.get('inactive');
+        
+        const badge = document.querySelector('.filter-badge');
+        if (badge) {
+            badge.style.display = hasFilters ? 'inline-block' : 'none';
+        }
+    }
+    
+    // Initialisation
+    window.addEventListener('beforeunload', savePosition);
+    
+    window.addEventListener('scroll', () => {
+        clearTimeout(window.scrollTimeout);
+        window.scrollTimeout = setTimeout(savePosition, 200);
+        toggleBackToTop();
+    });
+    
+    backToTopBtn.addEventListener('click', () => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+    
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+            restorePosition();
+            setupToggleForms();
+            updateFilterBadge();
+        });
+    } else {
+        restorePosition();
+        setupToggleForms();
+        updateFilterBadge();
+    }
+    
+    // Sauvegarde avant changement de page
+    document.querySelectorAll('.page-link, .filter-form .btn-primary, .btn-outline-secondary').forEach(link => {
+        link.addEventListener('click', savePosition);
+    });
+    
+    // Animation au survol des lignes
+    document.querySelectorAll('.cat-table tbody tr').forEach(row => {
+        row.addEventListener('mouseenter', () => {
+            row.style.backgroundColor = '#F9FAFB';
+        });
+        row.addEventListener('mouseleave', () => {
+            row.style.backgroundColor = '';
+        });
+    });
+
+    function restoreInstant(y) {
+        const target = Math.max(Number(y || 0), 0);
+        requestAnimationFrame(() => {
+            try {
+                window.scrollTo({ top: target, left: 0, behavior: 'instant' });
+            } catch (e) {
+                window.scrollTo(0, target);
+            }
+        });
+    }
+
+    function bindAjaxPagination() {
+        const cardSelector = '#catalogQualityCard';
+        document.querySelectorAll(`${cardSelector} .page-link`).forEach(link => {
+            if (link.dataset.ajaxBound === '1') return;
+            link.dataset.ajaxBound = '1';
+            link.addEventListener('click', (e) => {
+                const href = link.getAttribute('href');
+                const parent = link.closest('.page-item');
+                if (!href || (parent && parent.classList.contains('disabled'))) return;
+                e.preventDefault();
+
+                const keepY = window.scrollY;
+                fetch(href, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                    .then(response => response.text())
+                    .then(html => {
+                        const doc = new DOMParser().parseFromString(html, 'text/html');
+                        const newCard = doc.querySelector(cardSelector);
+                        const currentCard = document.querySelector(cardSelector);
+                        if (!newCard || !currentCard) {
+                            window.location.href = href;
+                            return;
+                        }
+                        currentCard.innerHTML = newCard.innerHTML;
+                        window.history.replaceState({}, '', href);
+                        setupToggleForms();
+                        updateFilterBadge();
+                        bindAjaxPagination();
+                        restoreInstant(keepY);
+                    })
+                    .catch(() => {
+                        window.location.href = href;
+                    });
+            });
+        });
+    }
+
+    bindAjaxPagination();
+    
+})();
+</script>
+{% endblock %}

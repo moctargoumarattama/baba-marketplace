@@ -1,0 +1,739 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Connexion | {{ config.SITE_NAME }}{% endblock %}
+
+{% block head %}
+<style>
+  /* ===== PAGE LOGIN CENTREE ===== */
+  .login-page {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1.5rem;
+    background: linear-gradient(145deg, #f6fbf9 0%, #edf3f0 100%);
+    position: relative;
+  }
+
+  /* ===== CARD PRINCIPALE CENTREE ===== */
+  .auth-wrap {
+    width: min(560px, 100%);
+    margin: 0 auto;
+    animation: slideUpFade 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  }
+
+  @keyframes slideUpFade {
+    from {
+      opacity: 0;
+      transform: translateY(30px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .auth-shell {
+    background: linear-gradient(145deg, rgba(16, 185, 129, 0.12), rgba(6, 95, 70, 0.04));
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    border-radius: 32px;
+    padding: 12px;
+    box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.15);
+    backdrop-filter: blur(4px);
+  }
+
+  .auth-card {
+    background: rgba(255, 255, 255, 0.98);
+    border-radius: 28px;
+    padding: 2.5rem 2.5rem;
+    box-shadow: 0 20px 40px -12px rgba(15, 23, 42, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+  }
+
+  /* ===== HERO SECTION EPUREE ===== */
+  .auth-hero {
+    text-align: center;
+    margin-bottom: 2rem;
+  }
+
+  .auth-badge {
+    width: 72px;
+    height: 72px;
+    margin: 0 auto 1rem;
+    border-radius: 24px;
+    background: linear-gradient(145deg, #10b981, #047857);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    color: white;
+    box-shadow: 0 12px 24px -8px rgba(16, 185, 129, 0.4);
+  }
+
+  .auth-hero h2 {
+    font-family: 'Poppins', sans-serif;
+    font-weight: 800;
+    font-size: 1.75rem;
+    margin-bottom: 0.35rem;
+    color: #0f172a;
+    letter-spacing: -0.02em;
+  }
+
+  .auth-hero p {
+    color: #475569;
+    font-size: 0.95rem;
+    font-weight: 500;
+  }
+
+  /* ===== MARKETING CARD COMPACTE ===== */
+  .auth-marketing {
+    background: linear-gradient(145deg, #f0fdf4, #ffffff);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    border-radius: 20px;
+    padding: 1.25rem 1.25rem;
+    margin-bottom: 2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+  }
+
+  .auth-marketing-title {
+    font-weight: 700;
+    color: #0f172a;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .auth-marketing-title i {
+    color: #10b981;
+  }
+
+  .auth-marketing-text {
+    margin: 0;
+    color: #475569;
+    font-size: 0.9rem;
+    line-height: 1.5;
+  }
+
+  .auth-marketing-actions {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  .auth-mini-btn {
+    border-radius: 999px;
+    font-weight: 700;
+    padding: 0.55rem 1.25rem;
+    font-size: 0.85rem;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    border: none;
+    cursor: pointer;
+  }
+
+  .auth-mini-btn--primary {
+    background: linear-gradient(145deg, #10b981, #047857);
+    color: white;
+    box-shadow: 0 8px 16px rgba(16, 185, 129, 0.25);
+  }
+
+  .auth-mini-btn--primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 24px rgba(16, 185, 129, 0.35);
+    color: white;
+  }
+
+  .auth-mini-btn--ghost {
+    background: white;
+    color: #047857;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+  }
+
+  .auth-mini-btn--ghost:hover {
+    background: #f0fdf4;
+    transform: translateY(-2px);
+    border-color: #10b981;
+  }
+
+  .auth-marketing-note {
+    font-size: 0.75rem;
+    color: #64748b;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  .auth-help-link {
+    border: none;
+    background: transparent;
+    color: #047857;
+    font-weight: 800;
+    font-size: 0.75rem;
+    padding: 0;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+  }
+
+  .auth-help-link:hover {
+    color: #065f46;
+  }
+
+  .auth-access-help {
+    margin-top: 0.5rem;
+    background: rgba(16, 185, 129, 0.08);
+    border: 1px dashed rgba(16, 185, 129, 0.35);
+    border-radius: 18px;
+    padding: 0.85rem 1rem;
+    color: #0f172a;
+  }
+
+  .auth-access-help ol {
+    margin: 0;
+    padding-left: 1.1rem;
+    color: #475569;
+    font-weight: 650;
+    font-size: 0.85rem;
+    line-height: 1.45;
+  }
+
+  .auth-access-help li + li {
+    margin-top: 0.35rem;
+  }
+
+  /* ===== FORMULAIRE COMPACT ===== */
+  .auth-body {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .form-label {
+    font-weight: 600;
+    color: #0f172a;
+    font-size: 0.875rem;
+    margin: 0;
+    padding-left: 0.25rem;
+  }
+
+  .input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .auth-input {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    border: 1px solid #d1fae5;
+    border-radius: 16px;
+    background: white;
+    transition: all 0.2s ease;
+  }
+
+  .auth-input:focus-within {
+    border-color: #10b981;
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+  }
+
+  .auth-input .input-group-text {
+    background: transparent;
+    border: none;
+    color: #047857;
+    padding-left: 1rem;
+    padding-right: 0.5rem;
+  }
+
+  .auth-input .form-control {
+    border: none;
+    padding: 0.85rem 0.5rem 0.85rem 0;
+    font-size: 0.95rem;
+    background: transparent;
+  }
+
+  .auth-input .form-control:focus {
+    box-shadow: none;
+    outline: none;
+  }
+
+  .password-wrap {
+    padding-right: 3rem;
+  }
+
+  .password-toggle {
+    position: absolute;
+    right: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    border: none;
+    background: transparent;
+    color: #64748b;
+    font-size: 1.1rem;
+    padding: 0.25rem;
+    cursor: pointer;
+    transition: color 0.2s ease;
+  }
+
+  .password-toggle:hover {
+    color: #10b981;
+  }
+
+  .forgot-link {
+    text-align: right;
+    margin-top: 0.25rem;
+  }
+
+  .forgot-link a {
+    color: #64748b;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: color 0.2s ease;
+  }
+
+  .forgot-link a:hover {
+    color: #10b981;
+    text-decoration: underline;
+  }
+
+  /* ===== BOUTON CONNEXION ===== */
+  .auth-cta {
+    background: linear-gradient(145deg, #10b981, #047857);
+    border: none;
+    font-weight: 700;
+    padding: 1rem 1.5rem;
+    border-radius: 18px;
+    color: white;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    margin-top: 0.5rem;
+  }
+
+  .auth-cta:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 16px 32px -8px rgba(16, 185, 129, 0.4);
+  }
+
+  .auth-cta i {
+    font-size: 1.1rem;
+  }
+
+  /* ===== FOOTER AUTH ===== */
+  .auth-footer {
+    text-align: center;
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #e2e8f0;
+    font-size: 0.9rem;
+    color: #475569;
+  }
+
+  .auth-footer a {
+    color: #047857;
+    font-weight: 700;
+    text-decoration: none;
+    transition: color 0.2s ease;
+  }
+
+  .auth-footer a:hover {
+    color: #10b981;
+    text-decoration: underline;
+  }
+
+  .auth-note {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-top: 1.25rem;
+    font-size: 0.8rem;
+    color: #64748b;
+    font-weight: 500;
+  }
+
+  .auth-note i {
+    color: #10b981;
+  }
+
+  /* ===== MOBILE OPTIMIZATION ===== */
+  @media (max-width: 640px) {
+    .login-page {
+      padding: 0.5rem;
+      align-items: center;
+      padding-top: 0.125rem;
+    }
+
+    .auth-card {
+      padding: 0.75rem 0.5rem;
+    }
+
+    .auth-hero {
+      margin-bottom: 0.5rem;
+    }
+
+    .auth-hero h2 {
+      font-size: 1.5rem;
+    }
+
+    .auth-marketing {
+      padding: 0.25rem 0.25rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .auth-marketing-actions {
+      flex-direction: column;
+    }
+
+    .auth-body {
+      gap: 0.4rem;
+    }
+
+    .auth-mini-btn {
+      width: 100%;
+      justify-content: center;
+    }
+
+    .auth-cta {
+      padding: 0.75rem 0.9rem;
+    }
+
+    .auth-footer {
+      margin-top: 0.4rem;
+      padding-top: 0.75rem;
+    }
+
+    .auth-note {
+      margin-top: 0.4rem;
+    }
+
+    .auth-badge {
+      width: 52px;
+      height: 52px;
+      font-size: 1.4rem;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .login-page {
+      padding: 0.4rem;
+      padding-top: 0.1rem;
+    }
+
+    .auth-card {
+      padding: 0.625rem 0.4rem;
+    }
+
+    .auth-hero {
+      margin-bottom: 0.4rem;
+    }
+
+    .auth-hero h2 {
+      font-size: 1.4rem;
+    }
+
+    .auth-marketing {
+      padding: 0.2rem 0.2rem;
+      margin-bottom: 0.625rem;
+    }
+
+    .auth-body {
+      gap: 0.3rem;
+    }
+
+    .auth-cta {
+      padding: 0.7rem 0.8rem;
+    }
+
+    .auth-footer {
+      margin-top: 0.3rem;
+      padding-top: 0.625rem;
+    }
+
+    .auth-note {
+      margin-top: 0.3rem;
+    }
+
+    .auth-badge {
+      width: 48px;
+      height: 48px;
+      font-size: 1.3rem;
+    }
+  }
+
+  @media (max-width: 380px) {
+    .login-page {
+      padding: 0.25rem;
+      padding-top: 0.025rem;
+    }
+
+    .auth-card {
+      padding: 0.4rem 0.25rem;
+    }
+
+    .auth-hero {
+      margin-bottom: 0.2rem;
+    }
+
+    .auth-hero h2 {
+      font-size: 1.3rem;
+    }
+
+    .auth-marketing {
+      padding: 0.1rem 0.1rem;
+      margin-bottom: 0.4rem;
+    }
+
+    .auth-body {
+      gap: 0.2rem;
+    }
+
+    .auth-cta {
+      padding: 0.6rem 0.7rem;
+    }
+
+    .auth-footer {
+      margin-top: 0.2rem;
+      padding-top: 0.4rem;
+    }
+
+    .auth-note {
+      margin-top: 0.2rem;
+    }
+
+    .auth-badge {
+      width: 40px;
+      height: 40px;
+      font-size: 1.2rem;
+    }
+  }
+
+  /* ===== RTL SUPPORT ===== */
+  html[dir="rtl"] .password-toggle {
+    right: auto;
+    left: 1rem;
+  }
+
+  html[dir="rtl"] .auth-input .input-group-text {
+    padding-left: 0.5rem;
+    padding-right: 1rem;
+  }
+
+  html[dir="rtl"] .auth-input .form-control {
+    padding-left: 0.5rem;
+    padding-right: 0;
+  }
+
+  html[dir="rtl"] .password-wrap {
+    padding-right: 0;
+    padding-left: 3rem;
+  }
+
+  /* ===== ACCESSIBILITY ===== */
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  .btn:focus-visible,
+  .auth-mini-btn:focus-visible,
+  .password-toggle:focus-visible {
+    outline: 3px solid #10b981;
+    outline-offset: 2px;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- PAGE LOGIN CENTREE SANS FOOTER -->
+<section class="login-page">
+  <div class="auth-wrap">
+    <div class="auth-shell">
+      <div class="auth-card">
+        <!-- HERO -->
+        <div class="auth-hero">
+          <div class="auth-badge">
+            <i class="bi bi-box-arrow-in-right"></i>
+          </div>
+          <h2>Bon retour</h2>
+          <p>Connectez-vous à votre espace vendeur</p>
+        </div>
+
+        <!-- MARKETING COMPACT -->
+        <div class="auth-marketing">
+          <div class="auth-marketing-title">
+            <i class="bi bi-stars"></i>
+            Espace Pro BABA Marketplace
+          </div>
+          <p class="auth-marketing-text">
+            Vendez, suivez vos commandes et gérez vos paiements en un clin d'œil.
+          </p>
+          <div class="auth-marketing-actions">
+            {% set support_wa = (config.get('SUPPORT_WHATSAPP_NUMBER') or config.get('ADMIN_PHONE') or '212770010264') %}
+            {% set wa_msg = (
+              "Bonjour 👋 Je souhaite devenir vendeur sur " ~ (config.SITE_NAME or "Baba Market") ~ ".\n"
+              ~ "Nom:\nTéléphone:\nVille:\nNom de la boutique:\nType (Produits/Services):\nMerci."
+            ) %}
+            <a class="auth-mini-btn auth-mini-btn--primary"
+               href="https://wa.me/{{ support_wa|replace('+','')|replace(' ','') }}?text={{ wa_msg|urlencode }}"
+               target="_blank"
+               rel="noopener"
+               data-coach="vendor_access"
+               data-coach-priority="10"
+               data-coach-text="Astuce : si vous n'avez pas de compte vendeur, cliquez ici pour demander un accès via WhatsApp.">
+              <i class="bi bi-whatsapp"></i>
+              Devenir vendeur
+            </a>
+            <a class="auth-mini-btn auth-mini-btn--ghost" href="{{ url_for('shop.home') }}">
+              <i class="bi bi-shop"></i>
+              Continuer sans compte
+            </a>
+          </div>
+          <div class="auth-marketing-note">
+            <i class="bi bi-info-circle"></i>
+            Nouveau vendeur ? Cliquez <strong>Devenir vendeur</strong> pour demander un compte.
+            <button class="auth-help-link" type="button" data-bs-toggle="collapse" data-bs-target="#vendorAccessHelp" aria-expanded="false" aria-controls="vendorAccessHelp">
+              Comment ça marche ?
+            </button>
+          </div>
+          <div class="collapse" id="vendorAccessHelp">
+            <div class="auth-access-help">
+              <ol>
+                <li>Cliquez sur <strong>Devenir vendeur</strong> (WhatsApp).</li>
+                <li>Envoyez vos infos (nom, téléphone, ville, boutique, type).</li>
+                <li>On vous crée un compte vendeur et on vous envoie vos identifiants.</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+
+        <!-- FORMULAIRE -->
+        <form method="POST" id="loginForm" class="auth-body">
+          {{ form.hidden_tag() }}
+
+          <div class="form-group">
+            <label class="form-label">Email professionnel</label>
+            <div class="input-wrapper">
+              <div class="auth-input">
+                <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+                {{ form.email(class="form-control form-control-lg", placeholder="xxxxxxxx@gmail.com") }}
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Mot de passe</label>
+            <div class="input-wrapper">
+              <div class="auth-input">
+                <span class="input-group-text"><i class="bi bi-lock"></i></span>
+                {{ form.password(class="form-control form-control-lg password-wrap", placeholder="••••••••") }}
+                <button type="button" class="password-toggle" aria-label="Afficher le mot de passe">
+                  <i class="bi bi-eye" id="passwordToggleIcon"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="forgot-link">
+            <a href="{{ url_for('auth.forgot_password') }}">
+              <i class="bi bi-question-circle"></i>
+              Mot de passe oublié ? (WhatsApp)
+            </a>
+          </div>
+
+          <button type="submit" class="auth-cta">
+            <i class="bi bi-box-arrow-in-right"></i>
+            Se connecter
+          </button>
+        </form>
+
+       
+
+        <div class="auth-note">
+          <i class="bi bi-shield-check"></i>
+          Vos informations sont sécurisées
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  (function() {
+    'use strict';
+
+    // ===== TOGGLE PASSWORD =====
+    const toggleBtn = document.querySelector('.password-toggle');
+    const passwordField = document.querySelector('[name="password"]');
+    const toggleIcon = document.getElementById('passwordToggleIcon');
+
+    if (toggleBtn && passwordField && toggleIcon) {
+      toggleBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        const isPassword = passwordField.type === 'password';
+        passwordField.type = isPassword ? 'text' : 'password';
+        
+        // Animation de l'icone
+        toggleIcon.classList.remove(isPassword ? 'bi-eye' : 'bi-eye-slash');
+        toggleIcon.classList.add(isPassword ? 'bi-eye-slash' : 'bi-eye');
+        
+        // Feedback visuel
+        toggleBtn.style.transform = 'translateY(-50%) scale(0.95)';
+        setTimeout(() => {
+          toggleBtn.style.transform = 'translateY(-50%) scale(1)';
+        }, 100);
+      });
+    }
+
+    // ===== AUTO-FOCUS SUR EMAIL =====
+    const emailField = document.querySelector('[name="email"]');
+    if (emailField) {
+      emailField.focus();
+    }
+
+    // ===== DISABLE FOOTER SUR CETTE PAGE =====
+    // Cette fonction est geree par base.html via la condition dans le footer
+    // Le footer ne s'affichera pas car nous utilisons une page sans footer
+
+    // ===== TOUCH OPTIMIZATION =====
+    if ('ontouchstart' in window) {
+      document.querySelectorAll('.auth-mini-btn, .auth-cta, .password-toggle').forEach(btn => {
+        btn.addEventListener('touchstart', function() {
+          this.style.transform = this.classList.contains('password-toggle') 
+            ? 'translateY(-50%) scale(0.95)'
+            : 'scale(0.98)';
+        }, { passive: true });
+        
+        btn.addEventListener('touchend', function() {
+          this.style.transform = this.classList.contains('password-toggle')
+            ? 'translateY(-50%) scale(1)'
+            : '';
+        }, { passive: true });
+      });
+    }
+  })();
+</script>
+{% endblock %}
+
+{% block footer %}
+<!-- BLOCK FOOTER VIDE : LE FOOTER NE S'AFFICHE PAS SUR LA PAGE LOGIN -->
+{% endblock %}

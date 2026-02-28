@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+{% block title %}Historique des confirmations | Vendeur DealNova{% endblock %}
+
+{% block head %}
+{{ super() }}
+<style>
+  :root {
+    --hist-bg: #f3f7f5;
+    --hist-text: #102a23;
+    --hist-muted: #5b6f67;
+    --hist-card: #ffffff;
+    --hist-border: #deebe4;
+    --hist-shadow: 0 12px 34px rgba(16, 42, 35, 0.08);
+    --hist-brand: #12b981;
+  }
+
+  .history-page {
+    background:
+      radial-gradient(circle at 85% 12%, rgba(14, 165, 233, 0.12) 0, transparent 34%),
+      radial-gradient(circle at 8% 82%, rgba(18, 185, 129, 0.1) 0, transparent 35%),
+      var(--hist-bg);
+    min-height: calc(100vh - 84px);
+    padding: 1.3rem 0 2rem;
+  }
+
+  .history-shell { max-width: 1180px; }
+
+  .history-hero {
+    border-radius: 22px;
+    background: linear-gradient(135deg, #0f172a, #133b33 55%, #0d6f57);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    box-shadow: 0 20px 48px rgba(6, 18, 14, 0.25);
+    padding: 1.2rem 1.4rem;
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .history-title { margin: 0; font-size: clamp(1.3rem, 2.2vw, 1.9rem); font-weight: 800; }
+  .history-subtitle { margin: 0.45rem 0 0; color: rgba(255,255,255,0.84); font-size: 0.95rem; }
+
+  .filter-pill {
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.24);
+    border-radius: 999px;
+    padding: 0.55rem 0.75rem;
+    display: flex;
+    gap: 0.6rem;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .summary-card {
+    margin-top: 1rem;
+    background: var(--hist-card);
+    border: 1px solid var(--hist-border);
+    border-radius: 16px;
+    box-shadow: var(--hist-shadow);
+    padding: 0.9rem 1rem;
+    display: flex;
+    justify-content: space-between;
+    gap: 0.8rem;
+    flex-wrap: wrap;
+  }
+
+  .summary-label { color: var(--hist-muted); font-size: 0.8rem; font-weight: 600; }
+  .summary-value { margin-top: 0.15rem; color: var(--hist-text); font-size: 1.25rem; font-weight: 800; }
+
+  .table-card {
+    margin-top: 1rem;
+    background: var(--hist-card);
+    border: 1px solid var(--hist-border);
+    border-radius: 18px;
+    box-shadow: var(--hist-shadow);
+    overflow: hidden;
+  }
+
+  .table-card-header {
+    padding: 0.9rem 1.1rem;
+    background: #f6fbf8;
+    border-bottom: 1px solid #dce8e2;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.8rem;
+    flex-wrap: wrap;
+  }
+
+  .table thead th {
+    color: #4f6059;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border-bottom: 1px solid #dce8e2;
+    background: #f6fbf8;
+  }
+
+  .product-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+
+  .product-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    background: #ecfdf5;
+    color: #065f46;
+    font-weight: 800;
+    font-size: 0.72rem;
+    border: 1px solid #bbf7d0;
+  }
+
+  .badge-72h {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.3rem 0.6rem;
+    border-radius: 999px;
+    background: #fef9c3;
+    color: #854d0e;
+    font-weight: 800;
+    font-size: 0.72rem;
+    border: 1px solid #fde047;
+  }
+
+  .empty-history {
+    margin-top: 1rem;
+    border-radius: 20px;
+    background: #ffffff;
+    border: 1px solid var(--hist-border);
+    box-shadow: var(--hist-shadow);
+    text-align: center;
+    padding: 2rem 1rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="history-page">
+  <div class="container history-shell">
+    <div class="history-hero">
+      <div>
+        <h1 class="history-title"><i class="bi bi-clock-history me-2"></i>Historique complet</h1>
+        <p class="history-subtitle">Les confirmations payees depuis plus de 72h sont archivees ici.</p>
+      </div>
+      <form class="filter-pill" method="get">
+        <label class="form-label mb-0 text-white">Du</label>
+        <input class="form-control form-control-sm" type="date" name="from" value="{{ date_from }}" style="width: 150px;">
+        <label class="form-label mb-0 text-white">Au</label>
+        <input class="form-control form-control-sm" type="date" name="to" value="{{ date_to }}" style="width: 150px;">
+        <button class="btn btn-light btn-sm" type="submit">Filtrer</button>
+        <a class="btn btn-outline-light btn-sm" href="{{ url_for('vendor.earnings') }}">Retour gains</a>
+        <a class="btn btn-outline-light btn-sm" href="{{ url_for('vendor.earnings_history_export_csv', **{'from': date_from, 'to': date_to}) }}">
+          <i class="bi bi-filetype-csv"></i> Export CSV
+        </a>
+        <a class="btn btn-outline-light btn-sm" href="{{ url_for('vendor.earnings_history_export_pdf', **{'from': date_from, 'to': date_to}) }}">
+          <i class="bi bi-filetype-pdf"></i> Export PDF
+        </a>
+      </form>
+    </div>
+
+    <div class="summary-card">
+      <div>
+        <div class="summary-label">Total confirme</div>
+        <div class="summary-value">{{ '%.2f'|format(total_confirmed / 100) }} MAD</div>
+      </div>
+      <div class="text-muted">Archive apres 72h</div>
+    </div>
+
+    {% if payouts %}
+      <div class="table-card">
+        <div class="table-card-header">
+          <h5 class="m-0">Confirmations archivees</h5>
+          <span class="text-muted">{{ payouts|length }} lignes</span>
+        </div>
+        <div class="table-responsive">
+          <table class="table align-middle mb-0">
+            <thead>
+              <tr>
+                <th>Commande</th>
+                <th>Produits</th>
+                <th>Total confirme</th>
+                <th>Date confirmation</th>
+                <th>72h</th>
+                <th>Note</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for p in payouts %}
+              <tr>
+                <td>#{{ p.order.id if p.order else '' }}</td>
+                <td>
+                  <div class="product-list">
+                    {% if p.order %}
+                      {% for item in p.order.items %}
+                        {% if item.product and item.product.vendor_id == vendor_id %}
+                          <span class="product-pill">{{ item.product.name }} ×{{ item.quantity }}</span>
+                        {% endif %}
+                      {% endfor %}
+                    {% endif %}
+                  </div>
+                </td>
+                <td><strong>{{ '%.2f'|format((p.amount_cents or 0)/100) }} MAD</strong></td>
+                <td>{{ p.paid_at.strftime('%d/%m/%Y %H:%M') if p.paid_at else '-' }}</td>
+                <td><span class="badge-72h"><i class="bi bi-hourglass-split"></i> 72h ecoulees</span></td>
+                <td class="text-muted">{{ p.paid_note or '-' }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    {% else %}
+      <div class="empty-history">
+        <i class="bi bi-clock-history"></i>
+        <h5>Aucune confirmation dans cet intervalle</h5>
+        <p>Choisissez un intervalle de dates ou revenez plus tard.</p>
+      </div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

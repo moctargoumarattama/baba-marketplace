@@ -1,0 +1,46 @@
+{% set params = params if params is not none else {} %}
+{% set iter_args = iter_args if iter_args is not none else {} %}
+{% set extra_class = extra_class if extra_class is not none else '' %}
+{% set aria_label = aria_label if aria_label is not none else 'Page navigation' %}
+{% set prev_label = prev_label if prev_label is not none else '&laquo; Precedent' %}
+{% set next_label = next_label if next_label is not none else 'Suivant &raquo;' %}
+
+<nav aria-label="{{ aria_label }}">
+  <ul class="pagination justify-content-center {{ extra_class }}">
+    {% if pagination.has_prev %}
+    <li class="page-item">
+      <a class="page-link" href="{{ url_for(endpoint, page=pagination.prev_num, **params) }}">
+        {{ prev_label|safe }}
+      </a>
+    </li>
+    {% else %}
+    <li class="page-item disabled">
+      <span class="page-link">{{ prev_label|safe }}</span>
+    </li>
+    {% endif %}
+
+    {% for page_num in pagination.iter_pages(**iter_args) %}
+      {% if page_num %}
+        <li class="page-item {% if page_num == pagination.page %}active{% endif %}">
+          <a class="page-link" href="{{ url_for(endpoint, page=page_num, **params) }}">
+            {{ page_num }}
+          </a>
+        </li>
+      {% else %}
+        <li class="page-item disabled"><span class="page-link">...</span></li>
+      {% endif %}
+    {% endfor %}
+
+    {% if pagination.has_next %}
+    <li class="page-item">
+      <a class="page-link" href="{{ url_for(endpoint, page=pagination.next_num, **params) }}">
+        {{ next_label|safe }}
+      </a>
+    </li>
+    {% else %}
+    <li class="page-item disabled">
+      <span class="page-link">{{ next_label|safe }}</span>
+    </li>
+    {% endif %}
+  </ul>
+</nav>

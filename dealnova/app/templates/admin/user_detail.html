@@ -1,0 +1,635 @@
+﻿{% extends "admin/base.html" %}
+
+{% block title %}Utilisateur: {{ user.username }} | DealNova Admin{% endblock %}
+
+{% block page_title %}DÃ©tail de l'utilisateur{% endblock %}
+
+{% block head %}
+<style>
+  @media (prefers-reduced-motion: no-preference) {
+    .btn-attention {
+      position: relative;
+      overflow: hidden;
+      animation: pulseSoft 1.8s ease-in-out infinite;
+      will-change: box-shadow;
+    }
+
+    @keyframes pulseSoft {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(25, 135, 84, 0.35); }
+      50% { box-shadow: 0 0 0 10px rgba(25, 135, 84, 0); }
+    }
+  }
+
+  .btn-attention:hover {
+    transform: translateY(-1px);
+  }
+  
+  /* Style pour le mot de passe */
+  .password-value {
+    font-family: 'Courier New', monospace;
+    font-size: 1.2rem;
+    font-weight: 700;
+    background: #f8f9fa;
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+    color: #0d6efd;
+    display: inline-block;
+    width: 100%;
+    text-align: center;
+    letter-spacing: 1px;
+  }
+  
+  .password-container {
+    background: #fff3cd;
+    border: 1px solid #ffeeba;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-top: 1rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- En-tÃªte utilisateur -->
+    <div class="row mb-4">
+        <div class="col">
+            <div class="card admin-card">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            <div class="avatar-lg">
+                                {% if user.profile_image %}
+                                    <img src="{{ url_for('static', filename='uploads/profiles/' + user.profile_image) }}" 
+                                         alt="{{ user.username }}" class="rounded-circle" width="100" height="100">
+                                {% else %}
+                                    <div class="bg-secondary rounded-circle d-flex align-items-center justify-content-center" 
+                                         style="width: 100px; height: 100px;">
+                                        <i class="bi bi-person text-white" style="font-size: 3rem;"></i>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col">
+                            <h2 class="mb-1">{{ user.username }}</h2>
+                            <p class="text-muted mb-0">{{ user.email }}</p>
+                            <div class="mt-2">
+                                <span class="badge badge-{{ user.role }} badge-role fs-6">
+                                    {{ user.role|title }}
+                                </span>
+                                <span class="badge bg-{{ 'success' if user.is_active else 'secondary' }} fs-6"
+                                      data-user-status="{{ user.id }}"
+                                      data-active-text="Actif"
+                                      data-inactive-text="Inactif"
+                                      data-active-class="bg-success"
+                                      data-inactive-class="bg-secondary">
+                                    {{ 'Actif' if user.is_active else 'Inactif' }}
+                                </span>
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <div class="btn-group" role="group">
+                                <button type="button" class="btn btn-outline-warning" data-bs-toggle="modal" 
+                                        data-bs-target="#editUserModal">
+                                    <i class="bi bi-pencil"></i> Modifier
+                                </button>
+                                <form method="post"
+                                      action="{{ url_for('admin_users.toggle_user_active', user_id=user.id) }}"
+                                      class="d-inline"
+                                      data-ajax="true"
+                                      data-action="toggle-user"
+                                      data-confirm="Voulez-vous activer/dÃ©sactiver cet utilisateur ?">
+                                    {% include "admin/partials/_csrf.html" %}
+                                    <button type="submit"
+                                            class="btn btn-outline-{{ 'danger' if user.is_active else 'success' }}"
+                                            data-active-text="DÃ©sactiver"
+                                            data-inactive-text="Activer"
+                                            data-active-icon="bi bi-person-x"
+                                            data-inactive-icon="bi bi-person-check"
+                                            data-active-class="btn-outline-danger"
+                                            data-inactive-class="btn-outline-success">
+                                        <i class="bi bi-person-{{ 'x' if user.is_active else 'check' }}"></i>
+                                        {{ 'DÃ©sactiver' if user.is_active else 'Activer' }}
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Informations dÃ©taillÃ©es -->
+    <div class="row g-4">
+        <!-- Informations personnelles -->
+        <div class="col-md-6">
+            <div class="d-grid gap-4">
+                <div class="card admin-card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="bi bi-info-circle"></i> Informations personnelles
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <dl class="row">
+                            <dt class="col-sm-4">Nom complet</dt>
+                            <dd class="col-sm-8">{{ user.full_name or 'Non renseignÃ©' }}</dd>
+
+                            <dt class="col-sm-4">TÃ©lÃ©phone</dt>
+                            <dd class="col-sm-8">{{ user.phone or 'Non renseignÃ©' }}</dd>
+
+                            <dt class="col-sm-4">Adresse</dt>
+                            <dd class="col-sm-8">{{ user.address or 'Non renseignÃ©e' }}</dd>
+
+                            <dt class="col-sm-4">Date d'inscription</dt>
+                            <dd class="col-sm-8">{{ user.created_at.strftime('%d/%m/%Y Ã  %H:%M') }}</dd>
+
+                            <dt class="col-sm-4">DerniÃ¨re connexion</dt>
+                            <dd class="col-sm-8">
+                                {% if user.last_login %}
+                                    {{ user.last_login.strftime('%d/%m/%Y Ã  %H:%M') }}
+                                {% else %}
+                                    Jamais connectÃ©
+                                {% endif %}
+                            </dd>
+                        </dl>
+                    </div>
+                </div>
+
+                {% if user.role == 'courier' %}
+                <div class="card admin-card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="bi bi-truck"></i> Espace livreur
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex flex-wrap gap-2 mb-3">
+                            <span class="badge bg-{{ 'success' if user.courier_is_active else 'secondary' }}">
+                                Equipe: {{ 'Active' if user.courier_is_active else 'Inactive' }}
+                            </span>
+                            <span class="badge bg-{{ 'success' if user.courier_is_available else 'secondary' }}">
+                                Disponibilite: {{ 'Oui' if user.courier_is_available else 'Non' }}
+                            </span>
+                            <span class="badge bg-info text-dark">
+                                Livrees: {{ courier_delivered_count or 0 }}
+                            </span>
+                            <span class="badge bg-warning text-dark">
+                                En cours: {{ courier_in_progress_count or 0 }}
+                            </span>
+                        </div>
+                        <div class="small text-muted mb-3">
+                            Derniere activite:
+                            {% if user.courier_last_seen_at %}
+                                {{ user.courier_last_seen_at.strftime('%d/%m/%Y a %H:%M') }}
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        </div>
+                        <div class="d-flex flex-wrap gap-2 mb-3">
+                            <form method="post" action="{{ url_for('admin_users.toggle_courier_active', user_id=user.id) }}" class="d-inline">
+                                {% include "admin/partials/_csrf.html" %}
+                                <button type="submit" class="btn btn-sm btn-outline-{{ 'danger' if user.courier_is_active else 'success' }}">
+                                    {{ 'Rendre inactif' if user.courier_is_active else 'Rendre actif' }}
+                                </button>
+                            </form>
+                            <form method="post" action="{{ url_for('admin_users.toggle_courier_availability', user_id=user.id) }}" class="d-inline">
+                                {% include "admin/partials/_csrf.html" %}
+                                <button type="submit" class="btn btn-sm btn-outline-primary">
+                                    {{ 'Passer indisponible' if user.courier_is_available else 'Passer disponible' }}
+                                </button>
+                            </form>
+                        </div>
+                        <form method="post" action="{{ url_for('admin_users.save_courier_admin_note', user_id=user.id) }}">
+                            {% include "admin/partials/_csrf.html" %}
+                            <label for="courier_admin_note" class="form-label fw-semibold">Note interne admin</label>
+                            <textarea
+                                class="form-control"
+                                id="courier_admin_note"
+                                name="courier_admin_note"
+                                rows="3"
+                                placeholder="Ex: zone preferentielle, contraintes horaires, fiabilite..."
+                            >{{ user.courier_admin_note or '' }}</textarea>
+                            <div class="mt-2">
+                                <button type="submit" class="btn btn-sm btn-primary">Enregistrer la note</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                {% endif %}
+
+                <div class="card admin-card" id="actions-section">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="bi bi-lightning-charge"></i> Actions
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex flex-wrap gap-2">
+                            <form method="post"
+                                  action="{{ url_for('admin_users.reset_user_password', user_id=user.id) }}"
+                                  class="d-inline"
+                                  id="resetPasswordForm">
+                                {% include "admin/partials/_csrf.html" %}
+                                <button type="submit" class="btn btn-warning btn-sm" id="resetPasswordBtn">
+                                    <i class="bi bi-key"></i> RÃ©initialiser mot de passe
+                                </button>
+                            </form>
+
+                            {% if user.role in ['vendor', 'courier'] %}
+                            <form method="post"
+                                  action="{{ url_for('admin_users.set_user_password_change_window', user_id=user.id) }}"
+                                  class="d-inline">
+                                {% include "admin/partials/_csrf.html" %}
+                                {% if password_change_window_active %}
+                                    <input type="hidden" name="enable" value="0">
+                                    <button type="submit" class="btn btn-outline-secondary btn-sm">
+                                        <i class="bi bi-lock"></i> Desactiver changement mdp
+                                    </button>
+                                {% else %}
+                                    <input type="hidden" name="enable" value="1">
+                                    <button type="submit" class="btn btn-outline-success btn-sm">
+                                        <i class="bi bi-unlock"></i> Activer changement mdp ({{ password_change_window_minutes }} min)
+                                    </button>
+                                {% endif %}
+                            </form>
+                            {% endif %}
+
+                            {% if user.role == 'vendor' %}
+                                {% if shop %}
+                                    <a href="{{ url_for('admin_users.shop_detail', shop_id=shop.id) }}"
+                                       class="btn btn-outline-primary btn-sm">
+                                        <i class="bi bi-shop"></i> Voir la boutique
+                                    </a>
+                                {% else %}
+                                    <a href="{{ url_for('admin_users.create_shop') }}?vendor_id={{ user.id }}"
+                                       class="btn btn-success btn-sm btn-attention">
+                                        <i class="bi bi-shop"></i> CrÃ©er une boutique
+                                    </a>
+                                {% endif %}
+                            {% endif %}
+
+                            <form method="post"
+                                  action="{{ url_for('admin_users.delete_user', user_id=user.id) }}"
+                                  class="d-inline"
+                                  data-confirm-submit="Etes-vous sur de vouloir supprimer cet utilisateur ? Cette action est irreversible.">
+                                {% include "admin/partials/_csrf.html" %}
+                                <button type="submit" class="btn btn-danger btn-sm">
+                                    <i class="bi bi-trash"></i> Supprimer
+                                </button>
+                            </form>
+                        </div>
+                        <div class="small text-muted mt-2">
+                            AprÃ¨s rÃ©initialisation, le mot de passe temporaire reste visible 30 minutes sur cette page.
+                        </div>
+
+                        <!-- ðŸ”¥ PANEL MOT DE PASSE TEMPORAIRE -->
+                        {% if user.role in ['vendor', 'courier'] %}
+                        <div class="small mt-1 {{ 'text-success' if password_change_window_active else 'text-muted' }}">
+                            {% if password_change_window_active and password_change_allowed_until %}
+                                Fenetre changement mdp active jusqu'au {{ password_change_allowed_until.strftime('%d/%m/%Y %H:%M') }}.
+                            {% else %}
+                                Fenetre changement mdp inactive.
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                        <div id="adminTempPasswordPanel" class="password-container mt-3 {% if not temp_password %}d-none{% endif %}">
+                            <div class="d-flex align-items-center gap-3">
+                                <i class="bi bi-key-fill" style="font-size: 2rem; color: #856404;"></i>
+                                <div style="flex: 1;">
+                                    <div class="fw-bold mb-2">ðŸ” Mot de passe temporaire</div>
+                                    
+                                    <!-- âœ… LE MOT DE PASSE S'AFFICHE ICI -->
+                                    <div class="password-value mb-3" id="adminTempPasswordValue">
+                                        {{ temp_password or 'â€”' }}
+                                    </div>
+                                    
+                                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                                        <button type="button" class="btn btn-sm btn-outline-primary" id="adminTempPasswordCopy">
+                                            <i class="bi bi-clipboard"></i> Copier
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" id="adminTempPasswordClear">
+                                            <i class="bi bi-x-lg"></i> Effacer
+                                        </button>
+                                    </div>
+                                    <div class="small mt-2 fw-semibold text-warning" id="adminTempPasswordTimer"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- âœ… DONNÃ‰ES POUR JAVASCRIPT -->
+                        <div id="passwordData" 
+                             data-user-id="{{ user.id }}"
+                             data-temp-password="{{ temp_password or '' }}"
+                             data-flash-password="{{ flash_password or '' }}"
+                             data-password-placeholder="---"
+                             style="display: none;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Boutique (si vendeur) -->
+        {% if user.role == 'vendor' %}
+        <div class="col-md-6">
+            <div class="card admin-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="bi bi-shop"></i> Boutique
+                    </h5>
+                    {% if shop %}
+                        <a href="{{ url_for('admin_users.shop_detail', shop_id=shop.id) }}" 
+                           class="btn btn-sm btn-outline-primary">
+                            Voir la boutique
+                        </a>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    {% if shop %}
+                        <h6>{{ shop.name }}</h6>
+                        <p class="text-muted">{{ shop.description|truncate(100) }}</p>
+                        
+                        <dl class="row">
+                            <dt class="col-sm-4">Statut</dt>
+                            <dd class="col-sm-8">
+                                <span class="badge bg-{{ 'success' if shop.is_active else 'secondary' }}">
+                                    {{ 'Active' if shop.is_active else 'Inactive' }}
+                                </span>
+                            </dd>
+                            
+                            <dt class="col-sm-4">Email boutique</dt>
+                            <dd class="col-sm-8">{{ shop.contact_email }}</dd>
+                            
+                            <dt class="col-sm-4">TÃ©lÃ©phone boutique</dt>
+                            <dd class="col-sm-8">{{ shop.contact_phone or 'Non renseignÃ©' }}</dd>
+                            
+                            <dt class="col-sm-4">Adresse boutique</dt>
+                            <dd class="col-sm-8">{{ shop.address or 'Non renseignÃ©e' }}</dd>
+                            
+                            <dt class="col-sm-4">Produits</dt>
+                            <dd class="col-sm-8">{{ product_count }} produits</dd>
+                        </dl>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="bi bi-shop display-4 text-muted mb-3"></i>
+                            <h5>Pas encore de boutique</h5>
+                            <p class="text-muted">Cet utilisateur n'a pas encore crÃ©Ã© de boutique.</p>
+                            <a href="{{ url_for('admin_users.create_shop') }}?vendor_id={{ user.id }}" 
+                               class="btn btn-success">
+                                <i class="bi bi-plus-circle"></i> CrÃ©er une boutique
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modal d'Ã©dition -->
+<div class="modal fade" id="editUserModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form method="post" action="{{ url_for('admin_users.update_user', user_id=user.id) }}">
+                {% include "admin/partials/_csrf.html" %}
+                <div class="modal-header">
+                    <h5 class="modal-title">Modifier l'utilisateur</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="username" class="form-label">Nom d'utilisateur</label>
+                            <input type="text" class="form-control" id="username" value="{{ user.username }}" disabled>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="email" class="form-label">Email</label>
+                            <input type="email" class="form-control" id="email" name="email" value="{{ user.email }}" required>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label for="full_name" class="form-label">Nom complet</label>
+                            <input type="text" class="form-control" id="full_name" name="full_name" value="{{ user.full_name or '' }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="phone" class="form-label">TÃ©lÃ©phone</label>
+                            <input type="text" class="form-control" id="phone" name="phone" value="{{ user.phone or '' }}">
+                        </div>
+                        
+                        <div class="col-md-12">
+                            <label for="address" class="form-label">Adresse</label>
+                            <textarea class="form-control" id="address" name="address" rows="2">{{ user.address or '' }}</textarea>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label for="role" class="form-label">RÃ´le</label>
+                            <select class="form-select" id="role" name="role">
+                                <option value="vendor" {% if user.role == 'vendor' %}selected{% endif %}>Vendeur</option>
+                                <option value="courier" {% if user.role == 'courier' %}selected{% endif %}>Livreur</option>
+                                <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Administrateur</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn btn-primary">Enregistrer les modifications</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (function() {
+    'use strict';
+
+    const panel = document.getElementById('adminTempPasswordPanel');
+    const valueEl = document.getElementById('adminTempPasswordValue');
+    const timerEl = document.getElementById('adminTempPasswordTimer');
+    const copyBtn = document.getElementById('adminTempPasswordCopy');
+    const clearBtn = document.getElementById('adminTempPasswordClear');
+    const passwordData = document.getElementById('passwordData');
+
+    if (!panel || !valueEl || !timerEl) return;
+
+    const data = passwordData ? passwordData.dataset : {};
+    const userId = Number(data.userId || 0);
+    const tempFromServer = (data.tempPassword || '').trim();
+    const flashFromServer = (data.flashPassword || '').trim();
+    const placeholder = (data.passwordPlaceholder || '---').trim();
+    const storageKey = `admin.temp_password.user.${userId || 'current'}`;
+    const ttlMs = 30 * 60 * 1000;
+    let timerInterval = null;
+
+    function isPlaceholder(value) {
+      const text = String(value || '').trim().toLowerCase();
+      if (!text) return true;
+      return text === placeholder.toLowerCase() || text === '?' || text === '-';
+    }
+
+    function savePassword(password) {
+      if (isPlaceholder(password)) return null;
+      const payload = { password, expiresAt: Date.now() + ttlMs };
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(payload));
+        return payload;
+      } catch (error) {
+        return null;
+      }
+    }
+
+    function loadPassword() {
+      try {
+        const raw = localStorage.getItem(storageKey);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        if (!parsed || !parsed.expiresAt || parsed.expiresAt <= Date.now()) {
+          localStorage.removeItem(storageKey);
+          return null;
+        }
+        return parsed;
+      } catch (error) {
+        return null;
+      }
+    }
+
+    function clearStoredPassword() {
+      try { localStorage.removeItem(storageKey); } catch (error) {}
+    }
+
+    function hidePanel() {
+      panel.classList.add('d-none');
+      valueEl.textContent = placeholder;
+      timerEl.textContent = '';
+      if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+      }
+    }
+
+    function renderTimer(expiresAt) {
+      const remaining = expiresAt - Date.now();
+      if (remaining <= 0) {
+        clearStoredPassword();
+        hidePanel();
+        return;
+      }
+      const minutes = Math.floor(remaining / 60000);
+      const seconds = Math.floor((remaining % 60000) / 1000);
+      timerEl.textContent = `Expire dans ${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }
+
+    function showPassword(password) {
+      if (isPlaceholder(password)) {
+        hidePanel();
+        return;
+      }
+      valueEl.textContent = password;
+      panel.classList.remove('d-none');
+
+      const saved = savePassword(password);
+      if (!saved) return;
+
+      if (timerInterval) clearInterval(timerInterval);
+      timerInterval = setInterval(function() { renderTimer(saved.expiresAt); }, 1000);
+      renderTimer(saved.expiresAt);
+    }
+
+    function extractPasswordFromAlerts() {
+      const alerts = document.querySelectorAll('.alert, .alert-custom, .alert-warning, .flash-message');
+      const patterns = [
+        /Nouveau mot de passe[:\s]+([A-Za-z0-9-]+)/i,
+        /mot[-\s]*de[-\s]*passe[:\s]+([A-Za-z0-9-]+)/i,
+        /password[:\s]+([A-Za-z0-9-]+)/i,
+        /([a-z]+-[a-z]+-\d{4})/i
+      ];
+      for (const alert of alerts) {
+        const text = alert.textContent || '';
+        for (const pattern of patterns) {
+          const match = text.match(pattern);
+          if (match && match[1]) return match[1];
+        }
+      }
+      return '';
+    }
+
+    function initPasswordPanel() {
+      if (!isPlaceholder(tempFromServer)) {
+        showPassword(tempFromServer);
+        return;
+      }
+      if (!isPlaceholder(flashFromServer)) {
+        showPassword(flashFromServer);
+        return;
+      }
+
+      const flashExtracted = extractPasswordFromAlerts();
+      if (!isPlaceholder(flashExtracted)) {
+        showPassword(flashExtracted);
+        return;
+      }
+
+      const stored = loadPassword();
+      if (stored && !isPlaceholder(stored.password)) {
+        valueEl.textContent = stored.password;
+        panel.classList.remove('d-none');
+        if (timerInterval) clearInterval(timerInterval);
+        timerInterval = setInterval(function() { renderTimer(stored.expiresAt); }, 1000);
+        renderTimer(stored.expiresAt);
+        return;
+      }
+
+      hidePanel();
+    }
+
+    if (copyBtn) {
+      copyBtn.addEventListener('click', function() {
+        const password = (valueEl.textContent || '').trim();
+        if (isPlaceholder(password)) {
+          window.alert('Aucun mot de passe a copier');
+          return;
+        }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(password).then(function() {
+            const original = copyBtn.innerHTML;
+            copyBtn.innerHTML = '<i class="bi bi-check2"></i> Copie';
+            copyBtn.classList.remove('btn-outline-primary');
+            copyBtn.classList.add('btn-success');
+            setTimeout(function() {
+              copyBtn.innerHTML = original;
+              copyBtn.classList.remove('btn-success');
+              copyBtn.classList.add('btn-outline-primary');
+            }, 1800);
+          }).catch(function() {
+            window.alert('Copie impossible. Utilisez Ctrl+C.');
+          });
+        } else {
+          window.alert('Copie non supportee. Utilisez Ctrl+C.');
+        }
+      });
+    }
+
+    if (clearBtn) {
+      clearBtn.addEventListener('click', function() {
+        if (!window.confirm('Effacer le mot de passe temporaire ?')) return;
+        clearStoredPassword();
+        hidePanel();
+      });
+    }
+
+    window.addEventListener('beforeunload', function() {
+      if (timerInterval) clearInterval(timerInterval);
+    });
+
+    initPasswordPanel();
+  })();
+</script>
+{% endblock %}
+

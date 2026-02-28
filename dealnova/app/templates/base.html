@@ -1,0 +1,697 @@
+﻿{% set rtl_enabled = current_lang in (rtl_langs or []) %}
+{% set home_tabs_enabled = config.get('UI_HOME_TABS_ENABLED', True) and request and request.endpoint in ['landing', 'shop.home'] %}
+<!doctype html>
+<html lang="{{ current_lang or 'fr' }}" dir="{{ 'rtl' if rtl_enabled else 'ltr' }}" data-bs-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+  <title>{% block title %}{{ config.SITE_NAME }}{% endblock %}</title>
+
+  <!-- Bootstrap 5 -->
+  <link href="{{ url_for('static', filename='vendor/bootstrap/5.3.3/css/bootstrap.min.css') }}" rel="stylesheet">
+  <!-- Bootstrap Icons -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons/1.11.1/font/bootstrap-icons.css') }}">
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fontawesome/6.4.0/css/all.min.css') }}">
+  <!-- Google Fonts -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='fonts/public.css') }}">
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/ui_shell.css', v=app_static_version) }}">
+
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  {% set preload_logo = config.get('SITE_LOGO') %}
+  {% if preload_logo and not preload_logo.startswith('http') %}
+  <link rel="preload" as="image" href="{{ url_for('static', filename=preload_logo) }}">
+  {% endif %}
+  <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+  <meta name="theme-color" content="#10B981">
+  <script src="{{ url_for('static', filename='js/live.js', v=app_static_version) }}" defer></script>
+  <script src="{{ url_for('static', filename='js/i18n.js', v=app_static_version) }}" defer></script>
+  <script src="{{ url_for('static', filename='js/ajax_pagination.js', v=app_static_version) }}" defer></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/ui_drawer_glass.css', v=app_static_version) }}">
+  <script src="{{ url_for('static', filename='js/ui_drawer.js', v=app_static_version) }}" defer></script>
+  {% if home_tabs_enabled %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/ui_home_tabs.css', v=app_static_version) }}">
+  <script src="{{ url_for('static', filename='js/ui_home_tabs.js', v=app_static_version) }}" defer></script>
+  {% endif %}
+  {% block head %}{% endblock %}
+</head>
+
+<body data-lang="{{ current_lang }}" data-rtl-langs="{{ (rtl_langs or [])|join(',') }}" data-static-version="{{ app_static_version }}" dir="{{ 'rtl' if rtl_enabled else 'ltr' }}" {% block body_attrs %}{% endblock %}>
+{% set lang_labels = {"fr": "Français", "en": "English", "ary": "Darija"} %}
+{% set lang_codes = {"fr": "FR", "en": "EN", "ary": "DA"} %}
+{% set current_lang_label = lang_labels.get(current_lang, "Français") %}
+{% set current_lang_code = lang_codes.get(current_lang, "FR") %}
+
+  <!-- NAVBAR -->
+  <nav class="navbar navbar-expand-lg navbar-dark fixed-top">
+    <div class="container-fluid">
+      <button class="navbar-toggler" type="button"
+              data-bs-toggle="collapse" data-bs-target="#mainNavbar"
+              aria-controls="mainNavbar" aria-expanded="false" aria-label="Ouvrir le menu">
+        <span class="menu-toggle-icon" aria-hidden="true"></span>
+        <span class="menu-toggle-label">Menu</span>
+        <span class="menu-help-bubble" id="menuHelpBubble" role="status" aria-live="polite"> Cliquez ici pour voir le menu</span>
+      </button>
+
+      <!-- Brand -->
+      <a class="navbar-brand" href="{{ url_for('landing') }}">
+        {% set site_logo = config.get('SITE_LOGO') %}
+        <span class="brand-mark has-logo">
+          {% if site_logo %}
+            {% if site_logo.startswith('http') %}
+              <img src="{{ site_logo }}" alt="{{ config.SITE_NAME }} logo" loading="lazy">
+            {% else %}
+              <img src="{{ url_for('static', filename=site_logo) }}" alt="{{ config.SITE_NAME }} logo" loading="lazy">
+            {% endif %}
+          {% else %}
+            <img src="{{ url_for('static', filename='logo.png') }}" alt="{{ config.SITE_NAME }} logo" loading="lazy">
+          {% endif %}
+        </span>
+        <span class="brand-text">{{ config.SITE_NAME }}</span>
+      </a>
+
+     <!-- Right icons --> 
+{% if not current_user.is_authenticated or current_user.role != "vendor" %}
+<div class="nav-icons" data-nav-badges data-cart-attn-seconds="60">
+  <a href="{{ url_for('cart.view') }}" class="icon-btn" aria-label="Panier" data-cart-icon>
+    <i class="bi bi-cart3"></i>
+    <span class="cart-badge{% if (cart_count or 0)|int <= 0 %} d-none{% endif %}"
+          data-cart-badge
+          data-cart-count="{{ (cart_count or 0)|int }}">
+      {{ (cart_count or 0)|int }}
+    </span>
+  </a>
+  
+  <a href="{{ url_for('cart.track_by_phone') }}" class="icon-btn" aria-label="Suivi commande" data-track-icon>
+    <i class="bi bi-truck"></i>
+    <span class="track-badge d-none" data-track-badge data-track-active="0" aria-hidden="true"></span>
+  </a>
+</div>
+{% endif %}
+
+
+          <!-- Collapse -->
+      <div class="collapse navbar-collapse" id="mainNavbar" role="dialog" aria-label="Menu principal">
+        {% set vendor_shop = current_user.shop if current_user.is_authenticated and current_user.role == "vendor" else None %}
+        {% set vendor_allows_products = vendor_shop and vendor_shop.allows('products') %}
+        {% set vendor_allows_services = vendor_shop and vendor_shop.allows('services') %}
+        {% set vendor_allows_location = vendor_shop and vendor_shop.allows('location') %}
+        {% set vendor_allows_catalog = vendor_allows_products or vendor_allows_services %}
+        {% set vendor_catalog_label = 'Mes services' if vendor_allows_services and not vendor_allows_products else 'Mes produits' %}
+        {% set vendor_new_label = 'Nouveau service' if vendor_allows_services and not vendor_allows_products else 'Nouveau' %}
+        <!-- Mobile menu (hybrid) -->
+        <div class="mobile-menu d-lg-none">
+          <div class="drawer-top">
+            <div class="drawer-brand">
+              <span class="drawer-brand-avatar"><img src="{{ url_for('static', filename='logo.png') }}" alt="{{ config.SITE_NAME }} logo" loading="lazy"></span>
+              <div class="drawer-brand-meta">
+                <strong>Baba Market</strong>
+                <small>Marketplace</small>
+              </div>
+            </div>
+            <button type="button" class="drawer-close-btn" id="drawerCloseBtn" aria-label="Fermer le menu">
+              <i class="bi bi-x-lg"></i>
+            </button>
+          </div>
+          <div class="drawer-rail" aria-hidden="true"></div>
+
+          {% if not current_user.is_authenticated or current_user.role != "vendor" %}
+          <div class="menu-section">
+            <div class="menu-title">Commandes</div>
+            <div class="quick-actions">
+              <a class="qa-card qa-primary" href="{{ url_for('cart.view') }}">
+                <span class="qa-icon"><i class="bi bi-cart3"></i></span>
+                <span>Panier</span>
+                <span class="qa-badge{% if (cart_count or 0)|int <= 0 %} d-none{% endif %}" data-drawer-cart-badge>
+                  {{ (cart_count or 0)|int }}
+                </span>
+              </a>
+              <a class="qa-card qa-secondary" href="{{ url_for('cart.track_by_phone') }}">
+                <span class="qa-icon"><i class="bi bi-truck"></i></span>
+                <span>Suivi</span>
+                <span class="qa-track-dot d-none" data-drawer-track-badge aria-hidden="true"></span>
+              </a>
+            </div>
+          </div>
+          {% endif %}
+
+
+        {% if not current_user.is_authenticated or current_user.role != "vendor" %}
+<div class="menu-section"> 
+  <div class="menu-title">Découvrir</div>
+  <ul class="menu-links">
+    <li>
+      <a class="menu-link drawer-link" href="{{ url_for('landing') }}">
+        <i class="bi bi-house-door-fill"></i><span>Accueil</span>
+      </a>
+    </li>
+
+    <li>
+      <a class="menu-link drawer-link" href="{{ url_for('shop.home') }}">
+        <i class="bi bi-bag-check"></i><span>Produits & Services</span>
+      </a>
+    </li>
+    <li>
+      <a class="menu-link drawer-link" href="{{ url_for('shops.list_shops') }}">
+        <i class="bi bi-shop-window"></i><span>Boutiques</span>
+      </a>
+    </li>
+    <li>
+      <a class="menu-link drawer-link" href="{{ url_for('rentals.locations_home') }}">
+        <i class="bi bi-house-door"></i><span>Hébergements</span>
+      </a>
+    </li>
+    <li>
+      <a class="menu-link drawer-link" href="{{ url_for('delivery_special.delivery_form') }}">
+        <i class="bi bi-truck"></i><span>Envoyer un colis</span>
+      </a>
+    </li>
+  </ul>
+</div>
+
+<div class="menu-section">
+  <div class="menu-title">Recherche</div>
+  <ul class="menu-links">
+    <li>
+      <a class="menu-link drawer-link" href="{{ url_for('global_search') }}">
+        <i class="bi bi-search"></i><span>Recherche</span>
+      </a>
+    </li>
+  </ul>
+</div>
+{% endif %}
+
+
+          <div class="menu-section">
+            <div class="menu-title">Connexion</div>
+            <ul class="menu-links">
+              {% if current_user.is_authenticated and current_user.role == 'admin' %}
+              <li>
+                <a class="menu-link" href="{{ url_for('admin_users.admin_dashboard') }}">
+                  <i class="bi bi-shield-lock"></i><span>Admin</span>
+                </a>
+              </li>
+              {% endif %}
+
+              {% if current_user.is_authenticated and current_user.role == 'vendor' %}
+              <li>
+                <a class="menu-link" href="{{ url_for('vendor.manage_shop') }}">
+                  <i class="fas fa-store"></i><span>Ma boutique</span>
+                </a>
+              </li>
+              {% if vendor_allows_catalog %}
+              <li>
+                <a class="menu-link" href="{{ url_for('vendor.dashboard') }}">
+                  <i class="bi bi-box-seam"></i><span>{{ vendor_catalog_label }}</span>
+                </a>
+              </li>
+              <li>
+                <a class="menu-link" href="{{ url_for('vendor.product_new') }}">
+                  <i class="bi bi-plus-circle"></i><span>{{ vendor_new_label }}</span>
+                </a>
+              </li>
+              {% endif %}
+              {% if vendor_allows_products %}
+              <li>
+                <a class="menu-link" href="{{ url_for('vendor.earnings') }}">
+                  <i class="bi bi-wallet2"></i><span>Encaissements</span>
+                </a>
+              </li>
+              <li>
+                <a class="menu-link" href="{{ url_for('vendor.periods') }}">
+                  <i class="bi bi-calendar3"></i><span>Périodes</span>
+                </a>
+              </li>
+              <li>
+                <a class="menu-link" href="{{ url_for('vendor.security') }}">
+                  <i class="bi bi-shield-lock"></i><span>Sécurité historique</span>
+                </a>
+              </li>
+              {% endif %}
+              {% if vendor_allows_location %}
+              <li>
+                <a class="menu-link" href="{{ url_for('rentals.owner_locations') }}">
+                  <i class="bi bi-house-door"></i><span>Locations</span>
+                </a>
+              </li>
+              <li>
+                <a class="menu-link" href="{{ url_for('rentals.owner_locations_archives') }}">
+                  <i class="bi bi-archive"></i><span>Archives locations</span>
+                </a>
+              </li>
+              {% endif %}
+              {% endif %}
+
+              {% if current_user.is_authenticated %}
+              <li>
+                <div class="menu-user">
+                  <span class="menu-avatar">{{ current_user.username[0]|upper }}</span>
+                  <span>{{ current_user.username|truncate(14) }}</span>
+                </div>
+              </li>
+              <li>
+                <form method="post" action="{{ url_for('auth.logout') }}" class="d-inline w-100">
+                  {% include "partials/_csrf.html" %}
+                  <button type="submit" class="menu-link text-danger w-100 menu-link-danger">
+                    <i class="bi bi-box-arrow-right"></i><span>Déconnexion</span>
+                  </button>
+                </form>
+              </li>
+              {% else %}
+              <li>
+                <a class="menu-link" href="{{ url_for('auth.login') }}">
+                  <i class="bi bi-box-arrow-in-right"></i><span>Connexion</span>
+                </a>
+              </li>
+              {% endif %}
+            </ul>
+          </div>
+
+          <div class="menu-section">
+            <div class="menu-title">Langue</div>
+            <div class="lang-current">
+              <span class="lang-current-label">Langue actuelle</span>
+              <span class="lang-current-name">{{ current_lang_label }}</span>
+              <span class="lang-current-badge" data-no-i18n>{{ current_lang_code }}</span>
+            </div>
+            <div class="menu-lang-grid">
+              <a class="menu-lang-option" href="{{ url_for('set_language_route', lang_code='fr') }}" data-lang-switch="fr" data-stop-nav>
+                <span>Français</span>
+                <span class="menu-lang-badge" data-no-i18n>FR</span>
+              </a>
+              <a class="menu-lang-option" href="{{ url_for('set_language_route', lang_code='en') }}" data-lang-switch="en" data-stop-nav>
+                <span>English</span>
+                <span class="menu-lang-badge" data-no-i18n>EN</span>
+              </a>
+              <a class="menu-lang-option" href="{{ url_for('set_language_route', lang_code='ary') }}" data-lang-switch="ary" data-stop-nav>
+                <span>Darija</span>
+                <span class="menu-lang-badge" data-no-i18n>DA</span>
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Left nav -->
+        <ul class="navbar-nav me-auto mb-2 mb-lg-0 d-none d-lg-flex">
+          {% if not current_user.is_authenticated or current_user.role != "vendor" %}
+          <li class="nav-item">
+            <a class="nav-link" href="{{ url_for('landing') }}">
+              <i class="bi bi-house-door-fill"></i><span>Accueil</span>
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="{{ url_for('shop.home') }}">
+              <i class="bi bi-shop"></i><span>Produits</span>
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="{{ url_for('shops.list_shops') }}">
+              <i class="bi bi-shop-window"></i><span>Boutiques</span>
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="{{ url_for('rentals.locations_home') }}">
+              <i class="bi bi-house-door"></i><span>Locations</span>
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="{{ url_for('delivery_special.delivery_form') }}">
+              <i class="bi bi-truck"></i><span>Livraison</span>
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="{{ url_for('global_search') }}">
+              <i class="bi bi-search"></i><span>Recherche</span>
+            </a>
+          </li>
+          {% endif %}
+        </ul>
+
+        <!-- Right nav -->
+        <ul class="navbar-nav mb-2 mb-lg-0 d-none d-lg-flex">
+          <!-- Admin Button -->
+          {% if current_user.is_authenticated and current_user.role == 'admin' %}
+          <li class="nav-item">
+            <a class="nav-link btn btn-outline-primary d-flex align-items-center"
+               href="{{ url_for('admin_users.admin_dashboard') }}">
+              <i class="bi bi-shield-lock me-2"></i> Admin
+            </a>
+          </li>
+          {% endif %}
+          
+          <!-- Vendor Dropdown -->
+          {% if current_user.is_authenticated and current_user.role == 'vendor' %}
+          <li class="nav-item dropdown">
+            <a class="nav-link vendor-btn dropdown-toggle" href="#" role="button"
+               data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="fas fa-store"></i><span>Vendeur</span>
+            </a>
+            <ul class="dropdown-menu dropdown-menu-end">
+              <li>
+                <a class="dropdown-item" href="{{ url_for('vendor.manage_shop') }}">
+                  <i class="bi bi-shop-window text-primary"></i> Ma boutique
+                </a>
+              </li>
+              {% if vendor_allows_catalog %}
+              <li><h6 class="dropdown-header">Produits</h6></li>
+              <li>
+                <a class="dropdown-item" href="{{ url_for('vendor.dashboard') }}">
+                  <i class="bi bi-box-seam text-primary"></i> {{ vendor_catalog_label }}
+                </a>
+              </li>
+              <li>
+                <a class="dropdown-item" href="{{ url_for('vendor.product_new') }}">
+                  <i class="bi bi-plus-circle text-success"></i> {{ vendor_new_label }}
+                </a>
+              </li>
+              {% endif %}
+              {% if vendor_allows_products %}
+              <li><h6 class="dropdown-header">Ventes</h6></li>
+              <li>
+                <a class="dropdown-item" href="{{ url_for('vendor.earnings') }}">
+                  <i class="bi bi-currency-exchange text-success"></i> Encaissements
+                </a>
+              </li>
+              <li>
+                <a class="dropdown-item" href="{{ url_for('vendor.periods') }}">
+                  <i class="bi bi-calendar3 text-primary"></i> Périodes
+                </a>
+              </li>
+              <li>
+                <a class="dropdown-item" href="{{ url_for('vendor.security') }}">
+                  <i class="bi bi-shield-lock text-warning"></i> Sécurité historique
+                </a>
+              </li>
+              {% endif %}
+              {% if vendor_allows_location %}
+              <li><h6 class="dropdown-header">Location</h6></li>
+              <li>
+                <a class="dropdown-item" href="{{ url_for('rentals.owner_locations') }}">
+                  <i class="bi bi-house-door text-primary"></i> Mes locations
+                </a>
+              </li>
+              <li>
+                <a class="dropdown-item" href="{{ url_for('rentals.owner_locations_archives') }}">
+                  <i class="bi bi-archive text-secondary"></i> Archives locations
+                </a>
+              </li>
+              <li>
+                <a class="dropdown-item" href="{{ url_for('rentals.owner_location_new') }}">
+                  <i class="bi bi-plus-circle text-success"></i> Nouvelle annonce
+                </a>
+              </li>
+              {% endif %}
+            </ul>
+          </li>
+          {% endif %}
+
+          <li class="nav-item dropdown lang-switcher">
+            <a class="nav-link lang-pill dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <span class="lang-icon"><i class="bi bi-translate"></i></span>
+              <span class="lang-title d-none d-xl-inline">Langue</span>
+              <span class="lang-badge" data-no-i18n>{{ current_lang_code }}</span>
+            </a>
+            <ul class="dropdown-menu dropdown-menu-end lang-menu">
+              <li class="px-3 pb-2">
+                <div class="lang-current">
+                  <span class="lang-current-label">Actuelle</span>
+                  <span class="lang-current-name">{{ current_lang_label }}</span>
+                  <span class="lang-current-badge" data-no-i18n>{{ current_lang_code }}</span>
+                </div>
+              </li>
+              <li>
+                <a class="dropdown-item d-flex align-items-center {{ 'active' if current_lang == 'fr' else '' }}" href="{{ url_for('set_language_route', lang_code='fr') }}" data-lang-switch="fr" data-stop-nav>
+                  <span><i class="bi bi-translate me-2"></i> Français</span>
+                  <span class="lang-tag" data-no-i18n>FR</span>
+                </a>
+              </li>
+              <li>
+                <a class="dropdown-item d-flex align-items-center {{ 'active' if current_lang == 'en' else '' }}" href="{{ url_for('set_language_route', lang_code='en') }}" data-lang-switch="en" data-stop-nav>
+                  <span><i class="bi bi-translate me-2"></i> English</span>
+                  <span class="lang-tag" data-no-i18n>EN</span>
+                </a>
+              </li>
+              <li>
+                <a class="dropdown-item d-flex align-items-center {{ 'active' if current_lang == 'ary' else '' }}" href="{{ url_for('set_language_route', lang_code='ary') }}" data-lang-switch="ary" data-stop-nav>
+                  <span><i class="bi bi-translate me-2"></i> Darija</span>
+                  <span class="lang-tag" data-no-i18n>DA</span>
+                </a>
+              </li>
+            </ul>
+          </li>
+          
+          <!-- User Dropdown -->
+          {% if current_user.is_authenticated %}
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle d-flex align-items-center gap-2" href="#" role="button"
+               data-bs-toggle="dropdown" aria-expanded="false">
+              <div class="rounded-circle bg-white d-flex align-items-center justify-content-center" 
+                   style="width: 2.25rem; height: 2.25rem; color: var(--primary-green); font-weight: bold;">
+                {{ current_user.username[0]|upper }}
+              </div>
+              <span class="d-none d-xl-inline">{{ current_user.username|truncate(12) }}</span>
+            </a>
+            <ul class="dropdown-menu dropdown-menu-end">
+              <li>
+                <div class="dropdown-header">
+                  <strong>{{ current_user.username }}</strong>
+                  <div class="small mt-1">
+                    {% if current_user.role == 'admin' %}
+                      <span class="badge bg-danger">Admin</span>
+                    {% elif current_user.role == 'vendor' %}
+                      <span class="badge bg-info">Vendeur</span>
+                    {% elif current_user.role == 'courier' %}
+                      <span class="badge bg-primary">Livreur</span>
+                    {% else %}
+                      <span class="badge bg-secondary">Utilisateur</span>
+                    {% endif %}
+                  </div>
+                </div>
+              </li>
+              <li><hr class="dropdown-divider"></li>
+              
+              <li>
+                <form method="post" action="{{ url_for('auth.logout') }}" class="d-inline">
+                  {% include "partials/_csrf.html" %}
+                  <button type="submit" class="dropdown-item text-danger">
+                    <i class="bi bi-box-arrow-right"></i> Dconnexion
+                  </button>
+                </form>
+              </li>
+            </ul>
+          </li>
+          
+          <!-- Login/Register -->
+          {% else %}
+          <li class="nav-item">
+            <a class="nav-link" href="{{ url_for('auth.login') }}">
+              <i class="bi bi-box-arrow-in-right"></i><span>Connexion</span>
+            </a>
+          </li>
+          {% endif %}
+        </ul>
+
+        <!-- Desktop search -->
+        <form class="nav-search d-none d-lg-block ms-lg-3" action="{{ url_for('shop.home') }}" role="search" style="max-width: 26.25rem;">
+          <div class="input-group">
+            <span class="input-group-text"><i class="bi bi-search"></i></span>
+            <input class="form-control" name="q" type="search"
+                   placeholder="Rechercher..." aria-label="Rechercher">
+          </div>
+        </form>
+      </div>
+    </div>
+  </nav>
+  <div class="drawer-overlay d-lg-none"
+       id="drawerOverlay"
+       aria-hidden="true"></div>
+
+  <div id="offlineBanner" class="offline-banner" role="status" aria-live="polite">Hors connexion - mode lecture</div>
+  <form id="langSwitchForm" method="post" class="d-none" aria-hidden="true">
+    {% include "partials/_csrf.html" %}
+    <input type="hidden" name="next" id="langSwitchNext" value="{{ request.full_path if request else '/' }}">
+  </form>
+
+  {% if home_tabs_enabled %}
+  <nav class="home-bottom-tabs d-lg-none" data-home-bottom-tabs aria-label="Navigation principale mobile">
+    <a href="{{ url_for('landing') }}" class="home-tab {{ 'is-active' if request.endpoint == 'landing' else '' }}" data-tab-key="home">
+      <i class="bi bi-house-door-fill"></i>
+      <span>Accueil</span>
+    </a>
+    <a href="{{ url_for('global_search') }}" class="home-tab {{ 'is-active' if request.endpoint == 'global_search' else '' }}" data-tab-key="search">
+      <i class="bi bi-search"></i>
+      <span>Recherche</span>
+    </a>
+    <a href="{{ url_for('delivery_special.delivery_form') }}" class="home-tab {{ 'is-active' if request.endpoint == 'delivery_special.delivery_form' else '' }}" data-tab-key="delivery">
+      <i class="bi bi-truck"></i>
+      <span>Livraison express</span>
+    </a>
+  </nav>
+  {% endif %}
+
+  <button class="back-fab" type="button" data-fallback="{{ url_for('landing') }}" aria-label="Retour">
+    <i class="bi bi-arrow-left"></i>
+    <span>Retour</span>
+  </button>
+
+  <!-- MAIN CONTENT -->
+  <main class="{{ 'has-home-tabs' if home_tabs_enabled else '' }}">
+    <div class="container-fluid">
+      <div id="pageContent">
+        <!-- Flash Messages -->
+        {% with msgs = get_flashed_messages(with_categories=true) %}
+          {% if msgs %}
+            {% for cat, msg in msgs %}
+            <div class="alert alert-{{ cat }} alert-dismissible fade show fade-in-up" role="alert">
+              <div class="d-flex align-items-center">
+                <i class="bi 
+                  {% if cat == 'success' %}bi-check-circle-fill text-success
+                  {% elif cat == 'danger' %}bi-exclamation-circle-fill text-danger
+                  {% elif cat == 'warning' %}bi-exclamation-triangle-fill text-warning
+                  {% else %}bi-info-circle-fill text-info{% endif %} me-3">
+                </i>
+                <div>{{ msg }}</div>
+              </div>
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <!-- Content Block -->
+        {% block content %}{% endblock %}
+      </div>
+    </div>
+  </main>
+
+  {% if request.endpoint == 'landing' %}
+  <!-- FOOTER -->
+  <footer class="footer d-block d-lg-none">
+    <div class="container-fluid">
+      <div class="row g-4">
+        <!-- Brand Info -->
+        <div class="col-lg-4 col-md-6">
+          <div class="footer-brand d-flex align-items-center gap-2">
+            <img src="{{ url_for('static', filename='logo.png') }}"
+                 alt="{{ config.SITE_NAME }}"
+                 loading="lazy">
+            <span>{{ config.SITE_NAME }}</span>
+          </div>
+          <p class="text-light opacity-75 mb-3" style="font-weight: 500;">
+            Livraison rapide  Rabat & Sal-Tmara-Kenitra avec paiement  la livraison.
+          </p>
+          <div class="footer-social">
+            <a href="https://www.facebook.com/share/v/1Aokzj7kPg/" aria-label="Facebook" target="_blank" rel="noopener">
+              <i class="bi bi-facebook"></i>
+            </a>
+            <a href="https://wa.me/212602908954" aria-label="WhatsApp" target="_blank" rel="noopener">
+              <i class="bi bi-whatsapp"></i>
+            </a>
+          </div>
+        </div>
+
+        <!-- Contact Info -->
+        <div class="col-lg-4 col-md-6">
+          <h6>Contact</h6>
+          <div class="d-flex flex-column gap-2">
+            <div class="d-flex align-items-center gap-2 text-light opacity-75">
+              <i class="bi bi-geo-alt"></i>
+              <span>Rabat & Sal, Maroc</span>
+            </div>
+            <div class="d-flex align-items-center gap-2 text-light opacity-75">
+              <i class="bi bi-clock"></i>
+              <span>Lun - Dim: 8h - 2h</span>
+            </div>
+            <div class="d-flex align-items-center gap-2 text-light opacity-75">
+              <i class="bi bi-truck"></i>
+              <span>Livraison 24h/24</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Copyright -->
+      <div class="row mt-4 pt-3 border-top border-secondary">
+        <div class="col-12 text-center">
+          <p class="text-light opacity-75 mb-0 small">
+            &copy; 2026 {{ config.SITE_NAME }} - Tous droits réservés.
+          </p>
+        </div>
+      </div>
+    </div>
+  </footer>
+  {% endif %}
+
+  <!-- Install Banner (soft) -->
+  <div id="installBanner" class="pwa-banner hidden" role="status" aria-live="polite">
+    <div class="pwa-banner__text">
+      <strong>Installez Baba Market</strong>
+      <span>Accès instantané. Moins d'attente. Plus efficace.</span>
+    </div>
+    <div class="pwa-banner__actions">
+      <button id="pwaBannerInstall" class="pwa-btn primary" type="button">Installer</button>
+      <button id="pwaHowBtn" class="pwa-btn ghost hidden" type="button">Comment installer</button>
+      <button id="pwaBannerLater" class="pwa-btn ghost" type="button">Plus tard</button>
+    </div>
+  </div>
+
+  <div id="androidInstallBar" class="install-bar hidden" role="dialog" aria-label="Installer Baba Market">
+    <div class="install-bar__text">
+      <div class="install-bar__title">📲 Installez Baba Market</div>
+      <div class="install-bar__sub">Accès instantané, plus rapide, plus fluide.</div>
+    </div>
+
+    <button id="androidInstallBtn" class="install-btn" type="button">Installer maintenant</button>
+    <button id="androidInstallClose" class="install-close" type="button" aria-label="Fermer">✕</button>
+  </div>
+
+  <!-- Install Popup (1/day) -->
+  <div id="installModal" class="pwa-modal hidden" role="dialog" aria-modal="true" aria-labelledby="pwaInstallTitle">
+    <div class="pwa-modal__card">
+      <h3 id="pwaInstallTitle">📲 Accédez à Baba Market en un seul clic</h3>
+      <p class="pwa-modal__value">Accès instantané. Moins d'attente. Plus efficace.</p>
+      <p>Installez l'application sur votre écran d'accueil pour un accès plus rapide et plus fluide.</p>
+      <p class="pwa-modal__steps-lead">Installation en 10 secondes 👇</p>
+
+      <div id="iosHint" class="pwa-ios-hint hidden">
+        <p class="pwa-ios-title">🍏 Sur iPhone (Safari) :</p>
+        <ol class="pwa-ios-steps">
+          <li>
+            Dans Safari, appuyez sur le bouton
+            <span class="pwa-share-inline">
+              <span class="pwa-share-icon" aria-hidden="true">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 3v12"/>
+                  <path d="M8 7l4-4 4 4"/>
+                  <path d="M5 13v6h14v-6"/>
+                </svg>
+              </span>
+              <b>Partager</b>
+            </span>
+            (icône carré avec flèche vers le haut)
+          </li>
+          <li>Sélectionnez <b>➕ Sur l'écran d'accueil</b></li>
+          <li>Appuyez sur <b>✅ Ajouter</b></li>
+        </ol>
+        <p class="pwa-ios-end">Baba Market sera accessible directement depuis votre téléphone.</p>
+      </div>
+
+      <div class="pwa-modal__actions">
+        <button id="pwaModalInstall" class="pwa-btn primary" type="button">Installer</button>
+        <button id="pwaModalLater" class="pwa-btn ghost" type="button">Plus tard</button>
+        <button id="pwaModalToday" class="pwa-btn subtle" type="button">Ne plus afficher aujourd'hui</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="{{ url_for('static', filename='vendor/bootstrap/5.3.3/js/bootstrap.bundle.min.js') }}"></script>
+
+    <script src="{{ url_for('static', filename='js/ui_shell.js', v=app_static_version) }}"></script>
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>
+
+

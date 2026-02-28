@@ -1,0 +1,32 @@
+<section class="users-card">
+  <div class="users-card-header">
+    <h5>Filtres & recherche</h5>
+    <span class="text-muted small">Affinez la liste des utilisateurs</span>
+  </div>
+  <form method="get">
+    <div class="filter-grid">
+      <div>
+        <label for="search" class="form-label">Rechercher</label>
+        <input type="text" class="form-control" id="search" name="search"
+               value="{{ search }}" placeholder="Nom, email, telephone...">
+      </div>
+      <div>
+        <label for="role" class="form-label">Role</label>
+        <select class="form-select" id="role" name="role">
+          <option value="">Tous les roles</option>
+          <option value="vendor" {% if role_filter == 'vendor' %}selected{% endif %}>Vendeur</option>
+          <option value="courier" {% if role_filter == 'courier' %}selected{% endif %}>Livreur</option>
+          <option value="admin" {% if role_filter == 'admin' %}selected{% endif %}>Admin</option>
+        </select>
+      </div>
+      <div class="filter-actions">
+        <button type="submit" class="btn btn-primary">
+          <i class="bi bi-filter"></i> Filtrer
+        </button>
+        <a href="{{ url_for('admin_users.manage_users') }}" class="btn btn-outline-secondary">
+          <i class="bi bi-x-circle"></i> Reinitialiser
+        </a>
+      </div>
+    </div>
+  </form>
+</section>

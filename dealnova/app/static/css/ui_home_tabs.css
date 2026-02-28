@@ -1,0 +1,134 @@
+/* Home-only bottom tabs (mobile shell) */
+:root {
+  --home-tab-bg: rgba(255, 255, 255, 0.18);
+  --home-tab-border: rgba(255, 255, 255, 0.24);
+  --home-tab-shadow: 0 18px 34px rgba(4, 20, 16, 0.22);
+  --home-tab-active: linear-gradient(140deg, #0e7c66, #0a5f4f);
+  --home-tab-text: #eafff8;
+  --home-tab-text-muted: rgba(234, 255, 248, 0.82);
+}
+
+.home-bottom-tabs {
+  position: fixed;
+  left: 50%;
+  bottom: calc(0.62rem + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  width: min(95vw, 33.25rem);
+  z-index: 1032;
+  display: grid;
+  grid-template-columns: 1.18fr 1.18fr 1fr;
+  gap: 0.36rem;
+  padding: 0.4rem;
+  border-radius: 1.18rem;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.26), rgba(255, 255, 255, 0.08)),
+    radial-gradient(130% 120% at 5% 0%, rgba(255, 255, 255, 0.24), transparent 45%),
+    linear-gradient(155deg, rgba(14, 124, 102, 0.75), rgba(8, 78, 63, 0.78));
+  border: 1px solid var(--home-tab-border);
+  box-shadow: var(--home-tab-shadow);
+  backdrop-filter: blur(16px) saturate(120%);
+  -webkit-backdrop-filter: blur(16px) saturate(120%);
+}
+
+.home-bottom-tabs .home-tab[data-tab-key="home"],
+.home-bottom-tabs .home-tab[data-tab-key="search"] {
+  min-height: 50px;
+}
+
+.home-tab {
+  position: relative;
+  min-height: 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.18rem;
+  border-radius: 0.9rem;
+  text-decoration: none;
+  color: var(--home-tab-text-muted);
+  border: 1px solid transparent;
+  transition: transform 150ms ease, background-color 180ms ease, color 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+  will-change: transform;
+}
+
+.home-tab i {
+  font-size: 1.04rem;
+  line-height: 1;
+}
+
+.home-tab span {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  line-height: 1.1;
+}
+
+.home-tab:hover {
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.home-tab:focus-visible {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 0 0 2px rgba(14, 124, 102, 0.42);
+}
+
+.home-tab.is-active {
+  color: var(--home-tab-text);
+  background: var(--home-tab-active);
+  border-color: rgba(255, 255, 255, 0.34);
+  box-shadow: 0 8px 18px rgba(7, 90, 74, 0.35);
+}
+
+.home-tab.is-pressed {
+  transform: scale(0.98);
+}
+
+.home-tab-badge {
+  position: absolute;
+  top: 0.18rem;
+  right: 0.42rem;
+  min-width: 1rem;
+  height: 1rem;
+  padding: 0 0.2rem;
+  border-radius: 999px;
+  background: #f59e0b;
+  color: #fff;
+  font-size: 0.58rem;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.58);
+  line-height: 1;
+}
+
+main.has-home-tabs {
+  padding-bottom: calc(6rem + env(safe-area-inset-bottom, 0px));
+}
+
+body.menu-open .home-bottom-tabs {
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 14px);
+}
+
+@media (min-width: 992px) {
+  .home-bottom-tabs {
+    display: none !important;
+  }
+
+  main.has-home-tabs {
+    padding-bottom: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-bottom-tabs,
+  .home-tab,
+  body.menu-open .home-bottom-tabs {
+    transition: none !important;
+    animation: none !important;
+  }
+}

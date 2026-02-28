@@ -1,0 +1,988 @@
+<!-- templates/shop/shops.html -->
+{% extends "base.html" %}
+
+{% block title %}Boutiques | BABA Market{% endblock %}
+
+{% block head %}
+<style>
+  /* ===== VARIABLES GLOBALES ===== */
+  :root {
+    --primary-green: #10B981;
+    --primary-green-dark: #059669;
+    --accent-purple: #8B5CF6;
+    --light-bg: #F9FAFB;
+    --card-bg: #FFFFFF;
+    --text-primary: #1F2937;
+    --text-secondary: #6B7280;
+    --border-color: #E5E7EB;
+    --shadow-sm: 0 2px 8px rgba(0,0,0,0.04);
+    --shadow-md: 0 4px 16px rgba(0,0,0,0.08);
+    --shadow-lg: 0 8px 32px rgba(0,0,0,0.12);
+  }
+
+  /* ===== RÉINITIALISATION ===== */
+  .shops-container * {
+    box-sizing: border-box;
+  }
+
+  /* ===== CONTENEUR PRINCIPAL ===== */
+  .shops-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 1rem;
+    min-height: 100vh;
+  }
+
+  /* ===== EN-TÊTE ===== */
+  .shops-header {
+    margin-bottom: 2rem;
+    text-align: center;
+  }
+
+  .shops-title {
+    font-size: 2.5rem;
+    font-weight: 900;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+    background: linear-gradient(135deg, var(--primary-green), var(--primary-green-dark));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .shops-subtitle {
+    color: var(--text-secondary);
+    font-size: 1.1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  /* ===== BARRE DE RECHERCHE ===== */
+  .search-container-shops {
+    max-width: 600px;
+    margin: 0 auto 2rem;
+  }
+
+  .search-wrapper-shops {
+    position: relative;
+    border-radius: 50px;
+    overflow: hidden;
+    box-shadow: var(--shadow-md);
+    border: 2px solid var(--border-color);
+    transition: all 0.3s ease;
+  }
+
+  .search-wrapper-shops:focus-within {
+    border-color: var(--primary-green);
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+  }
+
+  .search-input-shops {
+    width: 100%;
+    padding: 1rem 1.5rem;
+    border: none;
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    background: var(--card-bg);
+  }
+
+  .search-input-shops:focus {
+    outline: none;
+  }
+
+  .search-btn-shops {
+    position: absolute;
+    right: 5px;
+    top: 5px;
+    background: linear-gradient(135deg, var(--primary-green), var(--primary-green-dark));
+    color: white;
+    border: none;
+    padding: 0.8rem 1.5rem;
+    border-radius: 50px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .search-btn-shops:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+  }
+
+  /* ===== INTRO TYPE ===== */
+  .kind-intro {
+    max-width: 860px;
+    margin: 0 auto 1rem;
+    padding: 0.75rem 1rem;
+    border-radius: 14px;
+    border: 1px solid rgba(16, 185, 129, 0.24);
+    background: linear-gradient(120deg, rgba(16, 185, 129, 0.08), rgba(37, 99, 235, 0.06));
+    text-align: center;
+    font-weight: 800;
+    color: #065f46;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+  }
+
+  .kind-intro i {
+    color: var(--primary-green-dark);
+  }
+
+  /* ===== MINI FILTRE (PRODUITS / SERVICES / LOCATION) ===== */
+  .kind-filter-wrap {
+    max-width: 760px;
+    margin: 0 auto 1.75rem;
+    text-align: center;
+  }
+
+  .kind-filter {
+    display: flex;
+    justify-content: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  .kind-chip {
+    border: 2px solid var(--border-color);
+    background: rgba(255,255,255,0.92);
+    border-radius: 999px;
+    padding: 0.8rem 1.1rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    box-shadow: var(--shadow-sm);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .kind-chip::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(120deg, rgba(255,255,255,0) 30%, rgba(255,255,255,0.45) 55%, rgba(255,255,255,0) 80%);
+    transform: translateX(-120%);
+    transition: transform 0.7s ease;
+    pointer-events: none;
+  }
+
+  .kind-chip:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+  }
+
+  .kind-chip:hover::after {
+    transform: translateX(120%);
+  }
+
+  .kind-chip.kind-physical i { color: var(--primary-green-dark); }
+  .kind-chip.kind-service i { color: #2563EB; }
+  .kind-chip.kind-location i { color: #b45309; }
+
+  .kind-chip.active.kind-physical {
+    border-color: rgba(16, 185, 129, 0.75);
+    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.14), var(--shadow-md);
+    background: rgba(236, 253, 245, 0.78);
+  }
+
+  .kind-chip.active.kind-service {
+    border-color: rgba(37, 99, 235, 0.75);
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12), var(--shadow-md);
+    background: rgba(239, 246, 255, 0.78);
+  }
+
+  .kind-chip.active.kind-location {
+    border-color: rgba(180, 83, 9, 0.72);
+    box-shadow: 0 0 0 4px rgba(251, 191, 36, 0.18), var(--shadow-md);
+    background: rgba(255, 247, 237, 0.86);
+  }
+
+  .kind-all-label {
+    margin-top: 0.65rem;
+    font-weight: 900;
+    color: var(--text-secondary);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+  }
+
+  .kind-hidden {
+    display: none !important;
+  }
+
+  /* ===== BOUTON RETOUR ===== */
+  .btn-back-container {
+    text-align: center;
+    margin-bottom: 2rem;
+  }
+
+  .btn-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    background: transparent;
+    border: 2px solid var(--border-color);
+    color: var(--text-secondary);
+    border-radius: 10px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.3s ease;
+  }
+
+  .btn-back:hover {
+    border-color: var(--primary-green);
+    color: var(--primary-green);
+    transform: translateY(-2px);
+  }
+
+  /* ===== GRILLE DE BOUTIQUES ===== */
+  .shops-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2.5rem;
+  }
+  .shops-results {
+    position: relative;
+    min-height: 120px;
+  }
+  .shops-results.is-loading {
+    opacity: 0.72;
+    transition: opacity .15s ease;
+  }
+
+  /* ===== CARTE BOUTIQUE ===== */
+  .shop-card {
+    background: var(--card-bg);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: var(--shadow-md);
+    transition: all 0.3s ease;
+    border: 1px solid var(--border-color);
+    height: 100%;
+    position: relative;
+  }
+
+  .shop-card:hover {
+    transform: translateY(-5px);
+    box-shadow: var(--shadow-lg);
+    border-color: var(--primary-green);
+  }
+
+  /* Bannière */
+  .shop-banner {
+    height: 160px;
+    background: linear-gradient(135deg, var(--primary-green), var(--accent-purple));
+    position: relative;
+    border-radius: 16px 16px 0 0;
+  }
+
+  /* Banner as hero image */
+  .shop-banner {
+    height: 170px;
+    background: linear-gradient(135deg, var(--primary-green), var(--accent-purple));
+    position: relative;
+    border-radius: 16px 16px 0 0;
+    overflow: hidden;
+  }
+
+  .shop-banner-image {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #0f172a;
+    display: block;
+  }
+
+  .shop-banner-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(15,23,42,0.02), rgba(15,23,42,0.24));
+  }
+
+  .shop-banner-initials {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 2rem;
+    color: white;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  /* Badge vérifié */
+  .verified-badge {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    background: var(--primary-green);
+    color: white;
+    padding: 0.4rem 0.8rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    z-index: 2;
+  }
+
+  /* Badge ouvert / fermé */
+  .open-badge {
+    position: absolute;
+    top: 15px;
+    left: 15px;
+    padding: 0.4rem 0.8rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    z-index: 2;
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .open-badge.open {
+    background: linear-gradient(135deg, #10b981, #059669);
+  }
+
+  .open-badge.closed {
+    background: linear-gradient(135deg, #ef4444, #b91c1c);
+  }
+
+  /* Contenu */
+  .shop-card-content {
+    padding: 16px;
+  }
+
+  .shop-name {
+    font-weight: 800;
+    font-size: 1.05rem;
+    color: var(--text-primary);
+    margin-bottom: 0.4rem;
+    line-height: 1.3;
+  }
+
+  .shop-name a {
+    color: inherit;
+    text-decoration: none;
+    transition: color 0.3s ease;
+  }
+
+  .shop-name a:hover {
+    color: var(--primary-green);
+  }
+
+  .shop-description {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    line-height: 1.4;
+    margin-bottom: 0.8rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    height: 1.4em;
+  }
+
+  /* Types (Livraison / Rendez-vous) */
+  .shop-type-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    margin-bottom: 0.85rem;
+  }
+
+  .type-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.3rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 800;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    background: rgba(255,255,255,0.9);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .badge-physical {
+    color: #047857;
+    border-color: rgba(16, 185, 129, 0.35);
+    background: rgba(236, 253, 245, 0.9);
+  }
+
+  .badge-service {
+    color: #1D4ED8;
+    border-color: rgba(37, 99, 235, 0.28);
+    background: rgba(239, 246, 255, 0.9);
+  }
+
+  .badge-location {
+    color: #b45309;
+    border-color: rgba(245, 158, 11, 0.35);
+    background: rgba(255, 247, 237, 0.95);
+  }
+
+  .badge-generic {
+    color: var(--text-secondary);
+    background: rgba(249,250,251,0.95);
+  }
+
+  /* Statistiques */
+  .shop-stats {
+    display: grid;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    padding: 0.6rem;
+    background: var(--light-bg);
+    border-radius: 10px;
+  }
+  .shop-stats.cols-1 { grid-template-columns: 1fr; }
+  .shop-stats.cols-2 { grid-template-columns: repeat(2, 1fr); }
+  .shop-stats.cols-3 { grid-template-columns: repeat(3, 1fr); }
+
+  .stat-item {
+    text-align: center;
+  }
+
+  .stat-number {
+    display: block;
+    font-weight: 900;
+    font-size: 1rem;
+    margin-bottom: 0.1rem;
+  }
+
+  .stat-label {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+  }
+
+  .stat-physical .stat-number {
+    color: var(--primary-green);
+  }
+
+  .stat-service .stat-number {
+    color: #2563EB;
+  }
+
+  .stat-location .stat-number {
+    color: #c2410c;
+  }
+
+
+  /* Contact */
+  .shop-contact {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.9rem;
+    padding: 0.5rem 0.6rem;
+    background: var(--light-bg);
+    border-radius: 8px;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+  }
+
+  .shop-contact i {
+    color: var(--primary-green);
+  }
+
+  .shop-map-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin-bottom: 0.9rem;
+    padding: 0.5rem 0.65rem;
+    border-radius: 8px;
+    border: 1px solid rgba(37, 99, 235, 0.25);
+    background: rgba(239, 246, 255, 0.75);
+    color: #1D4ED8;
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-decoration: none;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .shop-map-link:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 18px rgba(37, 99, 235, 0.18);
+    color: #1E40AF;
+  }
+
+  /* Bouton visiter */
+  .shop-visit-btn {
+    display: block;
+    text-align: center;
+    padding: 0.65rem 0.75rem;
+    background: linear-gradient(135deg, var(--primary-green), var(--primary-green-dark));
+    color: white;
+    text-decoration: none;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 0.9rem;
+    transition: all 0.3s ease;
+  }
+
+  .shop-visit-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(16, 185, 129, 0.3);
+  }
+
+  /* ===== ÉTAT VIDE ===== */
+  .empty-state-shops {
+    text-align: center;
+    padding: 4rem 2rem;
+    background: var(--card-bg);
+    border-radius: 16px;
+    border: 2px dashed var(--border-color);
+    margin: 3rem 0;
+  }
+
+  .empty-icon-shops {
+    font-size: 4rem;
+    color: var(--text-secondary);
+    margin-bottom: 1.5rem;
+    opacity: 0.5;
+  }
+
+  .empty-title-shops {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    margin-bottom: 1rem;
+  }
+
+  .empty-text-shops {
+    color: var(--text-secondary);
+    margin-bottom: 2rem;
+    max-width: 400px;
+    margin-left: auto;
+    margin-right: auto;
+    font-size: 1.1rem;
+  }
+
+  /* ===== PAGINATION ===== */
+  .pagination-shops {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 3rem;
+    flex-wrap: wrap;
+  }
+
+  .page-link-shops {
+    padding: 0.75rem 1rem;
+    background: var(--card-bg);
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-weight: 700;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+    min-width: 42px;
+    text-align: center;
+    text-decoration: none;
+  }
+  .page-link-shops.prev-link,
+  .page-link-shops.next-link {
+    min-width: 118px;
+    padding-inline: 0.95rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+  }
+  .page-link-shops.next-link {
+    background: linear-gradient(135deg, var(--primary-green), var(--primary-green-dark));
+    color: #fff;
+    border-color: var(--primary-green-dark);
+    box-shadow: 0 10px 22px rgba(16, 185, 129, 0.25);
+  }
+  .page-link-shops.next-link:hover:not(.disabled):not(.active) {
+    color: #fff;
+    border-color: var(--primary-green-dark);
+    transform: translateY(-2px);
+    box-shadow: 0 14px 28px rgba(16, 185, 129, 0.32);
+    background: linear-gradient(135deg, var(--primary-green-dark), var(--primary-green));
+  }
+
+  .page-link-shops:hover:not(.disabled):not(.active) {
+    background: rgba(16, 185, 129, 0.05);
+    color: var(--primary-green);
+    border-color: var(--primary-green);
+  }
+
+  .page-link-shops.active {
+    background: var(--primary-green);
+    color: white;
+    border-color: var(--primary-green);
+  }
+
+  .page-link-shops.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .page-link-shops.prev-link.disabled,
+  .page-link-shops.next-link.disabled {
+    min-width: 118px;
+    padding-inline: 0.95rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+  }
+
+  /* ===== RESPONSIVE DESIGN ===== */
+
+  /* Tablettes */
+  @media (max-width: 1200px) {
+    .shops-grid {
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 1rem;
+    }
+  }
+
+  @media (max-width: 992px) {
+    .shops-container {
+      padding: 0.875rem;
+    }
+    
+    .shops-title {
+      font-size: 2rem;
+    }
+    
+    .shops-grid {
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 0.9rem;
+    }
+    
+    .shop-banner { height: 145px; }
+    
+    .shop-card-content { padding: 14px; }
+  }
+
+  /* Mobile large */
+  @media (max-width: 768px) {
+    .shops-container {
+      padding: 0.75rem;
+    }
+    
+    .shops-header {
+      margin-bottom: 1.5rem;
+    }
+    
+    .shops-title {
+      font-size: 1.75rem;
+    }
+    
+    .shops-subtitle {
+      font-size: 1rem;
+    }
+    
+    /* Grille - 2 par ligne */
+    .shops-grid {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.75rem;
+    }
+    
+    .shop-banner { height: 140px; }
+    
+    .shop-card-content { padding: 12px; }
+    
+    .shop-name {
+      font-size: 1rem;
+    }
+    
+    .shop-description { font-size: 0.8rem; height: 1.4em; }
+    
+    .shop-stats { padding: 0.55rem; gap: 0.5rem; }
+    
+    .stat-number { font-size: 0.95rem; }
+    
+    .stat-label { font-size: 0.7rem; }
+    
+    .shop-contact { padding: 0.5rem; font-size: 0.78rem; }
+    
+    .shop-visit-btn { padding: 0.6rem; font-size: 0.85rem; }
+    
+    .verified-badge { font-size: 0.7rem; padding: 0.25rem 0.5rem; }
+    .open-badge { font-size: 0.7rem; padding: 0.25rem 0.5rem; }
+  }
+
+  /* Mobile moyen */
+  @media (max-width: 576px) {
+    .shops-title {
+      font-size: 1.5rem;
+    }
+
+    .kind-intro {
+      margin-bottom: 0.75rem;
+      padding: 0.6rem 0.7rem;
+      font-size: 0.92rem;
+    }
+    
+    /* Grille - 1 par ligne pour plus de lisibilité */
+    .shops-grid { grid-template-columns: 1fr; max-width: 420px; margin-left: auto; margin-right: auto; }
+    
+    .shop-banner { height: 146px; }
+    
+    .shop-name {
+      font-size: 1.05rem;
+    }
+    
+    .shop-description { font-size: 0.82rem; height: 1.4em; }
+    
+    .search-wrapper-shops { border-radius: 24px; }
+    
+    .search-input-shops { padding: 0.75rem 1rem; }
+    
+    .search-btn-shops { padding: 0.6rem 1rem; }
+    
+    .pagination-shops {
+      gap: 0.5rem;
+    }
+    
+    .page-link-shops { padding: 0.55rem 0.75rem; font-size: 0.85rem; min-width: 34px; }
+  }
+
+  /* Mobile très petit */
+  @media (max-width: 400px) {
+    .shops-container {
+      padding: 0.625rem;
+    }
+    
+    .shops-grid { gap: 0.65rem; }
+    
+    .shop-banner { height: 138px; }
+    
+    .shop-card-content { padding: 10px; }
+    
+    .shop-stats { grid-template-columns: repeat(2, 1fr); padding: 0.5rem; gap: 0.4rem; }
+    
+    .stat-number { font-size: 0.9rem; }
+    
+    .stat-label { font-size: 0.68rem; }
+  }
+
+  /* ===== ANIMATIONS ===== */
+  .fade-in-shop {
+    animation: fadeInShop 0.5s ease forwards;
+  }
+
+  @keyframes fadeInShop {
+    from {
+      opacity: 0;
+      transform: translateY(15px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* ===== PREMIUM ENHANCEMENTS ===== */
+  .shops-container {
+    background: radial-gradient(circle at 10% 10%, rgba(16,185,129,0.08), transparent 45%),
+                radial-gradient(circle at 90% 20%, rgba(139,92,246,0.12), transparent 40%),
+                #f7f8fb;
+    border-radius: 18px;
+  }
+
+  .shops-title {
+    background: linear-gradient(90deg, #0f172a, #10b981, #8b5cf6);
+    background-size: 200% 100%;
+    animation: titleShine 5s ease-in-out infinite;
+  }
+
+  .shop-card {
+    transform-style: preserve-3d;
+    transition: transform 0.35s ease, box-shadow 0.35s ease, border-color 0.35s ease;
+    animation: cardIn 0.6s ease both;
+    animation-delay: calc(var(--i, 0) * 0.04s);
+  }
+
+  @media (hover: hover) {
+    .shop-card:hover {
+      transform: translateY(-6px) rotateX(2deg) rotateY(-1.5deg);
+      box-shadow: 0 18px 38px rgba(15, 23, 42, 0.16);
+      border-color: rgba(16,185,129,0.5);
+    }
+  }
+
+  .shop-banner::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(120deg, rgba(255,255,255,0) 30%, rgba(255,255,255,0.25) 55%, rgba(255,255,255,0) 80%);
+    transform: translateX(-120%);
+    transition: transform 0.8s ease;
+    pointer-events: none;
+  }
+
+  @media (hover: hover) {
+    .shop-card:hover .shop-banner::after {
+      transform: translateX(120%);
+    }
+  }
+
+  .shop-card-content {
+    background: rgba(255,255,255,0.92);
+    backdrop-filter: blur(8px);
+  }
+
+  .shop-stats {
+    background: linear-gradient(180deg, #ffffff, #f7f9fb);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+  }
+
+  .shop-visit-btn {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .shop-visit-btn::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(120deg, rgba(255,255,255,0) 30%, rgba(255,255,255,0.35) 55%, rgba(255,255,255,0) 80%);
+    transform: translateX(-120%);
+    transition: transform 0.6s ease;
+  }
+
+  .shop-visit-btn:hover::after {
+    transform: translateX(120%);
+  }
+
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(14px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  @keyframes titleShine {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .shops-title,
+    .shop-card {
+      animation: none;
+      transition: none;
+    }
+    .shop-banner::after,
+    .shop-visit-btn::after {
+      transition: none;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="shops-container">
+  <!-- En-tête -->
+  <div class="shops-header">
+    <h1 class="shops-title">Nos Boutiques Partenaires</h1>
+    <p class="shops-subtitle">
+      Découvrez toutes les boutiques de notre marketplace
+    </p>
+  </div>
+
+  <!-- Barre de recherche -->
+  <div class="search-container-shops">
+    <form method="get" action="{{ url_for('shops.list_shops') }}" id="searchFormShops">
+      <div class="search-wrapper-shops">
+        {% if kind %}
+          <input type="hidden" name="kind" value="{{ kind }}">
+        {% endif %}
+        <input type="text" 
+               name="q" 
+               value="{{ q }}" 
+               placeholder="Rechercher une boutique..."
+               class="search-input-shops"
+               autocomplete="off"
+               id="searchInputShops">
+        <button type="submit" class="search-btn-shops">
+          <i class="bi bi-search"></i>
+          <span>Rechercher</span>
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <div class="kind-intro">
+    <i class="bi bi-stars"></i>
+    <span>Que cherchez-vous ? Choisissez Produits, Services ou Locations.</span>
+  </div>
+
+  <!-- Mini filtre: Produits / Services / Locations -->
+  <div class="kind-filter-wrap" id="kindFilterWrap">
+    <div class="kind-filter" role="group" aria-label="Filtre boutiques Produits / Services / Locations">
+      <button type="button"
+              class="kind-chip kind-physical {% if kind == 'physical' %}active{% endif %}"
+              data-kind="physical"
+              aria-pressed="{{ 'true' if kind == 'physical' else 'false' }}">
+        <i class="bi bi-truck"></i>
+        <span>Produits</span>
+      </button>
+      <button type="button"
+              class="kind-chip kind-service {% if kind == 'service' %}active{% endif %}"
+              data-kind="service"
+              aria-pressed="{{ 'true' if kind == 'service' else 'false' }}">
+        <i class="bi bi-calendar-check"></i>
+        <span>Services</span>
+      </button>
+      <button type="button"
+              class="kind-chip kind-location {% if kind == 'location' %}active{% endif %}"
+              data-kind="location"
+              aria-pressed="{{ 'true' if kind == 'location' else 'false' }}">
+        <i class="bi bi-house-door"></i>
+        <span>Locations</span>
+      </button>
+    </div>
+    <div class="kind-all-label {% if kind %}kind-hidden{% endif %}" id="kindAllLabel">Tout</div>
+  </div>
+
+  <!-- Bouton retour -->
+  <div class="btn-back-container">
+    <a href="{{ url_for('shop.home') }}" class="btn-back">
+      <i class="bi bi-arrow-left"></i>
+      Retour au marketplace
+    </a>
+  </div>
+
+  <!-- Grille de boutiques -->
+  <div id="shopsResults" class="shops-results">
+    {% include "partials/_shops_listing.html" %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script id="shopsPageConfig" type="application/json">
+{
+  "initial_q": {{ q|tojson }},
+  "initial_kind": {{ kind|tojson }},
+  "base_url": {{ url_for('shops.list_shops')|tojson }}
+}
+</script>
+<script defer src="{{ url_for('static', filename='js/shops_page.js', v='20260224b') }}"></script>
+{% endblock %}

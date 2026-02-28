@@ -1,0 +1,305 @@
+{% extends "admin/base.html" %}
+{% block title %}Commande #{{ order.id }} | Admin{% endblock %}
+{% block page_title %}Commande #{{ order.id }}{% endblock %}
+
+{% block content %}
+<section class="container-fluid py-2">
+  <div class="d-flex flex-wrap gap-2 mb-3">
+    <a href="{{ url_for('admin.all_orders') }}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-arrow-left me-1"></i> Retour commandes
+    </a>
+    {% if order.courier %}
+      <a href="{{ url_for('admin.courier_whatsapp', oid=order.id, next=request.full_path) }}" class="btn btn-outline-success btn-sm">
+        <i class="bi bi-whatsapp me-1"></i> WhatsApp livreur
+      </a>
+    {% endif %}
+  </div>
+
+  <div class="row g-3">
+    <div class="col-xl-8">
+      <div class="card shadow-sm">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+          <h6 class="mb-0">Informations commande</h6>
+          <span class="badge rounded-pill text-bg-info">{{ order._delivery_source_label if order._delivery_source_label else "Marketplace" }}</span>
+        </div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <h6 class="text-muted">Client</h6>
+              <div><strong>Nom:</strong> {{ order.full_name or "N/A" }}</div>
+              <div><strong>Telephone:</strong> {{ order.phone or "N/A" }}</div>
+              <div><strong>Ville:</strong> {{ order.delivery_city or order.city or "N/A" }}</div>
+              <div><strong>Adresse:</strong> {{ order.delivery_address or order.address or "N/A" }}</div>
+            </div>
+            <div class="col-md-6">
+              <h6 class="text-muted">Workflow</h6>
+              <div>
+                <strong>Statut commande:</strong>
+                <span class="badge text-bg-secondary">{{ order.status }}</span>
+              </div>
+              <div class="mt-1">
+                <strong>Statut livraison:</strong>
+                <span class="badge text-bg-primary">{{ order.delivery_status or "new" }}</span>
+              </div>
+              <div class="mt-1"><strong>Date:</strong> {{ order.created_at.strftime('%d/%m/%Y %H:%M') if order.created_at else "N/A" }}</div>
+              <div class="mt-1">
+                <strong>Livreur:</strong>
+                {% if order.courier %}
+                  {{ order.courier.username }}
+                {% else %}
+                  N/A
+                {% endif %}
+              </div>
+              <div class="mt-1">
+                <strong>Assigne le:</strong>
+                {{ order.assigned_at.strftime('%d/%m/%Y %H:%M') if order.assigned_at else "N/A" }}
+              </div>
+              <div class="mt-1">
+                <strong>Assigne par:</strong>
+                {{ order.assigned_by_user.username if order.assigned_by_user else "N/A" }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card shadow-sm mt-3">
+        <div class="card-header bg-light">
+          <h6 class="mb-0">Pickup et dropoff</h6>
+        </div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <div class="border rounded p-3 h-100">
+                <h6 class="mb-2">Pickup</h6>
+                <div><strong>Boutique:</strong> {{ order._delivery_pickup.shop_name if order._delivery_pickup else "N/A" }}</div>
+                <div><strong>Adresse:</strong> {{ order._delivery_pickup.address if order._delivery_pickup else "N/A" }}</div>
+                <div><strong>Coords:</strong> {{ order._delivery_pickup.coords_text if order._delivery_pickup else "N/A" }}</div>
+                <div><strong>Repere:</strong> {{ order._delivery_pickup.note if order._delivery_pickup and order._delivery_pickup.note else "N/A" }}</div>
+                {% if order._delivery_pickup and order._delivery_pickup.maps_url %}
+                  <div class="d-flex flex-wrap gap-2 mt-2">
+                    <a class="btn btn-sm btn-outline-primary" href="{{ order._delivery_pickup.maps_url }}" target="_blank" rel="noopener">
+                      <i class="bi bi-geo-alt me-1"></i> Ouvrir Maps pickup
+                    </a>
+                    <button
+                      type="button"
+                      class="btn btn-sm btn-outline-secondary"
+                      data-copy-text="{{ order._delivery_pickup.maps_url }}"
+                    >
+                      <i class="bi bi-clipboard me-1"></i> Copier lien
+                    </button>
+                  </div>
+                {% else %}
+                  <div class="text-muted small mt-2">Maps: N/A</div>
+                {% endif %}
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="border rounded p-3 h-100">
+                <h6 class="mb-2">Dropoff</h6>
+                <div><strong>Client:</strong> {{ order._delivery_dropoff.customer_name if order._delivery_dropoff else "N/A" }}</div>
+                <div><strong>Telephone:</strong> {{ order._delivery_dropoff.customer_phone if order._delivery_dropoff else "N/A" }}</div>
+                <div><strong>Ville:</strong> {{ order._delivery_dropoff.city if order._delivery_dropoff else "N/A" }}</div>
+                <div><strong>Adresse:</strong> {{ order._delivery_dropoff.address if order._delivery_dropoff else "N/A" }}</div>
+                <div><strong>Coords:</strong> {{ order._delivery_dropoff.coords_text if order._delivery_dropoff else "N/A" }}</div>
+                <div class="d-flex flex-wrap gap-2 mt-2">
+                  {% if order._delivery_dropoff and order._delivery_dropoff.maps_url %}
+                    <a class="btn btn-sm btn-outline-primary" href="{{ order._delivery_dropoff.maps_url }}" target="_blank" rel="noopener">
+                      <i class="bi bi-geo-alt me-1"></i> Ouvrir Maps client
+                    </a>
+                    <button
+                      type="button"
+                      class="btn btn-sm btn-outline-secondary"
+                      data-copy-text="{{ order._delivery_dropoff.maps_url }}"
+                    >
+                      <i class="bi bi-clipboard me-1"></i> Copier lien
+                    </button>
+                  {% else %}
+                    <span class="text-muted small align-self-center">Maps: N/A</span>
+                  {% endif %}
+                  {% if order._delivery_dropoff and order._delivery_dropoff.customer_phone_wa %}
+                    <a class="btn btn-sm btn-outline-success" href="https://wa.me/{{ order._delivery_dropoff.customer_phone_wa }}" target="_blank" rel="noopener">
+                      <i class="bi bi-whatsapp me-1"></i> WhatsApp client
+                    </a>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {% if order._delivery_source == 'special' %}
+            <div class="border rounded p-3 mt-3">
+              <h6 class="mb-2">Details livraison speciale</h6>
+              <div><strong>Objet:</strong> {{ order.special_item or "N/A" }}</div>
+              <div><strong>Depart:</strong> {{ order.special_pickup_address or "N/A" }}</div>
+              <div><strong>Arrivee:</strong> {{ order.special_dropoff_address or "N/A" }}</div>
+              <div><strong>Note:</strong> {{ order.special_note or "N/A" }}</div>
+              <div><strong>Date/heure:</strong> {{ order.special_datetime or "N/A" }}</div>
+              <div><strong>Urgent:</strong> {{ "Oui" if order.special_is_urgent else "Non" }}</div>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="card shadow-sm mt-3">
+        <div class="card-header bg-light">
+          <h6 class="mb-0">Articles</h6>
+        </div>
+        <div class="card-body">
+          {% if order.items %}
+            <div class="table-responsive">
+              <table class="table table-sm align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th>Produit</th>
+                    <th>Quantite</th>
+                    <th>Prix unitaire</th>
+                    <th>Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for item in order.items %}
+                    <tr>
+                      <td>{{ item.product.name if item.product else ('Produit #' ~ item.product_id) }}</td>
+                      <td>{{ item.quantity or 0 }}</td>
+                      <td>{{ '%.2f'|format((item.price or 0) / 100) }} MAD</td>
+                      <td>{{ '%.2f'|format(((item.price or 0) * (item.quantity or 0)) / 100) }} MAD</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="text-muted">Aucun article.</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-4">
+      <div class="card shadow-sm">
+        <div class="card-header bg-light">
+          <h6 class="mb-0">Resume financier</h6>
+        </div>
+        <div class="card-body">
+          <div class="d-flex justify-content-between mb-2">
+            <span>Sous-total</span>
+            <strong>{{ '%.2f'|format(((order.total or 0) - (order.shipping or 0)) / 100) }} MAD</strong>
+          </div>
+          <div class="d-flex justify-content-between mb-2">
+            <span>Livraison</span>
+            <strong>{{ '%.2f'|format((order.delivery_price_cents or order.shipping or 0) / 100) }} MAD</strong>
+          </div>
+          <div class="d-flex justify-content-between mb-2">
+            <span>Part Baba</span>
+            <strong>{{ '%.2f'|format((order.delivery_platform_fee_cents or 0) / 100) }} MAD</strong>
+          </div>
+          <div class="d-flex justify-content-between mb-2">
+            <span>Net livreur</span>
+            <strong>{{ '%.2f'|format((order.delivery_courier_net_cents or 0) / 100) }} MAD</strong>
+          </div>
+          <div class="d-flex justify-content-between mb-2">
+            <span>Remise Baba</span>
+            {% if order.baba_fee_settled_at %}
+              <span class="badge text-bg-success">Remis</span>
+            {% else %}
+              <span class="badge text-bg-secondary">A remettre</span>
+            {% endif %}
+          </div>
+          <hr>
+          <div class="d-flex justify-content-between">
+            <span class="fw-semibold">Total</span>
+            <strong class="fs-5">{{ '%.2f'|format((order.total or 0) / 100) }} MAD</strong>
+          </div>
+        </div>
+      </div>
+
+      {% if payouts %}
+      <div class="card shadow-sm mt-3">
+        <div class="card-header bg-light">
+          <h6 class="mb-0">Paiements vendeurs</h6>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Boutique</th>
+                  <th>Vendeur</th>
+                  <th>Net</th>
+                  <th>Statut</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% set payouts_locked = order.period and order.period.status == 'closed' %}
+                {% for p in payouts %}
+                <tr>
+                  <td>{{ p.shop.name if p.shop else '-' }}</td>
+                  <td>{{ p.vendor.username if p.vendor else '-' }}</td>
+                  <td>{{ '%.2f'|format((p.amount_cents or 0) / 100) }} MAD</td>
+                  <td>
+                    {% if p.status == "paid" %}
+                      <span class="badge text-bg-success">Paye</span>
+                    {% else %}
+                      <span class="badge text-bg-warning">En attente</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if p.status != "paid" %}
+                      {% if payouts_locked %}
+                        <span class="badge text-bg-secondary">Lecture seule (periode fermee)</span>
+                      {% elif current_user.role == "admin" %}
+                        <form method="post" action="{{ url_for('admin_users.mark_vendor_paid', payout_id=p.id) }}">
+                          {% include "admin/partials/_csrf.html" %}
+                          <button type="submit" class="btn btn-sm btn-success">Marquer paye</button>
+                        </form>
+                      {% else %}
+                        <span class="text-muted">Admin only</span>
+                      {% endif %}
+                    {% else %}
+                      <small class="text-muted">{{ p.paid_at.strftime('%d/%m/%Y') if p.paid_at else '' }}</small>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="card shadow-sm mt-3">
+        <div class="card-header bg-light">
+          <h6 class="mb-0">Actions</h6>
+        </div>
+        <div class="card-body">
+          {% if order.period and order.period.status == 'closed' %}
+            <div class="text-muted small">Periode fermee: lecture seule.</div>
+          {% else %}
+            <div class="d-flex flex-wrap gap-2">
+              {% if order.delivery_status in ['new', 'assigned', 'picked_up', 'delivering'] %}
+                <form method="post" action="{{ url_for('admin.mark_delivered', oid=order.id, next=request.full_path) }}">
+                  {% include "admin/partials/_csrf.html" %}
+                  <button class="btn btn-sm btn-success" type="submit">
+                    <i class="bi bi-check-circle me-1"></i> Marquer livree
+                  </button>
+                </form>
+                <form method="post" action="{{ url_for('admin.cancel_order', oid=order.id, next=request.full_path) }}" data-confirm-submit="Annuler cette commande ?">
+                  {% include "admin/partials/_csrf.html" %}
+                  <button class="btn btn-sm btn-outline-danger" type="submit">
+                    <i class="bi bi-x-circle me-1"></i> Annuler
+                  </button>
+                </form>
+              {% else %}
+                <span class="badge text-bg-secondary">Aucune action disponible</span>
+              {% endif %}
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

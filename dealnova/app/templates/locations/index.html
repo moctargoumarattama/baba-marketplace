@@ -1,0 +1,464 @@
+{% extends "base.html" %}
+
+{% block title %}Locations | {{ config.SITE_NAME }}{% endblock %}
+
+{% block head %}
+<style>
+  .back-fab { display: none !important; }
+  .rentals-shell { max-width: 1280px; margin: 0 auto; padding: .9rem; }
+  .rentals-hero {
+    background: linear-gradient(135deg, #0f766e, #10b981);
+    color: #fff;
+    border-radius: 24px;
+    padding: 1.2rem;
+    box-shadow: 0 18px 45px rgba(15, 118, 110, .25);
+    margin-bottom: .95rem;
+  }
+  .hero-topline { display: flex; justify-content: flex-end; margin-bottom: .35rem; }
+  .hero-return-link {
+    display: inline-flex;
+    align-items: center;
+    gap: .38rem;
+    border: 1px solid rgba(255,255,255,.45);
+    background: rgba(255,255,255,.13);
+    color: #fff;
+    text-decoration: none;
+    border-radius: 999px;
+    padding: .34rem .7rem;
+    font-size: .76rem;
+    font-weight: 800;
+  }
+  .hero-return-link:hover { color: #fff; background: rgba(255,255,255,.22); }
+  .rentals-hero h2 { margin: 0; font-size: clamp(1.25rem, 2vw, 1.9rem); font-weight: 900; letter-spacing: .01em; }
+  .rentals-hero p { margin: .35rem 0 0; opacity: .93; font-weight: 500; }
+
+  .filter-wrap {
+    background: #fff;
+    border: 1px solid #dbe2ea;
+    border-radius: 16px;
+    padding: .8rem;
+    margin-bottom: .9rem;
+    box-shadow: 0 10px 26px rgba(2, 6, 23, .06);
+  }
+  .filter-primary-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: .55rem;
+    align-items: center;
+  }
+  .filter-grid { display: grid; gap: .55rem; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: center; margin-top: .55rem; }
+  .price-range-group {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: .42rem;
+    align-items: center;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: .3rem;
+    background: #f8fafc;
+  }
+  .price-range-group .form-control {
+    border: 1px solid #e2e8f0;
+    min-height: 38px;
+    padding: .45rem .55rem;
+  }
+  .auto-note { font-size: .8rem; color: #64748b; font-weight: 700; margin-top: .35rem; display: flex; gap: .35rem; align-items: center; }
+  .filter-actions { margin-top: .6rem; display: flex; gap: .5rem; justify-content: flex-end; flex-wrap: wrap; }
+  .btn-clear-search {
+    border: 0;
+    color: #fff;
+    background: linear-gradient(135deg, #0f766e, #10b981);
+    box-shadow: 0 10px 20px rgba(16,185,129,.28);
+    font-weight: 800;
+  }
+  .btn-clear-search:hover { color: #fff; transform: translateY(-1px); }
+  .btn-clear-search.empty-attention { animation: clearPulse 1.2s ease-in-out infinite; }
+  @keyframes clearPulse {
+    0%, 100% { box-shadow: 0 10px 20px rgba(16,185,129,.28); }
+    50% { box-shadow: 0 10px 28px rgba(16,185,129,.46); transform: translateY(-1px); }
+  }
+  .results-row { display: flex; justify-content: flex-start; align-items: center; gap: .7rem; margin-bottom: .7rem; flex-wrap: wrap; }
+  .results-count { font-size: .88rem; color: #334155; font-weight: 700; }
+  .results-dot { width: 8px; height: 8px; border-radius: 999px; display: inline-block; margin-right: .38rem; background: #10b981; box-shadow: 0 0 0 6px rgba(16,185,129,.16); }
+  .active-filters-badge {
+    font-size: .78rem;
+    color: #0f766e;
+    border: 1px solid #99f6e4;
+    background: #ecfeff;
+    border-radius: 999px;
+    padding: .22rem .6rem;
+    font-weight: 800;
+  }
+
+  .rentals-grid { display: grid; gap: .65rem; grid-template-columns: repeat(auto-fill, minmax(198px, 1fr)); }
+  .rental-card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 8px 22px rgba(2,6,23,.06);
+    transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
+    animation: cardIn .35s ease both;
+  }
+  .rental-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 16px 30px rgba(2,6,23,.12);
+    border-color: #bae6fd;
+  }
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .rental-media { position: relative; background: #eef2f7; height: 138px; overflow: hidden; }
+  .rental-track { display: flex; height: 100%; transition: transform .35s ease; touch-action: pan-y; }
+  .rental-track img { width: 100%; height: 100%; flex: 0 0 100%; object-fit: cover; }
+  .pill-type {
+    position: absolute; top: .5rem; left: .5rem;
+    background: rgba(15,118,110,.92); color: #fff; border-radius: 999px;
+    padding: .22rem .55rem; font-size: .68rem; font-weight: 800; z-index: 2;
+    backdrop-filter: blur(2px);
+  }
+  .slide-nav {
+    position: absolute; inset-inline: 0; top: 50%; transform: translateY(-50%);
+    display: flex; justify-content: space-between; padding: 0 .35rem; pointer-events: none;
+  }
+  .slide-btn {
+    width: 24px; height: 24px; border-radius: 999px; border: 0;
+    background: rgba(15,23,42,.5); color: #fff; pointer-events: auto;
+  }
+  .slide-dots { position: absolute; left: 50%; transform: translateX(-50%); bottom: .35rem; display: flex; gap: .25rem; z-index: 2; }
+  .slide-dot { width: 6px; height: 6px; border-radius: 999px; background: rgba(255,255,255,.58); transition: width .2s ease; }
+  .slide-dot.active { background: #fff; width: 14px; }
+  .rental-body { padding: .68rem; display: grid; gap: .28rem; }
+  .rental-title { margin: 0; font-size: .92rem; font-weight: 800; color: #0f172a; line-height: 1.22; min-height: 2.25em; }
+  .rental-meta { color: #475569; font-size: .79rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rental-price { color: #0f766e; font-size: .98rem; font-weight: 900; }
+  .rental-actions { display: grid; grid-template-columns: 1fr 1fr; gap: .42rem; margin-top: .15rem; }
+  .rental-actions .btn { font-size: .8rem; font-weight: 700; padding: .36rem .4rem; min-height: 40px; }
+  .empty-state { text-align: center; padding: 2rem 1rem; color: #64748b; font-weight: 700; background: #fff; border: 1px dashed #cbd5e1; border-radius: 14px; }
+  .locations-results {
+    position: relative;
+    min-height: 120px;
+  }
+  .locations-results.is-loading {
+    opacity: .7;
+    transition: opacity .15s ease;
+  }
+  .locations-pagination {
+    margin-top: .85rem;
+  }
+  .locations-pagination .pagination {
+    gap: .45rem;
+  }
+  .locations-pagination .page-link {
+    border-radius: 10px;
+    border-color: #dbe4ef;
+    font-weight: 800;
+    color: #334155;
+    min-height: 38px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding-inline: .85rem;
+    box-shadow: 0 4px 12px rgba(2, 6, 23, .05);
+  }
+  .locations-pagination .page-item.active .page-link {
+    background: #0f766e;
+    border-color: #0f766e;
+    color: #fff;
+  }
+  .locations-pagination .page-item .page-link.next-link {
+    background: linear-gradient(135deg, #0f766e, #10b981);
+    color: #fff;
+    border-color: #0f766e;
+    padding-inline: 1rem;
+  }
+  .locations-pagination .page-item .page-link.next-link i {
+    margin-left: .35rem;
+  }
+  .locations-pagination .page-item .page-link.prev-link i {
+    margin-right: .35rem;
+  }
+  .locations-pagination .page-item.disabled .page-link {
+    opacity: .55;
+    background: #f8fafc;
+    color: #94a3b8;
+  }
+
+  @media (max-width: 980px) { .filter-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 760px) {
+    .rentals-shell { padding: .65rem; }
+    .filter-wrap { padding: .62rem; border-radius: 14px; }
+    .rentals-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .55rem; }
+    .rental-media { height: 118px; }
+    .filter-grid { grid-template-columns: 1fr; margin-top: .48rem; }
+    .filter-actions { justify-content: stretch; }
+    .filter-actions .btn { flex: 1; font-size: .76rem; min-height: 38px; padding-inline: .35rem; }
+    .btn-clear-search.empty-attention { animation: none; }
+  }
+  @media (max-width: 520px) {
+    .filter-grid { grid-template-columns: 1fr; }
+    .rental-title { font-size: .86rem; }
+    .rental-meta { font-size: .74rem; }
+    .rental-price { font-size: .9rem; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="rentals-shell">
+  <section class="rentals-hero">
+    <div class="hero-topline">
+      <a href="{{ url_for('shop.home') }}" class="hero-return-link">
+        <i class="bi bi-arrow-left"></i> Retour
+      </a>
+    </div>
+    <h2>DABA DABA IMMOBILIER</h2>
+    <p>Parcourez rapidement des centaines d'annonces avec nos filtres intelligents.</p>
+  </section>
+
+  {% set has_active_filters = q or listing_type or property_type or city_area or price_min or price_max %}
+  <form method="get" class="filter-wrap" id="locationsFilterForm">
+    <div class="filter-primary-row">
+      <input type="text" class="form-control" name="q" value="{{ q }}" placeholder="Recherche annonce, ville, quartier...">
+    </div>
+    <div class="filter-grid">
+      <select class="form-select" name="type">
+        <option value="">Type (tous)</option>
+        <option value="monthly" {{ 'selected' if listing_type == 'monthly' else '' }}>Mensuel</option>
+        <option value="daily" {{ 'selected' if listing_type == 'daily' else '' }}>Journalier</option>
+      </select>
+      <select class="form-select" name="property_type">
+        <option value="">Catégorie (toutes)</option>
+        <option value="room" {{ 'selected' if property_type == 'room' else '' }}>Chambre</option>
+        <option value="apartment" {{ 'selected' if property_type == 'apartment' else '' }}>Appartement</option>
+        <option value="studio" {{ 'selected' if property_type == 'studio' else '' }}>Studio</option>
+        <option value="store" {{ 'selected' if property_type == 'store' else '' }}>Boutique à louer</option>
+      </select>
+      <input type="text" class="form-control" name="city" value="{{ city_area }}" placeholder="Ville / quartier">
+      <div class="price-range-group">
+        <input type="number" step="0.01" min="0" class="form-control" name="min" value="{{ price_min }}" placeholder="Prix min (DH)">
+        <input type="number" step="0.01" min="0" class="form-control" name="max" value="{{ price_max }}" placeholder="Prix max (DH)">
+      </div>
+    </div>
+    <div class="auto-note"><i class="bi bi-lightning-charge"></i> Prévisualisation instantanée. Chargement après pause/validation.</div>
+    <div class="filter-actions">
+      <button type="button" class="btn btn-sm btn-clear-search {% if has_active_filters %}empty-attention{% endif %}" id="restoreSearchBtn">
+        <i class="bi bi-arrow-counterclockwise"></i> Restaurer la recherche
+      </button>
+    </div>
+    <button class="d-none" type="submit" aria-hidden="true" tabindex="-1">submit</button>
+  </form>
+
+  <div id="locationsResults" class="locations-results">
+    {% include "partials/_locations_listing.html" %}
+  </div>
+</div>
+
+<script>
+  (function () {
+    const form = document.getElementById('locationsFilterForm');
+    const locationsResults = document.getElementById('locationsResults');
+    if (!form || !locationsResults) return;
+
+    let submitTimer = null;
+
+    if ('scrollRestoration' in history) {
+      history.scrollRestoration = 'manual';
+    }
+
+    function currentGrid() {
+      return document.getElementById('rentalsGrid');
+    }
+
+    function buildUrlFromForm(resetPage) {
+      const url = new URL(window.location.href);
+      const params = new URLSearchParams();
+      if (!form) return url.toString();
+      const fd = new FormData(form);
+      fd.forEach(function (value, key) {
+        const v = String(value || '').trim();
+        if (!v || key === 'page') return;
+        params.set(key, v);
+      });
+      if (!resetPage) {
+        const currentPage = url.searchParams.get('page');
+        if (currentPage) params.set('page', currentPage);
+      }
+      const q = params.toString();
+      return q ? (url.pathname + '?' + q) : url.pathname;
+    }
+
+    function parseDh(value) {
+      const parsed = Number.parseFloat(String(value || '').replace(',', '.'));
+      return Number.isFinite(parsed) ? Math.round(parsed * 100) : null;
+    }
+
+    function localFilterPreview() {
+      const grid = currentGrid();
+      if (!grid || !form) return;
+      const cards = grid.querySelectorAll('.js-rental-card');
+      const qInput = form.querySelector('input[name="q"]');
+      const cityInput = form.querySelector('input[name="city"]');
+      const typeInput = form.querySelector('select[name="type"]');
+      const propertyInput = form.querySelector('select[name="property_type"]');
+      const minInput = form.querySelector('input[name="min"]');
+      const maxInput = form.querySelector('input[name="max"]');
+
+      const q = (qInput && qInput.value ? qInput.value : '').toLowerCase().trim();
+      const c = (cityInput && cityInput.value ? cityInput.value : '').toLowerCase().trim();
+      const tVal = typeInput ? typeInput.value : '';
+      const pVal = propertyInput ? propertyInput.value : '';
+      const min = parseDh(minInput ? minInput.value : '');
+      const max = parseDh(maxInput ? maxInput.value : '');
+
+      cards.forEach(function (card) {
+        const title = card.getAttribute('data-title') || '';
+        const city = card.getAttribute('data-city') || '';
+        const type = card.getAttribute('data-type') || '';
+        const prop = card.getAttribute('data-property') || '';
+        const rent = Number.parseInt(card.getAttribute('data-rent') || '0', 10);
+        const okQ = !q || title.indexOf(q) !== -1 || city.indexOf(q) !== -1;
+        const okC = !c || city.indexOf(c) !== -1;
+        const okT = !tVal || type === tVal;
+        const okP = !pVal || prop === pVal;
+        const okMin = min === null || rent >= min;
+        const okMax = max === null || rent <= max;
+        card.style.display = okQ && okC && okT && okP && okMin && okMax ? '' : 'none';
+      });
+    }
+
+    function initCarousels(scope) {
+      (scope || document).querySelectorAll('.js-card-carousel').forEach(function (carousel) {
+        if (carousel.dataset.carouselInit === '1') return;
+        carousel.dataset.carouselInit = '1';
+
+        const track = carousel.querySelector('.rental-track');
+        if (!track) return;
+        const slides = track.querySelectorAll('img');
+        if (!slides || slides.length <= 1) return;
+
+        const prev = carousel.querySelector('.js-prev');
+        const next = carousel.querySelector('.js-next');
+        const dots = carousel.querySelectorAll('.slide-dot');
+        let index = 0;
+        let timer = null;
+        let touchStartX = 0;
+        let touchEndX = 0;
+
+        function render() {
+          track.style.transform = `translateX(-${index * 100}%)`;
+          dots.forEach(function (dot, idx) {
+            if (idx === index) dot.classList.add('active');
+            else dot.classList.remove('active');
+          });
+        }
+
+        function go(step) {
+          index += step;
+          if (index >= slides.length) index = 0;
+          if (index < 0) index = slides.length - 1;
+          render();
+        }
+
+        function restartAuto() {
+          if (timer) clearInterval(timer);
+          timer = setInterval(function () { go(1); }, 3800);
+        }
+
+        if (prev) prev.addEventListener('click', function () { go(-1); restartAuto(); });
+        if (next) next.addEventListener('click', function () { go(1); restartAuto(); });
+
+        carousel.addEventListener('touchstart', function (event) {
+          touchStartX = event.changedTouches[0].screenX;
+        }, { passive: true });
+        carousel.addEventListener('touchend', function (event) {
+          touchEndX = event.changedTouches[0].screenX;
+          const delta = touchEndX - touchStartX;
+          if (Math.abs(delta) > 35) {
+            if (delta < 0) go(1); else go(-1);
+            restartAuto();
+          }
+        }, { passive: true });
+
+        carousel.addEventListener('mouseenter', function () { if (timer) clearInterval(timer); });
+        carousel.addEventListener('mouseleave', function () { restartAuto(); });
+
+        render();
+        restartAuto();
+      });
+    }
+
+    function fetchAndSwap(url, pushState) {
+      if (submitTimer) clearTimeout(submitTimer);
+      if (window.AjaxPagination && typeof window.AjaxPagination.navigate === 'function') {
+        window.AjaxPagination.navigate(url, { push: pushState !== false, scrollMode: 'preserve' });
+        return;
+      }
+      window.location.href = url;
+    }
+
+    if (form) {
+      const qInput = form.querySelector('input[name="q"]');
+      const cityInput = form.querySelector('input[name="city"]');
+      const typeInput = form.querySelector('select[name="type"]');
+      const propertyInput = form.querySelector('select[name="property_type"]');
+      const minInput = form.querySelector('input[name="min"]');
+      const maxInput = form.querySelector('input[name="max"]');
+      const restoreSearchBtn = document.getElementById('restoreSearchBtn');
+
+      function scheduleFetch(resetPage) {
+        if (submitTimer) clearTimeout(submitTimer);
+        submitTimer = setTimeout(function () {
+          fetchAndSwap(buildUrlFromForm(resetPage), true);
+        }, 320);
+      }
+
+      [qInput, cityInput, minInput, maxInput].forEach(function (el) {
+        if (!el) return;
+        el.addEventListener('input', localFilterPreview);
+        el.addEventListener('blur', function () { scheduleFetch(true); });
+        el.addEventListener('keydown', function (event) {
+          if (event.key === 'Enter') {
+            event.preventDefault();
+            scheduleFetch(true);
+          }
+        });
+      });
+
+      [typeInput, propertyInput].forEach(function (el) {
+        if (!el) return;
+        el.addEventListener('change', function () {
+          localFilterPreview();
+          scheduleFetch(true);
+        });
+      });
+
+      form.addEventListener('submit', function (event) {
+        event.preventDefault();
+        if (submitTimer) clearTimeout(submitTimer);
+        fetchAndSwap(buildUrlFromForm(true), true);
+      });
+
+      if (restoreSearchBtn) {
+        restoreSearchBtn.addEventListener('click', function () {
+          if (qInput) qInput.value = '';
+          if (cityInput) cityInput.value = '';
+          if (typeInput) typeInput.value = '';
+          if (propertyInput) propertyInput.value = '';
+          if (minInput) minInput.value = '';
+          if (maxInput) maxInput.value = '';
+          localFilterPreview();
+          fetchAndSwap(buildUrlFromForm(true), true);
+        });
+      }
+    }
+
+    initCarousels(document);
+    document.addEventListener('ajax:page-replaced', function () {
+      initCarousels(locationsResults);
+      localFilterPreview();
+    });
+  })();
+</script>
+{% endblock %}

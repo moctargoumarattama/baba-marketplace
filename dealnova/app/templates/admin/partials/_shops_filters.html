@@ -1,0 +1,31 @@
+<section class="shops-card">
+  <div class="shops-card-header">
+    <h5>Filtres & recherche</h5>
+    <span class="text-muted small">Affinez les boutiques affichees</span>
+  </div>
+  <form method="get">
+    <div class="filter-grid">
+      <div>
+        <label for="search" class="form-label">Rechercher</label>
+        <input type="text" class="form-control" id="search" name="search"
+               value="{{ search }}" placeholder="Nom, description, email...">
+      </div>
+      <div>
+        <label for="status" class="form-label">Statut</label>
+        <select class="form-select" id="status" name="status">
+          <option value="">Tous les statuts</option>
+          <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Actives</option>
+          <option value="inactive" {% if status_filter == 'inactive' %}selected{% endif %}>Inactives</option>
+        </select>
+      </div>
+      <div class="filter-actions">
+        <button type="submit" class="btn btn-primary">
+          <i class="bi bi-filter"></i> Filtrer
+        </button>
+        <a href="{{ url_for('admin_users.manage_shops') }}" class="btn btn-outline-secondary">
+          <i class="bi bi-x-circle"></i> Reinitialiser
+        </a>
+      </div>
+    </div>
+  </form>
+</section>

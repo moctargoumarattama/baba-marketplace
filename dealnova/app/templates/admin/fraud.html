@@ -1,0 +1,1352 @@
+{% extends 'admin/base.html' %}
+
+{% block title %}Fraude | Admin DealNova{% endblock %}
+{% block page_title %}Détection de fraude{% endblock %}
+{% block body_attrs %}{% endblock %}
+
+{% block head %}
+<style>
+    .fraud-wrap { display: grid; gap: 1.5rem; }
+    
+    /* Hero section */
+    .fraud-hero {
+        background: linear-gradient(135deg, rgba(220, 38, 38, 0.12), rgba(0, 78, 137, 0.08));
+        border: 1px solid rgba(220, 38, 38, 0.2);
+        border-radius: 20px;
+        padding: 1.6rem;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .fraud-hero::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(circle at top right, rgba(255, 255, 255, 0.55), transparent 60%);
+        opacity: 0.7;
+    }
+    
+    .fraud-hero-content {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .fraud-title {
+        font-size: 1.6rem;
+        font-weight: 800;
+        color: var(--dark);
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 0.8rem;
+        flex-wrap: wrap;
+    }
+    
+    .fraud-title i {
+        width: 46px;
+        height: 46px;
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.8);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #dc2626;
+        font-size: 1.3rem;
+        box-shadow: 0 10px 18px rgba(0, 0, 0, 0.08);
+    }
+    
+    .fraud-subtitle {
+        color: #4B5563;
+        font-weight: 500;
+        margin: 0.35rem 0 0;
+    }
+    
+    /* Sound toggle */
+    .sound-toggle {
+        border: none;
+        background: rgba(0, 78, 137, 0.12);
+        color: var(--secondary);
+        font-weight: 600;
+        border-radius: 999px;
+        padding: 0.35rem 0.85rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+    
+    /* KPIs */
+    .fraud-kpis {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .5rem 1rem;
+        align-items: center;
+    }
+    
+    .fraud-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        padding: .35rem .75rem;
+        border-radius: 999px;
+        font-size: .8rem;
+        font-weight: 700;
+    }
+    
+    .fraud-pill.info { background: #dbeafe; color: #1d4ed8; }
+    .fraud-pill.warn { background: #fef3c7; color: #92400e; }
+    .fraud-pill.danger { background: #fee2e2; color: #b91c1c; }
+    
+    .fraud-live {
+        font-size: .82rem;
+        color: #6B7280;
+        display: flex;
+        gap: .6rem;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+    
+    /* Cards */
+    .fraud-card {
+        background: #fff;
+        border: 1px solid #E5E7EB;
+        border-radius: 18px;
+        box-shadow: 0 12px 26px rgba(0,0,0,0.06);
+        overflow: hidden;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    
+    .fraud-card:hover {
+        box-shadow: 0 16px 32px rgba(0,0,0,0.1);
+    }
+    
+    .fraud-card-header {
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid #E5E7EB;
+        background: #F9FAFB;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+    
+    .fraud-card-header h5 {
+        font-weight: 700;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .fraud-card-header .badge {
+        font-size: 0.7rem;
+        padding: 0.25rem 0.5rem;
+    }
+    
+    /* Cards colorées selon le niveau de risque */
+    .fraud-card--danger {
+        border-left: 4px solid #dc2626;
+    }
+    .fraud-card--danger .fraud-card-header {
+        background: #fff5f5;
+    }
+    
+    .fraud-card--warn {
+        border-left: 4px solid #f59e0b;
+    }
+    .fraud-card--warn .fraud-card-header {
+        background: #fffbeb;
+    }
+    
+    .fraud-card--info {
+        border-left: 4px solid #2563eb;
+    }
+    .fraud-card--info .fraud-card-header {
+        background: #eff6ff;
+    }
+    
+    /* Formulaire de filtres */
+    .filters-form {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+    
+    .filter-group {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        background: #fff;
+        padding: 0.25rem 0.5rem;
+        border-radius: 8px;
+        border: 1px solid #E5E7EB;
+    }
+    
+    .filter-group label {
+        font-size: 0.7rem;
+        font-weight: 600;
+        color: #6B7280;
+        margin: 0;
+    }
+    
+    .filter-group input {
+        width: 70px;
+        border: none;
+        padding: 0.25rem;
+        font-size: 0.85rem;
+    }
+    
+    .filter-group input:focus {
+        outline: none;
+    }
+    
+    /* Tables */
+    .table.fraud-table {
+        width: 100%;
+        margin-bottom: 0;
+    }
+    
+    .table.fraud-table th {
+        background: #F9FAFB;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #6B7280;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+    
+    .table.fraud-table tbody tr {
+        transition: background-color 0.2s ease;
+    }
+    
+    .table.fraud-table tbody tr:hover {
+        background: #f8fafc;
+    }
+    
+    .table.fraud-table td {
+        vertical-align: middle;
+        font-size: 0.9rem;
+    }
+    
+    /* Actions */
+    .fraud-actions .btn {
+        border-radius: 8px;
+        transition: all 0.2s ease;
+    }
+    
+    .fraud-actions .btn-danger {
+        box-shadow: 0 10px 18px rgba(220,38,38,0.22);
+        background: #dc2626;
+        border-color: #dc2626;
+    }
+    
+    .fraud-actions .btn-danger:hover {
+        filter: brightness(0.95);
+        transform: translateY(-1px);
+    }
+    
+    .fraud-actions .btn-outline-success {
+        border-color: #10b981;
+        color: #0f766e;
+    }
+    
+    .fraud-actions .btn-outline-success:hover {
+        background: #ecfdf5;
+        transform: translateY(-1px);
+    }
+    
+    /* Pagination interne */
+    .fraud-pager {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        gap: .6rem;
+        padding: .75rem 1rem;
+        border-top: 1px solid #E5E7EB;
+        background: #F9FAFB;
+    }
+    
+    .fraud-pager button {
+        border: 1px solid #D1D5DB;
+        background: #fff;
+        padding: .35rem .75rem;
+        border-radius: 8px;
+        font-size: .85rem;
+        transition: all 0.2s ease;
+    }
+    
+    .fraud-pager button:hover:not(:disabled) {
+        background: #f3f4f6;
+        border-color: #9CA3AF;
+    }
+    
+    .fraud-pager button:disabled {
+        opacity: .5;
+        cursor: not-allowed;
+    }
+    
+    .fraud-page-info {
+        font-size: .85rem;
+        color: #6B7280;
+    }
+    
+    /* Empty state */
+    .fraud-empty {
+        text-align: center;
+        padding: 2.5rem 1rem;
+        color: #6B7280;
+    }
+    
+    .fraud-empty i {
+        font-size: 2.5rem;
+        opacity: 0.5;
+        margin-bottom: 0.5rem;
+    }
+    
+    /* Animation de mise à jour */
+    @keyframes highlight {
+        0% { background-color: rgba(220, 38, 38, 0.2); }
+        100% { background-color: transparent; }
+    }
+    
+    .row-updated {
+        animation: highlight 1s ease;
+    }
+    
+    /* Bouton retour en haut */
+    .back-to-top {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background: #dc2626;
+        color: white;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        z-index: 100;
+        border: none;
+    }
+    
+    .back-to-top.show {
+        opacity: 1;
+    }
+    
+    /* Version mobile */
+    @media (max-width: 992px) {
+        .filters-form {
+            width: 100%;
+        }
+        
+        .filter-group {
+            flex: 1 1 calc(50% - 0.5rem);
+        }
+    }
+    
+    @media (max-width: 768px) {
+        .fraud-title {
+            font-size: 1.35rem;
+        }
+        
+        .fraud-card-header {
+            flex-direction: column;
+            align-items: stretch;
+        }
+        
+        .fraud-card-header .fraud-kpis {
+            width: 100%;
+        }
+        
+        .filters-form {
+            flex-direction: column;
+        }
+        
+        .filter-group {
+            width: 100%;
+        }
+        
+        .filter-group input {
+            width: 100%;
+        }
+        
+        /* Transformation de la table en cards */
+        .table.fraud-table,
+        .table.fraud-table thead,
+        .table.fraud-table tbody,
+        .table.fraud-table tr,
+        .table.fraud-table td {
+            display: block;
+        }
+        
+        .table.fraud-table thead {
+            display: none;
+        }
+        
+        .table.fraud-table tr {
+            margin-bottom: 1rem;
+            padding: 1rem;
+            background: #fff;
+            border: 1px solid #E5E7EB;
+            border-radius: 12px;
+            position: relative;
+        }
+        
+        .table.fraud-table td {
+            display: flex;
+            align-items: flex-start;
+            padding: 0.5rem 0;
+            border: none;
+            text-align: left;
+        }
+        
+        .table.fraud-table td:before {
+            content: attr(data-label);
+            font-weight: 600;
+            color: #6B7280;
+            width: 120px;
+            min-width: 120px;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .table.fraud-table td > * {
+            flex: 1;
+        }
+        
+        /* Ajustements spécifiques */
+        .fraud-actions .d-flex {
+            flex-direction: column;
+            width: 100%;
+        }
+        
+        .fraud-actions form {
+            width: 100%;
+        }
+        
+        .fraud-actions input {
+            max-width: none !important;
+        }
+        
+        .fraud-actions button {
+            width: 100%;
+        }
+    }
+    
+    @media (max-width: 576px) {
+        .table.fraud-table td:before {
+            width: 90px;
+            min-width: 90px;
+            font-size: 0.75rem;
+        }
+        
+        .fraud-kpis {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        
+        .fraud-live {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid fraud-wrap" id="fraudContent">
+    <!-- Bouton retour en haut -->
+    <button class="back-to-top" id="backToTop" title="Retour en haut">
+        <i class="bi bi-arrow-up"></i>
+    </button>
+
+    <!-- Hero section -->
+    <section class="fraud-hero">
+        <div class="fraud-hero-content">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+                <div>
+                    <h2 class="fraud-title">
+                        <i class="bi bi-shield-shaded"></i>
+                        Détection de fraude
+                    </h2>
+                    <p class="fraud-subtitle">Surveillance des comportements suspects</p>
+                </div>
+                <button class="sound-toggle" type="button" id="soundToggle">
+                    <i class="bi bi-volume-up"></i>
+                    Son: On
+                </button>
+            </div>
+            
+            <!-- KPIs -->
+            <div class="fraud-kpis">
+                <span class="fraud-pill info"><i class="bi bi-lightning-charge"></i> Temps réel</span>
+                <span class="fraud-pill info"><i class="bi bi-globe2"></i> 🌍 Global</span>
+                <span class="fraud-live">
+                    <i class="bi bi-clock"></i>
+                    Dernière mise à jour : <strong id="fraudLastUpdated">{{ now.strftime('%Y-%m-%d %H:%M:%S') }}</strong>
+                </span>
+                <span class="fraud-live">
+                    <i class="bi bi-trash"></i>
+                    Nettoyage auto : 2 jours
+                </span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Filtres -->
+    <section class="fraud-card">
+        <div class="fraud-card-header">
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-sliders2"></i>
+                <h5 class="m-0">Filtres</h5>
+            </div>
+            <form method="get" id="fraudFiltersForm" class="filters-form">
+                <div class="filter-group">
+                    <label>Jours</label>
+                    <input type="number" name="days" min="1" max="365" value="{{ days }}">
+                </div>
+                <div class="filter-group">
+                    <label>Seuil (jours)</label>
+                    <input type="number" name="threshold" min="2" max="200" value="{{ threshold }}">
+                </div>
+                <div class="filter-group">
+                    <label>Limite 1h</label>
+                    <input type="number" name="limit_1h" min="2" max="200" value="{{ limit_1h }}">
+                </div>
+                <div class="filter-group">
+                    <label>Limite 24h</label>
+                    <input type="number" name="limit_24h" min="2" max="500" value="{{ limit_24h }}">
+                </div>
+                <div class="filter-group">
+                    <label>Annulations</label>
+                    <input type="number" name="cancel_limit" min="2" max="200" value="{{ cancel_limit }}">
+                </div>
+                <div class="filter-group">
+                    <label>IP/Téléphones</label>
+                    <input type="number" name="ip_phones_limit" min="2" max="200" value="{{ ip_phones_limit }}">
+                </div>
+                <div class="filter-group">
+                    <label>Adresse min.</label>
+                    <input type="number" name="addr_min_len" min="4" max="120" value="{{ addr_min_len }}">
+                </div>
+                <div class="filter-group">
+                    <label>Max lignes</label>
+                    <input type="number" name="max_rows" min="10" max="200" value="{{ max_rows }}">
+                </div>
+                <button class="btn btn-outline-secondary btn-sm" type="button" id="fraudCleanTwoDays">
+                    <i class="bi bi-arrow-counterclockwise"></i> Nettoyer 2 jours
+                </button>
+                <button class="btn btn-primary btn-sm" type="submit">
+                    <i class="bi bi-funnel"></i> Filtrer
+                </button>
+            </form>
+            <small class="text-muted">Affichage plafonne a {{ max_rows }} lignes par bloc pour accelerer le rendu.</small>
+        </div>
+    </section>
+
+    <!-- Trop de commandes par téléphone (1h) -->
+    <section class="fraud-card fraud-card--danger">
+        <div class="fraud-card-header">
+            <h5>
+                <i class="bi bi-telephone"></i>
+                Trop de commandes par téléphone (1h)
+                <span class="badge bg-danger">{{ phone_1h|length }}</span>
+            </h5>
+            <span class="text-muted">{{ phone_1h|length }} groupes</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table align-middle fraud-table mb-0" data-page-size="10">
+                <thead>
+                    <tr>
+                        <th>Téléphone</th>
+                        <th>Nb commandes</th>
+                        <th>Dernière</th>
+                        <th>Blocage</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for phone, cnt, last in phone_1h %}
+                    <tr data-phone="{{ phone }}">
+                        <td data-label="Téléphone">{{ phone }}</td>
+                        <td data-label="Nb commandes"><span class="badge bg-danger">{{ cnt }}</span></td>
+                        <td data-label="Dernière">{{ last.strftime('%Y-%m-%d %H:%M') if last else '' }}</td>
+                        <td data-label="Blocage" class="fraud-actions">
+                            {% set blocked = blocked_map.get(('phone', phone)) %}
+                            {% if blocked %}
+                                <form method="post" action="{{ url_for('admin_users.fraud_unblock', block_id=blocked.id) }}">
+                                    {% include "admin/partials/_csrf.html" %}
+                                    <button class="btn btn-outline-success btn-sm" type="submit">Débloquer</button>
+                                </form>
+                            {% else %}
+                                <form method="post" action="{{ url_for('admin_users.fraud_block') }}" class="d-flex gap-2 align-items-center">
+                                    {% include "admin/partials/_csrf.html" %}
+                                    <input type="hidden" name="kind" value="phone">
+                                    <input type="hidden" name="value" value="{{ phone }}">
+                                    <input class="form-control form-control-sm" name="reason" placeholder="Raison" style="max-width:160px;">
+                                    <button class="btn btn-danger btn-sm" type="submit">Bloquer</button>
+                                </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="4">
+                            <div class="fraud-empty">
+                                <i class="bi bi-shield-check"></i>
+                                <p>Aucun téléphone suspect (1h).</p>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- Trop de commandes par IP (1h) -->
+    <section class="fraud-card fraud-card--danger">
+        <div class="fraud-card-header">
+            <h5>
+                <i class="bi bi-globe"></i>
+                Trop de commandes par IP (1h)
+                <span class="badge bg-danger">{{ ip_1h|length }}</span>
+            </h5>
+            <span class="text-muted">{{ ip_1h|length }} groupes</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table align-middle fraud-table mb-0" data-page-size="10">
+                <thead>
+                    <tr>
+                        <th>IP</th>
+                        <th>Nb commandes</th>
+                        <th>Dernière</th>
+                        <th>Blocage</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ip, cnt, last in ip_1h %}
+                    <tr data-ip="{{ ip }}">
+                        <td data-label="IP">{{ ip }}</td>
+                        <td data-label="Nb commandes"><span class="badge bg-danger">{{ cnt }}</span></td>
+                        <td data-label="Dernière">{{ last.strftime('%Y-%m-%d %H:%M') if last else '' }}</td>
+                        <td data-label="Blocage" class="fraud-actions">
+                            {% set blocked = blocked_map.get(('ip', ip)) %}
+                            {% if blocked %}
+                                <form method="post" action="{{ url_for('admin_users.fraud_unblock', block_id=blocked.id) }}">
+                                    {% include "admin/partials/_csrf.html" %}
+                                    <button class="btn btn-outline-success btn-sm" type="submit">Débloquer</button>
+                                </form>
+                            {% else %}
+                                <form method="post" action="{{ url_for('admin_users.fraud_block') }}" class="d-flex gap-2 align-items-center">
+                                    {% include "admin/partials/_csrf.html" %}
+                                    <input type="hidden" name="kind" value="ip">
+                                    <input type="hidden" name="value" value="{{ ip }}">
+                                    <input class="form-control form-control-sm" name="reason" placeholder="Raison" style="max-width:160px;">
+                                    <button class="btn btn-danger btn-sm" type="submit">Bloquer</button>
+                                </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="4">
+                            <div class="fraud-empty">
+                                <i class="bi bi-shield-check"></i>
+                                <p>Aucune IP suspecte (1h).</p>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- Trop de commandes par téléphone (24h) -->
+    <section class="fraud-card fraud-card--warn">
+        <div class="fraud-card-header">
+            <h5>
+                <i class="bi bi-telephone"></i>
+                Trop de commandes par téléphone (24h)
+                <span class="badge bg-warning">{{ phone_24h|length }}</span>
+            </h5>
+            <span class="text-muted">{{ phone_24h|length }} groupes</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table align-middle fraud-table mb-0" data-page-size="10">
+                <thead>
+                    <tr>
+                        <th>Téléphone</th>
+                        <th>Nb commandes</th>
+                        <th>Dernière</th>
+                        <th>Blocage</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for phone, cnt, last in phone_24h %}
+                    <tr>
+                        <td data-label="Téléphone">{{ phone }}</td>
+                        <td data-label="Nb commandes"><span class="badge bg-warning">{{ cnt }}</span></td>
+                        <td data-label="Dernière">{{ last.strftime('%Y-%m-%d %H:%M') if last else '' }}</td>
+                        <td data-label="Blocage" class="fraud-actions">
+                            {% set blocked = blocked_map.get(('phone', phone)) %}
+                            {% if blocked %}
+                                <form method="post" action="{{ url_for('admin_users.fraud_unblock', block_id=blocked.id) }}">
+                                    {% include "admin/partials/_csrf.html" %}
+                                    <button class="btn btn-outline-success btn-sm" type="submit">Débloquer</button>
+                                </form>
+                            {% else %}
+                                <form method="post" action="{{ url_for('admin_users.fraud_block') }}" class="d-flex gap-2 align-items-center">
+                                    {% include "admin/partials/_csrf.html" %}
+                                    <input type="hidden" name="kind" value="phone">
+                                    <input type="hidden" name="value" value="{{ phone }}">
+                                    <input class="form-control form-control-sm" name="reason" placeholder="Raison" style="max-width:160px;">
+                                    <button class="btn btn-danger btn-sm" type="submit">Bloquer</button>
+                                </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="4">
+                            <div class="fraud-empty">
+                                <i class="bi bi-shield-check"></i>
+                                <p>Aucun téléphone suspect (24h).</p>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- Trop de commandes par IP (24h) -->
+    <section class="fraud-card fraud-card--warn">
+        <div class="fraud-card-header">
+            <h5>
+                <i class="bi bi-globe"></i>
+                Trop de commandes par IP (24h)
+                <span class="badge bg-warning">{{ ip_24h|length }}</span>
+            </h5>
+            <span class="text-muted">{{ ip_24h|length }} groupes</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table align-middle fraud-table mb-0" data-page-size="10">
+                <thead>
+                    <tr>
+                        <th>IP</th>
+                        <th>Nb commandes</th>
+                        <th>Dernière</th>
+                        <th>Blocage</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ip, cnt, last in ip_24h %}
+                    <tr>
+                        <td data-label="IP">{{ ip }}</td>
+                        <td data-label="Nb commandes"><span class="badge bg-warning">{{ cnt }}</span></td>
+                        <td data-label="Dernière">{{ last.strftime('%Y-%m-%d %H:%M') if last else '' }}</td>
+                        <td data-label="Blocage" class="fraud-actions">
+                            {% set blocked = blocked_map.get(('ip', ip)) %}
+                            {% if blocked %}
+                                <form method="post" action="{{ url_for('admin_users.fraud_unblock', block_id=blocked.id) }}">
+                                    {% include "admin/partials/_csrf.html" %}
+                                    <button class="btn btn-outline-success btn-sm" type="submit">Débloquer</button>
+                                </form>
+                            {% else %}
+                                <form method="post" action="{{ url_for('admin_users.fraud_block') }}" class="d-flex gap-2 align-items-center">
+                                    {% include "admin/partials/_csrf.html" %}
+                                    <input type="hidden" name="kind" value="ip">
+                                    <input type="hidden" name="value" value="{{ ip }}">
+                                    <input class="form-control form-control-sm" name="reason" placeholder="Raison" style="max-width:160px;">
+                                    <button class="btn btn-danger btn-sm" type="submit">Bloquer</button>
+                                </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="4">
+                            <div class="fraud-empty">
+                                <i class="bi bi-shield-check"></i>
+                                <p>Aucune IP suspecte (24h).</p>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- Annulations / échecs de livraison -->
+    <section class="fraud-card fraud-card--danger">
+        <div class="fraud-card-header">
+            <h5>
+                <i class="bi bi-x-circle"></i>
+                Annulations / échecs de livraison ({{ days }} jours)
+                <span class="badge bg-danger">{{ cancelled_phones|length + cancelled_ips|length }}</span>
+            </h5>
+            <span class="text-muted">{{ cancelled_phones|length + cancelled_ips|length }} groupes</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table align-middle fraud-table mb-0" data-page-size="10">
+                <thead>
+                    <tr>
+                        <th>Type</th>
+                        <th>Valeur</th>
+                        <th>Nb annulations</th>
+                        <th>Dernière</th>
+                        <th>Blocage</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for phone, cnt, last in cancelled_phones %}
+                    <tr>
+                        <td data-label="Type">Tél.</td>
+                        <td data-label="Valeur">{{ phone }}</td>
+                        <td data-label="Nb annulations"><span class="badge bg-danger">{{ cnt }}</span></td>
+                        <td data-label="Dernière">{{ last.strftime('%Y-%m-%d %H:%M') if last else '' }}</td>
+                        <td data-label="Blocage" class="fraud-actions">
+                            {% set blocked = blocked_map.get(('phone', phone)) %}
+                            {% if blocked %}
+                                <form method="post" action="{{ url_for('admin_users.fraud_unblock', block_id=blocked.id) }}">
+                                    {% include "admin/partials/_csrf.html" %}
+                                    <button class="btn btn-outline-success btn-sm" type="submit">Débloquer</button>
+                                </form>
+                            {% else %}
+                                <form method="post" action="{{ url_for('admin_users.fraud_block') }}" class="d-flex gap-2 align-items-center">
+                                    {% include "admin/partials/_csrf.html" %}
+                                    <input type="hidden" name="kind" value="phone">
+                                    <input type="hidden" name="value" value="{{ phone }}">
+                                    <input class="form-control form-control-sm" name="reason" placeholder="Raison" style="max-width:160px;">
+                                    <button class="btn btn-danger btn-sm" type="submit">Bloquer</button>
+                                </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% for ip, cnt, last in cancelled_ips %}
+                    <tr>
+                        <td data-label="Type">IP</td>
+                        <td data-label="Valeur">{{ ip }}</td>
+                        <td data-label="Nb annulations"><span class="badge bg-danger">{{ cnt }}</span></td>
+                        <td data-label="Dernière">{{ last.strftime('%Y-%m-%d %H:%M') if last else '' }}</td>
+                        <td data-label="Blocage" class="fraud-actions">
+                            {% set blocked = blocked_map.get(('ip', ip)) %}
+                            {% if blocked %}
+                                <form method="post" action="{{ url_for('admin_users.fraud_unblock', block_id=blocked.id) }}">
+                                    {% include "admin/partials/_csrf.html" %}
+                                    <button class="btn btn-outline-success btn-sm" type="submit">Débloquer</button>
+                                </form>
+                            {% else %}
+                                <form method="post" action="{{ url_for('admin_users.fraud_block') }}" class="d-flex gap-2 align-items-center">
+                                    {% include "admin/partials/_csrf.html" %}
+                                    <input type="hidden" name="kind" value="ip">
+                                    <input type="hidden" name="value" value="{{ ip }}">
+                                    <input class="form-control form-control-sm" name="reason" placeholder="Raison" style="max-width:160px;">
+                                    <button class="btn btn-danger btn-sm" type="submit">Bloquer</button>
+                                </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% if cancelled_phones|length == 0 and cancelled_ips|length == 0 %}
+                    <tr>
+                        <td colspan="5">
+                            <div class="fraud-empty">
+                                <i class="bi bi-shield-check"></i>
+                                <p>Aucune annulation suspecte.</p>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- IP avec beaucoup de numéros différents -->
+    <section class="fraud-card fraud-card--warn">
+        <div class="fraud-card-header">
+            <h5>
+                <i class="bi bi-diagram-3"></i>
+                IP avec beaucoup de numéros différents ({{ days }} jours)
+                <span class="badge bg-warning">{{ ip_phone_mix|length }}</span>
+            </h5>
+            <span class="text-muted">{{ ip_phone_mix|length }} groupes</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table align-middle fraud-table mb-0" data-page-size="10">
+                <thead>
+                    <tr>
+                        <th>IP</th>
+                        <th>Nb téléphones</th>
+                        <th>Nb commandes</th>
+                        <th>Dernière</th>
+                        <th>Blocage</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ip, phones, orders, last in ip_phone_mix %}
+                    <tr>
+                        <td data-label="IP">{{ ip }}</td>
+                        <td data-label="Nb téléphones"><span class="badge bg-warning">{{ phones }}</span></td>
+                        <td data-label="Nb commandes">{{ orders }}</td>
+                        <td data-label="Dernière">{{ last.strftime('%Y-%m-%d %H:%M') if last else '' }}</td>
+                        <td data-label="Blocage" class="fraud-actions">
+                            {% set blocked = blocked_map.get(('ip', ip)) %}
+                            {% if blocked %}
+                                <form method="post" action="{{ url_for('admin_users.fraud_unblock', block_id=blocked.id) }}">
+                                    {% include "admin/partials/_csrf.html" %}
+                                    <button class="btn btn-outline-success btn-sm" type="submit">Débloquer</button>
+                                </form>
+                            {% else %}
+                                <form method="post" action="{{ url_for('admin_users.fraud_block') }}" class="d-flex gap-2 align-items-center">
+                                    {% include "admin/partials/_csrf.html" %}
+                                    <input type="hidden" name="kind" value="ip">
+                                    <input type="hidden" name="value" value="{{ ip }}">
+                                    <input class="form-control form-control-sm" name="reason" placeholder="Raison" style="max-width:160px;">
+                                    <button class="btn btn-danger btn-sm" type="submit">Bloquer</button>
+                                </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5">
+                            <div class="fraud-empty">
+                                <i class="bi bi-shield-check"></i>
+                                <p>Aucune IP suspecte.</p>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- Adresses vides ou suspectes -->
+    <section class="fraud-card fraud-card--danger">
+        <div class="fraud-card-header">
+            <h5>
+                <i class="bi bi-geo-alt"></i>
+                Adresses vides ou suspectes ({{ days }} jours)
+                <span class="badge bg-danger">{{ suspicious_orders|length }}</span>
+            </h5>
+            <span class="text-muted">{{ suspicious_orders|length }} commandes</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table align-middle fraud-table mb-0" data-page-size="10">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Téléphone</th>
+                        <th>IP</th>
+                        <th>Adresse</th>
+                        <th>Statut</th>
+                        <th>Date</th>
+                        <th>Blocage</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for order in suspicious_orders %}
+                    <tr>
+                        <td data-label="ID">#{{ order.id }}</td>
+                        <td data-label="Téléphone">{{ order.phone_digits }}</td>
+                        <td data-label="IP">{{ order.order_ip }}</td>
+                        <td data-label="Adresse" style="max-width:420px; word-break:break-word;">{{ order.address }}</td>
+                        <td data-label="Statut">{{ order.status }}</td>
+                        <td data-label="Date">{{ order.created_at.strftime('%Y-%m-%d %H:%M') if order.created_at else '' }}</td>
+                        <td data-label="Blocage" class="fraud-actions">
+                            <div class="d-flex gap-2 flex-wrap">
+                                {% if order.phone_digits %}
+                                    {% set blocked = blocked_map.get(('phone', order.phone_digits)) %}
+                                    {% if blocked %}
+                                        <form method="post" action="{{ url_for('admin_users.fraud_unblock', block_id=blocked.id) }}">
+                                            {% include "admin/partials/_csrf.html" %}
+                                            <button class="btn btn-outline-success btn-sm" type="submit">Débloq Tél.</button>
+                                        </form>
+                                    {% else %}
+                                        <form method="post" action="{{ url_for('admin_users.fraud_block') }}" class="d-flex gap-2 align-items-center">
+                                            {% include "admin/partials/_csrf.html" %}
+                                            <input type="hidden" name="kind" value="phone">
+                                            <input type="hidden" name="value" value="{{ order.phone_digits }}">
+                                            <input class="form-control form-control-sm" name="reason" placeholder="Raison" style="max-width:120px;">
+                                            <button class="btn btn-danger btn-sm" type="submit">Bloq Tél.</button>
+                                        </form>
+                                    {% endif %}
+                                {% endif %}
+                                {% if order.order_ip %}
+                                    {% set blocked_ip = blocked_map.get(('ip', order.order_ip)) %}
+                                    {% if blocked_ip %}
+                                        <form method="post" action="{{ url_for('admin_users.fraud_unblock', block_id=blocked_ip.id) }}">
+                                            {% include "admin/partials/_csrf.html" %}
+                                            <button class="btn btn-outline-success btn-sm" type="submit">Débloq IP</button>
+                                        </form>
+                                    {% else %}
+                                        <form method="post" action="{{ url_for('admin_users.fraud_block') }}" class="d-flex gap-2 align-items-center">
+                                            {% include "admin/partials/_csrf.html" %}
+                                            <input type="hidden" name="kind" value="ip">
+                                            <input type="hidden" name="value" value="{{ order.order_ip }}">
+                                            <input class="form-control form-control-sm" name="reason" placeholder="Raison" style="max-width:120px;">
+                                            <button class="btn btn-danger btn-sm" type="submit">Bloq IP</button>
+                                        </form>
+                                    {% endif %}
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7">
+                            <div class="fraud-empty">
+                                <i class="bi bi-shield-check"></i>
+                                <p>Aucune adresse suspecte.</p>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- Volumes suspects -->
+    <section class="fraud-card fraud-card--info">
+        <div class="fraud-card-header">
+            <h5>
+                <i class="bi bi-bar-chart"></i>
+                Volumes suspects ({{ days }} jours)
+                <span class="badge bg-info">{{ phone_groups|length + ip_groups|length }}</span>
+            </h5>
+            <span class="text-muted">{{ phone_groups|length + ip_groups|length }} groupes</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table align-middle fraud-table mb-0" data-page-size="10">
+                <thead>
+                    <tr>
+                        <th>Type</th>
+                        <th>Valeur</th>
+                        <th>Nb commandes</th>
+                        <th>Dernière</th>
+                        <th>Blocage</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for phone, cnt, last in phone_groups %}
+                    <tr>
+                        <td data-label="Type">Tél.</td>
+                        <td data-label="Valeur">{{ phone }}</td>
+                        <td data-label="Nb commandes">{{ cnt }}</td>
+                        <td data-label="Dernière">{{ last.strftime('%Y-%m-%d %H:%M') if last else '' }}</td>
+                        <td data-label="Blocage" class="fraud-actions">
+                            {% set blocked = blocked_map.get(('phone', phone)) %}
+                            {% if blocked %}
+                                <form method="post" action="{{ url_for('admin_users.fraud_unblock', block_id=blocked.id) }}">
+                                    {% include "admin/partials/_csrf.html" %}
+                                    <button class="btn btn-outline-success btn-sm" type="submit">Débloquer</button>
+                                </form>
+                            {% else %}
+                                <form method="post" action="{{ url_for('admin_users.fraud_block') }}" class="d-flex gap-2 align-items-center">
+                                    {% include "admin/partials/_csrf.html" %}
+                                    <input type="hidden" name="kind" value="phone">
+                                    <input type="hidden" name="value" value="{{ phone }}">
+                                    <input class="form-control form-control-sm" name="reason" placeholder="Raison" style="max-width:160px;">
+                                    <button class="btn btn-danger btn-sm" type="submit">Bloquer</button>
+                                </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% for ip, cnt, last in ip_groups %}
+                    <tr>
+                        <td data-label="Type">IP</td>
+                        <td data-label="Valeur">{{ ip }}</td>
+                        <td data-label="Nb commandes">{{ cnt }}</td>
+                        <td data-label="Dernière">{{ last.strftime('%Y-%m-%d %H:%M') if last else '' }}</td>
+                        <td data-label="Blocage" class="fraud-actions">
+                            {% set blocked = blocked_map.get(('ip', ip)) %}
+                            {% if blocked %}
+                                <form method="post" action="{{ url_for('admin_users.fraud_unblock', block_id=blocked.id) }}">
+                                    {% include "admin/partials/_csrf.html" %}
+                                    <button class="btn btn-outline-success btn-sm" type="submit">Débloquer</button>
+                                </form>
+                            {% else %}
+                                <form method="post" action="{{ url_for('admin_users.fraud_block') }}" class="d-flex gap-2 align-items-center">
+                                    {% include "admin/partials/_csrf.html" %}
+                                    <input type="hidden" name="kind" value="ip">
+                                    <input type="hidden" name="value" value="{{ ip }}">
+                                    <input class="form-control form-control-sm" name="reason" placeholder="Raison" style="max-width:160px;">
+                                    <button class="btn btn-danger btn-sm" type="submit">Bloquer</button>
+                                </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% if phone_groups|length == 0 and ip_groups|length == 0 %}
+                    <tr>
+                        <td colspan="5">
+                            <div class="fraud-empty">
+                                <i class="bi bi-shield-check"></i>
+                                <p>Aucun volume suspect.</p>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+
+<!-- Script pour les fonctionnalités -->
+<script>
+(function() {
+    // Configuration
+    const STORAGE_KEY = 'fraud_page_position';
+    const backToTopBtn = document.getElementById('backToTop');
+    const soundToggle = document.getElementById('soundToggle');
+    
+    // Gestion du son
+    let soundEnabled = localStorage.getItem('adminFraudSound') !== '0';
+    function updateSoundToggle() {
+        if (!soundToggle) return;
+        soundToggle.innerHTML = soundEnabled ? 
+            '<i class="bi bi-volume-up"></i> Son: On' : 
+            '<i class="bi bi-volume-mute"></i> Son: Off';
+    }
+    updateSoundToggle();
+    
+    if (soundToggle) {
+        soundToggle.addEventListener('click', () => {
+            soundEnabled = !soundEnabled;
+            localStorage.setItem('adminFraudSound', soundEnabled ? '1' : '0');
+            updateSoundToggle();
+        });
+    }
+    
+    // Sauvegarde de la position
+    function savePosition() {
+        const scrollY = window.scrollY;
+        const viewportHeight = window.innerHeight;
+        const documentHeight = document.documentElement.scrollHeight;
+        const scrollPercentage = (scrollY / (documentHeight - viewportHeight)) * 100;
+        
+        const urlParams = new URLSearchParams(window.location.search);
+        
+        const positionData = {
+            scrollPercentage: scrollPercentage,
+            scrollY: scrollY,
+            filters: Object.fromEntries(urlParams),
+            timestamp: Date.now()
+        };
+        
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(positionData));
+    }
+    
+    // Restauration de la position
+    function restorePosition() {
+        const savedData = localStorage.getItem(STORAGE_KEY);
+        if (!savedData) return;
+        
+        try {
+            const positionData = JSON.parse(savedData);
+            const isRecent = (Date.now() - positionData.timestamp) < 10 * 60 * 1000;
+            
+            if (!isRecent) {
+                localStorage.removeItem(STORAGE_KEY);
+                return;
+            }
+            
+            const urlParams = new URLSearchParams(window.location.search);
+            const currentFilters = Object.fromEntries(urlParams);
+            const filtersMatch = JSON.stringify(positionData.filters) === JSON.stringify(currentFilters);
+            
+            if (!filtersMatch) {
+                localStorage.removeItem(STORAGE_KEY);
+                return;
+            }
+            
+            setTimeout(() => {
+                const documentHeight = document.documentElement.scrollHeight;
+                const viewportHeight = window.innerHeight;
+                const targetScrollY = (positionData.scrollPercentage / 100) * (documentHeight - viewportHeight);
+                
+                window.scrollTo({
+                    top: targetScrollY,
+                    behavior: 'smooth'
+                });
+                
+                localStorage.removeItem(STORAGE_KEY);
+            }, 100);
+            
+        } catch (e) {
+            console.error('Erreur de restauration:', e);
+            localStorage.removeItem(STORAGE_KEY);
+        }
+    }
+    
+    // Bouton retour en haut
+    function toggleBackToTop() {
+        if (window.scrollY > 300) {
+            backToTopBtn.classList.add('show');
+        } else {
+            backToTopBtn.classList.remove('show');
+        }
+    }
+    
+    backToTopBtn.addEventListener('click', () => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+    
+    window.addEventListener('scroll', () => {
+        clearTimeout(window.scrollTimeout);
+        window.scrollTimeout = setTimeout(savePosition, 500);
+        toggleBackToTop();
+    });
+    
+    window.addEventListener('beforeunload', savePosition);
+    
+    // Pagination interne pour les tables
+    function setupPagination(table) {
+        const pageSize = parseInt(table.dataset.pageSize || '10', 10);
+        if (!pageSize || pageSize <= 0) return;
+        
+        const tbody = table.tBodies[0];
+        if (!tbody) return;
+        
+        const rows = Array.from(tbody.rows).filter(row => 
+            !row.querySelector('.fraud-empty')
+        );
+        
+        const tableWrap = table.closest('.table-responsive');
+        if (!tableWrap) return;
+        
+        const existingPager = tableWrap.nextElementSibling;
+        if (existingPager && existingPager.classList.contains('fraud-pager')) {
+            existingPager.remove();
+        }
+        
+        if (rows.length <= pageSize) {
+            rows.forEach(row => row.style.display = '');
+            return;
+        }
+        
+        let currentPage = 1;
+        const totalPages = Math.ceil(rows.length / pageSize);
+        
+        const pager = document.createElement('div');
+        pager.className = 'fraud-pager';
+        
+        const prevBtn = document.createElement('button');
+        prevBtn.type = 'button';
+        prevBtn.innerHTML = '<i class="bi bi-chevron-left"></i> Précédent';
+        
+        const nextBtn = document.createElement('button');
+        nextBtn.type = 'button';
+        nextBtn.innerHTML = 'Suivant <i class="bi bi-chevron-right"></i>';
+        
+        const info = document.createElement('span');
+        info.className = 'fraud-page-info';
+        
+        pager.appendChild(prevBtn);
+        pager.appendChild(info);
+        pager.appendChild(nextBtn);
+        
+        tableWrap.insertAdjacentElement('afterend', pager);
+        
+        function render() {
+            const start = (currentPage - 1) * pageSize;
+            const end = start + pageSize;
+            
+            rows.forEach((row, idx) => {
+                row.style.display = (idx >= start && idx < end) ? '' : 'none';
+            });
+            
+            info.textContent = `Page ${currentPage}/${totalPages} - ${rows.length} éléments`;
+            prevBtn.disabled = currentPage <= 1;
+            nextBtn.disabled = currentPage >= totalPages;
+        }
+        
+        prevBtn.addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage -= 1;
+                render();
+            }
+        });
+        
+        nextBtn.addEventListener('click', () => {
+            if (currentPage < totalPages) {
+                currentPage += 1;
+                render();
+            }
+        });
+        
+        render();
+    }
+    
+    // Initialiser la pagination sur toutes les tables
+    document.querySelectorAll('.fraud-table').forEach(setupPagination);
+    
+    // Bouton nettoyer 2 jours
+    const cleanBtn = document.getElementById('fraudCleanTwoDays');
+    if (cleanBtn) {
+        cleanBtn.addEventListener('click', () => {
+            const form = document.getElementById('fraudFiltersForm');
+            if (form) {
+                const days = form.querySelector('input[name="days"]');
+                if (days) days.value = 2;
+                form.submit();
+            }
+        });
+    }
+    
+    // Mettre à jour l'horodatage toutes les secondes
+    function updateTimestamp() {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        const seconds = String(now.getSeconds()).padStart(2, '0');
+        
+        const timeStr = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+        const timestampEl = document.getElementById('fraudLastUpdated');
+        if (timestampEl) {
+            timestampEl.textContent = timeStr;
+        }
+    }
+    
+    // Mettre à jour toutes les secondes
+    setInterval(updateTimestamp, 1000);
+    
+    // Initialisation
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', restorePosition);
+    } else {
+        restorePosition();
+    }
+    
+    // Sauvegarde avant changement de page
+    document.querySelectorAll('a:not([href^="#"]), button[type="submit"]').forEach(el => {
+        el.addEventListener('click', savePosition);
+    });
+    
+})();
+</script>
+{% endblock %}

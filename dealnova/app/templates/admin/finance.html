@@ -1,0 +1,256 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Finance | Admin{% endblock %}
+{% block page_title %}Finance{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <div class="card mb-3">
+    <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+      <strong>Periodes financieres</strong>
+      <span class="badge bg-secondary">Suppression apres {{ retention_days }} jours (closed uniquement)</span>
+    </div>
+    <div class="card-body">
+      <form method="post" action="{{ url_for('admin.finance_period_open') }}" class="row g-2 align-items-end">
+        {% include "admin/partials/_csrf.html" %}
+        <div class="col-12 col-md-4">
+          <label class="form-label mb-1">Nom</label>
+          <input class="form-control" type="text" name="name" placeholder="Ex: Mars 2026" maxlength="120">
+        </div>
+        <div class="col-6 col-md-3">
+          <label class="form-label mb-1">Debut</label>
+          <input class="form-control" type="date" name="start_date" required>
+        </div>
+        <div class="col-6 col-md-3">
+          <label class="form-label mb-1">Fin</label>
+          <input class="form-control" type="date" name="end_date" required>
+        </div>
+        <div class="col-12 col-md-2 d-grid">
+          <button class="btn btn-primary" type="submit">Ouvrir une periode</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-12 col-md-4">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="text-muted small">Entrees non assignees</div>
+          <div class="h4 mb-1">{{ '%.2f'|format((unassigned_total_cents or 0) / 100) }} MAD</div>
+          <div class="small text-muted">{{ unassigned_count }} entree(s)</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-8">
+      <div class="card h-100">
+        <div class="card-body">
+          {% if selected_period %}
+          <div class="d-flex flex-wrap align-items-center gap-2">
+            <strong>Periode selectionnee:</strong>
+            <span>{{ selected_period.name }}</span>
+            <span class="badge {% if selected_period.status == 'open' %}bg-success{% else %}bg-dark{% endif %}">
+              {{ selected_period.status|upper }}
+            </span>
+            <span class="text-muted small">{{ selected_period.start_date }} -> {{ selected_period.end_date }}</span>
+            {% if selected_period.closed_at %}
+            <span class="text-muted small">Fermee le {{ selected_period.closed_at.strftime('%Y-%m-%d %H:%M') }}</span>
+            {% endif %}
+          </div>
+          {% else %}
+          <span class="text-muted">Aucune periode disponible. Ouvrez une periode pour demarrer le suivi.</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-header"><strong>Liste des periodes</strong></div>
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Nom</th>
+            <th>Dates</th>
+            <th>Status</th>
+            <th>Livraison</th>
+            <th>Abonnements</th>
+            <th>Location</th>
+            <th>Total</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if periods %}
+            {% for period in periods %}
+              {% set stats = period_stats.get(period.id, {}) %}
+              {% set delivery_total = period.delivery_total_cents if period.status == 'closed' and period.delivery_total_cents else (stats.get('delivery_total_cents', 0) if stats else 0) %}
+              {% set subscription_total = period.subscription_total_cents if period.status == 'closed' and period.subscription_total_cents else (stats.get('subscription_total_cents', 0) if stats else 0) %}
+              {% set rental_total = period.rental_total_cents if period.status == 'closed' and period.rental_total_cents else (stats.get('rental_total_cents', 0) if stats else 0) %}
+              {% set total_cents = period.total_cents if period.status == 'closed' and period.total_cents else (stats.get('total_cents', 0) if stats else 0) %}
+              <tr {% if selected_period_id == period.id %}class="table-active"{% endif %}>
+                <td>#{{ period.id }}</td>
+                <td>{{ period.name }}</td>
+                <td class="small">{{ period.start_date }} -> {{ period.end_date }}</td>
+                <td>
+                  <span class="badge {% if period.status == 'open' %}bg-success{% else %}bg-dark{% endif %}">{{ period.status }}</span>
+                </td>
+                <td>{{ '%.2f'|format((delivery_total or 0) / 100) }}</td>
+                <td>{{ '%.2f'|format((subscription_total or 0) / 100) }}</td>
+                <td>{{ '%.2f'|format((rental_total or 0) / 100) }}</td>
+                <td><strong>{{ '%.2f'|format((total_cents or 0) / 100) }} MAD</strong></td>
+                <td>
+                  <a class="btn btn-sm btn-outline-primary" href="{{ url_for('admin.finance', period_id=period.id) }}">Voir</a>
+                  {% if period.status == 'open' %}
+                  <form class="d-inline" method="post" action="{{ url_for('admin.finance_period_close', period_id=period.id) }}">
+                    {% include "admin/partials/_csrf.html" %}
+                    <button class="btn btn-sm btn-outline-warning" type="submit">Fermer</button>
+                  </form>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td colspan="9" class="text-center text-muted py-3">Aucune periode financiere.</td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {% if selected_period %}
+  <div class="card mb-3">
+    <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <strong>Detail: {{ selected_period.name }}</strong>
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        {% if selected_period.status == 'open' %}
+        <form method="post" action="{{ url_for('admin.finance_period_close', period_id=selected_period.id) }}">
+          {% include "admin/partials/_csrf.html" %}
+          <button class="btn btn-sm btn-warning" type="submit">Fermer la periode</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="row g-2 mb-3">
+        <div class="col-6 col-md-3"><div class="p-2 border rounded"><div class="small text-muted">Livraison</div><div class="fw-bold">{{ '%.2f'|format((selected_totals.delivery_total_cents or 0) / 100) }} MAD</div><div class="small">{{ selected_totals.delivery_count }} entree(s)</div></div></div>
+        <div class="col-6 col-md-3"><div class="p-2 border rounded"><div class="small text-muted">Abonnements</div><div class="fw-bold">{{ '%.2f'|format((selected_totals.subscription_total_cents or 0) / 100) }} MAD</div><div class="small">{{ selected_totals.subscription_count }} entree(s)</div></div></div>
+        <div class="col-6 col-md-3"><div class="p-2 border rounded"><div class="small text-muted">Location</div><div class="fw-bold">{{ '%.2f'|format((selected_totals.rental_total_cents or 0) / 100) }} MAD</div><div class="small">{{ selected_totals.rental_count }} entree(s)</div></div></div>
+        <div class="col-6 col-md-3"><div class="p-2 border rounded bg-light"><div class="small text-muted">Total global</div><div class="fw-bold">{{ '%.2f'|format((selected_totals.total_cents or 0) / 100) }} MAD</div><div class="small">{{ selected_totals.entry_count }} entree(s)</div></div></div>
+      </div>
+
+      <form method="get" class="row g-2 align-items-end mb-3">
+        <input type="hidden" name="period_id" value="{{ selected_period.id }}">
+        <div class="col-12 col-md-3">
+          <label class="form-label mb-1">Type</label>
+          <select class="form-select" name="entry_type">
+            <option value="" {% if not entry_type %}selected{% endif %}>Tous</option>
+            <option value="delivery_fee" {% if entry_type == 'delivery_fee' %}selected{% endif %}>Livraison</option>
+            <option value="subscription" {% if entry_type == 'subscription' %}selected{% endif %}>Abonnement</option>
+            <option value="rental_commission" {% if entry_type == 'rental_commission' %}selected{% endif %}>Location</option>
+          </select>
+        </div>
+        <div class="col-6 col-md-3">
+          <label class="form-label mb-1">Du</label>
+          <input class="form-control" type="date" name="date_from" value="{{ date_from }}">
+        </div>
+        <div class="col-6 col-md-3">
+          <label class="form-label mb-1">Au</label>
+          <input class="form-control" type="date" name="date_to" value="{{ date_to }}">
+        </div>
+        <div class="col-12 col-md-3 d-grid">
+          <button class="btn btn-outline-primary" type="submit">Filtrer</button>
+        </div>
+      </form>
+
+      <div class="table-responsive mb-3">
+        <table class="table table-sm align-middle">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Type</th>
+              <th>Montant</th>
+              <th>Reference</th>
+              <th>Livreur</th>
+              <th>Note</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% if entries %}
+              {% for entry in entries %}
+              <tr>
+                <td>{{ entry.created_at.strftime('%Y-%m-%d %H:%M') if entry.created_at else '-' }}</td>
+                <td>{{ entry_type_labels.get(entry.entry_type, entry.entry_type) }}</td>
+                <td><strong>{{ '%.2f'|format((entry.amount_cents or 0) / 100) }} MAD</strong></td>
+                <td>
+                  {% if entry.order_id %}
+                    Commande #{{ entry.order_id }}
+                  {% elif entry.rental_archive_id %}
+                    Archive location #{{ entry.rental_archive_id }}
+                  {% elif entry.subscription_id %}
+                    Paiement abonnement #{{ entry.subscription_id }}
+                  {% else %}
+                    -
+                  {% endif %}
+                </td>
+                <td>{{ entry.courier.username if entry.courier else '-' }}</td>
+                <td class="small text-muted">{{ entry.note or '-' }}</td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td colspan="6" class="text-center text-muted py-3">Aucune entree pour ce filtre.</td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+
+      {% if entries_pagination.pages > 1 %}
+      <nav aria-label="Pagination entries">
+        <ul class="pagination pagination-sm mb-3">
+          <li class="page-item {% if not entries_pagination.has_prev %}disabled{% endif %}">
+            <a class="page-link" href="{{ url_for('admin.finance', period_id=selected_period.id, entry_type=entry_type or None, date_from=date_from or None, date_to=date_to or None, page=entries_pagination.prev_num) if entries_pagination.has_prev else '#' }}">Precedent</a>
+          </li>
+          <li class="page-item disabled"><span class="page-link">{{ entries_pagination.page }} / {{ entries_pagination.pages }}</span></li>
+          <li class="page-item {% if not entries_pagination.has_next %}disabled{% endif %}">
+            <a class="page-link" href="{{ url_for('admin.finance', period_id=selected_period.id, entry_type=entry_type or None, date_from=date_from or None, date_to=date_to or None, page=entries_pagination.next_num) if entries_pagination.has_next else '#' }}">Suivant</a>
+          </li>
+        </ul>
+      </nav>
+      {% endif %}
+
+      <hr>
+      <h6 class="mb-2">Suppression securisee</h6>
+      {% if delete_allowed %}
+      <form method="post" action="{{ url_for('admin.finance_period_delete', period_id=selected_period.id) }}" class="row g-2 align-items-end">
+        {% include "admin/partials/_csrf.html" %}
+        <div class="col-12 col-md-4">
+          <label class="form-label mb-1">Mot de passe admin</label>
+          <input class="form-control" type="password" name="admin_password" required>
+        </div>
+        <div class="col-12 col-md-3">
+          <label class="form-label mb-1">Confirmation</label>
+          <input class="form-control" type="text" name="confirm_delete" placeholder="DELETE" required>
+        </div>
+        <div class="col-12 col-md-5 d-grid">
+          <button class="btn btn-danger" type="submit" data-confirm-click="Supprimer definitivement cette periode et ses entrees ?">Supprimer la periode</button>
+        </div>
+      </form>
+      {% else %}
+      <div class="alert alert-secondary mb-0">
+        {{ delete_message or ('Suppression possible apres ' ~ retention_days ~ ' jours.') }}
+        {% if delete_available_at %}
+          ({{ delete_available_at.strftime('%Y-%m-%d %H:%M') }})
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

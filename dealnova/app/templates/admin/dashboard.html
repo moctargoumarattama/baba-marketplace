@@ -1,0 +1,729 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Dashboard Admin | DealNova{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block head %}
+<style>
+  .dashboard {
+    display: grid;
+    gap: 1.8rem;
+    position: relative;
+    isolation: isolate;
+  }
+
+  .dashboard::before {
+    content: "";
+    position: absolute;
+    inset: -80px -40px auto -40px;
+    height: 260px;
+    background: radial-gradient(circle at 20% 20%, rgba(59, 130, 246, 0.18), transparent 60%),
+                radial-gradient(circle at 80% 0%, rgba(16, 185, 129, 0.14), transparent 55%);
+    opacity: 0.8;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .dashboard > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  .dash-hero {
+    position: relative;
+    overflow: hidden;
+    border-radius: 22px;
+    border: 1px solid rgba(59, 130, 246, 0.24);
+    background: linear-gradient(120deg, rgba(59, 130, 246, 0.2), rgba(16, 185, 129, 0.14), rgba(15, 23, 42, 0.06));
+    background-size: 200% 200%;
+    padding: 1.7rem;
+    box-shadow: 0 22px 50px rgba(15, 23, 42, 0.12);
+    animation: heroIn 0.6s ease both, heroGlow 12s ease infinite;
+  }
+
+  .dash-hero::before {
+    content: "";
+    position: absolute;
+    inset: auto -10% -60% auto;
+    width: 280px;
+    height: 280px;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.5), transparent 70%);
+    opacity: 0.7;
+  }
+
+  .dash-hero::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at top right, rgba(255, 255, 255, 0.65), transparent 60%);
+    opacity: 0.8;
+  }
+
+  .dash-hero-content {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .dash-hero-title {
+    font-size: 1.7rem;
+    font-weight: 800;
+    color: var(--dark);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .dash-hero-title i {
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.85);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--primary);
+    font-size: 1.4rem;
+    box-shadow: 0 12px 20px rgba(0, 0, 0, 0.08);
+  }
+
+  .dash-hero-subtitle {
+    margin: 0.35rem 0 0;
+    color: #4B5563;
+    font-weight: 500;
+  }
+
+  .dash-hero-actions {
+    display: flex;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+  }
+
+  .dash-hero-actions .btn {
+    border-radius: 999px;
+    padding: 0.55rem 1.05rem;
+    box-shadow: 0 10px 18px rgba(15, 23, 42, 0.12);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .dash-hero-actions .btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 14px 22px rgba(15, 23, 42, 0.16);
+  }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 1.1rem;
+    perspective: 1200px;
+  }
+
+  .stat-tile {
+    --accent: #2563EB;
+    --accent-soft: rgba(37, 99, 235, 0.16);
+    position: relative;
+    background: linear-gradient(#fff, #fff) padding-box,
+                linear-gradient(135deg, var(--accent-soft), rgba(255, 255, 255, 0.9)) border-box;
+    border-radius: 18px;
+    border: 1px solid transparent;
+    padding: 1.05rem 1.25rem;
+    box-shadow: 0 18px 28px rgba(15, 23, 42, 0.08);
+    transform-style: preserve-3d;
+    transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+    overflow: hidden;
+    opacity: 0;
+    transform: translateY(10px);
+    animation: cardIn 0.55s ease forwards;
+    animation-delay: calc(var(--i, 0) * 0.08s);
+  }
+
+  .stat-tile::before {
+    content: "";
+    position: absolute;
+    inset: auto -30% -45% auto;
+    width: 180px;
+    height: 180px;
+    background: radial-gradient(circle, var(--accent-soft), transparent 65%);
+    opacity: 0.65;
+    transition: opacity 0.3s ease;
+  }
+
+  .stat-tile::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at top right, rgba(255, 255, 255, 0.55), transparent 60%);
+    opacity: 0.2;
+    transition: opacity 0.3s ease;
+  }
+
+  .stat-tile:hover {
+    transform: translateY(-6px) rotateX(2deg) rotateY(-2deg);
+    box-shadow: 0 24px 40px rgba(15, 23, 42, 0.14);
+  }
+
+  .stat-tile:hover::before {
+    opacity: 0.9;
+  }
+
+  .stat-tile:hover::after {
+    opacity: 0.85;
+  }
+
+  .stat-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .stat-label {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #6B7280;
+    font-weight: 700;
+  }
+
+  .stat-value {
+    font-size: 1.9rem;
+    font-weight: 800;
+    color: var(--dark);
+    letter-spacing: -0.02em;
+  }
+
+  .stat-meta {
+    margin-top: 0.6rem;
+    font-size: 0.85rem;
+    color: #6B7280;
+  }
+
+  .stat-icon {
+    width: 46px;
+    height: 46px;
+    border-radius: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    background: var(--accent-soft);
+    color: var(--accent);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.7);
+  }
+
+  .stat-tile.is-success { --accent: #059669; --accent-soft: rgba(16, 185, 129, 0.18); }
+  .stat-tile.is-warning { --accent: #D97706; --accent-soft: rgba(245, 158, 11, 0.2); }
+  .stat-tile.is-danger { --accent: #DC2626; --accent-soft: rgba(239, 68, 68, 0.18); }
+
+  .dash-panel {
+    background: #fff;
+    border-radius: 18px;
+    border: 1px solid #E5E7EB;
+    box-shadow: 0 12px 26px rgba(0, 0, 0, 0.06);
+    overflow: hidden;
+    opacity: 0;
+    transform: translateY(10px);
+    animation: cardIn 0.55s ease forwards;
+    animation-delay: calc(var(--i, 0) * 0.1s);
+  }
+
+  .panel-head {
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid #E5E7EB;
+    background: linear-gradient(90deg, rgba(248, 250, 252, 0.95), rgba(255, 255, 255, 0.9));
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .panel-head h5 {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--dark);
+    position: relative;
+    padding-bottom: 0.35rem;
+  }
+
+  .panel-head h5::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 46px;
+    height: 3px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--primary), var(--accent));
+  }
+
+  .action-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 1rem;
+    padding: 1.25rem;
+  }
+
+  .action-card {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    padding: 0.95rem 1rem;
+    border-radius: 16px;
+    border: 1px solid transparent;
+    text-decoration: none;
+    color: var(--dark);
+    background: linear-gradient(#fff, #fff) padding-box,
+                linear-gradient(135deg, rgba(59, 130, 246, 0.18), rgba(16, 185, 129, 0.16)) border-box;
+    box-shadow: 0 12px 20px rgba(15, 23, 42, 0.06);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    position: relative;
+    overflow: hidden;
+    opacity: 0;
+    transform: translateY(8px);
+    animation: cardIn 0.45s ease forwards;
+    animation-delay: calc(var(--i, 0) * 0.08s);
+  }
+
+  .action-card::after {
+    content: "";
+    position: absolute;
+    inset: -40% auto auto -30%;
+    width: 180px;
+    height: 180px;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.6), transparent 70%);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+  }
+
+  .action-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 20px 30px rgba(15, 23, 42, 0.12);
+  }
+
+  .action-card:hover::after {
+    opacity: 0.9;
+  }
+
+  .action-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    background: rgba(59, 130, 246, 0.14);
+    color: #2563EB;
+  }
+
+  .action-text span {
+    display: block;
+    font-weight: 600;
+  }
+
+  .action-text small {
+    color: #6B7280;
+  }
+
+  .activity-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 1.2rem;
+  }
+
+  .list-stack {
+    display: grid;
+    padding: 0.35rem;
+    gap: 0.25rem;
+  }
+
+  .list-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.9rem;
+    padding: 0.85rem 1.1rem;
+    text-decoration: none;
+    color: inherit;
+    border-radius: 14px;
+    border: 1px solid #EEF2F7;
+    background: #fff;
+    transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+    opacity: 0;
+    transform: translateY(6px);
+    animation: fadeIn 0.35s ease forwards;
+    animation-delay: calc(var(--i, 0) * 0.04s);
+  }
+
+  .list-stack .list-item:nth-child(1) { --i: 0; }
+  .list-stack .list-item:nth-child(2) { --i: 1; }
+  .list-stack .list-item:nth-child(3) { --i: 2; }
+  .list-stack .list-item:nth-child(4) { --i: 3; }
+  .list-stack .list-item:nth-child(5) { --i: 4; }
+  .list-stack .list-item:nth-child(6) { --i: 5; }
+  .list-stack .list-item:nth-child(7) { --i: 6; }
+  .list-stack .list-item:nth-child(8) { --i: 7; }
+  .list-stack .list-item:nth-child(9) { --i: 8; }
+  .list-stack .list-item:nth-child(10) { --i: 9; }
+  .list-stack .list-item:nth-child(11) { --i: 10; }
+  .list-stack .list-item:nth-child(12) { --i: 11; }
+
+  .list-item:hover {
+    background: #F8FAFC;
+    transform: translateY(-2px);
+    box-shadow: 0 10px 18px rgba(15, 23, 42, 0.08);
+  }
+
+  .list-left {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .list-avatar {
+    width: 42px;
+    height: 42px;
+    border-radius: 14px;
+    overflow: hidden;
+    background: linear-gradient(135deg, var(--primary), var(--accent));
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 1rem;
+    flex-shrink: 0;
+  }
+
+  .list-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .list-title {
+    font-weight: 600;
+    margin: 0;
+  }
+
+  .list-meta {
+    color: #6B7280;
+    font-size: 0.8rem;
+  }
+
+  .list-right {
+    text-align: right;
+    color: #6B7280;
+    font-size: 0.8rem;
+  }
+
+  .empty-state {
+    padding: 1.5rem;
+    text-align: center;
+    color: #6B7280;
+  }
+
+  .live-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: .85rem;
+    padding: 1rem 1.2rem 1.2rem;
+  }
+
+  .live-metric {
+    border: 1px solid #E5E7EB;
+    border-radius: 14px;
+    background: #F8FAFC;
+    padding: .8rem .9rem;
+  }
+
+  .live-label {
+    font-size: .74rem;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: #64748b;
+    font-weight: 700;
+  }
+
+  .live-value {
+    margin-top: .28rem;
+    font-size: 1.55rem;
+    font-weight: 800;
+    color: #0F172A;
+  }
+
+  @media (max-width: 768px) {
+    .dash-hero-title {
+      font-size: 1.35rem;
+    }
+
+    .stats-grid {
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    }
+
+    .panel-head {
+      gap: 0.5rem;
+    }
+  }
+
+  @media (max-width: 540px) {
+    .dash-hero {
+      padding: 1.25rem;
+    }
+
+    .dash-hero-content {
+      gap: 0.75rem;
+    }
+
+    .dash-hero-actions {
+      width: 100%;
+    }
+
+    .dash-hero-actions .btn {
+      flex: 1 1 auto;
+      justify-content: center;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .dash-hero,
+    .stat-tile,
+    .action-card,
+    .dash-panel,
+    .list-item {
+      transition: none;
+      animation: none;
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes heroIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes heroGlow {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+
+  @keyframes cardIn {
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes fadeIn {
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard">
+  <section class="dash-hero">
+    <div class="dash-hero-content">
+      <div>
+        <h2 class="dash-hero-title">
+          <i class="bi bi-speedometer2"></i>
+          Dashboard Admin
+        </h2>
+        <p class="dash-hero-subtitle">
+          Vue globale, actions rapides et activite recente.
+          <span class="badge text-bg-secondary ms-1">🌍 Global</span>
+        </p>
+      </div>
+      <div class="dash-hero-actions">
+        <a href="{{ url_for('admin_users.create_user') }}" class="btn btn-primary">
+          <i class="bi bi-person-plus"></i> Nouvel utilisateur
+        </a>
+        <a href="{{ url_for('admin_users.create_shop') }}" class="btn btn-success">
+          <i class="bi bi-shop"></i> Nouvelle boutique
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="stats-grid">
+    <article class="stat-tile is-primary" style="--i:0">
+      <div class="stat-top">
+        <div>
+          <div class="stat-label">Utilisateurs</div>
+          <div class="stat-value">{{ total_users }}</div>
+        </div>
+        <div class="stat-icon"><i class="bi bi-people"></i></div>
+      </div>
+      <div class="stat-meta">{{ total_vendors }} vendeurs sur {{ total_users }} comptes actifs</div>
+    </article>
+    <article class="stat-tile is-success" style="--i:1">
+      <div class="stat-top">
+        <div>
+          <div class="stat-label">Boutiques</div>
+          <div class="stat-value">{{ total_shops }}</div>
+        </div>
+        <div class="stat-icon"><i class="bi bi-shop"></i></div>
+      </div>
+      <div class="stat-meta">{{ vendors_without_shop }} vendeurs sans boutique</div>
+    </article>
+    <article class="stat-tile is-warning" style="--i:2">
+      <div class="stat-top">
+        <div>
+          <div class="stat-label">Produits</div>
+          <div class="stat-value">{{ total_products }}</div>
+        </div>
+        <div class="stat-icon"><i class="bi bi-box"></i></div>
+      </div>
+      <div class="stat-meta">En vente sur la plateforme</div>
+    </article>
+    <article class="stat-tile is-danger" style="--i:3">
+      <div class="stat-top">
+        <div>
+          <div class="stat-label">Commandes</div>
+          <div class="stat-value">{{ total_orders }}</div>
+        </div>
+        <div class="stat-icon"><i class="bi bi-cart-check"></i></div>
+      </div>
+      <div class="stat-meta">Total des transactions</div>
+    </article>
+  </section>
+
+  <section class="dash-panel" style="--i:1">
+    <div class="panel-head">
+      <h5><i class="bi bi-broadcast-pin"></i> Trafic live</h5>
+      {% if live_traffic and live_traffic.available %}
+        <span class="badge text-bg-success">Live</span>
+      {% else %}
+        <span class="badge text-bg-secondary">N/A</span>
+      {% endif %}
+    </div>
+    <div class="live-grid">
+      <article class="live-metric">
+        <div class="live-label">Requetes / minute</div>
+        <div class="live-value">{{ live_traffic.rpm if live_traffic and live_traffic.rpm is not none else 'N/A' }}</div>
+      </article>
+      <article class="live-metric">
+        <div class="live-label">Visiteurs actifs (5 min)</div>
+        <div class="live-value">{{ live_traffic.active_visitors_5m if live_traffic and live_traffic.active_visitors_5m is not none else 'N/A' }}</div>
+      </article>
+      <article class="live-metric">
+        <div class="live-label">Commandes / heure</div>
+        <div class="live-value">{{ live_traffic.orders_per_hour if live_traffic and live_traffic.orders_per_hour is not none else 'N/A' }}</div>
+      </article>
+    </div>
+  </section>
+
+  <section class="dash-panel" style="--i:1">
+    <div class="panel-head">
+      <h5><i class="bi bi-lightning"></i> Actions rapides</h5>
+      <span class="text-muted small">Raccourcis prioritaires</span>
+    </div>
+    <div class="action-grid">
+      <a href="{{ url_for('admin_users.create_user') }}" class="action-card" style="--i:0">
+        <span class="action-icon"><i class="bi bi-person-plus"></i></span>
+        <span class="action-text">
+          <span>Creer un utilisateur</span>
+          <small>Compte vendeur, livreur ou admin</small>
+        </span>
+      </a>
+      <a href="{{ url_for('admin_users.create_shop') }}" class="action-card" style="--i:1">
+        <span class="action-icon"><i class="bi bi-shop"></i></span>
+        <span class="action-text">
+          <span>Creer une boutique</span>
+          <small>Associer un vendeur</small>
+        </span>
+      </a>
+      <a href="{{ url_for('admin.pricing_settings') }}" class="action-card" style="--i:2">
+        <span class="action-icon"><i class="bi bi-gear"></i></span>
+        <span class="action-text">
+          <span>Parametres</span>
+          <small>Livraison et part Baba</small>
+        </span>
+      </a>
+      <a href="{{ url_for('admin_users.view_logs') }}" class="action-card" style="--i:3">
+        <span class="action-icon"><i class="bi bi-clock-history"></i></span>
+        <span class="action-text">
+          <span>Voir les logs</span>
+          <small>Historique admin</small>
+        </span>
+      </a>
+    </div>
+  </section>
+
+  <section class="activity-grid">
+    <div class="dash-panel" style="--i:2">
+      <div class="panel-head">
+        <h5><i class="bi bi-people"></i> Derniers utilisateurs</h5>
+        <a href="{{ url_for('admin_users.manage_users') }}" class="btn btn-sm btn-outline-primary">Voir tous</a>
+      </div>
+      <div class="list-stack">
+        {% for user in recent_users %}
+        <a href="{{ url_for('admin_users.user_detail', user_id=user.id) }}" class="list-item">
+          <div class="list-left">
+            <div class="list-avatar">
+              {% if user.profile_image %}
+                <img src="{{ url_for('static', filename='uploads/profiles/' + user.profile_image) }}" alt="{{ user.username }}">
+              {% else %}
+                <i class="bi bi-person"></i>
+              {% endif %}
+            </div>
+            <div>
+              <div class="list-title">{{ user.username }}</div>
+              <div class="list-meta">{{ user.role }}</div>
+            </div>
+          </div>
+          <div class="list-right">{{ user.created_at.strftime('%d/%m/%Y') }}</div>
+        </a>
+        {% else %}
+          <div class="empty-state">Aucun utilisateur recent.</div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="dash-panel" style="--i:3">
+      <div class="panel-head">
+        <h5><i class="bi bi-shop"></i> Dernieres boutiques</h5>
+        <a href="{{ url_for('admin_users.manage_shops') }}" class="btn btn-sm btn-outline-primary">Voir toutes</a>
+      </div>
+      <div class="list-stack">
+        {% for shop in recent_shops %}
+        <a href="{{ url_for('admin_users.shop_detail', shop_id=shop.id) }}" class="list-item">
+          <div class="list-left">
+            <div class="list-avatar">
+              <i class="bi bi-shop"></i>
+            </div>
+            <div>
+              <div class="list-title">{{ shop.name }}</div>
+              <div class="list-meta">{{ shop.vendor.username }}</div>
+            </div>
+          </div>
+          <div class="list-right">{{ shop.created_at.strftime('%d/%m/%Y') }}</div>
+        </a>
+        {% else %}
+          <div class="empty-state">Aucune boutique recente.</div>
+        {% endfor %}
+      </div>
+    </div>
+
+   
+  </section>
+</div>
+{% endblock %}

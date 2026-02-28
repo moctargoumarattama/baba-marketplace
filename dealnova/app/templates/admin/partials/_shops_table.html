@@ -1,0 +1,126 @@
+<section class="shops-card">
+  <div class="shops-card-header">
+    <h5>Boutiques ({{ pagination.total }})</h5>
+    <span class="text-muted">Page {{ pagination.page }} sur {{ pagination.pages }}</span>
+  </div>
+  {% if shops_with_vendors %}
+  <div class="table-responsive">
+    <table class="table table-hover align-middle shops-table mb-0">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Boutique</th>
+          <th>Vendeur</th>
+          <th>Contact</th>
+          <th>Types</th>
+          <th>Statut</th>
+          <th>Creation</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for shop, vendor in shops_with_vendors %}
+        <tr>
+          <td data-label="ID">{{ shop.id }}</td>
+          <td data-label="Boutique">
+            <div class="d-flex align-items-center gap-3">
+              <div class="shop-avatar">
+                {% if shop.logo %}
+                  <img src="{{ url_for('static', filename='uploads/shops/' + shop.logo) }}" alt="{{ shop.name }}">
+                {% else %}
+                  <i class="bi bi-shop"></i>
+                {% endif %}
+              </div>
+              <div>
+                <div class="shop-name">{{ shop.name }}</div>
+                <div class="shop-meta">{{ shop.slug }}</div>
+              </div>
+            </div>
+          </td>
+          <td data-label="Vendeur">
+            <a href="{{ url_for('admin_users.user_detail', user_id=vendor.id) }}" class="text-decoration-none">
+              {{ vendor.username }}
+            </a>
+            <div class="shop-meta">{{ vendor.email }}</div>
+          </td>
+          <td data-label="Contact">
+            {{ shop.contact_email }}
+            {% if shop.contact_phone %}
+              <div class="shop-meta">{{ shop.contact_phone }}</div>
+            {% endif %}
+          </td>
+          <td data-label="Types">
+            <div class="d-flex flex-wrap gap-1">
+              {% for shop_type in shop.get_allowed_types() %}
+              <span class="badge bg-light text-dark border">{{ shop.type_label(shop_type) }}</span>
+              {% endfor %}
+            </div>
+          </td>
+          <td data-label="Statut">
+            <span class="badge status-pill bg-{{ 'success' if shop.is_active else 'secondary' }}"
+                  data-shop-status="{{ shop.id }}"
+                  data-active-text="Active"
+                  data-inactive-text="Inactive"
+                  data-active-class="bg-success"
+                  data-inactive-class="bg-secondary">
+              {{ 'Active' if shop.is_active else 'Inactive' }}
+            </span>
+          </td>
+          <td data-label="Creation">{{ shop.created_at.strftime('%d/%m/%Y') }}</td>
+          <td data-label="Actions" class="shop-actions">
+            <div class="btn-group btn-group-sm" role="group">
+              <a href="{{ url_for('admin_users.shop_detail', shop_id=shop.id) }}"
+                 class="btn btn-outline-primary" title="Voir">
+                <i class="bi bi-eye"></i>
+              </a>
+              <form method="post"
+                    action="{{ url_for('admin_users.toggle_shop', shop_id=shop.id) }}"
+                    class="d-inline"
+                    data-ajax="true"
+                    data-action="toggle-shop"
+                    data-confirm="Voulez-vous activer/desactiver cette boutique ?">
+                {% include "admin/partials/_csrf.html" %}
+                <button type="submit"
+                        class="btn btn-outline-{{ 'danger' if shop.is_active else 'success' }}"
+                        data-active-text="Desactiver"
+                        data-inactive-text="Activer"
+                        data-active-icon="bi bi-power"
+                        data-inactive-icon="bi bi-power"
+                        data-active-class="btn-outline-danger"
+                        data-inactive-class="btn-outline-success"
+                        title="{{ 'Desactiver' if shop.is_active else 'Activer' }}">
+                  <i class="bi bi-power"></i>
+                </button>
+              </form>
+              <form method="post"
+                    action="{{ url_for('admin_users.delete_shop', shop_id=shop.id) }}"
+                    class="d-inline"
+                    data-ajax="true"
+                    data-action="delete-shop"
+                    data-confirm="Supprimer cette boutique ?"
+                    data-remove-target="tr">
+                {% include "admin/partials/_csrf.html" %}
+                <button type="submit" class="btn btn-outline-danger" title="Supprimer">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <div class="empty-state">Aucune boutique trouvee.</div>
+  {% endif %}
+
+  {% if pagination.pages > 1 %}
+  <div class="card-footer">
+    {% set endpoint = 'admin_users.manage_shops' %}
+    {% set params = {'status': status_filter, 'search': search} %}
+    {% set iter_args = {'left_edge': 2, 'left_current': 2, 'right_current': 3, 'right_edge': 2} %}
+    {% include "admin/partials/_pagination.html" %}
+  </div>
+  {% endif %}
+</section>

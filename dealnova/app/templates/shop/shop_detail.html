@@ -1,0 +1,1591 @@
+<!-- templates/shop/shop_detail.html - OPTIMISÉ -->
+{% extends "base.html" %}
+
+{% block title %}{{ shop.name }} | DealNova{% endblock %}
+
+{% block head %}
+{{ super() }}
+<script src="https://unpkg.com/infinite-scroll@4/dist/infinite-scroll.pkgd.min.js"></script>
+<style>
+:root {
+    --sd-accent: #10b981;
+    --sd-accent-dark: #059669;
+    --sd-ink: #0f172a;
+    --sd-border: rgba(148, 163, 184, 0.35);
+    --sd-surface: #ffffff;
+    --sd-soft: #f5f7fb;
+    --sd-shadow: 0 16px 34px rgba(15, 23, 42, 0.12);
+}
+
+body {
+    background: radial-gradient(1200px 420px at 10% -10%, rgba(16,185,129,0.16), transparent 55%),
+                radial-gradient(900px 380px at 95% 0%, rgba(14,165,233,0.18), transparent 60%),
+                #f6f7fb;
+}
+
+.shop-detail-page {
+    position: relative;
+    z-index: 0;
+}
+.shop-detail-page::before {
+    content: "";
+    position: absolute;
+    inset: -24px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.9), rgba(255,255,255,0.55));
+    border-radius: 28px;
+    box-shadow: 0 30px 70px rgba(15,23,42,0.08);
+    z-index: -1;
+}
+
+.hover-lift {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.hover-lift:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1) !important;
+}
+.shop-hero-card {
+    border: 1px solid var(--sd-border);
+    background: radial-gradient(circle at top left, rgba(16,185,129,0.18), transparent 60%) , var(--sd-surface);
+    box-shadow: var(--sd-shadow);
+    border-radius: 26px;
+    overflow: hidden;
+}
+
+.shop-hero-banner {
+    position: relative;
+    height: 300px;
+    background: linear-gradient(135deg, #16a34a 0%, #10b981 40%, #34d399 70%, #fef3c7 120%);
+}
+
+.shop-hero-image {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #0f172a;
+}
+
+.shop-hero-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(15,23,42,0.2), rgba(15,23,42,0.75));
+}
+
+.shop-hero-banner::before {
+    content: "";
+    position: absolute;
+    inset: -40% -20% auto auto;
+    width: 260px;
+    height: 260px;
+    background: radial-gradient(circle, rgba(255,255,255,0.35), transparent 70%);
+    filter: blur(2px);
+    opacity: 0.8;
+}
+
+.shop-link-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 0.45rem 0.9rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.16);
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    color: #fff;
+    font-weight: 600;
+    text-decoration: none;
+    box-shadow: 0 12px 28px rgba(16, 185, 129, 0.25);
+    backdrop-filter: blur(6px);
+    position: relative;
+    overflow: hidden;
+    max-width: 100%;
+    text-align: center;
+    line-break: anywhere;
+    word-break: break-word;
+}
+
+.shop-link-badge::after {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -20%;
+    width: 40%;
+    height: 200%;
+    background: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.85), transparent);
+    transform: translateX(-150%) rotate(18deg);
+    transition: transform 0.9s ease;
+}
+
+.shop-link-badge:hover::after {
+    transform: translateX(220%) rotate(18deg);
+}
+
+.shop-logo-float {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    width: 76px;
+    height: 76px;
+    border-radius: 18px;
+    background: rgba(255,255,255,0.18);
+    border: 1px solid rgba(255,255,255,0.35);
+    display: grid;
+    place-items: center;
+    color: #fff;
+    font-weight: 800;
+    text-transform: uppercase;
+    backdrop-filter: blur(6px);
+    box-shadow:
+        0 14px 30px rgba(15,23,42,0.25),
+        0 0 0 6px rgba(255,255,255,0.12),
+        0 0 24px rgba(253,230,138,0.6);
+    animation: floatUp 3s ease-in-out infinite;
+}
+.shop-logo-float img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 16px;
+}
+
+.shop-hero-initials {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 900;
+    font-size: 2.5rem;
+    letter-spacing: 0.08em;
+    color: #fff;
+    text-transform: uppercase;
+}
+
+.shop-hero-content {
+    position: absolute;
+    left: 24px;
+    right: 24px;
+    bottom: 18px;
+    color: #fff;
+    z-index: 2;
+    animation: heroRise 0.7s ease both;
+}
+
+.shop-hero-content h1 {
+    margin: 0 0 0.35rem;
+    font-weight: 900;
+    text-shadow: 0 10px 22px rgba(0,0,0,0.35);
+    font-size: clamp(1.45rem, 2.6vw, 2.4rem);
+}
+
+.shop-hero-content p {
+    margin: 0;
+    max-width: 650px;
+    opacity: 0.9;
+}
+
+.shop-hero-card .verified-chip {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    z-index: 3;
+    background: rgba(16,185,129,0.95);
+    border: 1px solid rgba(255,255,255,0.3);
+    box-shadow: 0 10px 22px rgba(0,0,0,0.2);
+}
+
+.shop-hero-banner::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(120deg, rgba(255,255,255,0) 30%, rgba(255,255,255,0.25) 55%, rgba(255,255,255,0) 80%);
+    transform: translateX(-120%);
+    transition: transform 0.9s ease;
+}
+
+.shop-hero-card:hover .shop-hero-banner::after {
+    transform: translateX(120%);
+}
+
+.shop-hero-body {
+    padding-top: 1.25rem !important;
+}
+.shop-hero-body h1 {
+    color: var(--sd-ink);
+}
+.shop-hero-body .text-muted {
+    max-width: 680px;
+}
+.filter-card {
+    border: 1px solid var(--sd-border);
+    background: var(--sd-surface);
+    box-shadow: var(--sd-shadow);
+    border-radius: 20px;
+}
+.filter-card .card-header {
+    background: linear-gradient(135deg, rgba(16,185,129,0.08), rgba(245,158,11,0.08));
+    border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+    border-top-left-radius: 20px;
+    border-top-right-radius: 20px;
+}
+.filter-card .form-control:focus,
+.filter-card .form-select:focus {
+    border-color: var(--sd-accent);
+    box-shadow: 0 0 0 3px rgba(16,185,129,0.15);
+}
+.results-header h4 {
+    font-weight: 800;
+    color: var(--sd-ink);
+    position: relative;
+}
+.results-header h4::after {
+    content: "";
+    display: block;
+    width: 46px;
+    height: 4px;
+    margin-top: 6px;
+    background: linear-gradient(135deg, var(--sd-accent), #0ea5e9);
+    border-radius: 999px;
+}
+
+/* ===== MODE SWITCH (PRODUITS / SERVICES) ===== */
+.sd-mode-wrap {
+    max-width: 920px;
+    margin: 0 auto 1rem;
+}
+.sd-mode-switch {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 14px;
+}
+.sd-mode-btn {
+    border: 2px solid rgba(148, 163, 184, 0.35);
+    background: rgba(255, 255, 255, 0.92);
+    border-radius: 22px;
+    padding: 14px 16px;
+    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease, background 0.22s ease;
+    position: relative;
+    overflow: hidden;
+    text-align: left;
+}
+.sd-mode-btn::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(120deg, rgba(255,255,255,0) 30%, rgba(255,255,255,0.45) 55%, rgba(255,255,255,0) 80%);
+    transform: translateX(-120%);
+    transition: transform 0.8s ease;
+    pointer-events: none;
+}
+.sd-mode-btn:hover::after {
+    transform: translateX(120%);
+}
+.sd-mode-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 18px 38px rgba(15, 23, 42, 0.14);
+}
+.sd-mode-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 18px;
+    display: grid;
+    place-items: center;
+    font-size: 1.3rem;
+    flex-shrink: 0;
+}
+.sd-mode-products .sd-mode-icon {
+    background: rgba(16, 185, 129, 0.14);
+    color: var(--sd-accent-dark);
+}
+.sd-mode-services .sd-mode-icon {
+    background: rgba(37, 99, 235, 0.14);
+    color: #1D4ED8;
+}
+.sd-mode-text {
+    flex: 1;
+    min-width: 0;
+}
+.sd-mode-title {
+    font-weight: 900;
+    color: var(--sd-ink);
+    font-size: 1.05rem;
+    line-height: 1.1;
+}
+.sd-mode-sub {
+    margin-top: 2px;
+    font-size: 0.86rem;
+    color: #64748b;
+    font-weight: 700;
+}
+.sd-mode-count {
+    font-weight: 900;
+    font-size: 0.95rem;
+    color: var(--sd-ink);
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.06);
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    flex-shrink: 0;
+}
+.sd-mode-btn.active.sd-mode-products {
+    border-color: rgba(16, 185, 129, 0.75);
+    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.14), 0 18px 38px rgba(15, 23, 42, 0.12);
+    background: rgba(236, 253, 245, 0.75);
+}
+.sd-mode-btn.active.sd-mode-services {
+    border-color: rgba(37, 99, 235, 0.75);
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12), 0 18px 38px rgba(15, 23, 42, 0.12);
+    background: rgba(239, 246, 255, 0.75);
+}
+.sd-mode-all-label {
+    text-align: center;
+    margin-top: 0.7rem;
+    font-weight: 900;
+    color: #64748b;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+}
+
+/* ===== CATEGORY STRIP (VISIBLE UNIQUEMENT EN PRODUITS/SERVICES) ===== */
+.sd-category-strip-wrap {
+    max-width: 1100px;
+    margin: 0 auto 1.25rem;
+}
+.sd-category-strip-title {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-weight: 900;
+    color: #64748b;
+    margin-bottom: 0.65rem;
+}
+.sd-category-strip {
+    display: flex;
+    gap: 0.6rem;
+    overflow-x: auto;
+    padding: 0.1rem 0.1rem 0.4rem;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+}
+.sd-category-strip::-webkit-scrollbar {
+    display: none;
+}
+.sd-cat-chip {
+    white-space: nowrap;
+    border: 1.5px solid rgba(148, 163, 184, 0.35);
+    background: rgba(255,255,255,0.92);
+    border-radius: 999px;
+    padding: 0.55rem 0.85rem;
+    font-weight: 800;
+    color: var(--sd-ink);
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+    cursor: pointer;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+}
+.sd-cat-chip:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 12px 22px rgba(15, 23, 42, 0.1);
+    border-color: rgba(16, 185, 129, 0.4);
+}
+.sd-cat-chip.active {
+    background: linear-gradient(135deg, rgba(16,185,129,0.18), rgba(14,165,233,0.14));
+    border-color: rgba(16,185,129,0.55);
+    box-shadow: 0 0 0 3px rgba(16,185,129,0.12), 0 14px 26px rgba(15,23,42,0.1);
+}
+
+.kind-hidden {
+    display: none !important;
+}
+
+@media (max-width: 576px) {
+    .sd-mode-switch {
+        gap: 10px;
+    }
+    .sd-mode-btn {
+        padding: 12px 12px;
+        border-radius: 18px;
+        gap: 10px;
+    }
+    .sd-mode-icon {
+        width: 46px;
+        height: 46px;
+        border-radius: 16px;
+        font-size: 1.15rem;
+    }
+    .sd-mode-title {
+        font-size: 1rem;
+    }
+    .sd-mode-sub {
+        font-size: 0.82rem;
+    }
+    .sd-mode-count {
+        padding: 5px 8px;
+        font-size: 0.9rem;
+    }
+}
+.products-grid-premium .card {
+    border-radius: 16px;
+    border: 1px solid var(--sd-border);
+    overflow: hidden;
+    box-shadow: 0 12px 26px rgba(15, 23, 42, 0.1);
+    transition: transform 0.35s ease, box-shadow 0.35s ease, border-color 0.35s ease;
+    animation: cardIn 0.6s ease both;
+    animation-delay: calc(var(--i, 0) * 0.03s);
+    transform-style: preserve-3d;
+    position: relative;
+    z-index: 0;
+}
+.products-grid-premium .card:hover {
+    transform: translateY(-6px) rotateX(2deg) rotateY(-1.2deg);
+    box-shadow: 0 18px 36px rgba(15, 23, 42, 0.18);
+    border-color: rgba(16,185,129,0.5);
+}
+.products-grid-premium .card::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 16px;
+    background: linear-gradient(135deg, rgba(16,185,129,0.15), rgba(14,165,233,0.12));
+    opacity: 0;
+    transition: opacity 0.35s ease;
+    pointer-events: none;
+}
+.products-grid-premium .card:hover::after {
+    opacity: 1;
+}
+.products-grid-premium .card-img-top,
+.products-grid-premium .card .card-body {
+    position: relative;
+    z-index: 1;
+}
+.products-grid-premium .card .card-body {
+    background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(249,250,251,0.92));
+    padding: 0.85rem;
+}
+.products-grid-premium .card-img-top.product-image {
+    transition: transform 0.45s ease;
+}
+.products-grid-premium .card:hover .card-img-top.product-image {
+    transform: scale(1.05);
+}
+.products-grid-premium .product-image-slider {
+    position: relative;
+}
+.products-grid-premium .product-slide-control {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 28px;
+    height: 28px;
+    border: 0;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.58);
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 6;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s ease, background 0.2s ease;
+}
+.products-grid-premium .product-image-slider:hover .product-slide-control {
+    opacity: 1;
+}
+.products-grid-premium .product-slide-control.prev { left: 8px; }
+.products-grid-premium .product-slide-control.next { right: 8px; }
+.products-grid-premium .btn-primary {
+    background: linear-gradient(135deg, var(--sd-accent), var(--sd-accent-dark));
+    border: none;
+    box-shadow: 0 10px 24px rgba(16,185,129,0.28);
+}
+.products-grid-premium .btn-primary:hover {
+    transform: translateY(-2px);
+}
+
+@keyframes cardIn {
+    from { opacity: 0; transform: translateY(16px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes heroRise {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+@keyframes floatUp {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-4px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .products-grid-premium .card,
+    .products-grid-premium .card-img-top.product-image {
+        animation: none;
+        transition: none;
+    }
+    .shop-hero-content {
+        animation: none;
+    }
+    .shop-logo-float {
+        animation: none;
+    }
+}
+
+@media (max-width: 768px) {
+    .shop-hero-banner {
+        height: 240px;
+    }
+
+    .shop-hero-content {
+        left: 16px;
+        right: 16px;
+    }
+}
+.loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid #f3f3f3;
+    border-top: 3px solid #3498db;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 20px auto;
+}
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+.sticky-sidebar {
+    position: -webkit-sticky;
+    position: sticky;
+    top: 20px;
+}
+.product-image {
+    height: 170px;
+    object-fit: cover;
+    background-color: #f8f9fa;
+}
+@media (max-width: 768px) {
+    .product-image {
+        height: 145px;
+    }
+    .sticky-sidebar {
+        position: static;
+    }
+}
+
+@media (max-width: 576px) {
+    .product-image {
+        height: 130px;
+    }
+
+    .products-grid-premium .card .card-body {
+        padding: 0.7rem;
+    }
+
+    .products-grid-premium .card-title {
+        font-size: 0.95rem;
+        line-clamp: 2;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        min-height: 2.4em;
+    }
+
+    .product-desc {
+        display: none;
+    }
+}
+
+.shop-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 14px;
+}
+.meta-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: rgba(15,23,42,0.06);
+    border: 1px solid rgba(148,163,184,0.3);
+    color: #0f172a;
+    font-size: 0.85rem;
+}
+.shop-meta-map {
+    text-decoration: none;
+    color: #1D4ED8;
+    background: rgba(239, 246, 255, 0.82);
+    border-color: rgba(37, 99, 235, 0.35);
+    font-weight: 700;
+}
+.shop-meta-map:hover {
+    color: #1E40AF;
+    transform: translateY(-1px);
+    box-shadow: 0 8px 16px rgba(37, 99, 235, 0.18);
+}
+.meta-pill.open-state {
+    background: rgba(16,185,129,0.12);
+    border-color: rgba(16,185,129,0.35);
+    color: #065f46;
+    font-weight: 800;
+}
+.meta-pill.closed-state {
+    background: rgba(239,68,68,0.12);
+    border-color: rgba(239,68,68,0.35);
+    color: #991b1b;
+    font-weight: 800;
+}
+.hero-stats {
+    display: grid;
+    gap: 12px;
+}
+.hero-stat {
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: #fff;
+    border: 1px solid rgba(148,163,184,0.3);
+    box-shadow: 0 10px 22px rgba(15,23,42,0.08);
+    position: relative;
+    overflow: hidden;
+}
+.hero-stat::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(120deg, rgba(16,185,129,0.12), transparent 60%);
+    opacity: 0.8;
+}
+.hero-stat .stat-label {
+    display: block;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: #64748b;
+    position: relative;
+    z-index: 1;
+}
+.hero-stat .stat-value {
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: var(--sd-ink);
+    position: relative;
+    z-index: 1;
+}
+.list-group-item {
+    border-radius: 12px;
+    transition: all 0.2s ease;
+}
+.list-group-item.active {
+    background: linear-gradient(135deg, #10b981, #0ea5e9);
+    color: #fff;
+}
+.list-group-item .badge {
+    border: 1px solid rgba(148, 163, 184, 0.25);
+}
+.list-group-item.active .badge {
+    background: rgba(255, 255, 255, 0.18) !important;
+    color: #fff !important;
+    border-color: rgba(255, 255, 255, 0.35) !important;
+}
+.list-group-item:hover {
+    transform: translateX(4px);
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-3 py-md-4 shop-detail-page">
+    <!-- Shop Header -->
+    <div class="row mb-4">
+        <div class="col">
+            <div class="card border-0 shadow-sm shop-hero-card">
+                <div class="shop-hero-banner">
+                    {% if shop.banner %}
+                    <img src="{{ url_for('static', filename='uploads/' + shop.banner) }}"
+                         alt="{{ shop.name }}"
+                         class="shop-hero-image"
+                         loading="lazy"
+                         data-img-fallback="remove">
+                    {% elif shop.logo %}
+                    <img src="{{ url_for('static', filename='uploads/' + shop.logo) }}"
+                         alt="{{ shop.name }}"
+                         class="shop-hero-image"
+                         loading="lazy"
+                         data-img-fallback="remove">
+                    {% else %}
+                    <div class="shop-hero-initials">
+                        {{ shop.name[:2] }}
+                    </div>
+                    {% endif %}
+                    <div class="shop-hero-overlay"></div>
+
+                    <div class="shop-logo-float">
+                        {% if shop.logo %}
+                        <img src="{{ url_for('static', filename='uploads/' + shop.logo) }}"
+                             alt="{{ shop.name }}"
+                             loading="lazy"
+                             data-img-fallback="remove">
+                        {% else %}
+                        <span>{{ shop.name[:2] }}</span>
+                        {% endif %}
+                    </div>
+
+                    {% if shop.is_verified %}
+                    <span class="badge verified-chip">
+                        <i class="bi bi-check-circle-fill"></i> Verifie
+                    </span>
+                    {% endif %}
+
+                    <div class="shop-hero-content">
+                        <h1 class="fw-bold h3">{{ shop.name }}</h1>
+                        <p class="small mb-0">
+                            {{ shop.description if shop.description else "Boutique DealNova" }}
+                        </p>
+                        <div class="mt-2">
+                            <a class="shop-link-badge"
+                               href="{{ url_for('shops.shop_detail', shop_slug=shop.slug) }}"
+                               target="_blank"
+                               rel="noopener">
+                                <i class="bi bi-link-45deg"></i>
+                                {{ request.host }}/shop/{{ shop.slug }}
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card-body pt-5 shop-hero-body">
+                    <div class="row g-4 align-items-center">
+                        <div class="col-lg-8">
+                            {% set allowed_types = shop.get_allowed_types() %}
+                            {% set is_location_only = ('location' in allowed_types) and ('products' not in allowed_types) and ('services' not in allowed_types) %}
+                            <div class="shop-meta">
+                                {% if shop_is_open_now %}
+                                <span class="meta-pill open-state">
+                                    <i class="bi bi-check-circle-fill"></i> Ouvert
+                                </span>
+                                {% else %}
+                                <span class="meta-pill closed-state">
+                                    <i class="bi bi-x-circle-fill"></i> Fermé
+                                </span>
+                                {% endif %}
+                                {% if shop.contact_phone and not is_location_only %}
+                                <span class="meta-pill">
+                                    <i class="bi bi-telephone"></i> {{ shop.contact_phone }}
+                                </span>
+                                {% endif %}
+                                {% if shop.contact_email and not is_location_only %}
+                                <span class="meta-pill">
+                                    <i class="bi bi-envelope"></i> {{ shop.contact_email }}
+                                </span>
+                                {% endif %}
+                                {% if shop_allows_services and service_location_url %}
+                                <a class="meta-pill shop-meta-map"
+                                   href="{{ service_location_url }}"
+                                   target="_blank"
+                                   rel="noopener">
+                                    <i class="bi bi-geo-alt-fill"></i> Localisation exacte
+                                </a>
+                                {% if shop.service_location_note %}
+                                <span class="meta-pill">
+                                    <i class="bi bi-signpost-2"></i> {{ shop.service_location_note }}
+                                </span>
+                                {% endif %}
+                                {% endif %}
+                                {% if shop.is_verified %}
+                                <span class="meta-pill">
+                                    <i class="bi bi-shield-check"></i> Boutique verifiee
+                                </span>
+                                {% endif %}
+                                {% for shop_type in allowed_types %}
+                                <span class="meta-pill">
+                                    <i class="bi bi-grid-1x2-fill"></i>
+                                    {{ shop.type_label(shop_type) }}
+                                </span>
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                       
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if has_product_universe %}
+    <!-- Mode: Produits / Services (2 boutons uniquement) -->
+    <div class="sd-mode-wrap" id="sdModeWrap">
+        <div class="sd-mode-switch" role="group" aria-label="Filtre Produits / Services">
+            {% if shop_allows_products %}
+            <button type="button"
+                    class="sd-mode-btn sd-mode-products {% if kind == 'physical' %}active{% endif %}"
+                    data-kind="physical"
+                    aria-pressed="{{ 'true' if kind == 'physical' else 'false' }}">
+                <div class="sd-mode-icon"><i class="bi bi-box-seam"></i></div>
+                <div class="sd-mode-text">
+                    <div class="sd-mode-title">Produits</div>
+                    <div class="sd-mode-sub">Livraison</div>
+                </div>
+                <div class="sd-mode-count">{{ shop_physical_total }}</div>
+            </button>
+            {% endif %}
+            {% if shop_allows_services %}
+            <button type="button"
+                    class="sd-mode-btn sd-mode-services {% if kind == 'service' %}active{% endif %}"
+                    data-kind="service"
+                    aria-pressed="{{ 'true' if kind == 'service' else 'false' }}">
+                <div class="sd-mode-icon"><i class="bi bi-calendar-check"></i></div>
+                <div class="sd-mode-text">
+                    <div class="sd-mode-title">Services</div>
+                    <div class="sd-mode-sub">Rendez-vous</div>
+                </div>
+                <div class="sd-mode-count">{{ shop_service_total }}</div>
+            </button>
+            {% endif %}
+        </div>
+        <div class="sd-mode-all-label {% if kind %}kind-hidden{% endif %}" id="sdModeAllLabel">Tout</div>
+    </div>
+
+    <!-- Catégories (uniquement si Produits/Services sélectionné) -->
+    {% if categories %}
+    <div class="sd-category-strip-wrap {% if not kind %}kind-hidden{% endif %}" id="sdCategoryStripWrap">
+        <div class="sd-category-strip-title">
+            <i class="bi bi-tags"></i>
+            <span id="sdCategoryStripTitleText">
+              {% if kind == 'physical' %}
+                Catégories produits
+              {% elif kind == 'service' %}
+                Catégories services
+              {% else %}
+                Catégories
+              {% endif %}
+            </span>
+        </div>
+        <div class="sd-category-strip" id="sdCategoryStrip" aria-label="Catégories">
+            <button type="button"
+                    class="sd-cat-chip {% if not cat %}active{% endif %}"
+                    data-filter="category"
+                    data-value="">
+                Toutes catégories
+            </button>
+            {% for category in categories %}
+            <button type="button"
+                    class="sd-cat-chip {% if cat == category.id %}active{% endif %}"
+                    data-filter="category"
+                    data-value="{{ category.id }}"
+                    data-count-physical="{{ category_counts_physical.get(category.id, 0) if category_counts_physical else 0 }}"
+                    data-count-service="{{ category_counts_service.get(category.id, 0) if category_counts_service else 0 }}">
+                {{ category.name }}
+            </button>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="row g-4">
+        <!-- Sidebar Filters -->
+        <div class="col-lg-3">
+            <div class="card border-0 shadow-sm sticky-sidebar filter-card">
+                <div class="card-header bg-light py-3">
+                    <h5 class="mb-0">
+                        <i class="bi bi-funnel me-2"></i>Filtres
+                    </h5>
+                </div>
+                <div class="card-body py-3">
+                    <form id="filterForm" method="get" action="{{ url_for('shops.shop_detail', shop_slug=shop.slug) }}">
+                        <input type="hidden" name="kind" id="kindInput" value="{{ kind }}">
+                        <input type="hidden" name="cat" id="catInput" value="{{ cat or '' }}">
+                        <!-- Search -->
+                        <div class="mb-3">
+                            <label class="form-label fw-bold mb-2">Rechercher</label>
+                            <div class="input-group">
+                                <input type="text"
+                                       name="q"
+                                       id="searchInput"
+                                       value="{{ q }}"
+                                       placeholder="Nom du produit..."
+                                       class="form-control"
+                                       autocomplete="off">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-search"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Categories (uniquement si Produits/Services sélectionné) -->
+                        {% if categories %}
+                        <div class="mb-3 {% if not kind %}kind-hidden{% endif %}" id="sidebarCategoriesWrap">
+                            <label class="form-label fw-bold mb-2">Catégories</label>
+                            <div class="list-group list-group-flush" id="sidebarCategoriesList">
+                                <a href="{{ url_for('shops.shop_detail', shop_slug=shop.slug, kind=kind or None, q=q or None, sort=sort or None) }}"
+                                   class="list-group-item list-group-item-action px-0 py-2 border-0 d-flex justify-content-between align-items-center {% if not cat %}active{% endif %}"
+                                   data-filter="category"
+                                   data-value="">
+                                    <span>Toutes catégories</span>
+                                    <span class="badge rounded-pill bg-light text-dark" id="sidebarAllCatsCount">{{ total_products }}</span>
+                                </a>
+                                {% for category in categories %}
+                                <a href="{{ url_for('shops.shop_detail', shop_slug=shop.slug, cat=category.id, kind=kind or None, q=q or None, sort=sort or None) }}"
+                                   class="list-group-item list-group-item-action px-0 py-2 border-0 d-flex justify-content-between align-items-center {% if cat == category.id %}active{% endif %}"
+                                   data-filter="category"
+                                   data-value="{{ category.id }}"
+                                   data-count-physical="{{ category_counts_physical.get(category.id, 0) if category_counts_physical else 0 }}"
+                                   data-count-service="{{ category_counts_service.get(category.id, 0) if category_counts_service else 0 }}">
+                                    <span>{{ category.name }}</span>
+                                    <span class="badge rounded-pill bg-light text-dark category-count">
+                                        {% if kind == 'physical' %}
+                                          {{ category_counts_physical.get(category.id, 0) if category_counts_physical else 0 }}
+                                        {% elif kind == 'service' %}
+                                          {{ category_counts_service.get(category.id, 0) if category_counts_service else 0 }}
+                                        {% else %}
+                                          {{ category_counts.get(category.id, 0) if category_counts else 0 }}
+                                        {% endif %}
+                                    </span>
+                                </a>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <!-- Sort -->
+                        <div class="mb-4">
+                            <label class="form-label fw-bold mb-2">Trier par</label>
+                            <select name="sort" id="sortSelect" class="form-select">
+                                <option value="" {% if not sort %}selected{% endif %}>Plus récent</option>
+                                <option value="new" {% if sort == 'new' %}selected{% endif %}>Nouveautés</option>
+                                <option value="low" {% if sort == 'low' %}selected{% endif %}>Prix croissant</option>
+                                <option value="high" {% if sort == 'high' %}selected{% endif %}>Prix décroissant</option>
+                            </select>
+                        </div>
+
+                        <div class="d-grid">
+                            <button type="button" id="resetFilters" class="btn btn-outline-secondary mb-2">
+                                Réinitialiser
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Products Grid -->
+        <div class="col-lg-9">
+            <!-- Results Header -->
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4 results-header">
+                <div class="mb-3 mb-md-0">
+                    <h4 class="h5 mb-1" id="resultsTitle">
+                        {% if q %}
+                          Résultats pour "{{ q }}"
+                        {% else %}
+                          {% if kind == 'service' %}
+                            Services
+                          {% elif kind == 'physical' %}
+                            Produits
+                          {% else %}
+                            Tout
+                          {% endif %}
+                        {% endif %}
+                    </h4>
+                    <small class="text-muted" id="productCount">
+                      {{ total_products }}
+                      {% if kind == 'service' %}
+                        service(s)
+                      {% elif kind == 'physical' %}
+                        produit(s)
+                      {% else %}
+                        article(s)
+                      {% endif %}
+                    </small>
+                </div>
+                <div class="d-flex gap-2">
+                    <a href="{{ url_for('shops.list_shops') }}" class="btn btn-outline-secondary btn-sm">
+                        <i class="bi bi-arrow-left me-1"></i>Boutiques
+                    </a>
+                </div>
+            </div>
+
+            <!-- Products Container -->
+            <div id="productsGrid"
+                 class="row row-cols-2 row-cols-sm-2 row-cols-md-3 row-cols-xl-4 g-2 g-md-3 products-grid-premium"
+                 data-current-page="{{ pagination.page if pagination else 1 }}"
+                 data-has-more="{{ '1' if pagination and pagination.has_next else '0' }}">
+                {% include "shop/_products_partial.html" %}
+            </div>
+
+            <!-- Loading Spinner -->
+            <div id="loadingSpinner" class="d-none text-center py-4">
+                <div class="loading-spinner"></div>
+                <p class="text-muted mt-2">Chargement...</p>
+            </div>
+
+            <!-- No Results -->
+            <div id="noResults" class="text-center py-5 d-none">
+                <div class="display-1 text-muted mb-4">
+                    <i class="bi bi-box-seam"></i>
+                </div>
+                <h5 id="noResultsTitle">
+                    {% if kind == 'service' %}
+                      Aucun service trouvé
+                    {% elif kind == 'physical' %}
+                      Aucun produit trouvé
+                    {% else %}
+                      Aucun article trouvé
+                    {% endif %}
+                </h5>
+                <p class="text-muted mb-4" id="noResultsText">
+                    {% if q %}
+                      {% if kind == 'service' %}
+                        Aucun service ne correspond à votre recherche
+                      {% elif kind == 'physical' %}
+                        Aucun produit ne correspond à votre recherche
+                      {% else %}
+                        Aucun article ne correspond à votre recherche
+                      {% endif %}
+                    {% endif %}
+                </p>
+                <button type="button" id="clearSearch" class="btn btn-primary">
+                    {% if kind == 'service' %}
+                      Voir tous les services
+                    {% elif kind == 'physical' %}
+                      Voir tous les produits
+                    {% else %}
+                      Voir tout
+                    {% endif %}
+                </button>
+            </div>
+
+            <!-- Pagination (fallback for JS disabled) -->
+            <nav class="mt-4 d-none" id="fallbackPagination">
+                {% if pagination.pages > 1 %}
+                <ul class="pagination justify-content-center">
+                    {% if pagination.has_prev %}
+                    <li class="page-item">
+                        <a class="page-link"
+                           href="{{ url_for('shops.shop_detail', shop_slug=shop.slug, page=pagination.prev_num, q=q, cat=cat, sort=sort, kind=kind) }}">
+                            Précédent
+                        </a>
+                    </li>
+                    {% endif %}
+
+                    {% for p in pagination.iter_pages() %}
+                    {% if p %}
+                    <li class="page-item {% if p == pagination.page %}active{% endif %}">
+                        <a class="page-link"
+                           href="{{ url_for('shops.shop_detail', shop_slug=shop.slug, page=p, q=q, cat=cat, sort=sort, kind=kind) }}">
+                            {{ p }}
+                        </a>
+                    </li>
+                    {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link">...</span>
+                    </li>
+                    {% endif %}
+                    {% endfor %}
+
+                    {% if pagination.has_next %}
+                    <li class="page-item">
+                        <a class="page-link"
+                           href="{{ url_for('shops.shop_detail', shop_slug=shop.slug, page=pagination.next_num, q=q, cat=cat, sort=sort, kind=kind) }}">
+                            Suivant
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+                {% endif %}
+            </nav>
+        </div>
+    </div>
+    {% else %}
+    <div class="card border-0 shadow-sm filter-card mb-4">
+        <div class="card-body py-4 text-center">
+            <h5 class="mb-2">Cette boutique n'active pas encore le catalogue produits/services.</h5>
+            <p class="text-muted mb-0">Consultez les annonces location disponibles ci-dessous.</p>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if shop_allows_location %}
+    <div class="card border-0 shadow-sm filter-card mt-4">
+        <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <h5 class="mb-0">
+                <i class="bi bi-house-door me-2"></i>Locations ({{ location_total }})
+            </h5>
+            <a href="{{ url_for('rentals.locations_home') }}" class="btn btn-outline-primary btn-sm">
+                Explorer les locations
+            </a>
+        </div>
+        <div class="card-body">
+            {% if location_listings %}
+            <div class="row g-3">
+                {% for listing in location_listings %}
+                {% set listing_images = listing.media|selectattr('kind', 'equalto', 'image')|list %}
+                <div class="col-12 col-sm-6 col-xl-4">
+                    <div class="card h-100 border shadow-sm">
+                        <a href="{{ url_for('rentals.location_detail', slug=listing.slug) }}" class="text-decoration-none text-dark">
+                            {% if listing_images and listing_images[0] %}
+                            <img src="{{ url_for('static', filename=listing_images[0].file_path) }}"
+                                 alt="{{ listing.title }}"
+                                 class="card-img-top"
+                                 style="height: 168px; object-fit: cover;">
+                            {% else %}
+                            <div class="d-flex align-items-center justify-content-center bg-light"
+                                 style="height: 168px;">
+                                <i class="bi bi-house-door fs-1 text-muted"></i>
+                            </div>
+                            {% endif %}
+                            <div class="card-body pb-2">
+                                <h6 class="fw-bold mb-1">{{ listing.title|truncate(58) }}</h6>
+                                <div class="small text-muted mb-2">
+                                    <i class="bi bi-geo-alt"></i> {{ listing.city }}{% if listing.area %}, {{ listing.area }}{% endif %}
+                                </div>
+                                <div class="fw-bold text-success">{{ "%.2f"|format((listing.rent_cents or 0) / 100) }} DH</div>
+                            </div>
+                        </a>
+                        <div class="card-footer bg-white border-0 pt-0">
+                            <a href="{{ url_for('rentals.location_inquiry', slug=listing.slug) }}" class="btn btn-success btn-sm w-100">
+                                Demander visite / infos
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-muted mb-0">Aucune annonce location active pour cette boutique.</p>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Elements
+    const productsGrid = document.getElementById('productsGrid');
+    const loadingSpinner = document.getElementById('loadingSpinner');
+    const noResults = document.getElementById('noResults');
+    const productCount = document.getElementById('productCount');
+    const resultsTitle = document.getElementById('resultsTitle');
+    const searchInput = document.getElementById('searchInput');
+    const sortSelect = document.getElementById('sortSelect');
+    const filterForm = document.getElementById('filterForm');
+    const resetFilters = document.getElementById('resetFilters');
+    const clearSearch = document.getElementById('clearSearch');
+    const detailFetchBase = (filterForm && filterForm.getAttribute('action'))
+        ? filterForm.getAttribute('action')
+        : window.location.pathname;
+
+    const kindInput = document.getElementById('kindInput');
+    const catInput = document.getElementById('catInput');
+    const modeAllLabel = document.getElementById('sdModeAllLabel');
+    const categoryStripWrap = document.getElementById('sdCategoryStripWrap');
+    const categoryStripTitleText = document.getElementById('sdCategoryStripTitleText');
+    const sidebarCategoriesWrap = document.getElementById('sidebarCategoriesWrap');
+    const sidebarAllCatsCount = document.getElementById('sidebarAllCatsCount');
+    const noResultsTitle = document.getElementById('noResultsTitle');
+    const noResultsText = document.getElementById('noResultsText');
+    const initialPage = parseInt(productsGrid ? (productsGrid.getAttribute('data-current-page') || '1') : '1', 10);
+    let currentPage = (Number.isNaN(initialPage) ? 2 : (initialPage + 1));
+    let isLoading = false;
+    let hasMore = !!(productsGrid && productsGrid.getAttribute('data-has-more') === '1');
+    let lastTotal = parseInt(sidebarAllCatsCount ? (sidebarAllCatsCount.textContent || '0') : '0', 10) || 0;
+    let productsFetchController = null;
+    let currentFilters = {
+        q: searchInput ? searchInput.value.trim() : '',
+        cat: catInput ? catInput.value : '',
+        sort: sortSelect ? sortSelect.value : '',
+        kind: kindInput ? kindInput.value : ''
+    };
+
+    function updateCardSlider(container, direction) {
+        if (!container) return;
+        const imageElement = container.querySelector('.js-product-slide-image');
+        if (!imageElement) return;
+        let images = [];
+        try {
+            images = JSON.parse(container.dataset.sliderImages || '[]');
+        } catch (error) {
+            images = [];
+        }
+        if (!images.length) return;
+        let index = parseInt(container.dataset.sliderIndex || '0', 10);
+        if (Number.isNaN(index)) index = 0;
+        index += direction;
+        if (index < 0) index = images.length - 1;
+        if (index >= images.length) index = 0;
+        container.dataset.sliderIndex = String(index);
+        imageElement.src = images[index];
+    }
+
+    document.addEventListener('click', (event) => {
+        const prevBtn = event.target.closest('.js-slide-prev');
+        const nextBtn = event.target.closest('.js-slide-next');
+        if (!prevBtn && !nextBtn) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const container = event.target.closest('[data-slider-images]');
+        updateCardSlider(container, prevBtn ? -1 : 1);
+    });
+
+    function debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+
+    function normalizeKind(value) {
+        const kind = (value || '').toString().trim().toLowerCase();
+        if (kind === 'physical' || kind === 'service') return kind;
+        return '';
+    }
+
+    function getCountForKind(el, kind) {
+        if (!el || !kind) return 0;
+        const key = kind === 'physical' ? 'countPhysical' : 'countService';
+        const raw = (el.dataset && el.dataset[key]) ? el.dataset[key] : '0';
+        const count = parseInt(raw, 10);
+        return Number.isNaN(count) ? 0 : count;
+    }
+
+    function getKindLabel(kind) {
+        if (kind === 'service') return 'Services';
+        if (kind === 'physical') return 'Produits';
+        return 'Tout';
+    }
+
+    function getItemLabel(kind) {
+        if (kind === 'service') return 'service(s)';
+        if (kind === 'physical') return 'produit(s)';
+        return 'article(s)';
+    }
+
+    function syncEmptyStateCopy() {
+        const kind = normalizeKind(currentFilters.kind);
+        const hasQuery = !!(currentFilters.q && currentFilters.q.trim());
+
+        if (noResultsTitle) {
+            noResultsTitle.textContent =
+                kind === 'service' ? 'Aucun service trouvé' :
+                kind === 'physical' ? 'Aucun produit trouvé' :
+                'Aucun article trouvé';
+        }
+
+        if (noResultsText) {
+            if (!hasQuery) {
+                noResultsText.textContent = '';
+            } else {
+                noResultsText.textContent =
+                    kind === 'service' ? 'Aucun service ne correspond à votre recherche' :
+                    kind === 'physical' ? 'Aucun produit ne correspond à votre recherche' :
+                    'Aucun article ne correspond à votre recherche';
+            }
+        }
+
+        if (clearSearch) {
+            clearSearch.textContent =
+                kind === 'service' ? 'Voir tous les services' :
+                kind === 'physical' ? 'Voir tous les produits' :
+                'Voir tout';
+        }
+
+        if (searchInput) {
+            searchInput.placeholder =
+                kind === 'service' ? 'Nom du service...' :
+                kind === 'physical' ? 'Nom du produit...' :
+                'Nom (produit ou service)...';
+        }
+    }
+
+    function syncTotalsUI() {
+        if (sidebarAllCatsCount) {
+            sidebarAllCatsCount.textContent = String(lastTotal);
+        }
+
+        if (productCount) {
+            const kind = normalizeKind(currentFilters.kind);
+            productCount.textContent = `${lastTotal} ${getItemLabel(kind)}`;
+        }
+
+        if (resultsTitle && !(currentFilters.q && currentFilters.q.trim())) {
+            const kind = normalizeKind(currentFilters.kind);
+            resultsTitle.textContent = getKindLabel(kind);
+        }
+    }
+
+    function syncKindUI() {
+        const kind = normalizeKind(currentFilters.kind);
+        const hasKind = !!kind;
+
+        if (modeAllLabel) {
+            modeAllLabel.classList.toggle('kind-hidden', hasKind);
+        }
+        if (categoryStripWrap) {
+            categoryStripWrap.classList.toggle('kind-hidden', !hasKind);
+        }
+        if (sidebarCategoriesWrap) {
+            sidebarCategoriesWrap.classList.toggle('kind-hidden', !hasKind);
+        }
+
+        if (categoryStripTitleText) {
+            categoryStripTitleText.textContent =
+                kind === 'physical' ? 'Catégories produits' :
+                kind === 'service' ? 'Catégories services' :
+                'Catégories';
+        }
+
+        document.querySelectorAll('.sd-mode-btn[data-kind]').forEach(btn => {
+            const val = normalizeKind(btn.getAttribute('data-kind'));
+            const isActive = hasKind && val === kind;
+            btn.classList.toggle('active', isActive);
+            btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+        });
+
+        // Active states (categories)
+        document.querySelectorAll('[data-filter=\"category\"][data-value]').forEach(el => {
+            const value = (el.getAttribute('data-value') || '').trim();
+            const isActive = (currentFilters.cat || '') === value;
+            el.classList.toggle('active', isActive);
+        });
+
+        // Hide categories with 0 count in selected kind
+        const catChips = document.querySelectorAll('.sd-cat-chip[data-filter=\"category\"]');
+        const catLinks = document.querySelectorAll('#sidebarCategoriesList [data-filter=\"category\"]');
+
+        if (!hasKind) {
+            catChips.forEach(el => el.classList.remove('kind-hidden'));
+            catLinks.forEach(el => el.classList.remove('kind-hidden'));
+            syncTotalsUI();
+            syncEmptyStateCopy();
+            return;
+        }
+
+        catChips.forEach(el => {
+            const value = (el.getAttribute('data-value') || '').trim();
+            if (!value) {
+                el.classList.remove('kind-hidden');
+                return;
+            }
+            const count = getCountForKind(el, kind);
+            const shouldHide = count <= 0 && !el.classList.contains('active');
+            el.classList.toggle('kind-hidden', shouldHide);
+        });
+
+        catLinks.forEach(el => {
+            const value = (el.getAttribute('data-value') || '').trim();
+            if (!value) {
+                el.classList.remove('kind-hidden');
+                return;
+            }
+            const count = getCountForKind(el, kind);
+            const shouldHide = count <= 0 && !el.classList.contains('active');
+            el.classList.toggle('kind-hidden', shouldHide);
+
+            const countEl = el.querySelector('.category-count');
+            if (countEl) {
+                countEl.textContent = String(count);
+            }
+        });
+
+        syncTotalsUI();
+        syncEmptyStateCopy();
+    }
+
+    function resetLoadingState() {
+        if (productsFetchController) {
+            productsFetchController.abort();
+        }
+        productsFetchController = null;
+        isLoading = false;
+        hasMore = true;
+    }
+
+    function buildParams(pageNumber) {
+        const params = new URLSearchParams();
+        params.set('page', String(pageNumber));
+        Object.keys(currentFilters).forEach(key => {
+            const val = currentFilters[key];
+            if (val !== null && typeof val !== 'undefined' && String(val).trim() !== '') {
+                params.set(key, String(val));
+            }
+        });
+        return params;
+    }
+
+    function updateFiltersFromInputs() {
+        resetLoadingState();
+        currentFilters.q = (searchInput ? searchInput.value.trim() : '');
+        currentFilters.sort = (sortSelect ? sortSelect.value : '');
+        if (kindInput) kindInput.value = normalizeKind(currentFilters.kind);
+        if (catInput) catInput.value = (currentFilters.cat || '');
+
+        currentPage = 1;
+        if (productsGrid) productsGrid.innerHTML = '';
+        loadProducts();
+        syncKindUI();
+    }
+
+    function setKind(nextKind) {
+        resetLoadingState();
+        const desired = normalizeKind(nextKind);
+        const current = normalizeKind(currentFilters.kind);
+        currentFilters.kind = (current === desired) ? '' : desired;
+        currentFilters.cat = '';
+
+        if (kindInput) kindInput.value = normalizeKind(currentFilters.kind);
+        if (catInput) catInput.value = '';
+
+        currentPage = 1;
+        if (productsGrid) productsGrid.innerHTML = '';
+        loadProducts();
+        syncKindUI();
+    }
+
+    function setCategory(value) {
+        resetLoadingState();
+        currentFilters.cat = (value || '').toString().trim();
+        if (catInput) catInput.value = currentFilters.cat;
+
+        currentPage = 1;
+        if (productsGrid) productsGrid.innerHTML = '';
+        loadProducts();
+        syncKindUI();
+    }
+
+    function loadProducts() {
+        if (isLoading || !hasMore) return;
+
+        isLoading = true;
+        if (loadingSpinner) loadingSpinner.classList.remove('d-none');
+
+        if (productsFetchController) {
+            productsFetchController.abort();
+        }
+        productsFetchController = new AbortController();
+
+        const params = buildParams(currentPage);
+
+        const fetchUrl = `${detailFetchBase}?${params.toString()}&ajax=1`;
+        fetch(fetchUrl, { signal: productsFetchController.signal })
+            .then(response => response.json())
+            .then(data => {
+                if (!data || !data.products) return;
+
+                if (currentPage === 1) {
+                    if (productsGrid) productsGrid.innerHTML = data.products;
+                    lastTotal = typeof data.total === 'number' ? data.total : lastTotal;
+
+                    if (lastTotal === 0) {
+                        if (noResults) noResults.classList.remove('d-none');
+                        if (productsGrid) productsGrid.classList.add('d-none');
+                    } else {
+                        if (noResults) noResults.classList.add('d-none');
+                        if (productsGrid) productsGrid.classList.remove('d-none');
+                    }
+                } else {
+                    if (productsGrid) productsGrid.insertAdjacentHTML('beforeend', data.products);
+                }
+
+                hasMore = !!data.has_more;
+                currentPage++;
+                syncKindUI();
+            })
+            .catch(error => {
+                if (error && error.name === 'AbortError') return;
+                console.error('Error loading products:', error);
+            })
+            .finally(() => {
+                isLoading = false;
+                if (loadingSpinner) loadingSpinner.classList.add('d-none');
+            });
+    }
+
+    function handleScroll() {
+        const scrollPosition = window.innerHeight + window.scrollY;
+        const pageHeight = document.documentElement.scrollHeight - 140;
+        if (scrollPosition >= pageHeight && hasMore && !isLoading) {
+            loadProducts();
+        }
+    }
+
+    // Listeners
+    if (filterForm) {
+        filterForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            updateFiltersFromInputs();
+        });
+    }
+
+    if (searchInput) searchInput.addEventListener('input', debounce(updateFiltersFromInputs, 450));
+    if (sortSelect) sortSelect.addEventListener('change', updateFiltersFromInputs);
+
+    document.querySelectorAll('.sd-mode-btn[data-kind]').forEach(btn => {
+        btn.addEventListener('click', function() {
+            setKind(this.getAttribute('data-kind'));
+        });
+    });
+
+    document.querySelectorAll('.sd-cat-chip[data-filter=\"category\"]').forEach(chip => {
+        chip.addEventListener('click', function() {
+            setCategory(this.getAttribute('data-value'));
+        });
+    });
+
+    document.querySelectorAll('#sidebarCategoriesList [data-filter=\"category\"]').forEach(link => {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            setCategory(this.getAttribute('data-value'));
+        });
+    });
+
+    if (resetFilters) {
+        resetFilters.addEventListener('click', function() {
+            if (searchInput) searchInput.value = '';
+            if (sortSelect) sortSelect.value = '';
+            currentFilters.q = '';
+            currentFilters.sort = '';
+            currentFilters.cat = '';
+            currentFilters.kind = '';
+            if (kindInput) kindInput.value = '';
+            if (catInput) catInput.value = '';
+            currentPage = 1;
+            resetLoadingState();
+            if (productsGrid) productsGrid.innerHTML = '';
+            loadProducts();
+            syncKindUI();
+        });
+    }
+
+    if (clearSearch) {
+        clearSearch.addEventListener('click', function() {
+            if (searchInput) searchInput.value = '';
+            updateFiltersFromInputs();
+        });
+    }
+
+    if (productsGrid && productsGrid.children.length === 0) {
+        if (noResults) noResults.classList.remove('d-none');
+    }
+
+    window.addEventListener('scroll', debounce(handleScroll, 100));
+
+    syncKindUI();
+});
+</script>
+{% endblock %}

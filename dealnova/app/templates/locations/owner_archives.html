@@ -1,0 +1,492 @@
+{% extends "base.html" %}
+
+{% block title %}Archives locations | {{ config.SITE_NAME }}{% endblock %}
+
+{% block head %}
+<style>
+  .owner-archives-shell {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 1rem;
+    display: grid;
+    gap: 1rem;
+  }
+  .archives-hero {
+    background: linear-gradient(135deg, #0f766e, #14b8a6);
+    border-radius: 18px;
+    color: #fff;
+    padding: 1rem;
+    display: flex;
+    justify-content: space-between;
+    gap: 0.8rem;
+    flex-wrap: wrap;
+    box-shadow: 0 16px 34px rgba(15, 118, 110, 0.24);
+  }
+  .archives-hero h1 {
+    margin: 0 0 0.35rem;
+    font-size: 1.25rem;
+    font-weight: 900;
+  }
+  .archives-hero p {
+    margin: 0;
+    opacity: 0.94;
+    max-width: 760px;
+  }
+  .archives-summary {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.7rem;
+  }
+  .sum-card {
+    background: #fff;
+    border: 1px solid #dbe5ef;
+    border-radius: 14px;
+    padding: 0.78rem;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+  }
+  .sum-card .label {
+    color: #64748b;
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .sum-card .value {
+    color: #0f172a;
+    font-size: 1.08rem;
+    font-weight: 900;
+    margin-top: 0.2rem;
+  }
+  .archives-card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    box-shadow: 0 12px 26px rgba(15, 23, 42, 0.06);
+    overflow: hidden;
+  }
+  .archives-head {
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid #eef2f7;
+  }
+  .archives-filter {
+    display: grid;
+    gap: 0.55rem;
+    grid-template-columns: 1.2fr 1fr 0.9fr auto auto;
+    align-items: center;
+  }
+  .archives-filter .form-control,
+  .archives-filter .form-select {
+    min-height: 2.25rem;
+    border-radius: 10px;
+  }
+  .archives-body {
+    padding: 0.9rem;
+  }
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 0.2rem 0.6rem;
+    font-size: 0.72rem;
+    font-weight: 800;
+    border: 1px solid transparent;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+  .status-pill.taken {
+    background: #dcfce7;
+    color: #166534;
+    border-color: #bbf7d0;
+  }
+  .status-pill.expired {
+    background: #fee2e2;
+    color: #991b1b;
+    border-color: #fecaca;
+  }
+  .status-pill.deleted_by_owner,
+  .status-pill.deleted_by_admin {
+    background: #e2e8f0;
+    color: #334155;
+    border-color: #cbd5e1;
+  }
+  .trace-table th {
+    white-space: nowrap;
+    font-size: 0.77rem;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .trace-table td {
+    vertical-align: middle;
+    font-size: 0.86rem;
+    color: #334155;
+    font-weight: 600;
+  }
+  .trace-title {
+    max-width: 250px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: #0f172a;
+    font-weight: 800;
+  }
+  .trace-action-btn {
+    min-width: 118px;
+  }
+  .trace-details-row td {
+    background: #f8fafc;
+    border-top: none;
+    padding: 0;
+  }
+  .trace-details {
+    padding: 0.82rem 0.9rem 0.92rem;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.55rem;
+  }
+  .trace-detail-chip {
+    border: 1px solid #dbe5ef;
+    border-radius: 10px;
+    background: #fff;
+    padding: 0.5rem 0.58rem;
+  }
+  .trace-detail-chip .k {
+    color: #64748b;
+    font-size: 0.71rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .trace-detail-chip .v {
+    color: #0f172a;
+    font-size: 0.84rem;
+    font-weight: 800;
+    margin-top: 0.16rem;
+    line-height: 1.3;
+    word-break: break-word;
+  }
+  .archive-cards-mobile {
+    display: none;
+    gap: 0.6rem;
+  }
+  .archive-item-mobile {
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 0.7rem;
+    background: #fbfdff;
+    display: grid;
+    gap: 0.45rem;
+  }
+  .archive-item-mobile .title {
+    margin: 0;
+    color: #0f172a;
+    font-size: 0.92rem;
+    font-weight: 800;
+  }
+  .archive-item-mobile .line {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.55rem;
+    color: #475569;
+    font-size: 0.82rem;
+    font-weight: 700;
+  }
+  .archive-mobile-actions {
+    display: flex;
+    gap: 0.45rem;
+    flex-wrap: wrap;
+  }
+  .archive-mobile-actions .btn {
+    flex: 1;
+    min-width: 130px;
+  }
+  .archive-mobile-details {
+    margin-top: 0.25rem;
+    border-top: 1px dashed #dbe5ef;
+    padding-top: 0.55rem;
+    display: grid;
+    gap: 0.35rem;
+  }
+  .archive-mobile-details .line {
+    font-size: 0.79rem;
+  }
+  .pagination-wrap {
+    display: flex;
+    justify-content: center;
+    margin-top: 0.8rem;
+  }
+  @media (max-width: 920px) {
+    .archives-summary {
+      grid-template-columns: 1fr;
+    }
+    .archives-filter {
+      grid-template-columns: 1fr;
+    }
+    .trace-details {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+  @media (max-width: 760px) {
+    .owner-archives-shell {
+      padding: 0.7rem;
+    }
+    .trace-table-wrap {
+      display: none;
+    }
+    .archive-cards-mobile {
+      display: grid;
+    }
+    .trace-details {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="owner-archives-shell">
+  <section class="archives-hero">
+    <div>
+      <h1>Archives locations (30 jours)</h1>
+      <p>Historique dedie des annonces cloturees. Cette vue garde uniquement les traces du dernier mois pour rester lisible et rapide.</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <a class="btn btn-light" href="{{ url_for('rentals.owner_locations') }}">
+        <i class="bi bi-arrow-left me-1"></i> Retour aux locations
+      </a>
+    </div>
+  </section>
+
+  <section class="archives-summary">
+    <article class="sum-card">
+      <div class="label">Traces</div>
+      <div class="value">{{ pagination.total }}</div>
+    </article>
+    <article class="sum-card">
+      <div class="label">Conservation</div>
+      <div class="value">30 jours</div>
+    </article>
+  </section>
+
+  <section class="archives-card">
+    <div class="archives-head">
+      <form method="get" class="archives-filter">
+        <input class="form-control form-control-sm" type="text" name="q" value="{{ q }}" placeholder="Titre, ville, zone...">
+        <select class="form-select form-select-sm" name="shop">
+          <option value="">Toutes boutiques</option>
+          {% for shop in shops %}
+            <option value="{{ shop.id }}" {{ 'selected' if selected_shop_id == shop.id else '' }}>{{ shop.name }}</option>
+          {% endfor %}
+        </select>
+        <select class="form-select form-select-sm" name="status">
+          <option value="">Tous motifs</option>
+          {% for st in ['taken', 'expired', 'deleted_by_owner', 'deleted_by_admin'] %}
+            <option value="{{ st }}" {{ 'selected' if status == st else '' }}>{{ st }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-success btn-sm">
+          <i class="bi bi-funnel me-1"></i> Filtrer
+        </button>
+        <a href="{{ url_for('rentals.owner_locations_archives') }}" class="btn btn-outline-secondary btn-sm">Reset</a>
+      </form>
+    </div>
+
+    <div class="archives-body">
+      {% if archives %}
+        <div class="trace-table-wrap table-responsive">
+          <table class="table table-sm align-middle trace-table mb-0">
+            <thead>
+              <tr>
+                <th>Titre</th>
+                <th>Boutique</th>
+                <th>Motif</th>
+                <th>Loyer</th>
+                <th>Commission Baba</th>
+                <th>Vues</th>
+                <th>Cloturee le</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for archive in archives %}
+                {% set archived_commission = archive.platform_commission_amount_cents if archive.platform_commission_amount_cents else (commission_amount_from_owner_fee(archive.owner_fee_cents, archive.platform_commission_rate_bps) + (archive.platform_commission_fixed_cents or 0)) %}
+                <tr>
+                  <td>
+                    <div class="trace-title">{{ archive.title }}</div>
+                    <div class="small text-muted">{{ archive.city }}{% if archive.area %}, {{ archive.area }}{% endif %}</div>
+                  </td>
+                  <td>{{ archive.shop.name if archive.shop else '-' }}</td>
+                  <td><span class="status-pill {{ archive.closed_reason }}">{{ archive.closed_reason }}</span></td>
+                  <td>{{ cents_to_dh(archive.rent_cents) }}</td>
+                  <td>
+                    {% if archive.closed_reason == 'taken' %}
+                      {{ bps_to_percent(archive.platform_commission_rate_bps) }}% · {{ cents_to_dh(archived_commission) }}
+                    {% else %}
+                      -
+                    {% endif %}
+                  </td>
+                  <td>{{ archive.archived_view_count }}</td>
+                  <td>{{ archive.closed_at.strftime('%d/%m/%Y %H:%M') if archive.closed_at else '-' }}</td>
+                  <td>
+                    <button class="btn btn-outline-primary btn-sm trace-action-btn"
+                            type="button"
+                            data-bs-toggle="collapse"
+                            data-bs-target="#archiveDetail{{ archive.id }}"
+                            aria-expanded="false"
+                            aria-controls="archiveDetail{{ archive.id }}">
+                      <i class="bi bi-info-circle me-1"></i> Info complet
+                    </button>
+                  </td>
+                </tr>
+                <tr class="collapse trace-details-row" id="archiveDetail{{ archive.id }}">
+                  <td colspan="8">
+                    <div class="trace-details">
+                      <div class="trace-detail-chip">
+                        <div class="k">Quartier</div>
+                        <div class="v">{{ archive.area or 'N/A' }}</div>
+                      </div>
+                      <div class="trace-detail-chip">
+                        <div class="k">Ville</div>
+                        <div class="v">{{ archive.city or 'N/A' }}</div>
+                      </div>
+                      <div class="trace-detail-chip">
+                        <div class="k">Type</div>
+                        <div class="v">{{ archive.property_type or 'N/A' }} · {{ archive.listing_type or 'N/A' }}</div>
+                      </div>
+                      <div class="trace-detail-chip">
+                        <div class="k">Loyer</div>
+                        <div class="v">{{ cents_to_dh(archive.rent_cents) }}</div>
+                      </div>
+                      <div class="trace-detail-chip">
+                        <div class="k">Caution</div>
+                        <div class="v">{{ cents_to_dh(archive.deposit_cents) if archive.deposit_cents is not none else 'N/A' }}</div>
+                      </div>
+                      <div class="trace-detail-chip">
+                        <div class="k">Commission Baba totale</div>
+                        <div class="v">{{ cents_to_dh(archived_commission) }}</div>
+                      </div>
+                      <div class="trace-detail-chip">
+                        <div class="k">Taux commission</div>
+                        <div class="v">{{ bps_to_percent(archive.platform_commission_rate_bps) }}%</div>
+                      </div>
+                      <div class="trace-detail-chip">
+                        <div class="k">Frais proprietaire</div>
+                        <div class="v">{{ cents_to_dh(archive.owner_fee_cents) if archive.owner_fee_cents is not none else 'N/A' }}</div>
+                      </div>
+                      <div class="trace-detail-chip">
+                        <div class="k">Motif cloture</div>
+                        <div class="v">{{ archive.closed_reason }}</div>
+                      </div>
+                      <div class="trace-detail-chip">
+                        <div class="k">Cloturee le</div>
+                        <div class="v">{{ archive.closed_at.strftime('%d/%m/%Y %H:%M') if archive.closed_at else '-' }}</div>
+                      </div>
+                      <div class="trace-detail-chip">
+                        <div class="k">Creee le</div>
+                        <div class="v">{{ archive.created_at_original.strftime('%d/%m/%Y %H:%M') if archive.created_at_original else '-' }}</div>
+                      </div>
+                      <div class="trace-detail-chip">
+                        <div class="k">Expiration initiale</div>
+                        <div class="v">{{ archive.expires_at_original.strftime('%d/%m/%Y %H:%M') if archive.expires_at_original else '-' }}</div>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="archive-cards-mobile">
+          {% for archive in archives %}
+            {% set archived_commission = archive.platform_commission_amount_cents if archive.platform_commission_amount_cents else (commission_amount_from_owner_fee(archive.owner_fee_cents, archive.platform_commission_rate_bps) + (archive.platform_commission_fixed_cents or 0)) %}
+            <article class="archive-item-mobile">
+              <h3 class="title">{{ archive.title|truncate(54) }}</h3>
+              <div class="line"><span>Motif</span><span class="status-pill {{ archive.closed_reason }}">{{ archive.closed_reason }}</span></div>
+              <div class="line"><span>Boutique</span><span>{{ archive.shop.name if archive.shop else '-' }}</span></div>
+              <div class="line"><span>Loyer</span><span>{{ cents_to_dh(archive.rent_cents) }}</span></div>
+              <div class="line">
+                <span>Commission</span>
+                <span>
+                  {% if archive.closed_reason == 'taken' %}
+                    {{ bps_to_percent(archive.platform_commission_rate_bps) }}% · {{ cents_to_dh(archived_commission) }}
+                  {% else %}
+                    -
+                  {% endif %}
+                </span>
+              </div>
+              <div class="line"><span>Consultations</span><span>{{ archive.archived_view_count }}</span></div>
+              <div class="line"><span>Cloturee</span><span>{{ archive.closed_at.strftime('%d/%m/%Y %H:%M') if archive.closed_at else '-' }}</span></div>
+              <div class="archive-mobile-actions">
+                <button class="btn btn-outline-primary btn-sm"
+                        type="button"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#archiveDetailMobile{{ archive.id }}"
+                        aria-expanded="false"
+                        aria-controls="archiveDetailMobile{{ archive.id }}">
+                  <i class="bi bi-info-circle me-1"></i> Info complet
+                </button>
+              </div>
+              <div class="collapse archive-mobile-details" id="archiveDetailMobile{{ archive.id }}">
+                <div class="line"><span>Quartier</span><span>{{ archive.area or 'N/A' }}</span></div>
+                <div class="line"><span>Type</span><span>{{ archive.property_type or 'N/A' }} · {{ archive.listing_type or 'N/A' }}</span></div>
+                <div class="line"><span>Caution</span><span>{{ cents_to_dh(archive.deposit_cents) if archive.deposit_cents is not none else 'N/A' }}</span></div>
+                <div class="line"><span>Commission totale Baba</span><span>{{ cents_to_dh(archived_commission) }}</span></div>
+                <div class="line"><span>Taux commission</span><span>{{ bps_to_percent(archive.platform_commission_rate_bps) }}%</span></div>
+                <div class="line"><span>Frais proprietaire</span><span>{{ cents_to_dh(archive.owner_fee_cents) if archive.owner_fee_cents is not none else 'N/A' }}</span></div>
+                <div class="line"><span>Creee le</span><span>{{ archive.created_at_original.strftime('%d/%m/%Y %H:%M') if archive.created_at_original else '-' }}</span></div>
+                <div class="line"><span>Expiree initiale</span><span>{{ archive.expires_at_original.strftime('%d/%m/%Y %H:%M') if archive.expires_at_original else '-' }}</span></div>
+              </div>
+            </article>
+          {% endfor %}
+        </div>
+
+        {% if pagination.pages > 1 %}
+          <div class="pagination-wrap">
+            <nav aria-label="Pagination archives locations">
+              <ul class="pagination pagination-sm mb-0">
+                {% if pagination.has_prev %}
+                  <li class="page-item">
+                    <a class="page-link"
+                       href="{{ url_for('rentals.owner_locations_archives', page=pagination.prev_num, q=q, status=status, shop=selected_shop_id) }}">
+                      Prec.
+                    </a>
+                  </li>
+                {% else %}
+                  <li class="page-item disabled"><span class="page-link">Prec.</span></li>
+                {% endif %}
+
+                {% for p in pagination.iter_pages(left_edge=1, left_current=2, right_current=2, right_edge=1) %}
+                  {% if p %}
+                    <li class="page-item {{ 'active' if p == pagination.page else '' }}">
+                      <a class="page-link"
+                         href="{{ url_for('rentals.owner_locations_archives', page=p, q=q, status=status, shop=selected_shop_id) }}">{{ p }}</a>
+                    </li>
+                  {% else %}
+                    <li class="page-item disabled"><span class="page-link">...</span></li>
+                  {% endif %}
+                {% endfor %}
+
+                {% if pagination.has_next %}
+                  <li class="page-item">
+                    <a class="page-link"
+                       href="{{ url_for('rentals.owner_locations_archives', page=pagination.next_num, q=q, status=status, shop=selected_shop_id) }}">
+                      Suiv.
+                    </a>
+                  </li>
+                {% else %}
+                  <li class="page-item disabled"><span class="page-link">Suiv.</span></li>
+                {% endif %}
+              </ul>
+            </nav>
+          </div>
+        {% endif %}
+      {% else %}
+        <div class="text-center text-muted fw-semibold py-4">
+          Aucune archive sur les 30 derniers jours pour ces filtres.
+        </div>
+      {% endif %}
+    </div>
+  </section>
+</div>
+{% endblock %}

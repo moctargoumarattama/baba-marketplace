@@ -1,0 +1,507 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Logs | DealNova Admin{% endblock %}
+{% block page_title %}Logs & Historique{% endblock %}
+
+{% block content %}
+{% set critical_logs = logs|selectattr('category', 'in', ['auth', 'admin'])|list %}
+
+<style>
+:root {
+  --bg:#f8fafc;--white:#fff;--border:#e2e8f0;
+  --text:#0f172a;--mid:#475569;--muted:#94a3b8;
+  --primary:#3b82f6;--success:#22c55e;--warning:#f59e0b;
+  --danger:#ef4444;--info:#06b6d4;
+  --radius:10px;--shadow:0 1px 4px rgba(0,0,0,.07);
+}
+*{box-sizing:border-box;}
+
+/* kill any base 3D */
+.admin-card,.card{box-shadow:var(--shadow)!important;border:1px solid var(--border)!important;border-radius:var(--radius)!important;transform:none!important;transition:none!important;animation:none!important;}
+
+/* STATS */
+.lg-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:.75rem;margin-bottom:1.25rem;}
+.lg-stat{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:.9rem 1.1rem;box-shadow:var(--shadow);text-align:center;}
+.lg-stat .val{font-size:1.55rem;font-weight:800;line-height:1;}
+.lg-stat .lbl{font-size:.72rem;color:var(--mid);font-weight:600;margin-top:.28rem;}
+.c-blue{color:var(--primary);}.c-green{color:var(--success);}.c-yellow{color:var(--warning);}.c-red{color:var(--danger);}
+
+/* SECTION CARD */
+.lg-card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:1.1rem;overflow:hidden;}
+.lg-hd{display:flex;align-items:center;justify-content:space-between;padding:.8rem 1.1rem;border-bottom:1px solid var(--border);background:var(--bg);}
+.lg-hd h5{margin:0;font-size:.9rem;font-weight:700;color:var(--text);display:flex;align-items:center;gap:.4rem;}
+.lg-hd .sub{font-size:.75rem;color:var(--muted);}
+.lg-hd.red-hd{background:#fef2f2;border-bottom-color:#fecaca;}
+.lg-hd.red-hd h5{color:var(--danger);}
+.lg-body{padding:1rem 1.1rem;}
+
+/* FILTER BAR */
+.lg-fbar{display:flex;gap:.45rem;flex-wrap:wrap;align-items:flex-end;margin-bottom:.9rem;}
+.lg-fbar .fg{display:flex;flex-direction:column;gap:.22rem;}
+.lg-fbar label{font-size:.7rem;font-weight:700;color:var(--mid);}
+.lg-fbar select,.lg-fbar input[type=text]{
+  border:1px solid var(--border);border-radius:7px;
+  padding:.34rem .6rem;font-size:.79rem;color:var(--text);
+  background:var(--white);outline:none;min-width:130px;height:34px;
+  transition:border-color .15s;
+}
+.lg-fbar select:focus,.lg-fbar input[type=text]:focus{border-color:var(--primary);}
+.lg-fbar .btn-r{height:34px;padding:0 .8rem;border-radius:7px;background:var(--white);color:var(--mid);border:1px solid var(--border);font-size:.76rem;font-weight:600;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:.28rem;}
+.lg-fbar .btn-r:hover{background:var(--bg);}
+.live-badge{font-size:.68rem;font-weight:700;color:var(--success);background:#dcfce7;border:1px solid #bbf7d0;border-radius:999px;padding:.15rem .5rem;display:inline-flex;align-items:center;gap:.25rem;margin-left:auto;}
+.live-badge .dot{width:6px;height:6px;border-radius:50%;background:var(--success);animation:blink 1.4s ease infinite;}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:.3;}}
+
+/* TABLE */
+.lg-tbl{width:100%;border-collapse:collapse;font-size:.81rem;}
+.lg-tbl thead th{padding:.5rem .7rem;text-align:left;font-size:.69rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border);background:var(--bg);white-space:nowrap;}
+.lg-tbl tbody td{padding:.55rem .7rem;border-bottom:1px solid #f1f5f9;color:var(--text);vertical-align:middle;}
+.lg-tbl tbody tr:last-child td{border-bottom:none;}
+.lg-tbl tbody tr:hover{background:#f8fafc;}
+.lg-tbl .empty td{text-align:center;padding:2.5rem;color:var(--muted);}
+
+/* BADGES */
+.bOK{display:inline-flex;align-items:center;gap:.2rem;background:#dcfce7;color:#16a34a;border-radius:5px;padding:.16rem .48rem;font-size:.69rem;font-weight:700;}
+.bFL{display:inline-flex;align-items:center;gap:.2rem;background:#fee2e2;color:#dc2626;border-radius:5px;padding:.16rem .48rem;font-size:.69rem;font-weight:700;}
+.bNA{display:inline-flex;align-items:center;gap:.2rem;background:#f1f5f9;color:var(--muted);border-radius:5px;padding:.16rem .48rem;font-size:.69rem;font-weight:700;}
+
+/* MINI STATS */
+.mini-s{display:flex;gap:1.2rem;flex-wrap:wrap;padding:.7rem .9rem;background:var(--bg);border-radius:8px;border:1px solid var(--border);margin-bottom:.9rem;}
+.mini-s .v{font-size:1.2rem;font-weight:800;line-height:1;}
+.mini-s .l{font-size:.68rem;color:var(--muted);font-weight:600;}
+
+/* TERMINAL */
+.terminal{background:#0f172a;border-radius:8px;border:1px solid #1e293b;font-family:'Fira Mono','Courier New',monospace;font-size:.77rem;line-height:1.6;}
+.term-bar{background:#1e293b;padding:.45rem .85rem;display:flex;align-items:center;gap:.45rem;border-bottom:1px solid #334155;}
+.td{width:10px;height:10px;border-radius:50%;}
+.term-body{padding:.55rem .85rem;height:380px;overflow-y:auto;}
+.le{padding:.18rem 0;border-bottom:1px solid rgba(255,255,255,.04);}
+.le:last-child{border-bottom:none;}
+.le-ts{color:#64748b;}
+.le-INFO{color:#86efac;}.le-WARNING{color:#fde68a;}.le-ERROR{color:#fca5a5;}.le-DEBUG{color:#93c5fd;}
+.le-auth{color:#60a5fa;background:rgba(96,165,250,.12);padding:.08rem .32rem;border-radius:4px;font-size:.69rem;}
+.le-admin{color:#f87171;background:rgba(248,113,113,.12);padding:.08rem .32rem;border-radius:4px;font-size:.69rem;}
+.le-sys-cat{color:#94a3b8;background:rgba(148,163,184,.1);padding:.08rem .32rem;border-radius:4px;font-size:.69rem;}
+.le-user{color:#67e8f9;}.le-sys{color:#475569;}.le-msg{color:#e2e8f0;margin-left:.28rem;}
+.le-ip{color:#64748b;font-size:.7rem;margin-left:.9rem;}
+
+/* SKELETON loader */
+.skel{background:linear-gradient(90deg,#f1f5f9 25%,#e8edf3 50%,#f1f5f9 75%);background-size:200% 100%;animation:sk 1.4s ease infinite;border-radius:5px;height:14px;}
+@keyframes sk{0%{background-position:200% 0;}100%{background-position:-200% 0;}}
+
+/* PAGINATION */
+.pg{display:flex;align-items:center;justify-content:center;gap:.32rem;margin-top:.9rem;flex-wrap:wrap;}
+.pg a,.pg span{display:inline-flex;align-items:center;justify-content:center;min-width:32px;height:32px;padding:0 .65rem;border:1px solid var(--border);border-radius:7px;background:var(--white);color:var(--mid);font-size:.77rem;font-weight:700;text-decoration:none;cursor:pointer;transition:border-color .15s,background .15s;}
+.pg a:hover{border-color:var(--primary);color:var(--primary);background:#eff6ff;}
+.pg .cur{background:var(--primary);border-color:var(--primary);color:#fff;}
+.pg .dis{opacity:.38;pointer-events:none;}
+
+/* Loading overlay */
+.tbl-wrap{position:relative;}
+.tbl-mask{position:absolute;inset:0;background:rgba(255,255,255,.7);border-radius:8px;display:none;align-items:center;justify-content:center;z-index:10;}
+.tbl-mask.show{display:flex;}
+.spinner{width:24px;height:24px;border:3px solid #e2e8f0;border-top-color:var(--primary);border-radius:50%;animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* Fade transition for table content */
+.fade-in{animation:fi .2s ease;}
+@keyframes fi{from{opacity:0;}to{opacity:1;}}
+
+@media(max-width:768px){
+  .lg-stats{grid-template-columns:repeat(2,1fr);}
+  .lg-fbar select,.lg-fbar input[type=text]{min-width:100px;}
+  .mini-s{gap:.8rem;}
+}
+</style>
+
+<div class="container-fluid py-3">
+
+  <!-- STATS -->
+  <div class="lg-stats">
+    <div class="lg-stat"><div class="val c-blue">{{ audit_total_logs }}</div><div class="lbl">Audit total</div></div>
+    <div class="lg-stat"><div class="val c-green">{{ audit_logs_7d }}</div><div class="lbl">Audit 7 jours</div></div>
+    <div class="lg-stat"><div class="val c-yellow">{{ logs|length }}</div><div class="lbl">Logs système ({{ days }}j)</div></div>
+    <div class="lg-stat"><div class="val c-red">{{ critical_logs|length }}</div><div class="lbl">Activités critiques</div></div>
+  </div>
+
+  <!-- ── AUDIT ── -->
+  <div class="lg-card" id="auditSection">
+    <div class="lg-hd">
+      <h5><i class="bi bi-shield-check"></i> Historique d'audit</h5>
+      <div style="display:flex;align-items:center;gap:.6rem;">
+        <span class="live-badge"><span class="dot"></span> Temps réel</span>
+        <span class="sub" id="auditCount">{{ audit_pagination.total if audit_pagination else 0 }} événements</span>
+      </div>
+    </div>
+    <div class="lg-body">
+
+      <!-- FILTERS – auto on change -->
+      <div class="lg-fbar" id="auditFilters">
+        <div class="fg">
+          <label>Action</label>
+          <select id="f-audit-action" data-filter>
+            <option value="">Toutes</option>
+            {% for a in audit_actions %}
+              <option value="{{ a }}" {{ 'selected' if audit_action_filter==a }}>{{ a }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="fg">
+          <label>Entité</label>
+          <select id="f-audit-entity" data-filter>
+            <option value="">Toutes</option>
+            {% for e in audit_entities %}
+              <option value="{{ e }}" {{ 'selected' if audit_entity_filter==e }}>{{ e }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="fg">
+          <label>Utilisateur</label>
+          <select id="f-audit-user" data-filter>
+            <option value="">Tous</option>
+            {% for u in audit_users %}
+              <option value="{{ u.id }}" {{ 'selected' if audit_user_filter|string==u.id|string }}>{{ u.username }} ({{ u.role }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <a class="btn-r" id="auditReset" href="#"><i class="bi bi-x"></i> Reset</a>
+      </div>
+
+      <div class="tbl-wrap">
+        <div class="tbl-mask" id="auditMask"><div class="spinner"></div></div>
+        <div class="table-responsive" id="auditTableWrap">
+          <table class="lg-tbl">
+            <thead>
+              <tr>
+                <th>Date</th><th>Utilisateur</th><th>Action</th>
+                <th>Entité</th><th>ID</th><th>IP</th><th>Statut</th>
+              </tr>
+            </thead>
+            <tbody id="auditTbody">
+              {% for log in audit_logs %}
+              <tr>
+                <td style="white-space:nowrap;color:var(--muted);font-size:.78rem">{{ log.created_at.strftime('%Y-%m-%d %H:%M') if log.created_at else '—' }}</td>
+                <td><strong>{{ log.user.username if log.user else 'System' }}</strong></td>
+                <td>{{ log.action or '—' }}</td>
+                <td>{{ log.entity_type or '—' }}</td>
+                <td style="color:var(--muted);font-size:.78rem">{{ log.entity_id or '—' }}</td>
+                <td style="font-family:monospace;font-size:.75rem;color:var(--muted)">{% if log.changes and log.changes.get is defined %}{{ log.changes.get('ip') or '—' }}{% else %}—{% endif %}</td>
+                <td>
+                  {% set s = log.changes.get('success') if log.changes and log.changes.get is defined else None %}
+                  {% if s is sameas true %}<span class="bOK"><i class="bi bi-check-circle-fill"></i> OK</span>
+                  {% elif s is sameas false %}<span class="bFL"><i class="bi bi-x-circle-fill"></i> FAIL</span>
+                  {% else %}<span class="bNA">N/A</span>{% endif %}
+                </td>
+              </tr>
+              {% else %}
+              <tr class="empty"><td colspan="7"><i class="bi bi-shield-exclamation"></i> Aucun log d'audit</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div class="pg" id="auditPg">
+          {% if audit_pagination and audit_pagination.pages > 1 %}
+            {% if audit_pagination.has_prev %}
+              <a data-audit-page="{{ audit_pagination.prev_num }}"><i class="bi bi-chevron-left"></i></a>
+            {% else %}<span class="dis"><i class="bi bi-chevron-left"></i></span>{% endif %}
+            {% for p in audit_pagination.iter_pages(left_edge=1,right_edge=1,left_current=2,right_current=2) %}
+              {% if p %}<a class="{{ 'cur' if p==audit_pagination.page }}" data-audit-page="{{ p }}">{{ p }}</a>
+              {% else %}<span class="dis">…</span>{% endif %}
+            {% endfor %}
+            {% if audit_pagination.has_next %}
+              <a data-audit-page="{{ audit_pagination.next_num }}"><i class="bi bi-chevron-right"></i></a>
+            {% else %}<span class="dis"><i class="bi bi-chevron-right"></i></span>{% endif %}
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── ACTIVITÉS CRITIQUES ── -->
+  <div class="lg-card" id="critSection">
+    <div class="lg-hd red-hd">
+      <h5><i class="bi bi-shield-exclamation"></i> Activités critiques</h5>
+      <button class="btn-r" type="button" data-action="reload-page"><i class="bi bi-arrow-clockwise"></i> Actualiser</button>
+    </div>
+    <div class="lg-body">
+      <div class="mini-s">
+        <div><div class="v c-green">{{ logs|selectattr('action','equalto','user_login')|list|length }}</div><div class="l">Connexions</div></div>
+        <div><div class="v c-yellow">{{ logs|selectattr('action','equalto','user_logout')|list|length }}</div><div class="l">Déconnexions</div></div>
+        <div><div class="v" style="color:var(--info)">{{ logs|selectattr('action','equalto','user_register')|list|length }}</div><div class="l">Inscriptions</div></div>
+        <div><div class="v c-red">{{ logs|selectattr('category','equalto','admin')|list|length }}</div><div class="l">Actions admin</div></div>
+      </div>
+
+      <div class="terminal">
+        <div class="term-bar">
+          <span class="td" style="background:#ef4444"></span>
+          <span class="td" style="background:#f59e0b"></span>
+          <span class="td" style="background:#22c55e"></span>
+          <span style="color:#64748b;font-size:.71rem;margin-left:.2rem">activites-critiques.log</span>
+          <span style="margin-left:auto;color:#64748b;font-size:.7rem" id="critInfo">{{ critical_logs|length }} entrées — page <span id="critPageNum">1</span></span>
+        </div>
+        <div class="term-body" id="critBody">
+          {% if critical_logs %}
+            {% for log in critical_logs[:50] %}
+            <div class="le">
+              <span class="le-ts">[{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}]</span>
+              <span class="le-{{ log.level }}"> {{ log.level }}</span>
+              <span class="le-{{ 'auth' if log.category=='auth' else 'admin' if log.category=='admin' else 'sys-cat' }}"> {{ log.category|upper }}</span>
+              {% if log.username %}<span class="le-user"> {{ log.username }}</span>{% else %}<span class="le-sys"> SYSTEM</span>{% endif %}
+              <span class="le-msg">{{ log.message }}</span>
+              {% if log.ip_address %}<span class="le-ip"><i class="bi bi-globe"></i> {{ log.ip_address }}</span>{% endif %}
+            </div>
+            {% endfor %}
+          {% else %}
+            <div style="text-align:center;padding:2rem;color:#475569"><i class="bi bi-shield-check" style="font-size:1.8rem;display:block;margin-bottom:.5rem"></i>Aucune activité critique.</div>
+          {% endif %}
+        </div>
+      </div>
+      <div class="pg" id="critPg"></div>
+    </div>
+  </div>
+
+  <!-- ── LOGS SYSTÈME ── -->
+  <div class="lg-card" id="sysSection">
+    <div class="lg-hd">
+      <h5><i class="bi bi-terminal"></i> Logs Système Détaillés</h5>
+      <button class="btn-r" type="button" data-action="reload-page"><i class="bi bi-arrow-clockwise"></i> Actualiser</button>
+    </div>
+    <div class="lg-body">
+      <div class="mini-s">
+        <div><div class="v c-blue">{{ logs|length }}</div><div class="l">Total logs</div></div>
+        <div><div class="v" style="color:var(--info)">{{ stats.category_stats|length }}</div><div class="l">Catégories</div></div>
+        <div><div class="v c-green">{{ active_users|length }}</div><div class="l">Utilisateurs actifs</div></div>
+        <div><div class="v c-yellow">{{ days }}j</div><div class="l">Période</div></div>
+      </div>
+
+      <div class="terminal">
+        <div class="term-bar">
+          <span class="td" style="background:#ef4444"></span>
+          <span class="td" style="background:#f59e0b"></span>
+          <span class="td" style="background:#22c55e"></span>
+          <span style="color:#64748b;font-size:.71rem;margin-left:.2rem">system.log</span>
+          <span style="margin-left:auto;color:#64748b;font-size:.7rem">{{ logs|length }} entrées — page <span id="sysPageNum">1</span></span>
+        </div>
+        <div class="term-body" id="sysBody">
+          {% if logs %}
+            {% for log in logs[:50] %}
+            <div class="le">
+              <span class="le-ts">[{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}]</span>
+              <span class="le-{{ log.level }}"> {{ log.level }}</span>
+              <span class="le-sys-cat"> [{{ log.category }}]</span>
+              {% if log.username %}<span class="le-user"> {{ log.username }}</span>{% else %}<span class="le-sys"> SYSTEM</span>{% endif %}
+              <span class="le-msg">{{ log.message }}</span>
+              {% if log.resource_type and log.resource_id %}<span style="color:#cbd5e1;font-size:.69rem"> [{{ log.resource_type }} #{{ log.resource_id }}]</span>{% endif %}
+              {% if log.ip_address %}<span class="le-ip"><i class="bi bi-globe"></i> {{ log.ip_address }}</span>{% endif %}
+            </div>
+            {% endfor %}
+          {% else %}
+            <div style="text-align:center;padding:2rem;color:#475569"><i class="bi bi-info-circle" style="font-size:1.8rem;display:block;margin-bottom:.5rem"></i>Aucun log trouvé.</div>
+          {% endif %}
+        </div>
+      </div>
+      <div class="pg" id="sysPg"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- JSON data for client-side pagination of terminal logs -->
+<script id="critData" type="application/json">
+[{% for log in critical_logs %}{"ts":"{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}","lvl":"{{ log.level }}","cat":"{{ log.category }}","usr":"{{ log.username or '' }}","msg":{{ log.message|tojson }},"ip":"{{ log.ip_address or '' }}"}{% if not loop.last %},{% endif %}{% endfor %}]
+</script>
+<script id="sysData" type="application/json">
+[{% for log in logs %}{"ts":"{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}","lvl":"{{ log.level }}","cat":"{{ log.category }}","usr":"{{ log.username or '' }}","msg":{{ log.message|tojson }},"ip":"{{ log.ip_address or '' }}","rt":"{{ log.resource_type or '' }}","ri":"{{ log.resource_id or '' }}"}{% if not loop.last %},{% endif %}{% endfor %}]
+</script>
+
+<script id="pageVars" type="application/json">
+{
+  "category_filter":     {{ category_filter|tojson }},
+  "level_filter":        {{ level_filter|tojson }},
+  "user_filter":         {{ user_filter|tojson }},
+  "days":                {{ days|tojson }},
+  "audit_action_filter": {{ audit_action_filter|tojson }},
+  "audit_entity_filter": {{ audit_entity_filter|tojson }},
+  "audit_user_filter":   {{ audit_user_filter|tojson }},
+  "audit_page":          {{ request.args.get('audit_page', 1)|int }}
+}
+</script>
+
+<script>
+(function(){
+'use strict';
+
+/* ─── read Jinja vars safely from JSON block ─── */
+const PV = JSON.parse(document.getElementById('pageVars').textContent);
+
+const BASE_URL = window.location.pathname;
+const BASE_PARAMS = {
+  category: PV.category_filter,
+  level:    PV.level_filter,
+  user:     PV.user_filter,
+  days:     PV.days
+};
+
+const auditSection = document.getElementById('auditSection');
+const auditTbody   = document.getElementById('auditTbody');
+const auditPg      = document.getElementById('auditPg');
+const auditMask    = document.getElementById('auditMask');
+const auditCount   = document.getElementById('auditCount');
+
+let auditState = {
+  action: PV.audit_action_filter,
+  entity: PV.audit_entity_filter,
+  user:   PV.audit_user_filter,
+  page:   PV.audit_page
+};
+
+function buildAuditURL(page) {
+  const p = new URLSearchParams(BASE_PARAMS);
+  p.set('audit_action', auditState.action);
+  p.set('audit_entity', auditState.entity);
+  p.set('audit_user',   auditState.user);
+  p.set('audit_page',   page || auditState.page);
+  return BASE_URL + '?' + p.toString();
+}
+
+function loadAuditPage(page) {
+  const scrollY = window.scrollY;            // save scroll
+  auditMask.classList.add('show');
+  auditState.page = page;
+
+  fetch(buildAuditURL(page), { headers: {'X-Requested-With': 'XMLHttpRequest'} })
+    .then(r => r.text())
+    .then(html => {
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+
+      // swap tbody
+      const newTbody = doc.getElementById('auditTbody');
+      if (newTbody) {
+        auditTbody.innerHTML = newTbody.innerHTML;
+        auditTbody.classList.add('fade-in');
+        setTimeout(()=>auditTbody.classList.remove('fade-in'), 250);
+      }
+
+      // swap pagination
+      const newPg = doc.getElementById('auditPg');
+      if (newPg) { auditPg.innerHTML = newPg.innerHTML; bindAuditPg(); }
+
+      // update count
+      const newCount = doc.getElementById('auditCount');
+      if (newCount) auditCount.textContent = newCount.textContent;
+
+      // update browser URL without reload
+      window.history.replaceState(null, '', buildAuditURL(page));
+
+      auditMask.classList.remove('show');
+      window.scrollTo({ top: scrollY, behavior: 'instant' }); // restore scroll
+    })
+    .catch(()=> { auditMask.classList.remove('show'); window.location = buildAuditURL(page); });
+}
+
+function bindAuditPg() {
+  auditPg.querySelectorAll('[data-audit-page]').forEach(el => {
+    el.addEventListener('click', e => {
+      e.preventDefault();
+      const pg = parseInt(el.dataset.auditPage);
+      if (!isNaN(pg)) loadAuditPage(pg);
+    });
+  });
+}
+bindAuditPg();
+
+// Real-time filter change
+let auditDebounce = null;
+['f-audit-action','f-audit-entity','f-audit-user'].forEach(id => {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.addEventListener('change', () => {
+    auditState.action = document.getElementById('f-audit-action').value;
+    auditState.entity = document.getElementById('f-audit-entity').value;
+    auditState.user   = document.getElementById('f-audit-user').value;
+    clearTimeout(auditDebounce);
+    auditDebounce = setTimeout(() => loadAuditPage(1), 120);
+  });
+});
+
+document.getElementById('auditReset')?.addEventListener('click', e => {
+  e.preventDefault();
+  document.getElementById('f-audit-action').value = '';
+  document.getElementById('f-audit-entity').value = '';
+  document.getElementById('f-audit-user').value   = '';
+  auditState = { action:'', entity:'', user:'', page:1 };
+  loadAuditPage(1);
+});
+
+
+/* ─── CLIENT-SIDE PAGINATION for terminal logs ─── */
+const PER = 50;
+
+function renderTerminalPage(data, bodyEl, pgEl, pageNumEl, page, catClass) {
+  const total = data.length;
+  const pages = Math.ceil(total / PER);
+  const start = (page - 1) * PER;
+  const slice = data.slice(start, start + PER);
+
+  // render log lines
+  bodyEl.innerHTML = slice.length ? slice.map(l => {
+    const cat = l.cat === 'auth' ? 'le-auth' : l.cat === 'admin' ? 'le-admin' : 'le-sys-cat';
+    const usr = l.usr ? `<span class="le-user"> ${l.usr}</span>` : `<span class="le-sys"> SYSTEM</span>`;
+    const ip  = l.ip  ? `<span class="le-ip"><i class="bi bi-globe"></i> ${l.ip}</span>` : '';
+    const extra = (l.rt && l.ri) ? `<span style="color:#cbd5e1;font-size:.69rem"> [${l.rt} #${l.ri}]</span>` : '';
+    return `<div class="le"><span class="le-ts">[${l.ts}]</span><span class="le-${l.lvl}"> ${l.lvl}</span><span class="${cat}"> ${l.cat.toUpperCase()}</span>${usr}<span class="le-msg">${l.msg}</span>${extra}${ip}</div>`;
+  }).join('') : '<div style="text-align:center;padding:2rem;color:#475569">Aucune entrée.</div>';
+
+  if (pageNumEl) pageNumEl.textContent = page;
+
+  // render pagination
+  if (!pgEl) return;
+  if (pages <= 1) { pgEl.innerHTML = ''; return; }
+
+  let html = '';
+  const prev = page > 1;
+  const next = page < pages;
+
+  html += prev ? `<a data-p="${page-1}"><i class="bi bi-chevron-left"></i></a>` : `<span class="dis"><i class="bi bi-chevron-left"></i></span>`;
+
+  for (let p = 1; p <= pages; p++) {
+    if (p === 1 || p === pages || Math.abs(p - page) <= 1) {
+      html += `<a class="${p===page?'cur':''}" data-p="${p}">${p}</a>`;
+    } else if (Math.abs(p - page) === 2) {
+      html += `<span class="dis">…</span>`;
+    }
+  }
+
+  html += next ? `<a data-p="${page+1}"><i class="bi bi-chevron-right"></i></a>` : `<span class="dis"><i class="bi bi-chevron-right"></i></span>`;
+  pgEl.innerHTML = html;
+
+  pgEl.querySelectorAll('[data-p]').forEach(el => {
+    el.addEventListener('click', () => {
+      const scrollY = window.scrollY;
+      renderTerminalPage(data, bodyEl, pgEl, pageNumEl, parseInt(el.dataset.p), catClass);
+      window.scrollTo({ top: scrollY, behavior: 'instant' }); // no jump!
+    });
+  });
+}
+
+// Init critical logs
+const critData = JSON.parse(document.getElementById('critData').textContent);
+const critBody  = document.getElementById('critBody');
+const critPg    = document.getElementById('critPg');
+const critPgNum = document.getElementById('critPageNum');
+if (critData.length > PER) {
+  renderTerminalPage(critData, critBody, critPg, critPgNum, 1);
+}
+
+// Init sys logs
+const sysData  = JSON.parse(document.getElementById('sysData').textContent);
+const sysBody  = document.getElementById('sysBody');
+const sysPg    = document.getElementById('sysPg');
+const sysPgNum = document.getElementById('sysPageNum');
+if (sysData.length > PER) {
+  renderTerminalPage(sysData, sysBody, sysPg, sysPgNum, 1);
+}
+
+})();
+</script>
+{% endblock %}

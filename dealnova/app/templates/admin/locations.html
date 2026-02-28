@@ -1,0 +1,561 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Locations | Admin{% endblock %}
+{% block page_title %}Locations{% endblock %}
+
+{% block head %}
+<style>
+/* ── kill base 3D ── */
+.admin-card,.card{transform:none!important;transition:none!important;animation:none!important;}
+
+:root{
+  --white:#fff;--bg:#f8fafc;--border:#e5e7eb;
+  --text:#0f172a;--mid:#475569;--muted:#94a3b8;
+  --primary:#3b82f6;--r:10px;--sh:0 1px 5px rgba(0,0,0,.07);
+}
+
+.lw{display:flex;flex-direction:column;gap:.85rem;padding-bottom:2rem;}
+
+/* STATS */
+.st-row{display:grid;grid-template-columns:repeat(3,1fr);gap:.65rem;}
+.st-box{background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:.75rem .9rem;box-shadow:var(--sh);}
+.st-box .lbl{font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;font-weight:700;color:var(--muted);}
+.st-box .val{font-size:1.35rem;font-weight:900;color:var(--text);line-height:1.1;margin-top:.1rem;}
+
+/* CARD */
+.lc{background:var(--white);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--sh);overflow:hidden;}
+.lc-hd{display:flex;align-items:center;justify-content:space-between;padding:.65rem .9rem;border-bottom:1px solid var(--border);background:var(--bg);flex-wrap:wrap;gap:.4rem;}
+.lc-hd h6{margin:0;font-size:.85rem;font-weight:700;color:var(--text);display:flex;align-items:center;gap:.35rem;}
+.lc-hd .sub{font-size:.72rem;color:var(--muted);}
+.lc-body{padding:.8rem .9rem;}
+
+/* FILTER */
+.fbar{display:flex;gap:.45rem;flex-wrap:wrap;align-items:flex-end;}
+.fbar .fg{display:flex;flex-direction:column;gap:.18rem;flex:1;min-width:120px;}
+.fbar label{font-size:.68rem;font-weight:700;color:var(--mid);}
+.fc,.fs{height:36px;font-size:.79rem;border-radius:7px;border:1px solid var(--border);padding:.3rem .6rem;background:var(--white);outline:none;width:100%;transition:border-color .15s;}
+.fc:focus,.fs:focus{border-color:var(--primary);}
+.fbar .fg-btns{display:flex;gap:.38rem;align-items:flex-end;flex-shrink:0;}
+.btn-f{height:36px;padding:0 .85rem;border-radius:7px;background:var(--primary);color:#fff;border:none;font-size:.77rem;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:.26rem;}
+.btn-f:hover{background:#2563eb;}
+.btn-r{height:36px;padding:0 .75rem;border-radius:7px;background:var(--white);color:var(--mid);border:1px solid var(--border);font-size:.75rem;font-weight:600;text-decoration:none;display:inline-flex;align-items:center;gap:.24rem;cursor:pointer;}
+.btn-r:hover{background:var(--bg);}
+
+/* LIVE BADGE */
+.live-b{font-size:.65rem;font-weight:700;color:#16a34a;background:#dcfce7;border:1px solid #bbf7d0;border-radius:999px;padding:.12rem .45rem;display:inline-flex;align-items:center;gap:.2rem;}
+.live-b .dot{width:5px;height:5px;border-radius:50%;background:#16a34a;animation:blink 1.4s ease infinite;}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:.25;}}
+
+/* SEARCH INDICATOR */
+.search-ind{width:14px;height:14px;border:2px solid #e2e8f0;border-top-color:var(--primary);border-radius:50%;animation:spin .6s linear infinite;display:none;}
+.search-ind.on{display:inline-block;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* TABLE */
+.lt{width:100%;border-collapse:collapse;font-size:.79rem;}
+.lt thead th{padding:.45rem .65rem;text-align:left;font-size:.67rem;text-transform:uppercase;letter-spacing:.05em;font-weight:700;color:var(--muted);background:var(--bg);border-bottom:1px solid var(--border);white-space:nowrap;}
+.lt tbody td{padding:.52rem .65rem;border-bottom:1px solid #f1f5f9;vertical-align:middle;}
+.lt tbody tr:last-child td{border-bottom:none;}
+.lt tbody tr:hover{background:#fafbfc;}
+.lt .empty td{text-align:center;padding:2rem;color:var(--muted);}
+
+/* hide on mobile */
+.hide-sm{display:table-cell;}
+
+/* BADGES */
+.bs{font-size:.69rem;font-weight:800;padding:.18rem .48rem;border-radius:999px;}
+.bs-active{background:#dcfce7;color:#166534;}
+.bs-reserved{background:#fef3c7;color:#92400e;}
+.bs-taken{background:#e2e8f0;color:#334155;}
+.bs-expired{background:#fee2e2;color:#991b1b;}
+
+.cn{font-size:.7rem;color:var(--mid);font-weight:600;line-height:1.35;}
+
+/* LOADING OVERLAY */
+.tbl-wrap{position:relative;}
+.tbl-mask{position:absolute;inset:0;background:rgba(255,255,255,.72);display:none;align-items:center;justify-content:center;z-index:5;border-radius:0 0 var(--r) var(--r);}
+.tbl-mask.on{display:flex;}
+.spinner{width:22px;height:22px;border:3px solid #e2e8f0;border-top-color:var(--primary);border-radius:50%;animation:spin .65s linear infinite;}
+
+/* FADE */
+.fade-in{animation:fi .18s ease;}
+@keyframes fi{from{opacity:0;}to{opacity:1;}}
+
+/* PAGINATION */
+.pg{display:flex;align-items:center;justify-content:center;gap:.26rem;padding:.65rem .9rem;border-top:1px solid var(--border);flex-wrap:wrap;}
+.pg a,.pg span{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:30px;padding:0 .5rem;border:1px solid var(--border);border-radius:6px;background:var(--white);color:var(--mid);font-size:.74rem;font-weight:700;text-decoration:none;transition:border-color .12s,background .12s;cursor:pointer;}
+.pg a:hover{border-color:var(--primary);color:var(--primary);background:#eff6ff;}
+.pg .cur{background:var(--primary);border-color:var(--primary);color:#fff;}
+.pg .dis{opacity:.32;pointer-events:none;cursor:default;}
+.pg .pinfo{border:none;background:transparent;font-size:.7rem;color:var(--muted);padding:0 .2rem;min-width:auto;}
+
+/* COMMISSION card on mobile */
+.com-body{display:flex;flex-wrap:wrap;gap:.5rem 1.5rem;align-items:flex-start;}
+.com-links{display:flex;gap:.4rem;flex-wrap:wrap;margin-left:auto;}
+
+/* ── MOBILE ── */
+@media(max-width:640px){
+  .st-row{grid-template-columns:repeat(3,1fr);}
+  .st-box .val{font-size:1.1rem;}
+  /* hide less critical columns on small screens */
+  .hide-sm{display:none;}
+  .fbar .fg{min-width:calc(50% - .23rem);}
+  .fbar .fg-btns{width:100%;}
+  .btn-f,.btn-r{flex:1;justify-content:center;}
+  .com-links{margin-left:0;width:100%;}
+  .com-links .btn-r{flex:1;justify-content:center;}
+  /* no horizontal scroll — table stacks */
+  .lt-mobile-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+}
+@media(max-width:400px){
+  .st-row{grid-template-columns:repeat(3,1fr);gap:.4rem;}
+  .st-box{padding:.6rem .55rem;}
+  .st-box .val{font-size:1rem;}
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="lw">
+
+  <!-- STATS -->
+  <div class="st-row">
+    <div class="st-box"><div class="lbl">Actives</div><div class="val">{{ active_count }}</div></div>
+    <div class="st-box"><div class="lbl">À nettoyer</div><div class="val">{{ expired_pending }}</div></div>
+    <div class="st-box"><div class="lbl">Archives</div><div class="val">{{ archives_count }}</div></div>
+  </div>
+
+  <!-- FILTER -->
+  <div class="lc">
+    <div class="lc-hd">
+      <h6><i class="bi bi-funnel"></i> Filtres</h6>
+      <div style="display:flex;align-items:center;gap:.55rem;">
+        <span class="search-ind" id="searchInd"></span>
+        <span class="live-b"><span class="dot"></span> Temps réel</span>
+      </div>
+    </div>
+    <div class="lc-body">
+      <div class="fbar" id="fbar">
+        <div class="fg">
+          <label>Recherche</label>
+          <input class="fc" type="text" id="fq" value="{{ q }}" placeholder="Titre, ville…" autocomplete="off">
+        </div>
+        <div class="fg">
+          <label>Statut</label>
+          <select class="fs" id="fstatus">
+            <option value="">Tous</option>
+            {% for st in ['active','reserved','taken','expired'] %}
+              <option value="{{ st }}" {{ 'selected' if status==st }}>{{ st }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="fg">
+          <label>Propriétaire</label>
+          <select class="fs" id="fowner">
+            <option value="">Tous</option>
+            {% for owner in owners %}
+              <option value="{{ owner.id }}" {{ 'selected' if owner_id==owner.id }}>{{ owner.username }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="fg-btns">
+          <button class="btn-r" id="btnReset" type="button"><i class="bi bi-x"></i> Reset</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- COMMISSION -->
+  <div class="lc">
+    <div class="lc-hd"><h6><i class="bi bi-percent"></i> Commission location</h6></div>
+    <div class="lc-body">
+      <div class="com-body">
+        <div>
+          <p class="cn" style="margin:0">Règle active : pas d'abonnement location. L'admin fixe une commission globale en pourcentage sur Pricing.</p>
+          <p class="cn" style="margin:.28rem 0 0">Taux global actuel : <strong>{{ bps_to_percent(settings.rental_success_commission_bps) }}%</strong></p>
+        </div>
+        <div class="com-links">
+          <a class="btn-r" href="{{ url_for('admin.pricing_settings') }}"><i class="bi bi-sliders"></i> Pricing</a>
+          <a class="btn-r" href="{{ url_for('admin.maintenance') }}"><i class="bi bi-tools"></i> Maintenance</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LISTINGS TABLE -->
+  <div class="lc" id="listingsCard">
+    <div class="lc-hd">
+      <h6><i class="bi bi-house-door"></i> Annonces actives</h6>
+      <span class="sub" id="listingsSub">{{ listings_pg.total }} annonces · page {{ listings_pg.page }}/{{ [listings_pg.pages,1]|max }}</span>
+    </div>
+    <div class="tbl-wrap">
+      <div class="tbl-mask" id="listingsMask"><div class="spinner"></div></div>
+      <div class="lt-mobile-scroll">
+        <table class="lt" id="listingsTbl">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Annonce</th>
+              <th class="hide-sm">Propriétaire</th>
+              <th class="hide-sm">Prix</th>
+              <th class="hide-sm">Commission</th>
+              <th class="hide-sm">Vues</th>
+              <th>Statut</th>
+              <th class="hide-sm">Expire</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="listingsTbody">
+            {% include "admin/partials/_loc_listings_rows.html" ignore missing %}
+            {# fallback inline if partial not used #}
+            {% if listings %}
+              {% for listing in listings %}
+              <tr>
+                <td style="color:var(--muted);font-size:.73rem">#{{ listing.id }}</td>
+                <td>
+                  <div style="font-weight:700;font-size:.8rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ listing.title|truncate(40) }}</div>
+                  <div style="font-size:.71rem;color:var(--muted)">{{ listing.city }}{% if listing.area %}, {{ listing.area }}{% endif %}</div>
+                </td>
+                <td class="hide-sm">{{ listing.owner.username if listing.owner else '—' }}</td>
+                <td class="hide-sm" style="font-weight:700;white-space:nowrap">{{ cents_to_dh(listing.rent_cents) }}</td>
+                <td class="hide-sm">
+                  {% set ac = commission_amount_from_owner_fee(listing.owner_fee_cents, settings.rental_success_commission_bps) %}
+                  <div class="cn">{{ bps_to_percent(settings.rental_success_commission_bps) }}%</div>
+                  <div class="cn">Est.: {{ cents_to_dh(ac) }}</div>
+                </td>
+                <td class="hide-sm" style="color:var(--muted)">{{ listing.view_count }}</td>
+                <td><span class="bs bs-{{ listing.status }}">{{ listing.status }}</span></td>
+                <td class="hide-sm" style="font-size:.72rem;color:var(--muted);white-space:nowrap">{{ format_dt(listing.expires_at) }}</td>
+                <td>
+                  <div style="display:flex;gap:.28rem;">
+                    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('rentals.location_detail', slug=listing.slug) }}" target="_blank"><i class="bi bi-eye"></i></a>
+                    <form method="post" action="{{ url_for('rentals.admin_location_delete', listing_id=listing.id) }}" data-confirm-submit="Supprimer ?">
+                      {% include "admin/partials/_csrf.html" %}
+                      <button class="btn btn-sm btn-outline-danger" type="submit"><i class="bi bi-trash"></i></button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr class="empty"><td colspan="9"><i class="bi bi-house-slash"></i> Aucune annonce.</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+      <!-- LISTINGS PAGINATION -->
+      <div class="pg" id="listingsPg">
+        {% if listings_pg.pages > 1 %}
+          {% if listings_pg.has_prev %}
+            <a data-lpage="{{ listings_pg.prev_num }}"><i class="bi bi-chevron-left"></i></a>
+          {% else %}<span class="dis"><i class="bi bi-chevron-left"></i></span>{% endif %}
+          {% for p in listings_pg.iter_pages(left_edge=1,right_edge=1,left_current=2,right_current=2) %}
+            {% if p %}<a class="{{ 'cur' if p==listings_pg.page }}" data-lpage="{{ p }}">{{ p }}</a>
+            {% else %}<span class="dis">…</span>{% endif %}
+          {% endfor %}
+          <span class="pinfo">{{ listings_pg.page }}/{{ listings_pg.pages }} · {{ listings_pg.total }}</span>
+          {% if listings_pg.has_next %}
+            <a data-lpage="{{ listings_pg.next_num }}"><i class="bi bi-chevron-right"></i></a>
+          {% else %}<span class="dis"><i class="bi bi-chevron-right"></i></span>{% endif %}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- ARCHIVES TABLE -->
+  <div class="lc" id="archivesCard">
+    <div class="lc-hd">
+      <h6><i class="bi bi-archive"></i> Archives</h6>
+      <span class="sub" id="archivesSub">{{ archives_pg.total }} archives · page {{ archives_pg.page }}/{{ [archives_pg.pages,1]|max }}</span>
+    </div>
+    <div class="tbl-wrap">
+      <div class="tbl-mask" id="archivesMask"><div class="spinner"></div></div>
+      <div class="lt-mobile-scroll">
+        <table class="lt">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Titre</th>
+              <th class="hide-sm">Propriétaire</th>
+              <th class="hide-sm">Prix</th>
+              <th class="hide-sm">Commission</th>
+              <th>Motif</th>
+              <th class="hide-sm">Vues</th>
+              <th class="hide-sm">Fermée le</th>
+            </tr>
+          </thead>
+          <tbody id="archivesTbody">
+            {% if archives %}
+              {% for archive in archives %}
+              {% set ac = archive.platform_commission_amount_cents if archive.platform_commission_amount_cents else (commission_amount_from_owner_fee(archive.owner_fee_cents, archive.platform_commission_rate_bps) + (archive.platform_commission_fixed_cents or 0)) %}
+              <tr>
+                <td style="color:var(--muted);font-size:.73rem">#{{ archive.id }}</td>
+                <td style="font-size:.79rem;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ archive.title|truncate(42) }}</td>
+                <td class="hide-sm">{{ archive.owner.username if archive.owner else '—' }}</td>
+                <td class="hide-sm" style="font-weight:700;white-space:nowrap">{{ cents_to_dh(archive.rent_cents) }}</td>
+                <td class="hide-sm">
+                  {% if archive.closed_reason == 'taken' %}
+                    <div class="cn">{{ bps_to_percent(archive.platform_commission_rate_bps) }}%</div>
+                    <div class="cn">{{ cents_to_dh(ac) }}</div>
+                  {% else %}
+                    <div class="cn" style="color:var(--muted)">N/A</div>
+                  {% endif %}
+                </td>
+                <td><span class="bs bs-{{ archive.closed_reason if archive.closed_reason in ['taken','expired'] else 'taken' }}">{{ archive.closed_reason }}</span></td>
+                <td class="hide-sm" style="color:var(--muted)">{{ archive.archived_view_count }}</td>
+                <td class="hide-sm" style="font-size:.72rem;color:var(--muted);white-space:nowrap">{{ format_dt(archive.closed_at) }}</td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr class="empty"><td colspan="8"><i class="bi bi-archive"></i> Aucune archive.</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+      <!-- ARCHIVES PAGINATION -->
+      <div class="pg" id="archivesPg">
+        {% if archives_pg.pages > 1 %}
+          {% if archives_pg.has_prev %}
+            <a data-apage="{{ archives_pg.prev_num }}"><i class="bi bi-chevron-left"></i></a>
+          {% else %}<span class="dis"><i class="bi bi-chevron-left"></i></span>{% endif %}
+          {% for p in archives_pg.iter_pages(left_edge=1,right_edge=1,left_current=2,right_current=2) %}
+            {% if p %}<a class="{{ 'cur' if p==archives_pg.page }}" data-apage="{{ p }}">{{ p }}</a>
+            {% else %}<span class="dis">…</span>{% endif %}
+          {% endfor %}
+          <span class="pinfo">{{ archives_pg.page }}/{{ archives_pg.pages }} · {{ archives_pg.total }}</span>
+          {% if archives_pg.has_next %}
+            <a data-apage="{{ archives_pg.next_num }}"><i class="bi bi-chevron-right"></i></a>
+          {% else %}<span class="dis"><i class="bi bi-chevron-right"></i></span>{% endif %}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+</div><!-- /lw -->
+
+<!-- Jinja vars → JSON (no syntax errors in JS) -->
+<script id="pv" type="application/json">
+{
+  "q":        {{ q|tojson }},
+  "status":   {{ status|tojson }},
+  "owner_id": {{ (owner_id or '')|tojson }},
+  "lpage":    {{ listings_pg.page }},
+  "apage":    {{ archives_pg.page }},
+  "base_url": {{ url_for('rentals.admin_locations')|tojson }}
+}
+</script>
+
+<script>
+(function(){
+'use strict';
+
+var PV       = JSON.parse(document.getElementById('pv').textContent);
+var BASE     = PV.base_url;
+
+/* ── current state ── */
+var state = {
+  q:      PV.q,
+  status: PV.status,
+  owner:  PV.owner_id,
+  lpage:  PV.lpage,
+  apage:  PV.apage
+};
+
+/* ── UI refs ── */
+var fq       = document.getElementById('fq');
+var fstatus  = document.getElementById('fstatus');
+var fowner   = document.getElementById('fowner');
+var btnReset = document.getElementById('btnReset');
+var searchInd= document.getElementById('searchInd');
+
+var listingsMask = document.getElementById('listingsMask');
+var archivesMask = document.getElementById('archivesMask');
+var listingsTbody= document.getElementById('listingsTbody');
+var archivesTbody= document.getElementById('archivesTbody');
+var listingsPg   = document.getElementById('listingsPg');
+var archivesPg   = document.getElementById('archivesPg');
+var listingsSub  = document.getElementById('listingsSub');
+var archivesSub  = document.getElementById('archivesSub');
+
+/* ── build URL ── */
+function buildURL(lp, ap) {
+  var p = new URLSearchParams();
+  if (state.q)      p.set('q', state.q);
+  if (state.status) p.set('status', state.status);
+  if (state.owner)  p.set('owner_id', state.owner);
+  p.set('page',  lp || state.lpage);
+  p.set('apage', ap || state.apage);
+  return BASE + '?' + p.toString();
+}
+
+/* ── fetch + inject just the changed section ── */
+function loadSection(lp, ap, targetMask, targetTbody, targetPg, targetSub, subId) {
+  var scrollY = window.scrollY;
+  targetMask.classList.add('on');
+
+  fetch(buildURL(lp, ap), { headers: {'X-Requested-With': 'XMLHttpRequest'} })
+    .then(function(r){ return r.text(); })
+    .then(function(html){
+      var doc = new DOMParser().parseFromString(html, 'text/html');
+
+      var newTbody = doc.getElementById(targetTbody.id);
+      if (newTbody) {
+        targetTbody.innerHTML = newTbody.innerHTML;
+        targetTbody.classList.add('fade-in');
+        setTimeout(function(){ targetTbody.classList.remove('fade-in'); }, 200);
+      }
+
+      var newPg = doc.getElementById(targetPg.id);
+      if (newPg) {
+        targetPg.innerHTML = newPg.innerHTML;
+        bindPagination();
+      }
+
+      var newSub = doc.getElementById(subId);
+      if (newSub) targetSub.textContent = newSub.textContent;
+
+      window.history.replaceState(null, '', buildURL(lp, ap));
+      targetMask.classList.remove('on');
+
+      /* restore scroll — no jump! */
+      window.scrollTo({ top: scrollY, behavior: 'instant' });
+    })
+    .catch(function(){
+      targetMask.classList.remove('on');
+      window.location.href = buildURL(lp, ap);
+    });
+}
+
+function loadListings(lp) {
+  state.lpage = lp;
+  loadSection(lp, state.apage, listingsMask, listingsTbody, listingsPg, listingsSub, 'listingsSub');
+}
+
+function loadArchives(ap) {
+  state.apage = ap;
+  loadSection(state.lpage, ap, archivesMask, archivesTbody, archivesPg, archivesSub, 'archivesSub');
+}
+
+function loadBoth(lp, ap) {
+  state.lpage = lp;
+  state.apage = ap;
+  var scrollY = window.scrollY;
+  listingsMask.classList.add('on');
+  archivesMask.classList.add('on');
+  fetch(buildURL(lp, ap), { headers: {'X-Requested-With': 'XMLHttpRequest'} })
+    .then(function(r){ return r.text(); })
+    .then(function(html){
+      var doc = new DOMParser().parseFromString(html, 'text/html');
+
+      [
+        [listingsTbody, 'listingsTbody'],
+        [archivesTbody, 'archivesTbody']
+      ].forEach(function(pair){
+        var el = doc.getElementById(pair[1]);
+        if (el) {
+          pair[0].innerHTML = el.innerHTML;
+          pair[0].classList.add('fade-in');
+          setTimeout(function(){ pair[0].classList.remove('fade-in'); }, 200);
+        }
+      });
+
+      var nlp = doc.getElementById('listingsPg');
+      if (nlp) { listingsPg.innerHTML = nlp.innerHTML; }
+      var nap = doc.getElementById('archivesPg');
+      if (nap) { archivesPg.innerHTML = nap.innerHTML; }
+
+      var ns = doc.getElementById('listingsSub');
+      if (ns) listingsSub.textContent = ns.textContent;
+      var na = doc.getElementById('archivesSub');
+      if (na) archivesSub.textContent = na.textContent;
+
+      bindPagination();
+      window.history.replaceState(null, '', buildURL(lp, ap));
+      listingsMask.classList.remove('on');
+      archivesMask.classList.remove('on');
+      window.scrollTo({ top: scrollY, behavior: 'instant' });
+    })
+    .catch(function(){
+      listingsMask.classList.remove('on');
+      archivesMask.classList.remove('on');
+      window.location.href = buildURL(lp, ap);
+    });
+}
+
+/* ── bind pagination clicks ── */
+function bindPagination() {
+  document.querySelectorAll('[data-lpage]').forEach(function(el){
+    el.addEventListener('click', function(e){
+      e.preventDefault();
+      loadListings(parseInt(el.dataset.lpage));
+    });
+  });
+  document.querySelectorAll('[data-apage]').forEach(function(el){
+    el.addEventListener('click', function(e){
+      e.preventDefault();
+      loadArchives(parseInt(el.dataset.apage));
+    });
+  });
+}
+bindPagination();
+
+/* ── filter inputs — smart debounce ── */
+var debTimer = null;
+
+function applyFilters() {
+  state.q      = fq ? fq.value.trim() : '';
+  state.status = fstatus ? fstatus.value : '';
+  state.owner  = fowner  ? fowner.value  : '';
+  state.lpage  = 1;
+  state.apage  = 1;
+  searchInd.classList.remove('on');
+  loadBoth(1, 1);
+}
+
+if (fq) {
+  fq.addEventListener('input', function(){
+    searchInd.classList.add('on');
+    clearTimeout(debTimer);
+    /* wait until user pauses typing for 700ms */
+    debTimer = setTimeout(function(){
+      applyFilters();
+    }, 700);
+  });
+  /* also submit on Enter immediately */
+  fq.addEventListener('keydown', function(e){
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      clearTimeout(debTimer);
+      applyFilters();
+    }
+  });
+}
+
+if (fstatus) {
+  fstatus.addEventListener('change', function(){
+    clearTimeout(debTimer);
+    applyFilters();
+  });
+}
+
+if (fowner) {
+  fowner.addEventListener('change', function(){
+    clearTimeout(debTimer);
+    applyFilters();
+  });
+}
+
+/* reset */
+if (btnReset) {
+  btnReset.addEventListener('click', function(){
+    if (fq) fq.value = '';
+    if (fstatus) fstatus.value = '';
+    if (fowner)  fowner.value  = '';
+    clearTimeout(debTimer);
+    applyFilters();
+  });
+}
+
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Ouverture WhatsApp | {{ config.SITE_NAME }}{% endblock %}
+
+{% block content %}
+<section class="py-4 py-lg-5" style="background:#f7f8fb;">
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-lg-7 col-xl-6">
+        <div class="card shadow-sm border-0 rounded-4 overflow-hidden">
+          <div class="card-header text-white text-center py-4"
+               style="background:linear-gradient(135deg,#10b981,#059669)">
+            <h3 class="mb-0 fw-bold">
+              <i class="bi bi-whatsapp me-2"></i>Ouverture WhatsApp
+            </h3>
+            <div class="opacity-75 fw-semibold mt-1">
+              {% if reused %}
+                Lien rutilis (anti double-clic)
+              {% elif booking %}
+                Rservation cre
+              {% else %}
+                Demande de rendez-vous
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="card-body p-4 p-lg-5">
+            <div class="alert alert-info rounded-4 border-0"
+                 style="background:rgba(16,185,129,.10); color:#0f172a;">
+              <div class="d-flex gap-3">
+                <i class="bi bi-info-circle fs-4"></i>
+                <div class="w-100">
+                  <div class="fw-bold">Si WhatsApp ne souvre pas automatiquement</div>
+                  <div class="text-muted small mb-3">Cliquez sur le bouton ci-dessous.</div>
+
+                  <div class="d-grid gap-2">
+                    <a id="waLink"
+                       href="{{ wa_url }}"
+                       class="btn btn-lg rounded-3 fw-bold text-white"
+                       style="background:linear-gradient(135deg,#10b981,#059669); border:none;"
+                       target="_blank"
+                       rel="noopener">
+                      <i class="bi bi-whatsapp me-2"></i>Ouvrir WhatsApp
+                    </a>
+                    {% if booking %}
+                    <a href="{{ url_for('booking.track', token=booking.token) }}" class="btn btn-outline-secondary btn-lg rounded-3">
+                      Suivre ma rservation
+                    </a>
+                    {% endif %}
+                    <a href="{{ url_for('shop.home') }}" class="btn btn-link">
+                      Revenir au catalogue
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="text-muted small">
+              Astuce: si tu es sur PC et que tu nes pas connect  WhatsApp Web, le lien peut souvrir dans le navigateur.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  (function() {
+    const waLink = document.getElementById("waLink");
+    const url = waLink ? waLink.href : "";
+    if (!url) return;
+    try {
+      window.location.href = url;
+    } catch (e) {}
+  })();
+</script>
+{% endblock %}

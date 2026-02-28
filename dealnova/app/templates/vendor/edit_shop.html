@@ -1,0 +1,328 @@
+{% extends "base.html" %}
+
+{% block title %}Modifier ma boutique | DealNova{% endblock %}
+
+{% block head %}
+{{ super() }}
+<style>
+  :root {
+    --es-bg: #f6f8fb;
+    --es-card: #ffffff;
+    --es-border: #e5e7eb;
+    --es-text: #0f172a;
+    --es-muted: #6b7280;
+    --es-primary: #10b981;
+    --es-primary-dark: #047857;
+    --es-shadow: 0 16px 36px rgba(15, 23, 42, 0.12);
+  }
+
+  .edit-shop-page {
+    background:
+      radial-gradient(900px 400px at 10% -10%, rgba(16, 185, 129, 0.18), transparent 60%),
+      radial-gradient(700px 320px at 100% 0%, rgba(245, 158, 11, 0.15), transparent 55%),
+      var(--es-bg);
+    min-height: calc(100vh - 84px);
+    padding: 1.6rem 0 2.5rem;
+  }
+
+  .edit-shell { max-width: 980px; }
+
+  .edit-hero {
+    border-radius: 22px;
+    padding: 1.25rem 1.4rem;
+    background: linear-gradient(135deg, #0f172a, #123c33 55%, #0d6f57);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    box-shadow: 0 22px 48px rgba(6, 18, 14, 0.28);
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    animation: fadeUp 0.45s ease both;
+  }
+
+  .edit-title {
+    margin: 0;
+    font-size: clamp(1.35rem, 2.3vw, 2rem);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+
+  .edit-subtitle {
+    margin: 0.4rem 0 0;
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 0.95rem;
+  }
+
+  .edit-actions {
+    display: flex;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+  }
+
+  .btn-back {
+    border-radius: 999px;
+    padding: 0.45rem 0.85rem;
+    font-weight: 700;
+    font-size: 0.88rem;
+    background: rgba(255, 255, 255, 0.14);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: #fff;
+  }
+
+  .form-card,
+  .url-card {
+    border-radius: 18px;
+    background: var(--es-card);
+    border: 1px solid var(--es-border);
+    box-shadow: var(--es-shadow);
+    overflow: hidden;
+    animation: fadeUp 0.5s ease both;
+  }
+
+  .form-card .card-body {
+    padding: 1.4rem 1.5rem;
+  }
+
+  .form-label i { color: var(--es-primary-dark); }
+
+  .form-control {
+    border-radius: 12px;
+    border: 1px solid var(--es-border);
+    font-weight: 600;
+  }
+
+  .form-control:focus {
+    border-color: var(--es-primary);
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+  }
+
+  .logo-preview {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    padding: 0.6rem 0.8rem;
+    border-radius: 14px;
+    border: 1px solid var(--es-border);
+    background: #f8fafc;
+  }
+
+  .logo-preview img {
+    width: 72px;
+    height: 72px;
+    object-fit: cover;
+    border-radius: 12px;
+    border: 1px solid var(--es-border);
+  }
+
+  .btn-primary {
+    background: linear-gradient(135deg, var(--es-primary), var(--es-primary-dark));
+    border: none;
+    font-weight: 700;
+  }
+
+  .btn-outline-secondary {
+    border-radius: 12px;
+    font-weight: 700;
+  }
+
+  .action-row {
+    display: flex;
+    gap: 0.8rem;
+    flex-wrap: wrap;
+  }
+
+  .url-card .input-group .form-control {
+    border-radius: 12px 0 0 12px;
+  }
+
+  .url-card .input-group .btn {
+    border-radius: 0 12px 12px 0;
+    font-weight: 700;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @media (max-width: 768px) {
+    .edit-hero { padding: 1.1rem 1.2rem; }
+    .form-card .card-body { padding: 1.1rem 1.1rem; }
+    .action-row .btn { width: 100%; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="edit-shop-page">
+<div class="container edit-shell">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <!-- En-tte -->
+            <div class="edit-hero mb-4">
+                <div>
+                    <h1 class="edit-title"><i class="bi bi-pencil me-2"></i> Modifier ma boutique</h1>
+                    <p class="edit-subtitle">Mettez  jour les informations de votre boutique</p>
+                </div>
+                <div class="edit-actions">
+                    <a href="{{ url_for('vendor.manage_shop') }}" class="btn btn-back">
+                        <i class="bi bi-arrow-left"></i> Retour
+                    </a>
+                </div>
+            </div>
+            
+            <!-- Formulaire -->
+            <div class="form-card card border-0">
+                <div class="card-body">
+                    <form method="POST" enctype="multipart/form-data">
+                        {% include "partials/_csrf.html" %}
+                        <!-- Nom de la boutique -->
+                        <div class="mb-3">
+                            <label for="name" class="form-label fw-bold">
+                                <i class="bi bi-shop"></i> Nom de la boutique *
+                            </label>
+                            <input type="text" 
+                                   class="form-control" 
+                                   id="name" 
+                                   name="name" 
+                                   required
+                                   value="{{ shop.name }}">
+                        </div>
+                        
+                        <!-- Description -->
+                        <div class="mb-3">
+                            <label for="description" class="form-label fw-bold">
+                                <i class="bi bi-card-text"></i> Description
+                            </label>
+                            <textarea class="form-control" 
+                                      id="description" 
+                                      name="description" 
+                                      rows="3">{{ shop.description or '' }}</textarea>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">
+                                    <i class="bi bi-diagram-3"></i> Type principal
+                                </label>
+                                <input type="text" class="form-control" value="{{ shop.type_label(shop.primary_type) }}" readonly>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">
+                                    <i class="bi bi-grid"></i> Types activs
+                                </label>
+                                <div class="form-control d-flex flex-wrap gap-2 align-items-center" style="min-height: 48px;">
+                                    {% for shop_type in shop.get_allowed_types() %}
+                                    <span class="badge bg-light text-dark border">{{ shop.type_label(shop_type) }}</span>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Logo actuel -->
+                        {% if shop.logo %}
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Logo actuel</label>
+                            <div class="logo-preview">
+                                <img src="{{ url_for('static', filename='uploads/' + shop.logo) }}" 
+                                     alt="Logo {{ shop.name }}">
+                                <div class="form-check">
+                                    <input class="form-check-input" 
+                                           type="checkbox" 
+                                           id="remove_logo" 
+                                           name="remove_logo">
+                                    <label class="form-check-label text-danger" for="remove_logo">
+                                        Supprimer le logo
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                        
+                        <!-- Nouveau logo -->
+                        <div class="mb-3">
+                            <label for="logo" class="form-label fw-bold">
+                                <i class="bi bi-image"></i> 
+                                {% if shop.logo %}Changer le logo{% else %}Ajouter un logo{% endif %}
+                            </label>
+                            <input type="file" 
+                                   class="form-control" 
+                                   id="logo" 
+                                   name="logo"
+                                   accept="image/*">
+                        </div>
+                        
+                        <!-- Informations de contact -->
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="contact_email" class="form-label fw-bold">
+                                    <i class="bi bi-envelope"></i> Email de contact
+                                </label>
+                                <input type="email" 
+                                       class="form-control" 
+                                       id="contact_email" 
+                                       name="contact_email"
+                                       value="{{ shop.contact_email or current_user.email }}">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="contact_phone" class="form-label fw-bold">
+                                    <i class="bi bi-telephone"></i> Tlphone
+                                </label>
+                                <input type="tel" 
+                                       class="form-control" 
+                                       id="contact_phone" 
+                                       name="contact_phone"
+                                       value="{{ shop.contact_phone or '' }}">
+                            </div>
+                        </div>
+                        
+                        <!-- Adresse -->
+                        <div class="mb-4">
+                            <label for="address" class="form-label fw-bold">
+                                <i class="bi bi-geo-alt"></i> Adresse
+                            </label>
+                            <textarea class="form-control" 
+                                      id="address" 
+                                      name="address" 
+                                      rows="2">{{ shop.address or '' }}</textarea>
+                        </div>
+                        
+                        <!-- Boutons -->
+                        <div class="action-row">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="bi bi-check-circle"></i> Enregistrer les modifications
+                            </button>
+                            <a href="{{ url_for('vendor.manage_shop') }}" class="btn btn-outline-secondary btn-lg">
+                                Annuler
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- URL de la boutique -->
+            <div class="url-card card border-0 mt-4">
+                <div class="card-body">
+                    <h5><i class="bi bi-link text-primary"></i> URL de votre boutique</h5>
+                    <div class="input-group">
+                        <input type="text" 
+                               class="form-control" 
+                               value="{{ request.host_url }}shop/{{ shop.slug }}" 
+                               readonly>
+                        <a href="{{ url_for('shops.shop_detail', shop_slug=shop.slug) }}" 
+                           target="_blank" 
+                           class="btn btn-outline-primary">
+                            <i class="bi bi-box-arrow-up-right"></i> Visiter
+                        </a>
+                    </div>
+                    <small class="text-muted mt-2 d-block">
+                        Partagez ce lien pour promouvoir votre boutique !
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+    </section>
+{% endblock %}

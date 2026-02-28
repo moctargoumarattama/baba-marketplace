@@ -1,0 +1,151 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Créer un Utilisateur | DealNova Admin{% endblock %}
+
+{% block page_title %}Créer un Utilisateur{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card admin-card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-person-plus"></i> Créer un nouvel utilisateur
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" action="{{ url_for('admin_users.create_user') }}">
+                    {% include "admin/partials/_csrf.html" %}
+                        <div class="row g-3">
+                            <!-- Informations de base -->
+                            <div class="col-md-6">
+                                <label for="username" class="form-label">Nom d'utilisateur *</label>
+                                <input type="text" class="form-control" id="username" name="username" 
+                                       required pattern="[a-zA-Z0-9_]+" minlength="3" maxlength="50">
+                                <div class="form-text">
+                                    Lettres, chiffres et underscores uniquement. 3-50 caractères.
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <label for="email" class="form-label">Email *</label>
+                                <input type="email" class="form-control" id="email" name="email" required>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <label for="password" class="form-label">Mot de passe *</label>
+                                <input type="password" class="form-control" id="password" name="password" 
+                                       required minlength="8">
+                                <div class="form-text">Minimum 8 caractères</div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <label for="role" class="form-label">Rôle *</label>
+                                <select class="form-select" id="role" name="role" required>
+                                    <option value="">Sélectionner un rôle</option>
+                                    <option value="vendor">Vendeur</option>
+                                    <option value="courier">Livreur</option>
+                                    <option value="admin">Administrateur</option>
+                                </select>
+                            </div>
+                            
+                            <!-- Informations personnelles -->
+                            <div class="col-md-6">
+                                <label for="full_name" class="form-label">Nom complet</label>
+                                <input type="text" class="form-control" id="full_name" name="full_name">
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <label for="phone" class="form-label">Téléphone</label>
+                                <input type="tel" class="form-control" id="phone" name="phone">
+                            </div>
+                            
+                            <div class="col-12">
+                                <label for="address" class="form-label">Adresse</label>
+                                <textarea class="form-control" id="address" name="address" rows="2"></textarea>
+                            </div>
+                            
+                            <!-- Section boutique (si vendeur) -->
+                            <div id="vendor-section" class="col-12" style="display: none;">
+                                <hr>
+                                <h6 class="mb-3">
+                                    <i class="bi bi-shop"></i> Création automatique de boutique
+                                </h6>
+                                
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label for="shop_name" class="form-label">Nom de la boutique</label>
+                                        <input type="text" class="form-control" id="shop_name" name="shop_name">
+                                        <div class="form-text">
+                                            Si vide: "Boutique de [nom d'utilisateur]"
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="col-md-6">
+                                        <label for="shop_description" class="form-label">Description</label>
+                                        <textarea class="form-control" id="shop_description" name="shop_description" rows="2"></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Boutons -->
+                            <div class="col-12 mt-4">
+                                <div class="d-flex justify-content-between">
+                                    <a href="{{ url_for('admin_users.manage_users') }}" class="btn btn-outline-secondary">
+                                        <i class="bi bi-arrow-left"></i> Annuler
+                                    </a>
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="bi bi-check-circle"></i> Créer l'utilisateur
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Info génération automatique -->
+            <div class="card admin-card mt-4">
+                <div class="card-body">
+                    <h6><i class="bi bi-info-circle"></i> Informations</h6>
+                    <ul class="mb-0">
+                        <li>L'utilisateur sera créé immédiatement et pourra se connecter</li>
+                        <li>Pour les vendeurs, une boutique sera automatiquement créée</li>
+                        <li>Vous pourrez modifier toutes les informations plus tard</li>
+                        <li>Un email de bienvenue pourra être envoyé manuellement</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Afficher/masquer la section boutique selon le rôle
+document.getElementById('role').addEventListener('change', function() {
+    const vendorSection = document.getElementById('vendor-section');
+    if (this.value === 'vendor') {
+        vendorSection.style.display = 'block';
+        
+        // Auto-remplir le nom de la boutique
+        const username = document.getElementById('username').value;
+        if (username && !document.getElementById('shop_name').value) {
+            document.getElementById('shop_name').value = `Boutique de ${username}`;
+        }
+    } else {
+        vendorSection.style.display = 'none';
+    }
+});
+
+// Auto-remplir le nom de la boutique quand le username change
+document.getElementById('username').addEventListener('input', function() {
+    if (document.getElementById('role').value === 'vendor') {
+        const shopNameInput = document.getElementById('shop_name');
+        if (!shopNameInput.value || shopNameInput.value.startsWith('Boutique de ')) {
+            shopNameInput.value = `Boutique de ${this.value}`;
+        }
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,440 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Audit | DealNova{% endblock %}
+
+{% block page_title %}Audit & Activite{% endblock %}
+
+{% block head %}
+<style>
+    .audit-wrap {
+        display: grid;
+        gap: 1.5rem;
+    }
+
+    .audit-hero {
+        background: linear-gradient(135deg, rgba(255, 107, 53, 0.15), rgba(0, 78, 137, 0.08));
+        border: 1px solid rgba(255, 107, 53, 0.2);
+        border-radius: 20px;
+        padding: 1.5rem;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .audit-hero::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(circle at top right, rgba(255, 255, 255, 0.6), transparent 60%);
+        opacity: 0.7;
+    }
+
+    .audit-hero-content {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .audit-hero-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .audit-hero-title {
+        font-size: 1.5rem;
+        font-weight: 800;
+        color: var(--dark);
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .audit-hero-title i {
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.75);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--primary);
+        font-size: 1.25rem;
+        box-shadow: 0 10px 18px rgba(0, 0, 0, 0.08);
+    }
+
+    .audit-hero-subtitle {
+        color: #4B5563;
+        font-weight: 500;
+        margin: 0.35rem 0 0;
+    }
+
+    .audit-pills {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+
+    .audit-pill {
+        padding: 0.35rem 0.8rem;
+        border-radius: 999px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        background: rgba(255, 255, 255, 0.7);
+        border: 1px solid rgba(255, 107, 53, 0.2);
+        color: var(--primary);
+    }
+
+    .audit-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+    }
+
+    .audit-stat {
+        background: #fff;
+        border-radius: 16px;
+        border: 1px solid #E5E7EB;
+        padding: 1rem 1.25rem;
+        box-shadow: 0 12px 26px rgba(0, 0, 0, 0.06);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .audit-stat h6 {
+        font-size: 0.85rem;
+        color: #6B7280;
+        margin-bottom: 0.4rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+    }
+
+    .audit-stat .stat-value {
+        font-size: 1.8rem;
+        font-weight: 800;
+        color: var(--dark);
+        margin: 0;
+    }
+
+    .audit-stat .stat-note {
+        font-size: 0.8rem;
+        color: #6B7280;
+    }
+
+    .audit-stat .stat-icon {
+        width: 46px;
+        height: 46px;
+        border-radius: 14px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.3rem;
+    }
+
+    .audit-stat .stat-icon.primary {
+        background: rgba(255, 107, 53, 0.15);
+        color: var(--primary);
+    }
+
+    .audit-stat .stat-icon.warning {
+        background: rgba(247, 184, 1, 0.2);
+        color: #B45309;
+    }
+
+    .audit-stat .stat-icon.success {
+        background: rgba(16, 185, 129, 0.15);
+        color: #0F766E;
+    }
+
+    .audit-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+        gap: 1.25rem;
+    }
+
+    .audit-card {
+        background: #fff;
+        border-radius: 16px;
+        border: 1px solid #E5E7EB;
+        box-shadow: 0 12px 26px rgba(0, 0, 0, 0.06);
+        overflow: hidden;
+    }
+
+    .audit-card--wide {
+        grid-column: 1 / -1;
+    }
+
+    .audit-card-header {
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid #E5E7EB;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        flex-wrap: wrap;
+        background: #F9FAFB;
+    }
+
+    .audit-card-header h5 {
+        font-size: 1.05rem;
+        font-weight: 700;
+        margin: 0;
+        color: var(--dark);
+    }
+
+    .audit-card-header span {
+        font-size: 0.85rem;
+        color: #6B7280;
+        font-weight: 600;
+    }
+
+    .table.audit-table-list th {
+        background: #F9FAFB;
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #6B7280;
+        font-weight: 700;
+    }
+
+    .table.audit-table-list td {
+        font-size: 0.9rem;
+        vertical-align: middle;
+    }
+
+    .audit-empty {
+        text-align: center;
+        padding: 2.5rem 1rem;
+        color: #6B7280;
+    }
+
+    .audit-table-list tbody tr:nth-child(even) {
+        background: #fafafa;
+    }
+
+    @media (max-width: 768px) {
+        .audit-hero-title {
+            font-size: 1.35rem;
+        }
+
+        .audit-card-header {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid audit-wrap">
+    <section class="audit-hero">
+        <div class="audit-hero-content">
+            <div class="audit-hero-top">
+                <div>
+                    <h2 class="audit-hero-title">
+                        <i class="bi bi-shield-check"></i>
+                        Audit & Activite
+                    </h2>
+                    <p class="audit-hero-subtitle">Vue claire des derniers mouvements et de l'activite marketplace.</p>
+                </div>
+                <div class="audit-pills">
+                    <span class="audit-pill"><i class="bi bi-clock-history"></i> 7 derniers jours</span>
+                    <span class="audit-pill"><i class="bi bi-activity"></i> Flux recent</span>
+                    <span class="audit-pill"><i class="bi bi-globe2"></i> Scope global</span>
+                </div>
+            </div>
+
+            <div class="audit-stats">
+                <div class="audit-stat">
+                    <div>
+                        <h6>Total logs</h6>
+                        <div class="stat-value">{{ total_logs }}</div>
+                        <div class="stat-note">Journal d'audit complet</div>
+                    </div>
+                    <div class="stat-icon primary"><i class="bi bi-shield-check"></i></div>
+                </div>
+                <div class="audit-stat">
+                    <div>
+                        <h6>Derniers 7 jours</h6>
+                        <div class="stat-value">{{ logs_7d }}</div>
+                        <div class="stat-note">Evenements recents</div>
+                    </div>
+                    <div class="stat-icon warning"><i class="bi bi-clock-history"></i></div>
+                </div>
+                <div class="audit-stat">
+                    <div>
+                        <h6>Commandes recentes</h6>
+                        <div class="stat-value">{{ recent_orders|length }}</div>
+                        <div class="stat-note">Dernieres ventes</div>
+                    </div>
+                    <div class="stat-icon success"><i class="bi bi-bag-check"></i></div>
+                </div>
+                <div class="audit-stat">
+                    <div>
+                        <h6>Utilisateurs recents</h6>
+                        <div class="stat-value">{{ recent_users|length }}</div>
+                        <div class="stat-note">Nouvelles inscriptions</div>
+                    </div>
+                    <div class="stat-icon primary"><i class="bi bi-people"></i></div>
+                </div>
+                <div class="audit-stat">
+                    <div>
+                        <h6>Boutiques recentes</h6>
+                        <div class="stat-value">{{ recent_shops|length }}</div>
+                        <div class="stat-note">Nouvelles boutiques</div>
+                    </div>
+                    <div class="stat-icon warning"><i class="bi bi-shop"></i></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="audit-grid">
+        <div class="audit-card">
+            <div class="audit-card-header">
+                <h5>Dernieres commandes</h5>
+                <span class="text-muted">{{ recent_orders|length }} lignes</span>
+            </div>
+            <div class="list-group list-group-flush">
+                {% for order in recent_orders %}
+                <div class="list-group-item">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <h6 class="mb-1">Commande #{{ order.id }}</h6>
+                            <small class="text-muted">{{ order.full_name }} • {{ order.phone }}</small>
+                            <br>
+                            {% set badge_class = 'secondary' %}
+                            {% if order.status == 'pending' %}
+                                {% set badge_class = 'warning' %}
+                            {% elif order.status == 'delivered' %}
+                                {% set badge_class = 'success' %}
+                            {% elif order.status == 'cancelled' %}
+                                {% set badge_class = 'danger' %}
+                            {% endif %}
+                            <span class="badge bg-{{ badge_class }}">{{ order.status|title }}</span>
+                            <small class="text-muted ms-2">{{ "%.2f"|format((order.total or 0) / 100) }} MAD</small>
+                        </div>
+                        <small class="text-muted text-nowrap">{{ order.created_at.strftime('%H:%M') if order.created_at else '' }}</small>
+                    </div>
+                </div>
+                {% else %}
+                <div class="audit-empty">Aucune commande recente.</div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="audit-card">
+            <div class="audit-card-header">
+                <h5>Derniers utilisateurs inscrits</h5>
+                <span class="text-muted">{{ recent_users|length }} lignes</span>
+            </div>
+            <div class="list-group list-group-flush">
+                {% for user in recent_users %}
+                <div class="list-group-item">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <h6 class="mb-1">{{ user.username }}</h6>
+                            <small class="text-muted">{{ user.email }}</small>
+                            <br>
+                            <span class="badge badge-{{ user.role }} badge-role">{{ user.role|title }}</span>
+                            {% if user.full_name %}
+                                <small class="text-muted ms-2">{{ user.full_name }}</small>
+                            {% endif %}
+                        </div>
+                        <small class="text-muted text-nowrap">{{ user.created_at.strftime('%H:%M') if user.created_at else '' }}</small>
+                    </div>
+                </div>
+                {% else %}
+                <div class="audit-empty">Aucun utilisateur recent.</div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="audit-card audit-card--wide">
+            <div class="audit-card-header">
+                <h5>Dernieres boutiques creees</h5>
+                <span class="text-muted">{{ recent_shops|length }} lignes</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover mb-0 audit-table-list">
+                    <thead>
+                        <tr>
+                            <th>Boutique</th>
+                            <th>Vendeur</th>
+                            <th>Contact</th>
+                            <th>Statut</th>
+                            <th>Creation</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for shop in recent_shops %}
+                        <tr>
+                            <td>
+                                <strong>{{ shop.name }}</strong>
+                                <br><small class="text-muted">{{ shop.slug }}</small>
+                            </td>
+                            <td>
+                                {% set vendor = shop.vendor %}
+                                {% if vendor %}
+                                    {{ vendor.username }}
+                                    <br><small class="text-muted">{{ vendor.email }}</small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {{ shop.contact_email }}
+                                {% if shop.contact_phone %}
+                                    <br><small class="text-muted">{{ shop.contact_phone }}</small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="badge bg-{{ 'success' if shop.is_active else 'secondary' }}">
+                                    {{ 'Active' if shop.is_active else 'Inactive' }}
+                                </span>
+                            </td>
+                            <td>{{ shop.created_at.strftime('%d/%m/%Y %H:%M') if shop.created_at else '' }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="5">
+                                <div class="audit-empty">Aucune boutique recente.</div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <section class="audit-card audit-card--wide">
+        <div class="audit-card-header">
+            <h5>Activite des {{ activity_days }} derniers jours</h5>
+            <span class="text-muted">{{ logs_7d }} evenements</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table align-middle audit-table-list mb-0">
+                <thead>
+                    <tr>
+                        <th>Jour</th>
+                        <th>Evenements</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for day in audit_daily %}
+                    <tr>
+                        <td>{{ day.label }}</td>
+                        <td><span class="badge bg-primary">{{ day.count }}</span></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+{% endblock %}

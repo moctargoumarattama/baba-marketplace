@@ -1,0 +1,534 @@
+{% extends "base.html" %}
+{% block title %}Commande #{{ order.id }}{% endblock %}
+
+{% block head %}
+<style>
+  .order-detail-page {
+    --od-primary: #10b981;
+    --od-primary-dark: #047857;
+    --od-accent: #f59e0b;
+    --od-dark: #0f172a;
+    --od-muted: #64748b;
+    --od-line: #e2e8f0;
+    --od-soft: #f8fafc;
+    display: grid;
+    gap: 1rem;
+  }
+
+  .od-hero {
+    border-radius: 22px;
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    background:
+      radial-gradient(120% 120% at 100% 0%, rgba(245, 158, 11, 0.2) 0%, rgba(245, 158, 11, 0) 48%),
+      linear-gradient(135deg, rgba(16, 185, 129, 0.16), rgba(15, 23, 42, 0.05));
+    box-shadow: 0 12px 26px rgba(15, 23, 42, 0.08);
+    padding: 1rem 1.1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .od-title {
+    margin: 0;
+    font-size: clamp(1.2rem, 2.3vw, 1.7rem);
+    font-weight: 800;
+    color: var(--od-dark);
+    letter-spacing: -0.02em;
+  }
+
+  .od-subtitle {
+    margin: 0.25rem 0 0;
+    font-size: 0.9rem;
+    color: var(--od-muted);
+    font-weight: 600;
+  }
+
+  .od-actions {
+    display: flex;
+    gap: 0.55rem;
+    flex-wrap: wrap;
+  }
+
+  .od-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    text-decoration: none;
+    border-radius: 999px;
+    border: 1px solid #dbe4ee;
+    background: #fff;
+    color: #1f2937;
+    font-weight: 700;
+    font-size: 0.86rem;
+    padding: 0.52rem 0.9rem;
+    box-shadow: 0 6px 14px rgba(15, 23, 42, 0.08);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .od-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px rgba(15, 23, 42, 0.13);
+    color: #111827;
+  }
+
+  .od-btn-primary {
+    color: #fff;
+    border-color: transparent;
+    background: linear-gradient(135deg, var(--od-primary), var(--od-primary-dark));
+    box-shadow: 0 10px 18px rgba(16, 185, 129, 0.3);
+  }
+
+  .od-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.9rem;
+  }
+
+  .od-card {
+    border-radius: 16px;
+    border: 1px solid var(--od-line);
+    background: rgba(255, 255, 255, 0.92);
+    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
+    overflow: hidden;
+  }
+
+  .od-card.od-wide {
+    grid-column: span 3;
+  }
+
+  .od-card-head {
+    padding: 0.78rem 0.95rem;
+    border-bottom: 1px solid var(--od-line);
+    background: linear-gradient(180deg, #ffffff, #f8fafc);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.7rem;
+  }
+
+  .od-card-title {
+    margin: 0;
+    font-size: 0.92rem;
+    font-weight: 800;
+    color: #111827;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  .od-card-body {
+    padding: 0.82rem 0.95rem;
+  }
+
+  .od-list {
+    display: grid;
+    gap: 0.42rem;
+  }
+
+  .od-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.7rem;
+    border-bottom: 1px dashed #e5e7eb;
+    padding-bottom: 0.46rem;
+  }
+
+  .od-row:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
+  }
+
+  .od-key {
+    color: var(--od-muted);
+    font-weight: 700;
+    font-size: 0.8rem;
+  }
+
+  .od-val {
+    color: #0f172a;
+    font-weight: 800;
+    font-size: 0.86rem;
+    text-align: right;
+    overflow-wrap: anywhere;
+  }
+
+  .od-price {
+    color: #b45309;
+    font-size: 0.94rem;
+  }
+
+  .od-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.28rem;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    padding: 0.3rem 0.56rem;
+    font-size: 0.74rem;
+    font-weight: 800;
+    white-space: nowrap;
+  }
+
+  .status-pending { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
+  .status-shipped { background: #dbeafe; color: #1e40af; border-color: #93c5fd; }
+  .status-delivered { background: #d1fae5; color: #065f46; border-color: #6ee7b7; }
+  .status-cancelled { background: #e5e7eb; color: #334155; border-color: #d1d5db; }
+  .status-unknown { background: #111827; color: #fff; border-color: #111827; }
+
+  .od-products {
+    border-radius: 18px;
+    border: 1px solid var(--od-line);
+    background: rgba(255, 255, 255, 0.95);
+    box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+    overflow: hidden;
+  }
+
+  .od-products-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.85rem 0.95rem;
+    border-bottom: 1px solid var(--od-line);
+    background: linear-gradient(180deg, #ffffff, #f8fafc);
+  }
+
+  .od-products-title {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: #111827;
+  }
+
+  .od-products-count {
+    border: 1px solid #dbe4ee;
+    border-radius: 999px;
+    padding: 0.24rem 0.58rem;
+    font-size: 0.75rem;
+    font-weight: 800;
+    color: #334155;
+    background: #fff;
+  }
+
+  .od-product-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.8rem;
+    padding: 0.9rem;
+  }
+
+  .od-product-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    overflow: hidden;
+    background: #fff;
+    box-shadow: 0 8px 16px rgba(15, 23, 42, 0.06);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .od-product-media {
+    aspect-ratio: 4 / 3;
+    background: #f1f5f9;
+    overflow: hidden;
+  }
+
+  .od-product-media img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .od-product-body {
+    padding: 0.7rem;
+    display: grid;
+    gap: 0.4rem;
+    flex: 1;
+  }
+
+  .od-product-name {
+    margin: 0;
+    font-size: 0.9rem;
+    line-height: 1.2;
+    font-weight: 800;
+    color: #111827;
+  }
+
+  .od-product-meta {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.6rem;
+    color: var(--od-muted);
+    font-size: 0.82rem;
+    font-weight: 700;
+  }
+
+  .od-product-total {
+    color: #b45309;
+    font-weight: 800;
+  }
+
+  .od-footer {
+    border-top: 1px solid var(--od-line);
+    padding: 0.84rem 0.95rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    background: #fff;
+  }
+
+  .od-divider {
+    margin: 0.55rem 0;
+    border-color: #e5e7eb;
+  }
+
+  @media (max-width: 1024px) {
+    .od-grid {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .od-card.od-wide {
+      grid-column: span 2;
+    }
+
+    .od-product-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 720px) {
+    .od-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .od-card.od-wide {
+      grid-column: auto;
+    }
+
+    .od-product-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+{% set vendor_count = namespace(val=0) %}
+{% set vendor_total = namespace(val=0) %}
+{% for item in order.items %}
+  {% if current_user.role == 'admin' or (item.product and item.product.vendor_id == current_user.id) %}
+    {% set vendor_count.val = vendor_count.val + (item.quantity or 0) %}
+    {% set vendor_total.val = vendor_total.val + ((item.price or 0) * (item.quantity or 0)) %}
+  {% endif %}
+{% endfor %}
+
+<section class="order-detail-page">
+  <header class="od-hero">
+    <div>
+      <h2 class="od-title">Commande #{{ order.id }}</h2>
+      <p class="od-subtitle">Passee le {{ order.created_at.strftime("%d/%m/%Y %H:%M") if order.created_at else "-" }}</p>
+    </div>
+
+    <div class="od-actions">
+      {% if admin_phone %}
+        <a class="od-btn" href="tel:{{ admin_phone }}">
+          <i class="bi bi-telephone"></i> Appeler Admin
+        </a>
+      {% endif %}
+      {% if delivery_phone %}
+        <a class="od-btn od-btn-primary"
+           href="https://wa.me/{{ delivery_phone|replace('+','')|replace(' ','') }}"
+           target="_blank" rel="noopener">
+          <i class="bi bi-whatsapp"></i> WhatsApp Livreur
+        </a>
+      {% endif %}
+      <button type="button"
+              class="od-btn"
+              style="cursor:pointer;"
+              data-wa-issue
+              data-order-id="{{ order.id }}"
+              data-order-url="{{ url_for('cart.track', token=order.token, _external=True) }}"
+              title="Signaler un problème">
+        <i class="bi bi-exclamation-triangle"></i> Signaler
+      </button>
+    </div>
+  </header>
+
+  <div class="od-grid">
+    {% if current_user.is_authenticated and current_user.role == "admin" %}
+    <article class="od-card">
+      <div class="od-card-head">
+        <h3 class="od-card-title"><i class="bi bi-person-circle"></i> Client</h3>
+      </div>
+      <div class="od-card-body">
+        <div class="od-list">
+          <div class="od-row">
+            <div class="od-key">Nom</div>
+            <div class="od-val">{{ order.buyer.username if order.buyer else "Anonyme" }}</div>
+          </div>
+          <div class="od-row">
+            <div class="od-key">Telephone</div>
+            <div class="od-val">{{ order.phone or "-" }}</div>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <article class="od-card">
+      <div class="od-card-head">
+        <h3 class="od-card-title"><i class="bi bi-geo-alt"></i> Livraison</h3>
+      </div>
+      <div class="od-card-body">
+        <div class="od-list">
+          <div class="od-row">
+            <div class="od-key">Ville</div>
+            <div class="od-val">{{ order.city or "-" }}</div>
+          </div>
+          <div class="od-row">
+            <div class="od-key">Adresse</div>
+            <div class="od-val">{{ order.address or "-" }}</div>
+          </div>
+        </div>
+      </div>
+    </article>
+    {% endif %}
+
+    <article class="od-card{% if current_user.is_authenticated and current_user.role == 'vendor' %} od-wide{% endif %}">
+      <div class="od-card-head">
+        <h3 class="od-card-title">
+          <i class="bi bi-receipt"></i>
+          {% if current_user.is_authenticated and current_user.role == 'admin' %}
+            Statut et Totaux
+          {% else %}
+            Total et Produits
+          {% endif %}
+        </h3>
+        {% if current_user.is_authenticated and current_user.role == 'admin' %}
+        <div>
+          {% if order.status == "pending" %}
+            <span class="od-status status-pending"><i class="bi bi-clock"></i> {{ label_order_status(order.status, current_lang) }}</span>
+          {% elif order.status == "shipped" %}
+            <span class="od-status status-shipped"><i class="bi bi-truck"></i> {{ label_order_status(order.status, current_lang) }}</span>
+          {% elif order.status == "delivered" %}
+            <span class="od-status status-delivered"><i class="bi bi-check-circle"></i> {{ label_order_status(order.status, current_lang) }}</span>
+          {% elif order.status == "cancelled" %}
+            <span class="od-status status-cancelled"><i class="bi bi-x-circle"></i> {{ label_order_status(order.status, current_lang) }}</span>
+          {% else %}
+            <span class="od-status status-unknown"><i class="bi bi-question-circle"></i> {{ label_order_status(order.status, current_lang) }}</span>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+      <div class="od-card-body">
+        {% if current_user.is_authenticated and current_user.role == 'admin' %}
+          <div class="od-list">
+            <div class="od-row">
+              <div class="od-key">Sous-total</div>
+              <div class="od-val">{{ ((order.total - order.shipping) / 100)|round(2) }} MAD</div>
+            </div>
+            <div class="od-row">
+              <div class="od-key">Livraison</div>
+              <div class="od-val">{{ (order.shipping / 100)|round(2) }} MAD</div>
+            </div>
+            <div class="od-row">
+              <div class="od-key">Total</div>
+              <div class="od-val od-price">{{ (order.total / 100)|round(2) }} MAD</div>
+            </div>
+          </div>
+
+          <hr class="od-divider">
+          <div class="od-list">
+            <div class="od-row">
+              <div class="od-key">Part Baba</div>
+              <div class="od-val">{{ ((order.delivery_platform_fee_cents or 0) / 100)|round(2) }} MAD</div>
+            </div>
+            <div class="od-row">
+              <div class="od-key">Net livreur</div>
+              <div class="od-val">{{ ((order.delivery_courier_net_cents or 0) / 100)|round(2) }} MAD</div>
+            </div>
+            <div class="od-row">
+              <div class="od-key">Net vendeur</div>
+              <div class="od-val">{{ (order.vendor_net / 100)|round(2) }} MAD</div>
+            </div>
+          </div>
+        {% else %}
+          <div class="od-list">
+            <div class="od-row">
+              <div class="od-key">Nombre de produits</div>
+              <div class="od-val">{{ vendor_count.val }}</div>
+            </div>
+            <div class="od-row">
+              <div class="od-key">Total a payer</div>
+              <div class="od-val od-price">{{ (vendor_total.val / 100)|round(2) }} MAD</div>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+    </article>
+  </div>
+
+  <section class="od-products">
+    <div class="od-products-head">
+      <h3 class="od-products-title"><i class="bi bi-bag me-1"></i> Produits commandes</h3>
+      <span class="od-products-count">
+        {% if current_user.is_authenticated and current_user.role == 'admin' %}
+          {{ order.items|length }}
+        {% else %}
+          {{ vendor_count.val }}
+        {% endif %}
+        article(s)
+      </span>
+    </div>
+
+    <div class="od-product-grid">
+      {% for item in order.items %}
+        {% if current_user.role == 'admin' or (item.product and item.product.vendor_id == current_user.id) %}
+          {% set p = item.product %}
+          <article class="od-product-card">
+            <div class="od-product-media">
+              <img
+                src="{{ url_for('static', filename='uploads/' ~ ((p.image_file if p else '') or 'default.jpg')) }}"
+                alt="{{ p.name if p else 'Produit' }}"
+                data-default-src="{{ url_for('static', filename='uploads/default.jpg') }}"
+                data-fallback-src="{{ url_for('static', filename='uploads/default.jpg') }}"
+              >
+            </div>
+            <div class="od-product-body">
+              <p class="od-product-name">{{ p.name if p else "Produit indisponible" }}</p>
+              <div class="od-product-meta">
+                <span>Qte: <b>{{ item.quantity }}</b></span>
+                <span>PU: <b>{{ (item.price / 100)|round(2) }} MAD</b></span>
+              </div>
+              <div class="od-product-meta">
+                <span>Total ligne</span>
+                <span class="od-product-total">{{ (item.quantity * item.price / 100)|round(2) }} MAD</span>
+              </div>
+            </div>
+          </article>
+        {% endif %}
+      {% endfor %}
+    </div>
+
+    <div class="od-footer">
+      <a class="od-btn" href="{{ url_for('vendor.earnings') }}">
+        <i class="bi bi-arrow-left-circle"></i> Retour
+      </a>
+
+      {% if current_user.is_authenticated and current_user.role == "admin" and order.status == "pending" %}
+        <form action="{{ url_for('admin.mark_delivered', oid=order.id) }}" method="POST" class="m-0">
+          {% include "partials/_csrf.html" %}
+          <button class="od-btn od-btn-primary" type="submit">
+            <i class="bi bi-check2-circle"></i> Marquer livree
+          </button>
+        </form>
+      {% endif %}
+    </div>
+  </section>
+</section>
+{% endblock %}

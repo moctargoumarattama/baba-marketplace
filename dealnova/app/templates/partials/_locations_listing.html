@@ -1,0 +1,79 @@
+<div id="locationsListing" data-ajax-listing data-ajax-scroll="preserve">
+  {% if listings %}
+    <div class="results-row">
+      <div class="results-count"><span class="results-dot"></span>{{ pagination.total }} offre(s) trouvee(s)</div>
+      {% if has_active_filters %}
+        <span class="active-filters-badge"><i class="bi bi-funnel-fill"></i> Filtres actifs</span>
+      {% endif %}
+    </div>
+
+    <div class="rentals-grid" id="rentalsGrid">
+      {% for listing in listings %}
+        {% set images = listing.media|selectattr('kind', 'equalto', 'image')|list %}
+        <article
+          class="rental-card js-rental-card"
+          data-title="{{ (listing.title or '')|lower }}"
+          data-city="{{ (listing.city or '')|lower }} {{ (listing.area or '')|lower }}"
+          data-type="{{ listing.listing_type }}"
+          data-property="{{ listing.property_type }}"
+          data-rent="{{ listing.rent_cents or 0 }}"
+        >
+          <div class="rental-media js-card-carousel">
+            <span class="pill-type">{{ 'Mensuel' if listing.listing_type == 'monthly' else 'Journalier' }}</span>
+            <div class="rental-track">
+              {% if images %}
+                {% for image in images[:6] %}
+                  <img src="{{ url_for('static', filename=image.file_path) }}" alt="{{ listing.title }}" loading="lazy">
+                {% endfor %}
+              {% else %}
+                <img src="https://images.unsplash.com/photo-1560185007-cde436f6a4d0auto=format&fit=crop&w=800&q=60" alt="{{ listing.title }}" loading="lazy">
+              {% endif %}
+            </div>
+            {% if images|length > 1 %}
+              <div class="slide-nav">
+                  <button class="slide-btn js-prev" type="button" data-stop-nav><i class="bi bi-chevron-left"></i></button>
+                  <button class="slide-btn js-next" type="button" data-stop-nav><i class="bi bi-chevron-right"></i></button>
+              </div>
+              <div class="slide-dots">
+                {% for _ in images[:6] %}
+                  <span class="slide-dot {{ 'active' if loop.first else '' }}"></span>
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
+
+          <div class="rental-body">
+            <h3 class="rental-title">{{ listing.title }}</h3>
+            <div class="rental-meta"><i class="bi bi-geo-alt"></i> {{ listing.city }}{% if listing.area %}, {{ listing.area }}{% endif %}</div>
+            <div class="rental-meta">{{ listing.property_type }} · {{ 'Mensuel' if listing.listing_type == 'monthly' else 'Journalier' }}</div>
+            <div class="rental-price">{{ cents_to_dh(listing.rent_cents) }}</div>
+            <div class="rental-meta">Caution: {% if listing.deposit_required %}{{ cents_to_dh(listing.deposit_cents) if listing.deposit_cents else "Avec caution" }}{% else %}Sans caution{% endif %}</div>
+            <div class="rental-meta">Frais proprietaire: {{ cents_to_dh(listing.owner_fee_cents) if listing.owner_fee_cents is not none else "Non specifie" }}{% if listing.owner_fee_text %} · {{ listing.owner_fee_text }}{% endif %}</div>
+            <div class="rental-actions">
+              <a href="{{ url_for('rentals.location_detail', slug=listing.slug) }}" class="btn btn-outline-primary btn-sm" data-stop-nav>Voir detail</a>
+              <a href="{{ url_for('rentals.location_inquiry', slug=listing.slug) }}" class="btn btn-success btn-sm" data-stop-nav>Demander visite</a>
+            </div>
+          </div>
+        </article>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="empty-state">Aucune annonce trouvee avec ces filtres.</div>
+  {% endif %}
+</div>
+
+<div id="locationsPagination" data-ajax-pagination>
+  {% if listings and pagination.pages > 1 %}
+    <nav class="locations-pagination" aria-label="Pagination annonces">
+      <ul class="pagination justify-content-center">
+        {% if pagination.has_prev %}
+          <li class="page-item"><a class="page-link prev-link" href="{{ url_for('rentals.locations_home', page=pagination.prev_num, q=q, type=listing_type, property_type=property_type, city=city_area, min=price_min, max=price_max) }}"><i class="bi bi-chevron-left"></i> Precedent</a></li>
+        {% endif %}
+        <li class="page-item disabled"><span class="page-link">Page {{ pagination.page }} / {{ pagination.pages }}</span></li>
+        {% if pagination.has_next %}
+          <li class="page-item"><a class="page-link next-link" href="{{ url_for('rentals.locations_home', page=pagination.next_num, q=q, type=listing_type, property_type=property_type, city=city_area, min=price_min, max=price_max) }}">Suivant <i class="bi bi-chevron-right"></i></a></li>
+        {% endif %}
+      </ul>
+    </nav>
+  {% endif %}
+</div>
