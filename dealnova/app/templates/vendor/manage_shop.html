@@ -1,842 +1,10 @@
-{% extends "base.html" %}
+{% extends "vendor/base.html" %}
 
-{% block title %}Gérer ma boutique | DealNova{% endblock %}
+{% block title %}Gérer ma boutique | {{ config.SITE_NAME|trim }}{% endblock %}
 
 {% block head %}
 {{ super() }}
-<style>
-    /* Animation Keyframes */
-    @keyframes fadeInUp {
-        from {
-            opacity: 0;
-            transform: translateY(30px);
-        }
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
-    }
-    
-    @keyframes float {
-        0%, 100% { transform: translateY(0px); }
-        50% { transform: translateY(-10px); }
-    }
-    
-    @keyframes pulse {
-        0% { transform: scale(1); }
-        50% { transform: scale(1.05); }
-        100% { transform: scale(1); }
-    }
-    
-    @keyframes shimmer {
-        0% { background-position: -200% center; }
-        100% { background-position: 200% center; }
-    }
-    
-    @keyframes slideInRight {
-        from {
-            opacity: 0;
-            transform: translateX(50px);
-        }
-        to {
-            opacity: 1;
-            transform: translateX(0);
-        }
-    }
-    
-    /* Custom Styles */
-    .manage-shop-page {
-        background: linear-gradient(180deg, rgba(16, 185, 129, 0.12) 0%, rgba(255, 255, 255, 0) 40%);
-        border-radius: 24px;
-        overflow-x: hidden;
-        max-width: 1480px;
-        margin: 0 auto;
-        padding-bottom: 2rem;
-    }
-
-    .manage-shop-page * {
-        min-width: 0;
-    }
-
-    .manage-shop-page img {
-        max-width: 100%;
-        height: auto;
-    }
-
-    .shop-header {
-        background: linear-gradient(135deg, #16a34a 0%, #10b981 40%, #34d399 70%, #fef3c7 100%);
-        border-radius: 22px;
-        overflow: hidden;
-        position: relative;
-        margin-bottom: 2rem;
-        box-shadow: 0 22px 50px rgba(16, 185, 129, 0.25);
-    }
-    
-    .shop-header::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
-    }
-
-    .shop-header::after {
-        content: '';
-        position: absolute;
-        inset: 0;
-        background:
-            radial-gradient(circle at 15% 15%, rgba(255, 255, 255, 0.35), transparent 45%),
-            radial-gradient(circle at 80% 20%, rgba(253, 230, 138, 0.45), transparent 40%),
-            radial-gradient(circle at 85% 85%, rgba(15, 118, 110, 0.35), transparent 45%);
-        opacity: 0.9;
-    }
-    
-    .shop-header-content {
-        position: relative;
-        z-index: 2;
-        padding: 3rem 2.5rem;
-    }
-
-    .shop-hero {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 1rem;
-        padding: 0.6rem 1rem;
-        border-radius: 999px;
-        background: rgba(255, 255, 255, 0.12);
-        border: 1px solid rgba(255, 255, 255, 0.25);
-        margin-bottom: 1.25rem;
-    }
-
-    .shop-hero-logo-wrap {
-        display: inline-flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 0.45rem;
-    }
-
-    .shop-hero-logo {
-        width: 72px;
-        height: 72px;
-        border-radius: 18px;
-        overflow: hidden;
-        background: rgba(255, 255, 255, 0.85);
-        border: 2px solid rgba(255, 255, 255, 0.65);
-        box-shadow:
-            0 12px 28px rgba(15, 118, 110, 0.25),
-            0 0 0 6px rgba(255, 255, 255, 0.12),
-            0 0 24px rgba(253, 230, 138, 0.6);
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        flex-shrink: 0;
-    }
-
-    .shop-hero-logo img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        display: block;
-    }
-
-    .shop-hero-logo i {
-        font-size: 2rem;
-        color: #0f766e;
-    }
-
-    .shop-hero-logo-label {
-        font-size: 0.76rem;
-        font-weight: 800;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-        color: rgba(255, 255, 255, 0.92);
-    }
-
-    .shop-title {
-        font-family: 'Poppins', sans-serif;
-        color: #fff;
-        text-shadow: 0 12px 30px rgba(0, 0, 0, 0.28);
-        letter-spacing: -0.6px;
-    }
-
-    .shop-subtitle {
-        color: rgba(255, 255, 255, 0.86);
-        max-width: 720px;
-        margin: 0 auto;
-    }
-
-    .shop-link-badge {
-        background: rgba(255, 255, 255, 0.18);
-        color: #fff;
-        border: 1px solid rgba(255, 255, 255, 0.35);
-        box-shadow: 0 10px 24px rgba(15, 118, 110, 0.25);
-        backdrop-filter: blur(6px);
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 0.4rem;
-        max-width: 100%;
-        white-space: normal;
-        line-break: anywhere;
-        word-break: break-word;
-        text-align: center;
-    }
-    
-    .animated-card {
-        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        border: none;
-        overflow: hidden;
-        animation: fadeInUp 0.6s ease-out forwards;
-        opacity: 0;
-        animation-delay: calc(var(--i) * 0.1s);
-    }
-    
-    .animated-card:hover {
-        transform: translateY(-10px) scale(1.02);
-        box-shadow: 0 20px 40px rgba(0,0,0,0.1) !important;
-    }
-    
-    .stat-card {
-        background: linear-gradient(135deg, var(--stat-start, #10b981), var(--stat-end, #0f766e));
-        color: white;
-        border-radius: 15px;
-        padding: 1.5rem;
-        text-align: center;
-        position: relative;
-        overflow: hidden;
-        min-height: 150px;
-    }
-
-    .stat-card.stat-primary {
-        --stat-start: #10b981;
-        --stat-end: #0f766e;
-    }
-
-    .stat-card.stat-success {
-        --stat-start: #22c55e;
-        --stat-end: #16a34a;
-    }
-
-    .stat-card.stat-danger {
-        --stat-start: #f97316;
-        --stat-end: #ef4444;
-    }
-    
-    .stat-card::after {
-        content: '';
-        position: absolute;
-        top: -50%;
-        left: -50%;
-        width: 200%;
-        height: 200%;
-        background: linear-gradient(
-            to right,
-            transparent,
-            rgba(255,255,255,0.1),
-            transparent
-        );
-        transform: rotate(30deg);
-        animation: shimmer 3s infinite;
-    }
-    
-    .floating-icon {
-        animation: float 3s ease-in-out infinite;
-    }
-    
-    .pulse-button {
-        animation: pulse 2s infinite;
-    }
-    
-    .glass-effect {
-        background: rgba(255, 255, 255, 0.95);
-        backdrop-filter: blur(10px);
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
-    }
-
-    .manage-main-grid {
-        align-items: start;
-    }
-
-    .manage-main-col .card,
-    .manage-side-col .card {
-        border-radius: 18px;
-    }
-
-    .manage-side-col .sticky-stack {
-        position: sticky;
-        top: 88px;
-    }
-
-    .quick-actions-grid {
-        display: grid;
-        grid-template-columns: 1fr;
-        gap: 0.7rem;
-    }
-
-    .quick-actions-grid > a,
-    .quick-actions-grid > form > button {
-        width: 100%;
-        min-height: 46px;
-        border-radius: 12px;
-        font-weight: 700;
-        box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
-    }
-
-    .quick-actions-grid > form {
-        margin: 0;
-    }
-
-    .info-chip {
-        background: linear-gradient(145deg, rgba(255,255,255,0.95), rgba(248,250,252,0.92));
-        border: 1px solid rgba(148,163,184,0.2);
-        min-height: 92px;
-    }
-    
-    .gradient-text {
-        background: linear-gradient(90deg, #10b981, #0f766e, #f59e0b);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-    }
-    
-    .btn-hover-effect {
-        position: relative;
-        overflow: hidden;
-        transition: all 0.3s;
-    }
-    
-    .btn-hover-effect::before {
-        content: '';
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        width: 0;
-        height: 0;
-        border-radius: 50%;
-        background: rgba(255,255,255,0.2);
-        transform: translate(-50%, -50%);
-        transition: width 0.6s, height 0.6s;
-    }
-    
-    .btn-hover-effect:hover::before {
-        width: 300px;
-        height: 300px;
-    }
-
-    .manage-search-wrap {
-        margin: 0 auto 1.25rem;
-        max-width: 840px;
-        animation: fadeInUp 0.45s ease-out forwards;
-    }
-
-    .manage-search {
-        position: relative;
-        display: flex;
-        align-items: center;
-        gap: 0.55rem;
-        background: rgba(255, 255, 255, 0.96);
-        border: 1px solid rgba(16, 185, 129, 0.22);
-        border-radius: 14px;
-        padding: 0.35rem 0.45rem 0.35rem 0.85rem;
-        box-shadow: 0 12px 24px rgba(15, 118, 110, 0.12);
-        backdrop-filter: blur(6px);
-    }
-
-    .manage-search i {
-        color: #0f766e;
-        font-size: 1rem;
-    }
-
-    .manage-search-input {
-        flex: 1;
-        border: 0;
-        outline: 0;
-        background: transparent;
-        font-weight: 600;
-        color: #0f172a;
-        min-height: 40px;
-    }
-
-    .manage-search-clear {
-        border: 1px solid rgba(16, 185, 129, 0.28);
-        color: #047857;
-        background: rgba(16, 185, 129, 0.12);
-        border-radius: 10px;
-        padding: 0.45rem 0.7rem;
-        font-weight: 700;
-        min-height: 40px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        transition: transform .2s ease, background .2s ease, color .2s ease;
-    }
-
-    .manage-search-clear:hover {
-        background: #10b981;
-        color: #fff;
-        transform: translateY(-1px);
-    }
-
-    .search-empty-note {
-        margin-top: 0.5rem;
-        font-size: 0.82rem;
-        color: #64748b;
-        font-weight: 600;
-        text-align: center;
-        display: none;
-    }
-
-    .is-hidden-by-search {
-        display: none !important;
-    }
-    
-    /* Responsive adjustments */
-    @media (max-width: 768px) {
-        .manage-shop-page {
-            padding: 1rem 0.75rem !important;
-        }
-
-        .manage-search-wrap {
-            margin-bottom: 1rem;
-        }
-
-        .manage-search {
-            padding: 0.3rem 0.35rem 0.3rem 0.7rem;
-        }
-
-        .manage-search-input {
-            min-height: 38px;
-            font-size: 0.92rem;
-        }
-
-        .manage-search-clear {
-            min-height: 38px;
-            font-size: 0.82rem;
-            padding: 0.4rem 0.58rem;
-        }
-
-        .shop-header-content {
-            padding: 2.25rem 1.25rem;
-        }
-
-        .manage-side-col .sticky-stack {
-            position: static;
-        }
-
-        .quick-actions-grid {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-
-        .quick-actions-grid > a,
-        .quick-actions-grid > form > button {
-            min-height: 44px;
-            font-size: 0.86rem;
-            padding: 0.55rem 0.5rem;
-        }
-        
-        .animated-card {
-            margin-bottom: 1rem;
-        }
-
-        .stat-card {
-            padding: 0.7rem 0.55rem;
-            min-height: 88px;
-            border-radius: 12px;
-        }
-
-        .stat-card .display-4 {
-            font-size: 1.35rem;
-            margin-bottom: 0.25rem !important;
-        }
-
-        .stat-card .fs-1 {
-            font-size: 0.95rem !important;
-            margin-right: 0.35rem !important;
-        }
-
-        .stat-card .fs-5 {
-            font-size: 0.82rem;
-            line-height: 1.15;
-        }
-
-        .info-chip {
-            min-height: 70px;
-            padding: 0.6rem 0.65rem !important;
-            border-radius: 10px;
-        }
-
-        .info-chip .small,
-        .info-chip .text-muted.small {
-            font-size: 0.7rem !important;
-            margin-bottom: 0.05rem;
-        }
-
-        .info-chip .fw-bold {
-            font-size: 0.82rem;
-            line-height: 1.2;
-        }
-
-        .info-chip i.bi {
-            font-size: 0.95rem !important;
-            margin-right: 0.45rem !important;
-        }
-
-        .card-body .row.g-4 {
-            --bs-gutter-x: 0.65rem;
-            --bs-gutter-y: 0.65rem;
-        }
-    }
-
-    @media (max-width: 576px) {
-        .shop-title {
-            font-size: 1.85rem;
-        }
-
-        .shop-hero {
-            flex-direction: column;
-            gap: 0.6rem;
-            padding: 0.9rem 1rem;
-        }
-
-        .shop-hero-logo {
-            width: 82px;
-            height: 82px;
-        }
-
-        .shop-subtitle {
-            font-size: 0.98rem;
-        }
-
-        .shop-link-badge {
-            width: 100%;
-            padding: 0.55rem 0.8rem;
-        }
-
-        .stat-card {
-            padding: 0.58rem 0.45rem;
-            min-height: 78px;
-        }
-
-        .stat-card .display-4 {
-            font-size: 1.18rem;
-        }
-
-        .stat-card .fs-1 {
-            font-size: 0.82rem !important;
-        }
-
-        .stat-card .fs-5 {
-            font-size: 0.76rem;
-            line-height: 1.1;
-        }
-
-        .info-chip {
-            min-height: 62px;
-            padding: 0.5rem 0.55rem !important;
-        }
-
-        .info-chip .fw-bold {
-            font-size: 0.78rem;
-            line-height: 1.15;
-        }
-
-        .quick-actions-grid {
-            grid-template-columns: 1fr;
-        }
-    }
-
-    @media (max-width: 576px) {
-        .stats-row {
-            gap: 0.75rem;
-        }
-
-        .stats-row > div {
-            flex: 0 0 50%;
-            max-width: 50%;
-        }
-    }
-
-    .shop-link-badge {
-        position: relative;
-        overflow: hidden;
-    }
-
-    .shop-link-badge::after {
-        content: '';
-        position: absolute;
-        top: -50%;
-        left: -20%;
-        width: 40%;
-        height: 200%;
-        background: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.85), transparent);
-        transform: translateX(-150%) rotate(18deg);
-        transition: transform 0.9s ease;
-    }
-
-    .shop-link-badge:hover::after {
-        transform: translateX(220%) rotate(18deg);
-    }
-
-    @media (max-width: 768px) {
-        .recent-products-table thead {
-            display: none;
-        }
-
-        .recent-products-table,
-        .recent-products-table tbody,
-        .recent-products-table tr,
-        .recent-products-table td {
-            display: block;
-            width: 100%;
-        }
-
-        .recent-products-table tr {
-            background: #fff;
-            border-radius: 14px;
-            border: 1px solid rgba(16, 185, 129, 0.15);
-            box-shadow: 0 12px 24px rgba(15, 118, 110, 0.08);
-            padding: 0.75rem 0.9rem;
-            margin-bottom: 0.85rem;
-        }
-
-        .recent-products-table td {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 0.75rem;
-            padding: 0.5rem 0;
-            border: 0;
-        }
-
-        .recent-products-table td::before {
-            content: attr(data-label);
-            font-size: 0.8rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
-            color: #6b7280;
-            flex: 0 0 40%;
-        }
-
-        .recent-products-table td:last-child {
-            justify-content: flex-start;
-        }
-
-        .recent-products-table .btn {
-            width: 100%;
-            justify-content: center;
-        }
-
-        .locations-table thead {
-            display: none;
-        }
-
-        .locations-table,
-        .locations-table tbody,
-        .locations-table tr,
-        .locations-table td {
-            display: block;
-            width: 100%;
-        }
-
-        .locations-table tr {
-            background: #fff;
-            border-radius: 14px;
-            border: 1px solid rgba(16, 185, 129, 0.15);
-            box-shadow: 0 10px 24px rgba(15, 118, 110, 0.08);
-            padding: 0.72rem 0.85rem;
-            margin-bottom: 0.8rem;
-        }
-
-        .locations-table td {
-            display: flex;
-            align-items: flex-start;
-            justify-content: space-between;
-            gap: 0.65rem;
-            padding: 0.46rem 0;
-            border: 0;
-        }
-
-        .locations-table td::before {
-            content: attr(data-label);
-            font-size: 0.76rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
-            color: #6b7280;
-            flex: 0 0 38%;
-        }
-
-        .locations-title-wrap {
-            text-align: end;
-            white-space: normal;
-            overflow-wrap: anywhere;
-            word-break: break-word;
-            max-width: 62%;
-        }
-
-        .locations-table td:last-child {
-            justify-content: flex-start;
-        }
-
-        .locations-table td:last-child::before {
-            margin-top: 0.28rem;
-        }
-
-        .locations-table td .btn {
-            width: 100%;
-            justify-content: center;
-        }
-    }
-    
-    /* Loading animation for shop status */
-    .status-indicator {
-        width: 10px;
-        height: 10px;
-        border-radius: 50%;
-        display: inline-block;
-        margin-right: 8px;
-        animation: pulse 2s infinite;
-    }
-    
-    /* Product table hover effects */
-    .product-row {
-        transition: all 0.3s;
-    }
-    
-    .product-row:hover {
-        background: linear-gradient(90deg, rgba(16, 185, 129, 0.12), rgba(245, 158, 11, 0.08));
-        transform: translateX(5px);
-    }
-    
-    /* Custom scrollbar */
-    .custom-scrollbar::-webkit-scrollbar {
-        width: 6px;
-        height: 6px;
-    }
-    
-    .custom-scrollbar::-webkit-scrollbar-track {
-        background: #f1f1f1;
-        border-radius: 10px;
-    }
-    
-    .custom-scrollbar::-webkit-scrollbar-thumb {
-        background: linear-gradient(45deg, #10b981, #0f766e);
-        border-radius: 10px;
-    }
-
-    .info-chip {
-        background: linear-gradient(135deg, rgba(16, 185, 129, 0.10), rgba(245, 158, 11, 0.10));
-        border: 1px solid rgba(16, 185, 129, 0.18);
-    }
-
-    .mobile-info-toggle-wrap {
-        display: none;
-    }
-
-    .service-location-panel {
-        margin-top: 1rem;
-        border: 1px solid rgba(59, 130, 246, 0.22);
-        border-radius: 16px;
-        padding: 1rem;
-        background: linear-gradient(135deg, rgba(239, 246, 255, 0.95), rgba(240, 253, 250, 0.95));
-    }
-
-    .service-location-panel .service-location-title {
-        display: flex;
-        align-items: center;
-        gap: 0.55rem;
-        font-weight: 700;
-        color: #1e3a8a;
-        margin-bottom: 0.75rem;
-    }
-
-    .service-location-panel .service-location-title i {
-        width: 30px;
-        height: 30px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 999px;
-        background: rgba(37, 99, 235, 0.14);
-        color: #2563eb;
-    }
-
-    .service-location-panel .service-location-hint {
-        font-size: 0.9rem;
-        color: #475569;
-        margin-bottom: 0.8rem;
-    }
-
-    .service-raw-link-wrap {
-        border: 1px solid rgba(15, 23, 42, 0.12);
-        border-radius: 12px;
-        background: #fff;
-        padding: 0.7rem;
-    }
-
-    .service-raw-link-actions {
-        display: flex;
-        gap: 0.5rem;
-        margin-top: 0.55rem;
-    }
-
-    .service-raw-link-actions .btn {
-        min-width: 120px;
-    }
-
-    @media (max-width: 768px) {
-        .service-raw-link-actions {
-            flex-direction: column;
-        }
-
-        .service-raw-link-actions .btn {
-            width: 100%;
-            min-width: 0;
-        }
-
-        .mobile-info-extra {
-            display: none !important;
-        }
-
-        .info-grid.mobile-info-expanded .mobile-info-extra {
-            display: block !important;
-        }
-
-        .mobile-info-toggle-wrap {
-            display: block;
-            margin-top: 0.45rem;
-        }
-
-        .mobile-info-toggle-btn {
-            width: 100%;
-            min-height: 40px;
-            border-radius: 10px;
-            font-weight: 700;
-            border: 1px solid rgba(16, 185, 129, 0.35);
-            background: rgba(16, 185, 129, 0.10);
-            color: #047857;
-        }
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-        .animated-card,
-        .floating-icon,
-        .pulse-button,
-        .stat-card::after {
-            animation: none !important;
-        }
-
-        .animated-card {
-            opacity: 1 !important;
-            transform: none !important;
-        }
-    }
-</style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/vendor_manage_shop_page.css', v=app_static_version) }}">
 {% endblock %}
 
 {% block content %}
@@ -853,8 +21,16 @@
 
     <!-- Shop Header with Animation -->
     {% if shop %}
-    <div class="shop-header animate__animated animate__fadeInDown">
+    <div class="shop-header {% if shop.logo %}has-logo-cover{% endif %} animate__animated animate__fadeInDown">
+        {% if shop.logo %}
+        <div class="shop-header-cover" aria-hidden="true">
+            <img src="{{ url_for('static', filename='uploads/' + shop.logo) }}"
+                 alt=""
+                 loading="lazy">
+        </div>
+        {% endif %}
         <div class="shop-header-content text-white text-center">
+            {% if not shop.logo %}
             <div class="shop-hero">
                 <div class="shop-hero-logo-wrap">
                     <span class="shop-hero-logo floating-icon">
@@ -869,14 +45,29 @@
                     <span class="shop-hero-logo-label">Logo boutique</span>
                 </div>
             </div>
+            {% endif %}
             <h1 class="display-5 fw-bold mb-3 shop-title">{{ shop.name }}</h1>
-            <p class="lead mb-0 shop-subtitle">{{ shop.description|default("Votre boutique DealNova", true) }}</p>
-            <div class="mt-4">
-                <span class="badge fs-6 py-2 px-3 rounded-pill shop-link-badge">
+            <p class="lead mb-0 shop-subtitle">{{ shop.description|default("Votre boutique " ~ (config.SITE_NAME|trim), true) }}</p>
+            <div class="mt-4 shop-link-actions">
+                <a href="{{ shop_public_url }}"
+                   id="shopPublicUrlLink"
+                   class="badge fs-6 py-2 px-3 rounded-pill shop-link-badge text-decoration-none"
+                   target="_blank"
+                   rel="noopener noreferrer"
+                   title="Ouvrir la boutique publique">
                     <i class="bi bi-link-45deg me-1"></i>
-                    dealnova.com/shop/{{ shop.slug }}
-                </span>
+                    {{ shop_public_url }}
+                </a>
+                <button type="button"
+                        class="btn btn-sm rounded-pill shop-link-copy-btn"
+                        id="copyShopPublicUrlBtn"
+                        data-bs-toggle="tooltip"
+                        data-bs-placement="top"
+                        title="Copier le lien">
+                    <i class="bi bi-clipboard me-1"></i> Copier
+                </button>
             </div>
+            <div class="small mt-2 shop-link-hint" id="shopPublicUrlHint" aria-live="polite"></div>
         </div>
     </div>
     {% endif %}
@@ -892,7 +83,7 @@
                     </div>
                     <h3 class="gradient-text fw-bold mb-3">Créez votre boutique</h3>
                     <p class="text-muted mb-4 fs-5">
-                        Lancez votre activité et commencez a vendre vos produits
+                        Lancez votre activité et commencez à vendre vos produits
                     </p>
                     <a href="{{ url_for('vendor.create_shop') }}" 
                        class="btn btn-primary btn-lg pulse-button btn-hover-effect">
@@ -904,37 +95,15 @@
     </div>
     
     {% else %}
-    {% set enabled_types = shop.get_allowed_types() %}
-    <!-- Statistiques Animées -->
-    <div class="row g-4 mb-5">
-        {% set physical_count = (shop.products|selectattr('kind', 'equalto', 'physical')|list|length) if shop.products else 0 %}
-        {% set service_count = (shop.products|selectattr('kind', 'equalto', 'service')|list|length) if shop.products else 0 %}
-        {% set ns = namespace(stats=[]) %}
-        {% if allows_products %}
-            {% set _ = ns.stats.append({'icon': 'bi-box', 'value': physical_count, 'label': 'Produits', 'color': 'primary'}) %}
-            {% set _ = ns.stats.append({'icon': 'bi-cart-check', 'value': shop.total_sales or 0, 'label': 'Ventes', 'color': 'success'}) %}
-        {% endif %}
-        {% if allows_services or allows_products %}
-            {% set _ = ns.stats.append({'icon': 'bi-calendar-check', 'value': service_count, 'label': 'Services', 'color': 'success'}) %}
-        {% endif %}
-        {% if allows_location %}
-            {% set _ = ns.stats.append({'icon': 'bi-house-door', 'value': location_active_count or 0, 'label': 'Locations actives', 'color': 'primary'}) %}
-        {% endif %}
-        {% set _ = ns.stats.append({'icon': 'bi-activity', 'value': 'Active' if shop.is_active else 'Inactive', 'label': 'Statut', 'color': 'success' if shop.is_active else 'danger'}) %}
+{% set enabled_types = shop.get_allowed_types() %}
 
-        {% for stat in ns.stats %}
-        <div class="col-6 col-md-6 col-xl-3" style="--i: {{ loop.index + 1 }}">
-            <div class="stat-card stat-{{ stat.color }} animated-card">
-                <div class="display-4 fw-bold mb-2 stat-value">{{ stat.value }}</div>
-                <div class="d-flex align-items-center justify-content-center">
-                    <i class="bi {{ stat.icon }} fs-1 me-3"></i>
-                    <div class="fs-5">{{ stat.label }}</div>
-                </div>
-            </div>
-        </div>
-        {% endfor %}
+    {% if featured_shop_notice %}
+    <div class="alert alert-success border-0 shadow-sm rounded-4 mb-4">
+        <strong>Boutique mise en avant :</strong>
+        visible en priorite jusqu'au {{ featured_shop_notice.ends_at.strftime('%d/%m/%Y %H:%M') }}.
     </div>
-    
+    {% endif %}
+
     <!-- Informations et Actions -->
     <div class="row g-4 manage-main-grid">
         <!-- Informations de la boutique -->
@@ -960,7 +129,7 @@
                     <div class="row g-4 info-grid" id="mobileInfoGrid">
                         {% set info_items = [
                             {'icon': 'bi-shop', 'label': 'Nom', 'value': shop.name, 'mobile_extra': false},
-                            {'icon': 'bi-link', 'label': 'URL', 'value': '/shop/' + shop.slug, 'link': true, 'mobile_extra': false},
+                            {'icon': 'bi-link', 'label': 'URL', 'value': shop_public_url, 'link': true, 'mobile_extra': false},
                             {'icon': 'bi-telephone', 'label': 'Téléphone', 'value': shop.contact_phone or "Non renseigné", 'mobile_extra': false},
                             {'icon': 'bi-card-text', 'label': 'Description', 'value': shop.description or "Non renseignée", 'mobile_extra': true},
                             {'icon': 'bi-envelope', 'label': 'Email', 'value': shop.contact_email or "Non renseigné", 'mobile_extra': true},
@@ -974,7 +143,7 @@
                                 <div>
                                     <div class="text-muted small">{{ item.label }}</div>
                                     {% if item.link %}
-                                    <a href="{{ url_for('shops.shop_detail', shop_slug=shop.slug) }}" 
+                                    <a href="{{ shop_public_url }}" 
                                        target="_blank"
                                        class="text-decoration-none fw-bold text-primary">
                                         {{ item.value }}
@@ -1000,7 +169,7 @@
                             <div class="d-flex align-items-start p-3 rounded-3 info-chip h-100">
                                 <i class="bi bi-grid fs-5 text-primary me-3 mt-1"></i>
                                 <div>
-                                    <div class="text-muted small">Types actifs (lecture seule)</div>
+                                    <div class="text-muted small">Activités proposées</div>
                                     <div class="d-flex flex-wrap gap-2 mt-1">
                                         {% for shop_type in enabled_types %}
                                         <span class="badge bg-light text-dark border">
@@ -1017,15 +186,20 @@
                     </div>
 
                     {% if allows_services or allows_products %}
-                    <div class="service-location-panel">
+                    <div class="service-location-panel" id="manageShopServiceLocationPanel">
                         <div class="service-location-title">
                             <i class="bi bi-geo-alt"></i>
-                            <span>Point de retrait</span>
+                            <span>Adresse pour les clients</span>
                         </div>
                         <div class="service-location-hint">
-                            Position exacte + adresse + repere (infos privees pour admin/livreur).
+                            Ajoutez l'adresse et un repère simple pour aider les clients à vous trouver.
                         </div>
-                        <form method="post" action="{{ url_for('vendor.update_service_location') }}" class="row g-2" id="serviceLocationForm">
+                        <form method="post"
+                              action="{{ url_for('vendor.update_service_location') }}"
+                              class="row g-2"
+                              id="serviceLocationForm"
+                              data-ajax="true"
+                              data-action="update-service-location">
                             {% include "partials/_csrf.html" %}
                             <input type="hidden" name="service_latitude" id="serviceLatitudeInput" value="{{ shop.service_latitude if shop.service_latitude is not none else '' }}">
                             <input type="hidden" name="service_longitude" id="serviceLongitudeInput" value="{{ shop.service_longitude if shop.service_longitude is not none else '' }}">
@@ -1034,7 +208,7 @@
                             <div class="col-12">
                                 <div class="d-flex flex-wrap gap-2">
                                     <button type="button" class="btn btn-success btn-lg btn-hover-effect" id="captureExactLocationBtn">
-                                        <i class="bi bi-crosshair me-2"></i> Partager ma position exacte
+                                        <i class="bi bi-crosshair me-2"></i> Utiliser ma position
                                     </button>
                                     <button type="button" class="btn btn-outline-danger" id="clearExactLocationBtn"
                                             {% if not shop.has_precise_service_location %}style="display:none;"{% endif %}>
@@ -1045,20 +219,20 @@
                             <div class="col-12">
                                 <div class="small fw-semibold text-muted" id="exactLocationStatus">
                                     {% if shop.has_precise_service_location %}
-                                      Position exacte enregistrée: {{ '%.6f'|format(shop.service_latitude) }}, {{ '%.6f'|format(shop.service_longitude) }}
+                                      Position enregistrée : {{ '%.6f'|format(shop.service_latitude) }}, {{ '%.6f'|format(shop.service_longitude) }}
                                     {% else %}
-                                      Aucune position exacte enregistrée.
+                                      Aucune position enregistrée.
                                     {% endif %}
                                 </div>
                             </div>
                             <div class="col-12">
                                 <div class="service-raw-link-wrap">
-                                    <label class="form-label fw-semibold mb-1">Adresse brute (Google Maps)</label>
+                                    <label class="form-label fw-semibold mb-1">Lien de localisation</label>
                                     <input type="text"
                                            id="serviceRawMapUrl"
                                            class="form-control"
                                            readonly
-                                           value="{% if shop.has_precise_service_location %}https://www.google.com/maps?q={{ '%.6f'|format(shop.service_latitude) }},{{ '%.6f'|format(shop.service_longitude) }}{% endif %}">
+                                           value="{% if shop.has_precise_service_location %}https://www.google.com/mapsq={{ '%.6f'|format(shop.service_latitude) }},{{ '%.6f'|format(shop.service_longitude) }}{% endif %}">
                                     <div class="service-raw-link-actions">
                                         <button type="button"
                                                 class="btn btn-outline-secondary"
@@ -1075,9 +249,9 @@
                                     </div>
                                     <div class="small text-muted mt-1" id="rawMapHint">
                                         {% if shop.has_precise_service_location %}
-                                            Lien pret a copier et partager.
+                                            Lien prêt à copier et partager.
                                         {% else %}
-                                            Ajoutez votre position exacte.
+                                            Ajoutez votre position.
                                         {% endif %}
                                     </div>
                                 </div>
@@ -1091,17 +265,17 @@
                                        placeholder="Ex: Rabat, Hay Riad, Avenue ...">
                             </div>
                             <div class="col-12">
-                                <label class="form-label fw-semibold mb-1">Repere de retrait (optionnel)</label>
+                                <label class="form-label fw-semibold mb-1">Repère de retrait (optionnel)</label>
                                 <input type="text"
                                        name="service_location_note"
                                        class="form-control rounded-3"
                                        maxlength="255"
                                        value="{{ shop.service_location_note or '' }}"
-                                       placeholder="Ex: En face pharmacie X, 2e etage.">
+                                       placeholder="Ex: En face de la pharmacie X, 2e étage.">
                             </div>
                             <div class="col-12">
                                 <button type="submit" class="btn btn-primary btn-lg w-100 btn-hover-effect">
-                                    <i class="bi bi-save me-2"></i> Enregistrer point de retrait
+                                    <i class="bi bi-save me-2"></i> Enregistrer l'adresse
                                 </button>
                             </div>
                         </form>
@@ -1115,21 +289,12 @@
         <div class="col-lg-4 manage-side-col">
             <div class="sticky-stack">
             <!-- Actions Card -->
-            <div class="card border-0 shadow-sm animated-card glass-effect" style="--i: 5">
+            <div class="card border-0 shadow-sm animated-card glass-effect" style="--i: 5" id="manageShopActionsCard">
                 <div class="card-header bg-transparent border-0">
                     <div class="d-flex align-items-center">
                         <div class="bg-warning p-3 rounded-circle me-3">
                             <i class="bi bi-lightning fs-4 text-white"></i>
                         </div>
-                        <h4 class="mb-0 gradient-text fw-bold">
-                            {% if allows_services and not allows_products and not allows_location %}
-                            Actions services
-                            {% elif allows_location and not allows_catalog %}
-                            Actions location
-                            {% else %}
-                            Actions rapides
-                            {% endif %}
-                        </h4>
                     </div>
                 </div>
                 <div class="card-body">
@@ -1148,6 +313,7 @@
                         <form method="post" action="{{ url_for('vendor.toggle_shop_status') }}"
                               data-ajax="true"
                               data-action="toggle-vendor-shop"
+                              data-refresh-target="#manageShopActionsCard"
                               data-confirm="Voulez-vous activer/désactiver votre boutique ">
                             {% include "partials/_csrf.html" %}
                             <button type="submit" 
@@ -1157,13 +323,6 @@
                             </button>
                         </form>
                         
-                        {% if allows_catalog %}
-                        <a href="{{ url_for('vendor.product_new') }}" 
-                           class="btn btn-success btn-lg btn-hover-effect pulse-button">
-                            <i class="bi bi-plus-circle me-2"></i>
-                            {{ catalog_create_label or ('Nouveau service' if allows_services and not allows_products else 'Nouveau produit') }}
-                        </a>
-                        {% endif %}
                         {% if allows_products %}
                         <a href="{{ url_for('vendor.earnings') }}"
                            class="btn btn-outline-success btn-lg btn-hover-effect">
@@ -1185,31 +344,36 @@
             </div>
 
             {% if allows_catalog %}
-            <!-- Disponibilite (repos / vacances) -->
-            <div class="card border-0 shadow-sm animated-card glass-effect mt-4" style="--i: 6">
+            <!-- Disponibilité -->
+            <div class="card border-0 shadow-sm animated-card glass-effect mt-4" style="--i: 6" id="manageShopOpenStateCard">
                 <div class="card-header bg-transparent border-0">
                     <div class="d-flex align-items-center">
                         <div class="bg-success p-3 rounded-circle me-3">
                             <i class="bi bi-door-open fs-4 text-white"></i>
                         </div>
-                        <h4 class="mb-0 gradient-text fw-bold">Disponibilité</h4>
+                        <h4 class="mb-0 gradient-text fw-bold">Ouverture de la boutique</h4>
                     </div>
                 </div>
                 <div class="card-body">
                     <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
                         <div class="fw-semibold text-muted">Statut boutique</div>
                         <span class="badge bg-{{ 'success' if shop.is_open else 'danger' }} rounded-pill py-2 px-3">
-                            {{ 'OUVERT' if shop.is_open else 'FERMÉ' }}
+                            {{ 'Ouverte' if shop.is_open else 'Fermée' }}
                         </span>
                     </div>
 
                     {% if shop.is_open %}
-                    <form method="post" action="{{ url_for('vendor.set_shop_open_state') }}" class="mb-3">
+                    <form method="post"
+                          action="{{ url_for('vendor.set_shop_open_state') }}"
+                          class="mb-3"
+                          data-ajax="true"
+                          data-action="set-shop-open"
+                          data-refresh-target="#manageShopOpenStateCard">
                         {% include "partials/_csrf.html" %}
                         <input type="hidden" name="state" value="closed">
 
                         <div class="mb-2">
-                            <label class="form-label fw-semibold">Fermé jusqu'au (optionnel)</label>
+                            <label class="form-label fw-semibold">Fermée jusqu'au (optionnel)</label>
                             <input type="datetime-local" name="closed_until" class="form-control form-control-lg rounded-3">
                         </div>
                         <div class="mb-3">
@@ -1218,28 +382,33 @@
                         </div>
 
                         <button type="submit" class="btn btn-outline-danger btn-lg btn-hover-effect w-100" style="min-height:44px;">
-                            <i class="bi bi-door-closed me-2"></i> Je suis fermé
+                            <i class="bi bi-door-closed me-2"></i> Fermer temporairement
                         </button>
                         <div class="form-text mt-2">
                             {% if allows_products and allows_services %}
-                                Quand la boutique est fermée, les commandes produits sont bloquées et les services passent en demande de rendez-vous.
+                                Quand la boutique est fermée, les commandes sont mises en pause.
                             {% elif allows_products %}
-                                Quand la boutique est fermée, les clients ne peuvent plus commander vos produits.
+                                Quand la boutique est fermée, les clients ne peuvent plus commander.
                             {% elif allows_services %}
-                                Quand la boutique est fermée, les services restent disponibles en demande de rendez-vous.
+                                Quand la boutique est fermée, les clients peuvent encore vous contacter.
                             {% elif allows_location %}
-                                Le statut ouvert/fermé informe les clients de votre disponibilité avant prise de contact.
+                                Ce statut montre simplement aux clients si vous êtes disponible.
                             {% else %}
-                                Mettez a jour ce statut pour informer vos clients en temps réel.
+                                Mettez ce statut à jour quand vous êtes disponible ou non.
                             {% endif %}
                         </div>
                     </form>
                     {% else %}
-                    <form method="post" action="{{ url_for('vendor.set_shop_open_state') }}" class="mb-3">
+                    <form method="post"
+                          action="{{ url_for('vendor.set_shop_open_state') }}"
+                          class="mb-3"
+                          data-ajax="true"
+                          data-action="set-shop-open"
+                          data-refresh-target="#manageShopOpenStateCard">
                         {% include "partials/_csrf.html" %}
                         <input type="hidden" name="state" value="open">
                         <button type="submit" class="btn btn-success btn-lg btn-hover-effect w-100" style="min-height:44px;">
-                            <i class="bi bi-door-open me-2"></i> Je suis ouvert
+                            <i class="bi bi-door-open me-2"></i> Ouvrir la boutique
                         </button>
                         {% if shop.closed_note or shop.closed_until %}
                         <div class="small text-muted mt-2">
@@ -1256,22 +425,6 @@
         </div>
     </div>
     
-    {% if allows_location or allows_catalog %}
-    <div class="manage-search-wrap mt-4 animated-card glass-effect" style="--i: 6.8">
-        <div class="manage-search">
-            <i class="bi bi-search"></i>
-            <input type="text"
-                   id="manageShopRealtimeSearch"
-                   class="manage-search-input"
-                   placeholder="{% if allows_services and not allows_products and not allows_location %}Recherche rapide (service, ville...){% elif allows_location and not allows_catalog %}Recherche rapide (location, ville...){% elif allows_products and not allows_services and not allows_location %}Recherche rapide (produit, ville...){% else %}Recherche rapide (produit, service, location, ville...){% endif %}">
-            <button type="button" id="manageShopSearchClear" class="manage-search-clear">Effacer</button>
-        </div>
-        <div class="search-empty-note" id="manageShopSearchEmpty" style="display:none;">
-            Aucun résultat trouvé pour cette recherche.
-        </div>
-    </div>
-    {% endif %}
-
     {% if allows_location %}
     <!-- Locations de la boutique -->
     <div class="card border-0 shadow-sm mt-4 animated-card glass-effect" style="--i: 7">
@@ -1350,400 +503,26 @@
     </div>
     {% endif %}
 
-    {% if allows_catalog %}
-    {% set recent_items = [] %}
-    {% if shop.products %}
-        {% if allows_products and allows_services %}
-            {% set recent_items = shop.products|list %}
-        {% elif allows_products %}
-            {% set recent_items = shop.products|selectattr('kind', 'equalto', 'physical')|list %}
-        {% elif allows_services %}
-            {% set recent_items = shop.products|selectattr('kind', 'equalto', 'service')|list %}
-        {% endif %}
-    {% endif %}
-    {% set recent_items = recent_items|sort(attribute='id', reverse=true) %}
-    {% set recent_items = recent_items[:6] %}
-    <div class="card border-0 shadow-sm mt-5 animated-card glass-effect" style="--i: 7">
-        <div class="card-header bg-transparent border-0">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <div class="bg-success p-3 rounded-circle d-inline-flex me-3">
-                        <i class="bi {{ 'bi-calendar-check' if allows_services and not allows_products else ('bi-box' if allows_products and not allows_services else 'bi-grid') }} text-white fs-4"></i>
-                    </div>
-                    <h4 class="d-inline-block mb-0 gradient-text fw-bold">
-                        {{ 'Services récents' if allows_services and not allows_products else ('Produits récents' if allows_products and not allows_services else 'Articles récents') }}
-                    </h4>
-                </div>
-                <a href="{{ url_for('vendor.dashboard') }}"
-                   class="btn btn-outline-primary btn-hover-effect">
-                    Voir tous <i class="bi bi-arrow-right ms-1"></i>
-                </a>
-            </div>
-        </div>
-        <div class="card-body">
-            {% if recent_items %}
-            <div>
-                <table class="table table-hover align-middle recent-products-table">
-                    <thead class="bg-light">
-                        <tr>
-                            <th class="border-0">Article</th>
-                            {% if allows_products and allows_services %}
-                            <th class="border-0">Type</th>
-                            {% endif %}
-                            <th class="border-0">Prix</th>
-                            {% if allows_products %}
-                            <th class="border-0">Stock</th>
-                            {% endif %}
-                            <th class="border-0">Statut</th>
-                            <th class="border-0 text-end">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for product in recent_items %}
-                        <tr class="product-row animate__animated animate__fadeInRight js-manage-search-item"
-                            data-search="{{ (product.name ~ ' ' ~ (product.kind or '') ~ ' ' ~ (product.id|string))|lower }}"
-                            data-delay="{{ '%.2f'|format(loop.index * 0.1) }}">
-                            <td data-label="Article">
-                                <div class="d-flex align-items-center">
-                                    {% set images = product.image_file.split('|') if product.image_file else [] %}
-                                    {% if images and images[0] %}
-                                    <div class="position-relative me-3">
-                                        <img src="{{ url_for('static', filename='uploads/' + images[0]) }}"
-                                             alt="{{ product.name }}"
-                                             loading="lazy"
-                                             class="rounded"
-                                             style="width: 50px; height: 50px; object-fit: cover;">
-                                        <div class="position-absolute top-0 start-100 translate-middle">
-                                            <span class="badge {{ 'bg-primary' if product.kind == 'physical' else 'bg-info' }} rounded-circle p-1">
-                                                <i class="bi {{ 'bi-box' if product.kind == 'physical' else 'bi-calendar-check' }}"></i>
-                                            </span>
-                                        </div>
-                                    </div>
-                                    {% endif %}
-                                    <div>
-                                        <div class="fw-bold">{{ product.name|truncate(25) }}</div>
-                                        <small class="text-muted">ID: {{ product.id }}</small>
-                                    </div>
-                                </div>
-                            </td>
-                            {% if allows_products and allows_services %}
-                            <td data-label="Type">
-                                <span class="badge rounded-pill {{ 'bg-primary-subtle text-primary-emphasis border border-primary-subtle' if product.kind == 'physical' else 'bg-info-subtle text-info-emphasis border border-info-subtle' }}">
-                                    {{ 'Produit' if product.kind == 'physical' else 'Service' }}
-                                </span>
-                            </td>
-                            {% endif %}
-                            <td data-label="Prix">
-                                <span class="badge bg-primary rounded-pill fs-6 px-3 py-2">
-                                    {{ '%.2f'|format((product.price or 0)|float) }} MAD
-                                </span>
-                            </td>
-                            {% if allows_products %}
-                            <td data-label="Stock">
-                                {% if product.kind == 'physical' %}
-                                <div class="d-flex align-items-center">
-                                    <div class="status-indicator bg-{{ 'success' if product.stock > 5 else 'warning' if product.stock > 0 else 'danger' }}"></div>
-                                    <span class="fs-5 fw-bold">{{ product.stock }}</span>
-                                </div>
-                                {% else %}
-                                <span class="small text-muted">Service</span>
-                                {% endif %}
-                            </td>
-                            {% endif %}
-                            <td data-label="Statut">
-                                <span class="badge bg-{{ 'success' if product.is_active else 'secondary' }} rounded-pill py-2 px-3">
-                                    <i class="bi bi-circle-fill me-1"></i>
-                                    {{ 'Actif' if product.is_active else 'Inactif' }}
-                                </span>
-                            </td>
-                            <td class="text-end" data-label="Actions">
-                                <a href="{{ url_for('vendor.product_edit', pid=product.id) }}"
-                                   class="btn btn-sm btn-outline-primary btn-hover-effect rounded-circle"
-                                   data-bs-toggle="tooltip"
-                                   data-bs-title="Modifier l'article">
-                                    <i class="bi bi-pencil"></i>
-                                </a>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            {% else %}
-            <div class="text-center py-5">
-                <div class="bg-light rounded-circle d-inline-flex p-4 mb-4">
-                    <i class="bi {{ 'bi-calendar-check' if allows_services and not allows_products else ('bi-box' if allows_products and not allows_services else 'bi-grid') }} text-muted display-4"></i>
-                </div>
-                <h4 class="text-muted mb-3">
-                    {{ 'Aucun service pour le moment' if allows_services and not allows_products else ('Aucun produit pour le moment' if allows_products and not allows_services else 'Aucun article pour le moment') }}
-                </h4>
-                <p class="text-muted mb-4">
-                    {{ 'Ajoutez votre premier service pour commencer les réservations.' if allows_services and not allows_products else ('Ajoutez votre premier produit pour commencer les ventes.' if allows_products and not allows_services else 'Ajoutez un produit ou un service pour alimenter votre catalogue.') }}
-                </p>
-                <a href="{{ url_for('vendor.product_new') }}"
-                   class="btn btn-primary btn-lg btn-hover-effect">
-                    <i class="bi bi-plus-circle me-2"></i> {{ catalog_create_label or 'Ajouter maintenant' }}
-                </a>
-            </div>
-            {% endif %}
-        </div>
-    </div>
-    {% endif %}
     {% endif %}
 </div>
 {% endblock %}
 
 {% block scripts %}
 {{ super() }}
-<script>
-    // Initialize animations on page load
-    document.addEventListener('DOMContentLoaded', function() {
-        // Initialize tooltips
-        if (window.bootstrap && window.bootstrap.Tooltip) {
-            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-            tooltipTriggerList.map(function(tooltipTriggerEl) {
-                return new bootstrap.Tooltip(tooltipTriggerEl);
-            });
-        }
-
-        const searchInput = document.getElementById('manageShopRealtimeSearch');
-        const searchClear = document.getElementById('manageShopSearchClear');
-        const searchEmpty = document.getElementById('manageShopSearchEmpty');
-        const searchableItems = Array.from(document.querySelectorAll('.js-manage-search-item'));
-        const mobileInfoGrid = document.getElementById('mobileInfoGrid');
-        const mobileInfoToggleBtn = document.getElementById('mobileInfoToggleBtn');
-
-        const applyManageSearch = () => {
-            if (!searchInput || searchableItems.length === 0) return;
-            const query = (searchInput.value || '').trim().toLowerCase();
-            let visibleCount = 0;
-            searchableItems.forEach((item) => {
-                const haystack = (item.getAttribute('data-search') || item.textContent || '').toLowerCase();
-                const isVisible = !query || haystack.includes(query);
-                item.classList.toggle('is-hidden-by-search', !isVisible);
-                if (isVisible) visibleCount += 1;
-            });
-            if (searchEmpty) {
-                searchEmpty.style.display = (query && visibleCount === 0) ? 'block' : 'none';
-            }
-        };
-
-        if (searchInput) {
-            searchInput.addEventListener('input', applyManageSearch);
-        }
-        if (searchClear) {
-            searchClear.addEventListener('click', () => {
-                if (!searchInput) return;
-                searchInput.value = '';
-                applyManageSearch();
-                searchInput.focus();
-            });
-        }
-
-        if (mobileInfoGrid && mobileInfoToggleBtn) {
-            mobileInfoToggleBtn.addEventListener('click', () => {
-                const expanded = mobileInfoGrid.classList.toggle('mobile-info-expanded');
-                mobileInfoToggleBtn.textContent = expanded ? "Voir moins d'infos" : "Voir plus d'infos";
-            });
-        }
-
-        const captureBtn = document.getElementById('captureExactLocationBtn');
-        const clearBtn = document.getElementById('clearExactLocationBtn');
-        const latInput = document.getElementById('serviceLatitudeInput');
-        const lngInput = document.getElementById('serviceLongitudeInput');
-        const clearExactInput = document.getElementById('clearExactLocationInput');
-        const statusEl = document.getElementById('exactLocationStatus');
-        const rawMapInput = document.getElementById('serviceRawMapUrl');
-        const rawMapHint = document.getElementById('rawMapHint');
-        const copyRawBtn = document.getElementById('copyRawMapUrlBtn');
-        const shareRawBtn = document.getElementById('shareRawMapWhatsappBtn');
-        const addressInput = document.querySelector('input[name="service_address"]');
-        const noteInput = document.querySelector('input[name="service_location_note"]');
-
-        const getRawMapUrl = () => {
-            const lat = ((latInput && latInput.value) || '').trim();
-            const lng = ((lngInput && lngInput.value) || '').trim();
-            if (!lat || !lng) return '';
-            return `https://www.google.com/maps?q=${lat},${lng}`;
-        };
-
-        const refreshRawMapUi = () => {
-            const rawUrl = getRawMapUrl();
-            if (rawMapInput) rawMapInput.value = rawUrl;
-            const hasLocation = Boolean(rawUrl);
-            if (copyRawBtn) copyRawBtn.disabled = !hasLocation;
-            if (shareRawBtn) shareRawBtn.disabled = !hasLocation;
-            if (rawMapHint) {
-                rawMapHint.textContent = hasLocation
-                    ? 'Lien pret a copier et partager.'
-                    : 'Ajoutez votre position exacte.';
-            }
-            if (clearBtn) {
-                clearBtn.style.display = hasLocation ? '' : 'none';
-            }
-        };
-
-        const setExactStatus = (text, tone = 'muted') => {
-            if (!statusEl) return;
-            statusEl.textContent = text;
-            statusEl.classList.remove('text-muted', 'text-success', 'text-danger');
-            statusEl.classList.add(tone === 'success' ? 'text-success' : tone === 'danger' ? 'text-danger' : 'text-muted');
-        };
-
-        if (captureBtn) {
-            captureBtn.addEventListener('click', () => {
-                if (!navigator.geolocation) {
-                    setExactStatus('Géolocalisation non supportée sur cet appareil.', 'danger');
-                    return;
-                }
-                captureBtn.disabled = true;
-                captureBtn.innerHTML = '<i class="bi bi-hourglass-split me-2"></i> Localisation en cours...';
-                navigator.geolocation.getCurrentPosition(
-                    (position) => {
-                        const lat = Number(position.coords.latitude).toFixed(6);
-                        const lng = Number(position.coords.longitude).toFixed(6);
-                        if (latInput) latInput.value = lat;
-                        if (lngInput) lngInput.value = lng;
-                        if (clearExactInput) clearExactInput.value = '0';
-                        refreshRawMapUi();
-                        setExactStatus(`Position exacte prete: ${lat}, ${lng}`, 'success');
-                        captureBtn.disabled = false;
-                        captureBtn.innerHTML = '<i class="bi bi-crosshair me-2"></i> Mettre a jour ma position';
-                    },
-                    (error) => {
-                        const msg = error && error.code === 1
-                            ? 'Autorisez la localisation pour enregistrer la position exacte.'
-                            : 'Impossible de récupérer votre position. Réessayez.';
-                        setExactStatus(msg, 'danger');
-                        captureBtn.disabled = false;
-                        captureBtn.innerHTML = '<i class="bi bi-crosshair me-2"></i> Partager ma position exacte';
-                    },
-                    { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
-                );
-            });
-        }
-
-        if (clearBtn) {
-            clearBtn.addEventListener('click', () => {
-                if (latInput) latInput.value = '';
-                if (lngInput) lngInput.value = '';
-                if (clearExactInput) clearExactInput.value = '1';
-                refreshRawMapUi();
-                setExactStatus('Position exacte retirée. Enregistrez pour confirmer.', 'muted');
-            });
-        }
-
-        if (copyRawBtn) {
-            copyRawBtn.addEventListener('click', async () => {
-                const rawUrl = getRawMapUrl();
-                if (!rawUrl) return;
-                try {
-                    await navigator.clipboard.writeText(rawUrl);
-                    if (rawMapHint) rawMapHint.textContent = 'Lien copié ✅';
-                } catch (e) {
-                    if (rawMapHint) rawMapHint.textContent = 'Copie impossible sur ce navigateur.';
-                }
-            });
-        }
-
-        if (shareRawBtn) {
-            shareRawBtn.addEventListener('click', () => {
-                const rawUrl = getRawMapUrl();
-                if (!rawUrl) return;
-                const lines = [`Position : ${rawUrl}`];
-                const address = ((addressInput && addressInput.value) || '').trim();
-                const note = ((noteInput && noteInput.value) || '').trim();
-                if (address) lines.push(`Adresse : ${address}`);
-                if (note) lines.push(`Repere : ${note}`);
-                const msg = encodeURIComponent(lines.join('\n'));
-                window.open(`https://wa.me/text=${msg}`, '_blank', 'noopener');
-            });
-        }
-
-        refreshRawMapUi();
-        
-        // Add hover effect to cards
-        const cards = document.querySelectorAll('.animated-card');
-        cards.forEach(card => {
-            card.style.opacity = '0';
-            setTimeout(() => {
-                card.style.opacity = '1';
-            }, 100);
-        });
-
-        // Apply animation delay for product rows (avoid inline CSS with template expressions)
-        document.querySelectorAll('.product-row[data-delay]').forEach(row => {
-            const delay = row.dataset.delay;
-            if (delay) {
-                row.style.animationDelay = `${delay}s`;
-            }
-        });
-        
-        // Add ripple effect to buttons
-        document.querySelectorAll('.btn-hover-effect').forEach(button => {
-            button.addEventListener('click', function(e) {
-                const ripple = document.createElement('span');
-                const rect = this.getBoundingClientRect();
-                const size = Math.max(rect.width, rect.height);
-                const x = e.clientX - rect.left - size / 2;
-                const y = e.clientY - rect.top - size / 2;
-                
-                ripple.style.cssText = `
-                    position: absolute;
-                    border-radius: 50%;
-                    background: rgba(255,255,255,0.6);
-                    transform: scale(0);
-                    animation: ripple 0.6s linear;
-                    width: ${size}px;
-                    height: ${size}px;
-                    top: ${y}px;
-                    left: ${x}px;
-                `;
-                
-                this.appendChild(ripple);
-                setTimeout(() => ripple.remove(), 600);
-            });
-        });
-        
-        // Add CSS for ripple animation
-        const style = document.createElement('style');
-        style.textContent = `
-            @keyframes ripple {
-                to {
-                    transform: scale(4);
-                    opacity: 0;
-                }
-            }
-        `;
-        document.head.appendChild(style);
-        
-        // Animate stats counters
-        const statValues = document.querySelectorAll('.stat-value');
-        statValues.forEach(stat => {
-            const target = parseInt(stat.textContent);
-            if (!isNaN(target) && target > 0) {
-                let current = 0;
-                const increment = target / 50;
-                const timer = setInterval(() => {
-                    current += increment;
-                    if (current >= target) {
-                        current = target;
-                        clearInterval(timer);
-                    }
-                    stat.textContent = Math.floor(current).toLocaleString();
-                }, 30);
-            }
-        });
-    });
-    
-    // Add parallax effect to header
-    window.addEventListener('scroll', function() {
-        const header = document.querySelector('.shop-header');
-        if (header) {
-            const scrolled = window.pageYOffset;
-            const rate = scrolled * -0.5;
-            header.style.transform = `translateY(${rate}px)`;
-        }
-    });
-</script>
+<script type="application/json" id="vendorManageShopPageConfig">{{ {
+  "unsupportedGeolocationText": "Géolocalisation non supportée sur cet appareil.",
+  "locatingText": "Localisation en cours...",
+  "updatePositionLabel": "Mettre à jour ma position",
+  "sharePositionLabel": "Utiliser ma position",
+  "allowLocationMessage": "Autorisez la localisation pour enregistrer votre position.",
+  "locateFailedMessage": "Impossible de récupérer votre position. Réessayez.",
+  "positionReadyPrefix": "Position prête :",
+  "positionRemovedText": "Position retirée. Enregistrez pour confirmer.",
+  "copiedLinkText": "Lien copié",
+  "copyFailedText": "Copie impossible sur ce navigateur.",
+  "shareBaseUrl": "https://wa.me/text="
+} | tojson }}</script>
+<script src="{{ url_for('static', filename='js/pages/vendor/manage_shop_page.js', v=app_static_version) }}" defer></script>
 {% endblock %}
+
+

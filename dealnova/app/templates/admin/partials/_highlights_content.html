@@ -1,0 +1,495 @@
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+  <div>
+    <h1 class="h3 mb-1 fw-bold text-dark">Mise en avant</h1>
+    <div class="text-muted">{{ 'Choisissez ce qui doit apparaitre plus haut.' if current_user.role == 'manager' else 'Choisissez ce qui remonte en premier, sans surcharger la vue principale.' }}</div>
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    <span class="hi-summary-badge hi-summary-badge-total">Total {{ total_count }}</span>
+    <span class="hi-summary-badge hi-summary-badge-active">Actives {{ active_count }}</span>
+    <span class="hi-summary-badge hi-summary-badge-history">Historique {{ history_count }}</span>
+  </div>
+</div>
+
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+  <div class="d-flex flex-wrap gap-2">
+    <a href="{{ url_for('admin.featured_items', view='overview', status=status_filter, shop_q=shop_q, product_q=product_q, location_q=location_q) }}"
+       class="hi-filter-pill {% if featured_view == 'overview' %}active{% endif %}"
+       data-highlights-link>Vue principale</a>
+    <a href="{{ url_for('admin.featured_items', view='history', status=status_filter, shop_q=shop_q, product_q=product_q, location_q=location_q) }}"
+       class="hi-filter-pill {% if featured_view == 'history' %}active{% endif %}"
+       data-highlights-link>Historique</a>
+  </div>
+  <form method="post"
+        action="{{ url_for('admin.featured_items_cleanup_duplicates') }}"
+        data-highlights-form>
+    {% include "admin/partials/_csrf.html" %}
+    <input type="hidden" name="view" value="{{ featured_view }}">
+    <input type="hidden" name="status" value="{{ status_filter }}">
+    <input type="hidden" name="shop_q" value="{{ shop_q }}">
+    <input type="hidden" name="product_q" value="{{ product_q }}">
+    <input type="hidden" name="location_q" value="{{ location_q }}">
+    <button type="submit" class="btn btn-outline-dark rounded-pill px-3">
+      <i class="bi bi-magic me-1"></i> {{ 'Ranger les doublons' if current_user.role == 'manager' else 'Nettoyer les anciens doublons' }}
+    </button>
+  </form>
+</div>
+
+<div class="card hi-card border-0 shadow-sm mb-4">
+  <div class="card-body">
+    <div class="hi-section-title mb-2">
+      <i class="bi bi-info-circle"></i>
+      <h2 class="h5 mb-0 fw-bold">{{ 'Fonctionnement' if current_user.role == 'manager' else 'Comment ca tourne' }}</h2>
+    </div>
+    <div class="row g-3">
+      <div class="col-md-6 col-xl-3">
+        <div class="small text-uppercase text-muted fw-bold mb-1">Rotation</div>
+        <div class="fw-semibold">Toutes les 30 minutes</div>
+      </div>
+      <div class="col-md-6 col-xl-3">
+        <div class="small text-uppercase text-muted fw-bold mb-1">Priorite</div>
+        <div class="fw-semibold">Premium avant normal</div>
+      </div>
+      <div class="col-md-6 col-xl-3">
+        <div class="small text-uppercase text-muted fw-bold mb-1">Equite</div>
+        <div class="fw-semibold">Limite par boutique</div>
+      </div>
+      <div class="col-md-6 col-xl-3">
+        <div class="small text-uppercase text-muted fw-bold mb-1">But</div>
+        <div class="fw-semibold">Faire tourner anciens et nouveaux</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if featured_view == "history" %}
+<div class="card hi-card border-0 shadow-sm">
+  <div class="card-body">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+      <div class="hi-section-title mb-0">
+        <i class="bi bi-clock-history"></i>
+        <h2 class="h5 mb-0 fw-bold">Historique</h2>
+      </div>
+      <div class="small text-muted">Les lignes rangees ici peuvent etre supprimees apres 30 jours.</div>
+    </div>
+
+    {% if history_items %}
+    <div class="d-grid gap-3">
+      {% for item in history_items %}
+      <div class="hi-active-card">
+        <div class="d-flex flex-wrap justify-content-between gap-3">
+          <div>
+            <div class="fw-bold text-dark">{{ item.display_name }}</div>
+            <div class="small text-muted mt-1">
+              {{ item.target_type_label }}{% if item.vendor %} - {{ item.vendor.username }}{% endif %}
+            </div>
+            <div class="small text-muted mt-2">
+              Debut {{ item.starts_at.strftime("%d/%m/%Y %H:%M") }} | Fin {{ item.ends_at.strftime("%d/%m/%Y %H:%M") }}
+            </div>
+            <div class="small text-muted mt-1">
+              Suppression possible a partir du {{ item.can_delete_after.strftime("%d/%m/%Y") }}
+            </div>
+            {% if item.note %}
+            <div class="small mt-2"><strong>Note :</strong> {{ item.note }}</div>
+            {% endif %}
+          </div>
+          <div>
+            <span class="badge text-bg-secondary rounded-pill px-3 py-2">Historique</span>
+          </div>
+        </div>
+        <div class="hi-active-actions">
+          <form method="post"
+                action="{{ url_for('admin.featured_items_delete', item_id=item.id) }}"
+                data-highlights-form>
+            {% include "admin/partials/_csrf.html" %}
+            <input type="hidden" name="view" value="history">
+            <input type="hidden" name="status" value="{{ status_filter }}">
+            <input type="hidden" name="shop_q" value="{{ shop_q }}">
+            <input type="hidden" name="product_q" value="{{ product_q }}">
+            <input type="hidden" name="location_q" value="{{ location_q }}">
+            <button type="submit"
+                    class="btn btn-outline-danger hi-mini-btn"
+                    {% if not item.can_delete_now %}disabled{% endif %}>
+              Supprimer
+            </button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="alert alert-light border mb-0">Aucun element dans l'historique.</div>
+    {% endif %}
+  </div>
+</div>
+{% else %}
+<div class="row g-3 mb-4">
+  <div class="col-md-6 col-xl-3">
+    <div class="card hi-card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-uppercase small text-muted fw-bold mb-1">Total</div>
+        <div class="display-6 fw-bold text-dark">{{ total_count }}</div>
+        <div class="text-muted small">{{ 'Elements suivis' if current_user.role == 'manager' else 'Elements suivis' }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6 col-xl-3">
+    <div class="card hi-card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-uppercase small text-muted fw-bold mb-1">Actives</div>
+        <div class="display-6 fw-bold text-success">{{ active_count }}</div>
+        <div class="text-muted small">{{ 'Montres en premier' if current_user.role == 'manager' else 'Visibles en premier' }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6 col-xl-3">
+    <div class="card hi-card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-uppercase small text-muted fw-bold mb-1">Boutiques</div>
+        <div class="display-6 fw-bold text-dark">{{ counts_by_type.shop }}</div>
+        <div class="text-muted small">{{ 'Boutiques en avant' if current_user.role == 'manager' else 'Boutiques en cours' }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6 col-xl-3">
+    <div class="card hi-card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-uppercase small text-muted fw-bold mb-1">Expire bientot</div>
+        <div class="display-6 fw-bold text-warning">{{ expiring_soon|length }}</div>
+        <div class="text-muted small">{{ 'Fin proche' if current_user.role == 'manager' else 'Dans les 3 prochains jours' }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if expiring_soon %}
+<div class="card hi-card border-0 shadow-sm mb-4">
+  <div class="card-body">
+    <div class="hi-section-title">
+      <i class="bi bi-alarm"></i>
+      <h2 class="h5 mb-0 fw-bold">Expire bientot</h2>
+    </div>
+    <div class="row g-3">
+      {% for item in expiring_soon %}
+      <div class="col-md-6 col-xl-4">
+        <div class="hi-active-card h-100">
+          <div class="fw-bold text-dark">{{ item.display_name }}</div>
+          <div class="small text-muted mt-1">
+            {{ item.target_type_label }}{% if item.vendor %} - {{ item.vendor.username }}{% endif %}
+          </div>
+          <div class="small mt-2">
+            Fin le <strong>{{ item.ends_at.strftime("%d/%m/%Y %H:%M") }}</strong>
+          </div>
+          <div class="hi-active-actions">
+            <form method="post" action="{{ url_for('admin.featured_items_extend', item_id=item.id) }}" data-highlights-form>
+              {% include "admin/partials/_csrf.html" %}
+              <input type="hidden" name="view" value="{{ featured_view }}">
+              <input type="hidden" name="duration_days" value="7">
+              <input type="hidden" name="status" value="{{ status_filter }}">
+              <input type="hidden" name="shop_q" value="{{ shop_q }}">
+              <input type="hidden" name="product_q" value="{{ product_q }}">
+              <input type="hidden" name="location_q" value="{{ location_q }}">
+              <button type="submit" class="btn btn-outline-success hi-mini-btn">+ 7 jours</button>
+            </form>
+            <form method="post" action="{{ url_for('admin.featured_items_disable', item_id=item.id) }}" data-highlights-form>
+              {% include "admin/partials/_csrf.html" %}
+              <input type="hidden" name="view" value="{{ featured_view }}">
+              <input type="hidden" name="status" value="{{ status_filter }}">
+              <input type="hidden" name="shop_q" value="{{ shop_q }}">
+              <input type="hidden" name="product_q" value="{{ product_q }}">
+              <input type="hidden" name="location_q" value="{{ location_q }}">
+              <button type="submit" class="btn btn-outline-danger hi-mini-btn">Arreter</button>
+            </form>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="row g-4">
+  <div class="col-xl-5">
+    <div class="card hi-card border-0 shadow-sm mb-4">
+      <div class="card-body">
+        <div class="hi-section-title">
+          <i class="bi bi-shop"></i>
+          <h2 class="h5 mb-0 fw-bold">{{ 'Boutiques' if current_user.role == 'manager' else 'Boutiques' }}</h2>
+        </div>
+        <form method="get" action="{{ url_for('admin.featured_items') }}" class="mb-3" data-highlights-form>
+          <input type="hidden" name="view" value="{{ featured_view }}">
+          <input type="hidden" name="status" value="{{ status_filter }}">
+          <input type="hidden" name="product_q" value="{{ product_q }}">
+          <input type="hidden" name="location_q" value="{{ location_q }}">
+          <div class="input-group">
+            <input type="search" name="shop_q" class="form-control" placeholder="{{ 'Chercher une boutique...' if current_user.role == 'manager' else 'Chercher une boutique...' }}" value="{{ shop_q }}">
+            <button class="btn btn-dark" type="submit">{{ 'Rechercher' if current_user.role == 'manager' else 'Chercher' }}</button>
+          </div>
+        </form>
+        {% if shop_q and not shop_results %}
+        <div class="alert alert-light border mb-0">Aucune boutique trouvee.</div>
+        {% elif shop_results %}
+        <div class="table-responsive">
+          <table class="table hi-search-table align-middle mb-0">
+            <tbody>
+              {% for shop in shop_results %}
+              <tr>
+                <td>
+                  <div class="hi-shop-name">{{ shop.name }}</div>
+                  <div class="hi-shop-meta">{{ shop.vendor.username if shop.vendor else "Vendeur inconnu" }}</div>
+                </td>
+                <td class="text-end" style="width: 230px;">
+                  {% set is_shop_active = ('shop', shop.id) in active_target_keys %}
+                  {% if is_shop_active %}
+                  <span class="hi-state-badge">Deja active</span>
+                  {% else %}
+                  <form method="post" action="{{ url_for('admin.featured_items_activate') }}" class="d-flex gap-2 justify-content-end" data-highlights-form>
+                    {% include "admin/partials/_csrf.html" %}
+                    <input type="hidden" name="view" value="{{ featured_view }}">
+                    <input type="hidden" name="target_type" value="shop">
+                    <input type="hidden" name="target_id" value="{{ shop.id }}">
+                    <input type="hidden" name="status" value="{{ status_filter }}">
+                    <input type="hidden" name="shop_q" value="{{ shop_q }}">
+                    <input type="hidden" name="product_q" value="{{ product_q }}">
+                    <input type="hidden" name="location_q" value="{{ location_q }}">
+                    <select name="duration_days" class="form-select form-select-sm" style="max-width: 110px;">
+                      {% for choice in duration_choices %}
+                      <option value="{{ choice[0] }}">{{ choice[1] }}</option>
+                      {% endfor %}
+                    </select>
+                    <button type="submit" class="btn btn-success btn-sm">Activer</button>
+                  </form>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="text-muted small">{{ 'Tapez au moins 2 lettres.' if current_user.role == 'manager' else 'Tapez au moins 2 lettres pour chercher une boutique.' }}</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card hi-card border-0 shadow-sm mb-4">
+      <div class="card-body">
+        <div class="hi-section-title">
+          <i class="bi bi-bag"></i>
+          <h2 class="h5 mb-0 fw-bold">{{ 'Produits et services' if current_user.role == 'manager' else 'Produits et services' }}</h2>
+        </div>
+        <form method="get" action="{{ url_for('admin.featured_items') }}" class="mb-3" data-highlights-form>
+          <input type="hidden" name="view" value="{{ featured_view }}">
+          <input type="hidden" name="status" value="{{ status_filter }}">
+          <input type="hidden" name="shop_q" value="{{ shop_q }}">
+          <input type="hidden" name="location_q" value="{{ location_q }}">
+          <div class="input-group">
+            <input type="search" name="product_q" class="form-control" placeholder="{{ 'Chercher un produit ou un service...' if current_user.role == 'manager' else 'Chercher un produit ou un service...' }}" value="{{ product_q }}">
+            <button class="btn btn-dark" type="submit">{{ 'Rechercher' if current_user.role == 'manager' else 'Chercher' }}</button>
+          </div>
+        </form>
+        {% if product_q and not product_results %}
+        <div class="alert alert-light border mb-0">Aucun resultat trouve.</div>
+        {% elif product_results %}
+        <div class="table-responsive">
+          <table class="table hi-search-table align-middle mb-0">
+            <tbody>
+              {% for product in product_results %}
+              <tr>
+                <td>
+                  <div class="hi-shop-name">{{ product.name }}</div>
+                  <div class="hi-shop-meta">{{ product.shop.name if product.shop else "Sans boutique" }} - {{ product.vendor.username if product.vendor else "Vendeur inconnu" }}</div>
+                </td>
+                <td class="text-end" style="width: 230px;">
+                  {% set is_product_active = ('product', product.id) in active_target_keys %}
+                  {% if is_product_active %}
+                  <span class="hi-state-badge">Deja active</span>
+                  {% else %}
+                  <form method="post" action="{{ url_for('admin.featured_items_activate') }}" class="d-flex gap-2 justify-content-end" data-highlights-form>
+                    {% include "admin/partials/_csrf.html" %}
+                    <input type="hidden" name="view" value="{{ featured_view }}">
+                    <input type="hidden" name="target_type" value="product">
+                    <input type="hidden" name="target_id" value="{{ product.id }}">
+                    <input type="hidden" name="status" value="{{ status_filter }}">
+                    <input type="hidden" name="shop_q" value="{{ shop_q }}">
+                    <input type="hidden" name="product_q" value="{{ product_q }}">
+                    <input type="hidden" name="location_q" value="{{ location_q }}">
+                    <select name="duration_days" class="form-select form-select-sm" style="max-width: 110px;">
+                      {% for choice in duration_choices %}
+                      <option value="{{ choice[0] }}">{{ choice[1] }}</option>
+                      {% endfor %}
+                    </select>
+                    <button type="submit" class="btn btn-success btn-sm">Activer</button>
+                  </form>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="text-muted small">Tapez au moins 2 lettres pour chercher un produit ou un service.</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card hi-card border-0 shadow-sm">
+      <div class="card-body">
+        <div class="hi-section-title">
+          <i class="bi bi-house-door"></i>
+          <h2 class="h5 mb-0 fw-bold">Locations</h2>
+        </div>
+        <form method="get" action="{{ url_for('admin.featured_items') }}" class="mb-3" data-highlights-form>
+          <input type="hidden" name="view" value="{{ featured_view }}">
+          <input type="hidden" name="status" value="{{ status_filter }}">
+          <input type="hidden" name="shop_q" value="{{ shop_q }}">
+          <input type="hidden" name="product_q" value="{{ product_q }}">
+          <div class="input-group">
+            <input type="search" name="location_q" class="form-control" placeholder="Chercher une location..." value="{{ location_q }}">
+            <button class="btn btn-dark" type="submit">Chercher</button>
+          </div>
+        </form>
+        {% if location_q and not location_results %}
+        <div class="alert alert-light border mb-0">Aucune location trouvee.</div>
+        {% elif location_results %}
+        <div class="table-responsive">
+          <table class="table hi-search-table align-middle mb-0">
+            <tbody>
+              {% for location in location_results %}
+              <tr>
+                <td>
+                  <div class="hi-shop-name">{{ location.title }}</div>
+                  <div class="hi-shop-meta">{{ location.shop.name if location.shop else "Sans boutique" }}{% if location.city %} - {{ location.city }}{% endif %}</div>
+                </td>
+                <td class="text-end" style="width: 230px;">
+                  {% set is_location_active = ('location', location.id) in active_target_keys %}
+                  {% if is_location_active %}
+                  <span class="hi-state-badge">Deja active</span>
+                  {% else %}
+                  <form method="post" action="{{ url_for('admin.featured_items_activate') }}" class="d-flex gap-2 justify-content-end" data-highlights-form>
+                    {% include "admin/partials/_csrf.html" %}
+                    <input type="hidden" name="view" value="{{ featured_view }}">
+                    <input type="hidden" name="target_type" value="location">
+                    <input type="hidden" name="target_id" value="{{ location.id }}">
+                    <input type="hidden" name="status" value="{{ status_filter }}">
+                    <input type="hidden" name="shop_q" value="{{ shop_q }}">
+                    <input type="hidden" name="product_q" value="{{ product_q }}">
+                    <input type="hidden" name="location_q" value="{{ location_q }}">
+                    <select name="duration_days" class="form-select form-select-sm" style="max-width: 110px;">
+                      {% for choice in duration_choices %}
+                      <option value="{{ choice[0] }}">{{ choice[1] }}</option>
+                      {% endfor %}
+                    </select>
+                    <button type="submit" class="btn btn-success btn-sm">Activer</button>
+                  </form>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="text-muted small">Tapez au moins 2 lettres pour chercher une location.</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-7">
+    <div class="card hi-card border-0 shadow-sm">
+      <div class="card-body">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+          <div class="hi-section-title mb-0">
+            <i class="bi bi-stars"></i>
+            <h2 class="h5 mb-0 fw-bold">Mises en avant</h2>
+          </div>
+          <div class="d-flex flex-wrap gap-2">
+            <a href="{{ url_for('admin.featured_items', view=featured_view, status='all', shop_q=shop_q, product_q=product_q, location_q=location_q) }}" class="hi-filter-pill {% if status_filter == 'all' %}active{% endif %}" data-highlights-link>Tout</a>
+            <a href="{{ url_for('admin.featured_items', view=featured_view, status='active', shop_q=shop_q, product_q=product_q, location_q=location_q) }}" class="hi-filter-pill {% if status_filter == 'active' %}active{% endif %}" data-highlights-link>Actives</a>
+            <a href="{{ url_for('admin.featured_items', view=featured_view, status='expired', shop_q=shop_q, product_q=product_q, location_q=location_q) }}" class="hi-filter-pill {% if status_filter == 'expired' %}active{% endif %}" data-highlights-link>Expirees</a>
+            <a href="{{ url_for('admin.featured_items', view=featured_view, status='stopped', shop_q=shop_q, product_q=product_q, location_q=location_q) }}" class="hi-filter-pill {% if status_filter == 'stopped' %}active{% endif %}" data-highlights-link>Arretees</a>
+          </div>
+        </div>
+
+        {% if active_items %}
+          {% set ns = namespace(last_type='') %}
+          <div class="d-grid gap-3">
+            {% for item in active_items %}
+              {% if ns.last_type != item.target_type %}
+                {% set ns.last_type = item.target_type %}
+                <div class="pt-2">
+                  <div class="small text-uppercase fw-bold text-muted mb-2">
+                    {% if item.target_type == 'shop' %}
+                      Boutiques
+                    {% elif item.target_type == 'product' %}
+                      Produits et services
+                    {% else %}
+                      Locations
+                    {% endif %}
+                  </div>
+                </div>
+              {% endif %}
+              <div class="hi-active-card">
+                <div class="d-flex flex-wrap justify-content-between gap-3">
+                  <div>
+                    <div class="fw-bold text-dark">{{ item.display_name }}</div>
+                    <div class="small text-muted mt-1">{{ item.target_type_label }}{% if item.vendor %} - {{ item.vendor.username }}{% endif %}</div>
+                    <div class="small text-muted mt-2">Debut {{ item.starts_at.strftime("%d/%m/%Y %H:%M") }} | Fin {{ item.ends_at.strftime("%d/%m/%Y %H:%M") }}</div>
+                    {% if item.note %}
+                    <div class="small mt-2"><strong>Note :</strong> {{ item.note }}</div>
+                    {% endif %}
+                  </div>
+                  <div>
+                    {% if item.ui_status == "active" %}
+                    <span class="badge text-bg-success rounded-pill px-3 py-2">Active</span>
+                    {% elif item.ui_status == "expired" %}
+                    <span class="badge text-bg-secondary rounded-pill px-3 py-2">Expiree</span>
+                    {% else %}
+                    <span class="badge text-bg-warning rounded-pill px-3 py-2">Arretee</span>
+                    {% endif %}
+                  </div>
+                </div>
+                <div class="hi-active-actions">
+                  <form method="post" action="{{ url_for('admin.featured_items_extend', item_id=item.id) }}" data-highlights-form>
+                    {% include "admin/partials/_csrf.html" %}
+                    <input type="hidden" name="view" value="{{ featured_view }}">
+                    <input type="hidden" name="duration_days" value="7">
+                    <input type="hidden" name="status" value="{{ status_filter }}">
+                    <input type="hidden" name="shop_q" value="{{ shop_q }}">
+                    <input type="hidden" name="product_q" value="{{ product_q }}">
+                    <input type="hidden" name="location_q" value="{{ location_q }}">
+                    <button type="submit" class="btn btn-outline-success hi-mini-btn">+ 7 jours</button>
+                  </form>
+                  <form method="post" action="{{ url_for('admin.featured_items_extend', item_id=item.id) }}" data-highlights-form>
+                    {% include "admin/partials/_csrf.html" %}
+                    <input type="hidden" name="view" value="{{ featured_view }}">
+                    <input type="hidden" name="duration_days" value="30">
+                    <input type="hidden" name="status" value="{{ status_filter }}">
+                    <input type="hidden" name="shop_q" value="{{ shop_q }}">
+                    <input type="hidden" name="product_q" value="{{ product_q }}">
+                    <input type="hidden" name="location_q" value="{{ location_q }}">
+                    <button type="submit" class="btn btn-outline-primary hi-mini-btn">+ 30 jours</button>
+                  </form>
+                  <form method="post" action="{{ url_for('admin.featured_items_disable', item_id=item.id) }}" data-highlights-form>
+                    {% include "admin/partials/_csrf.html" %}
+                    <input type="hidden" name="view" value="{{ featured_view }}">
+                    <input type="hidden" name="status" value="{{ status_filter }}">
+                    <input type="hidden" name="shop_q" value="{{ shop_q }}">
+                    <input type="hidden" name="product_q" value="{{ product_q }}">
+                    <input type="hidden" name="location_q" value="{{ location_q }}">
+                    <button type="submit" class="btn btn-outline-danger hi-mini-btn">Arreter</button>
+                  </form>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="alert alert-light border mb-0">Aucune mise en avant pour ce filtre.</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}

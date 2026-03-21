@@ -1,134 +1,330 @@
-{% extends "base.html" %}
-{% block title %}Mes périodes{% endblock %}
+﻿{% extends "vendor/base.html" %}
+{% block title %}Periodes de vente{% endblock %}
 
 {% block head %}
 {{ super() }}
 <style>
-  .vp-wrap { display: grid; gap: 1rem; padding-bottom: 2rem; }
-  .vp-hero {
-    border-radius: 1.25rem;
-    padding: 1.25rem;
-    border: 1px solid rgba(16,185,129,.2);
-    background:
-      radial-gradient(120% 120% at 100% 0%, rgba(245,158,11,.18) 0%, rgba(245,158,11,0) 48%),
-      linear-gradient(135deg, rgba(16,185,129,.14), rgba(15,23,42,.04));
-    box-shadow: 0 .75rem 1.625rem rgba(15,23,42,.08);
+  .vp-wrap {
+    max-width: 1080px;
+    margin: 0 auto;
+    display: grid;
+    gap: 0.9rem;
+    padding-bottom: 1.2rem;
   }
-  .vp-title { margin: 0; font-weight: 900; letter-spacing: -0.02em; color: #0f172a; }
-  .vp-sub { margin: .25rem 0 0; color: #64748b; font-weight: 600; }
 
-  .vp-grid { display: grid; gap: 1rem; grid-template-columns: 1.2fr .8fr; }
-  @media (max-width: 992px){ .vp-grid { grid-template-columns: 1fr; } }
+  .vp-hero {
+    border-radius: 1.1rem;
+    padding: 1rem 1.05rem;
+    border: 1px solid rgba(16, 185, 129, 0.22);
+    background:
+      radial-gradient(120% 120% at 100% 0%, rgba(245, 158, 11, 0.14) 0%, rgba(245, 158, 11, 0) 52%),
+      linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(15, 23, 42, 0.035));
+    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.07);
+  }
+
+  .vp-title {
+    margin: 0;
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    color: #0f172a;
+    font-size: clamp(1.3rem, 2.2vw, 1.82rem);
+    line-height: 1.15;
+  }
+
+  .vp-sub {
+    margin: 0.32rem 0 0;
+    color: #64748b;
+    font-weight: 600;
+    line-height: 1.43;
+    font-size: 0.94rem;
+  }
+
+  .vp-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.65fr);
+    gap: 0.9rem;
+  }
 
   .vp-card {
-    border-radius: 1.25rem;
+    border-radius: 1.05rem;
     border: 1px solid #e2e8f0;
-    background: #fff;
-    box-shadow: 0 .75rem 1.5rem rgba(15,23,42,.06);
+    background: rgba(255, 255, 255, 0.95);
+    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
     overflow: hidden;
   }
+
   .vp-card-h {
-    padding: 1rem 1.1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.65rem;
+    padding: 0.85rem 0.95rem;
     border-bottom: 1px solid #eef2f7;
-    display: flex; align-items: center; justify-content: space-between; gap: .75rem;
   }
-  .vp-card-b { padding: 1rem 1.1rem; }
+
+  .vp-card-b {
+    padding: 0.9rem 0.95rem;
+  }
+
+  .vp-head-muted {
+    color: #64748b;
+    font-size: 0.86rem;
+    font-weight: 700;
+  }
+
+  .vp-head-title {
+    color: #0f172a;
+    font-size: 1rem;
+    font-weight: 900;
+    line-height: 1.2;
+  }
+
+  .vp-muted {
+    color: #64748b;
+    font-weight: 600;
+  }
+
   .vp-badge {
-    display: inline-flex; align-items: center; gap: .35rem;
-    padding: .35rem .65rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.32rem;
+    padding: 0.27rem 0.6rem;
     border-radius: 999px;
+    font-size: 0.76rem;
     font-weight: 800;
-    font-size: .8rem;
-    border: 1px solid rgba(16,185,129,.25);
-    background: rgba(16,185,129,.10);
+    border: 1px solid rgba(16, 185, 129, 0.25);
+    background: rgba(16, 185, 129, 0.1);
     color: #047857;
     white-space: nowrap;
   }
-  .vp-badge.closed{
-    border-color: rgba(100,116,139,.35);
-    background: rgba(100,116,139,.10);
+
+  .vp-badge.closed {
+    border-color: rgba(100, 116, 139, 0.35);
+    background: rgba(100, 116, 139, 0.1);
     color: #334155;
   }
-  .vp-form-row { display: grid; gap: .75rem; grid-template-columns: 1fr 220px; }
-  @media (max-width: 576px){ .vp-form-row{ grid-template-columns: 1fr; } }
-  .vp-btn {
-    display: inline-flex; align-items: center; justify-content: center; gap: .45rem;
-    border-radius: 999px;
-    padding: .55rem .95rem;
-    font-weight: 800;
-    border: 1px solid rgba(16,185,129,.35);
-    background: linear-gradient(135deg, #10b981, #0ea5e9);
-    color: #fff;
-    text-decoration: none;
-    transition: transform .15s ease, filter .15s ease;
+
+  .vp-actions {
+    margin-top: 0.8rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.55rem;
   }
-  .vp-btn:hover { transform: translateY(-1px); filter: brightness(1.03); color: #fff; }
-  .vp-btn.secondary {
-    background: #fff;
+
+  .vp-form-row {
+    display: grid;
+    gap: 0.62rem;
+    grid-template-columns: minmax(0, 1fr) 220px;
+  }
+
+  .vp-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    min-height: 40px;
+    padding: 0.5rem 0.86rem;
+    border-radius: 999px;
+    font-size: 0.84rem;
+    font-weight: 800;
+    border: 1px solid transparent;
+    text-decoration: none;
+    transition: transform 0.14s ease, filter 0.14s ease;
+    touch-action: manipulation;
+    white-space: nowrap;
+  }
+
+  .vp-btn:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.02);
+  }
+
+  .vp-btn--primary {
+    color: #fff;
+    background: linear-gradient(135deg, #10b981, #0ea5e9);
+    border-color: rgba(16, 185, 129, 0.2);
+  }
+
+  .vp-btn--primary:hover {
+    color: #fff;
+  }
+
+  .vp-btn--ghost {
     color: #0f172a;
     border-color: #e2e8f0;
+    background: #fff;
   }
-  .vp-btn.secondary:hover { color: #0f172a; }
 
-  .vp-table { width: 100%; }
-  .vp-table th { font-size: .82rem; text-transform: uppercase; letter-spacing: .04em; color: #64748b; }
-  .vp-table td { vertical-align: middle; }
-  .vp-muted { color: #64748b; font-weight: 600; }
+  .vp-btn--ghost:hover {
+    color: #0f172a;
+  }
+
+  .vp-table {
+    width: 100%;
+    margin: 0;
+  }
+
+  .vp-table th {
+    color: #64748b;
+    font-size: 0.77rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .vp-table td {
+    vertical-align: middle;
+  }
+
+  .vp-period-name {
+    font-weight: 900;
+    color: #0f172a;
+  }
+
+  @media (max-width: 960px) {
+    .vp-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 780px) {
+    .vp-wrap {
+      gap: 0.75rem;
+      padding-bottom: 1rem;
+    }
+
+    .vp-hero {
+      padding: 0.9rem;
+      border-radius: 0.95rem;
+    }
+
+    .vp-sub {
+      font-size: 0.88rem;
+      line-height: 1.38;
+    }
+
+    .vp-card {
+      border-radius: 0.95rem;
+    }
+
+    .vp-card-h,
+    .vp-card-b {
+      padding: 0.78rem 0.82rem;
+    }
+
+    .vp-form-row {
+      grid-template-columns: 1fr;
+    }
+
+    .vp-actions .vp-btn,
+    .vp-card-b.d-grid .vp-btn {
+      width: 100%;
+    }
+
+    .vp-table thead {
+      display: none;
+    }
+
+    .vp-table,
+    .vp-table tbody,
+    .vp-table tr,
+    .vp-table td {
+      display: block;
+      width: 100%;
+    }
+
+    .vp-table tr {
+      border: 1px solid #eef2f7;
+      border-radius: 0.82rem;
+      padding: 0.56rem 0.66rem;
+      margin-bottom: 0.5rem;
+      background: #fff;
+    }
+
+    .vp-table td {
+      border: none;
+      padding: 0.3rem 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.65rem;
+      text-align: right;
+    }
+
+    .vp-table td::before {
+      content: attr(data-label);
+      color: #64748b;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      text-align: left;
+      flex-shrink: 0;
+    }
+
+    .vp-table td.text-end {
+      justify-content: flex-start;
+      text-align: left !important;
+    }
+  }
 </style>
 {% endblock %}
 
 {% block content %}
 <section class="vp-wrap">
   <header class="vp-hero">
-    <h1 class="vp-title">Mes périodes</h1>
-    <p class="vp-sub">Organisez vos encaissements en périodes, puis fermez et archivez.</p>
+    <h1 class="vp-title">Mes periodes de vente</h1>
+    <p class="vp-sub">Ces periodes servent seulement a suivre vos ventes et vos paiements.</p>
   </header>
 
   <div class="vp-grid">
     <article class="vp-card">
       <div class="vp-card-h">
         <div>
-          <div class="vp-muted" style="font-size:.9rem;">Période active</div>
-          <div style="font-weight:900; font-size:1.05rem; color:#0f172a;">
-            {% if open_period %}{{ open_period.name }}{% else %}Aucune période ouverte{% endif %}
+          <div class="vp-head-muted">Periode de vente en cours</div>
+          <div class="vp-head-title">
+            {% if open_period %}{{ open_period.name }}{% else %}Aucune periode de vente en cours{% endif %}
           </div>
         </div>
         {% if open_period %}
           <span class="vp-badge"><i class="bi bi-unlock"></i> Ouverte</span>
         {% else %}
-          <span class="vp-badge closed"><i class="bi bi-lock"></i> Fermée</span>
+          <span class="vp-badge closed"><i class="bi bi-lock"></i> Fermee</span>
         {% endif %}
       </div>
       <div class="vp-card-b">
         {% if open_period %}
-          <div class="vp-muted">Début : {{ open_period.start_at.strftime('%d/%m/%Y') if open_period.start_at else '-' }}</div>
-          <div class="mt-3 d-flex flex-wrap gap-2">
+          <div class="vp-muted">Debut : {{ open_period.start_at.strftime('%d/%m/%Y') if open_period.start_at else '-' }}</div>
+          <div class="vp-actions">
             <form method="post" action="{{ url_for('vendor.close_period', period_id=open_period.id) }}">
               {% include "partials/_csrf.html" %}
-              <button class="vp-btn secondary" type="submit" data-coach="vendor_close_period" data-coach-priority="8" data-coach-text="Astuce : fermez une période pour archiver. S'il reste des commandes à confirmer, on vous avertira avant la clôture.">
-                <i class="bi bi-check2-circle"></i> Fermer la période
+              <button class="vp-btn vp-btn--ghost" type="submit" data-coach="vendor_close_period" data-coach-priority="8" data-coach-text="Astuce : terminez une periode quand vous voulez passer a la suivante. Si des paiements restent a verifier, vous serez averti avant.">
+                <i class="bi bi-check2-circle"></i> Terminer cette periode de vente
               </button>
             </form>
-            <a class="vp-btn" href="{{ url_for('vendor.orders') }}">
+            <a class="vp-btn vp-btn--primary" href="{{ url_for('vendor.orders') }}">
               <i class="bi bi-receipt"></i> Voir les commandes
             </a>
           </div>
         {% else %}
+          <div class="alert alert-warning mb-3">
+            Creez une periode de vente pour acceder au livre des encaissements et enregistrer vos paiements recus.
+          </div>
           <form method="post" action="{{ url_for('vendor.open_period') }}">
             {% include "partials/_csrf.html" %}
             <div class="vp-form-row">
               <div>
                 <label class="form-label vp-muted mb-1">Nom</label>
-                <input class="form-control" name="name" placeholder="Ex: Période Février" maxlength="120">
+                <input class="form-control" name="name" placeholder="Ex: Ventes Fevrier" maxlength="120">
               </div>
               <div>
-                <label class="form-label vp-muted mb-1">Date début</label>
+                <label class="form-label vp-muted mb-1">Date debut</label>
                 <input class="form-control" type="date" name="start_date">
               </div>
             </div>
-            <div class="mt-3">
-              <button class="vp-btn" type="submit">
-                <i class="bi bi-plus-circle"></i> Ouvrir une période
+            <div class="vp-actions">
+              <button class="vp-btn vp-btn--primary" type="submit">
+                <i class="bi bi-plus-circle"></i> Creer une periode de vente
               </button>
             </div>
           </form>
@@ -138,14 +334,14 @@
 
     <aside class="vp-card">
       <div class="vp-card-h">
-        <div style="font-weight:900; color:#0f172a;">Raccourcis</div>
+        <div class="vp-head-title">Raccourcis</div>
       </div>
       <div class="vp-card-b d-grid gap-2">
-        <a class="vp-btn secondary" href="{{ url_for('vendor.earnings') }}">
+        <a class="vp-btn vp-btn--ghost" href="{{ url_for('vendor.earnings') }}">
           <i class="bi bi-graph-up"></i> Encaissements
         </a>
-        <a class="vp-btn secondary" href="{{ url_for('vendor.security') }}">
-          <i class="bi bi-shield-lock"></i> Sécurité historique
+        <a class="vp-btn vp-btn--ghost" href="{{ url_for('vendor.security') }}">
+          <i class="bi bi-shield-lock"></i> Protection
         </a>
       </div>
     </aside>
@@ -153,8 +349,8 @@
 
   <article class="vp-card">
     <div class="vp-card-h">
-      <div style="font-weight:900; color:#0f172a;">Toutes les périodes</div>
-      <div class="vp-muted">{{ periods|length }} période(s)</div>
+      <div class="vp-head-title">Historique de vos periodes de vente</div>
+      <div class="vp-muted">{{ periods|length }} periode(s)</div>
     </div>
     <div class="vp-card-b">
       {% if periods %}
@@ -163,7 +359,7 @@
             <thead>
               <tr>
                 <th>Nom</th>
-                <th>Début</th>
+                <th>Debut</th>
                 <th>Fin</th>
                 <th class="text-end">Statut</th>
               </tr>
@@ -171,14 +367,14 @@
             <tbody>
               {% for p in periods %}
               <tr>
-                <td style="font-weight:900; color:#0f172a;">{{ p.name }}</td>
-                <td class="vp-muted">{{ p.start_at.strftime('%d/%m/%Y') if p.start_at else '-' }}</td>
-                <td class="vp-muted">{{ p.end_at.strftime('%d/%m/%Y') if p.end_at else '-' }}</td>
-                <td class="text-end">
+                <td data-label="Nom" class="vp-period-name">{{ p.name }}</td>
+                <td data-label="Debut" class="vp-muted">{{ p.start_at.strftime('%d/%m/%Y') if p.start_at else '-' }}</td>
+                <td data-label="Fin" class="vp-muted">{{ p.end_at.strftime('%d/%m/%Y') if p.end_at else '-' }}</td>
+                <td data-label="Statut" class="text-end">
                   {% if p.status == 'open' %}
                     <span class="vp-badge"><i class="bi bi-unlock"></i> Ouverte</span>
                   {% else %}
-                    <span class="vp-badge closed"><i class="bi bi-lock"></i> Fermée</span>
+                    <span class="vp-badge closed"><i class="bi bi-lock"></i> Fermee</span>
                   {% endif %}
                 </td>
               </tr>
@@ -187,9 +383,10 @@
           </table>
         </div>
       {% else %}
-        <div class="vp-muted">Aucune période.</div>
+        <div class="vp-muted">Aucune periode de vente pour le moment.</div>
       {% endif %}
     </div>
   </article>
 </section>
 {% endblock %}
+

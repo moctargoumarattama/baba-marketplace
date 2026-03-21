@@ -11,6 +11,7 @@ class Product(db.Model):
     description = db.Column(db.Text)
     price = db.Column(db.Float, nullable=False)
     image_file = db.Column(db.String(255), nullable=True)
+    video_file = db.Column(db.String(255), nullable=True)
     
     # Relations
     vendor_id = db.Column(db.Integer, db.ForeignKey("user.id", name="fk_product_vendor_id"), nullable=True, index=True)

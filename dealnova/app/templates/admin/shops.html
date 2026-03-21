@@ -1,7 +1,8 @@
-{% extends "admin/base.html" %}
+﻿{% extends "admin/base.html" %}
 
 {% block title %}Gestion des Boutiques | DealNova Admin{% endblock %}
 {% block page_title %}Boutiques{% endblock %}
+{% block body_attrs %}data-adm-page="shops"{% endblock %}
 
 {% block head %}
 <style>
@@ -289,19 +290,19 @@
 {% endblock %}
 
 {% block content %}
-<div class="shops-wrap">
+<div class="shops-wrap" data-adm-page="shops">
   <section class="shops-hero">
     <div class="shops-hero-content">
       <div>
         <h2 class="shops-title">
           <i class="bi bi-shop"></i>
-          Gestion des boutiques
+          {{ 'Boutiques' if current_user.role == 'manager' else 'Gestion des boutiques' }}
         </h2>
-        <p class="shops-subtitle">Gerez les vendeurs, statuts et informations de contact.</p>
+        <p class="shops-subtitle">{{ 'Retrouvez les boutiques et leur statut.' if current_user.role == 'manager' else 'Gerez les vendeurs, statuts et informations de contact.' }}</p>
       </div>
       <div class="shops-cta">
         <a href="{{ url_for('admin_users.create_shop') }}" class="btn btn-primary">
-          <i class="bi bi-shop"></i> Nouvelle boutique
+          <i class="bi bi-shop"></i> {{ 'Ajouter une boutique' if current_user.role == 'manager' else 'Nouvelle boutique' }}
         </a>
       </div>
     </div>
@@ -353,3 +354,4 @@
 </div>
 
 {% endblock %}
+

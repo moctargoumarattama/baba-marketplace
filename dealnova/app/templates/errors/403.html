@@ -1,11 +1,12 @@
-{% extends 'errors/base.html' %}
+﻿{% extends 'errors/base.html' %}
 {% set error_code = 403 %}
-{% set error_title = 'Acces interdit' %}
-{% set error_message = 'Vous n avez pas l autorisation pour acceder a cette page.' %}
+{% set error_title = 'Accès refusé' %}
+{% set error_message = 'Vous n’avez pas accès à cette page.' %}
 {% set error_tone = 'danger' %}
-{% set error_hint = 'Code 403 - Acces refuse' %}
+{% set error_hint = 'Code 403' %}
 
 {% block error_actions %}
 <a class="error-btn error-btn-primary" href="{{ url_for('landing') }}">Retour a l'accueil</a>
 <a class="error-btn error-btn-secondary" href="{{ url_for('auth.login') }}">Changer de compte</a>
 {% endblock %}
+

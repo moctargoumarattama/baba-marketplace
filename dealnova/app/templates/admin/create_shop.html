@@ -1,8 +1,8 @@
-{% extends "admin/base.html" %}
+﻿{% extends "admin/base.html" %}
 
 {% block title %}Crer une Boutique | DealNova Admin{% endblock %}
 
-{% block page_title %}Crer une Boutique{% endblock %}
+{% block page_title %}{{ 'Ajouter une boutique' if current_user.role == 'manager' else 'Crer une Boutique' }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
@@ -11,7 +11,7 @@
             <div class="card admin-card">
                 <div class="card-header">
                     <h5 class="mb-0">
-                        <i class="bi bi-shop"></i> Crer une nouvelle boutique
+                        <i class="bi bi-shop"></i> {{ 'Ajouter une nouvelle boutique' if current_user.role == 'manager' else 'Crer une nouvelle boutique' }}
                     </h5>
                 </div>
                 <div class="card-body">
@@ -22,7 +22,7 @@
                             <div class="col-12">
                                 <label for="vendor_id" class="form-label">Vendeur *</label>
                                 <select class="form-select" id="vendor_id" name="vendor_id" required>
-                                    <option value="">Slectionner un vendeur</option>
+                                    <option value="">{{ 'Choisir un vendeur' if current_user.role == 'manager' else 'Slectionner un vendeur' }}</option>
                                     {% for vendor in vendors_without_shop %}
                                     <option value="{{ vendor.id }}" 
                                             {% if request.args.get('vendor_id')|int == vendor.id %}selected{% endif %}>
@@ -32,8 +32,8 @@
                                     {% endfor %}
                                 </select>
                                 <div class="form-text">
-                                    Seuls les vendeurs sans boutique sont lists.
-                                    {{ vendors_without_shop|length }} vendeur(s) disponible(s).
+                                    {{ 'Seuls les vendeurs sans boutique apparaissent ici.' if current_user.role == 'manager' else 'Seuls les vendeurs sans boutique sont lists.' }}
+                                    {{ vendors_without_shop|length }} {{ 'vendeur(s) disponible(s).' if current_user.role == 'manager' else 'vendeur(s) disponible(s).' }}
                                 </div>
                             </div>
                             
@@ -42,15 +42,15 @@
                                 <label for="name" class="form-label">Nom de la boutique *</label>
                                 <input type="text" class="form-control" id="name" name="name" required>
                                 <div class="form-text">
-                                    Le nom public de la boutique
+                                    {{ 'Nom visible par les clients' if current_user.role == 'manager' else 'Le nom public de la boutique' }}
                                 </div>
                             </div>
                             
                             <div class="col-md-6">
-                                <label for="slug" class="form-label">Slug (URL)</label>
+                                <label for="slug" class="form-label">{{ 'Lien court' if current_user.role == 'manager' else 'Slug (URL)' }}</label>
                                 <input type="text" class="form-control" id="slug" name="slug" readonly>
                                 <div class="form-text">
-                                    Gnr automatiquement  partir du nom
+                                    {{ 'Cree automatiquement a partir du nom' if current_user.role == 'manager' else 'Gnr automatiquement  partir du nom' }}
                                 </div>
                             </div>
                             
@@ -70,7 +70,7 @@
                                     </option>
                                     {% endfor %}
                                 </select>
-                                <div class="form-text">Le type de base de la boutique.</div>
+                                <div class="form-text">{{ "Activite principale de la boutique." if current_user.role == 'manager' else 'Le type de base de la boutique.' }}</div>
                             </div>
 
                             <div class="col-md-6">
@@ -93,20 +93,6 @@
                                 <div class="form-text">La liste doit toujours contenir le type principal.</div>
                             </div>
                             
-                            <!-- Contact -->
-                            <div class="col-md-6">
-                                <label for="contact_email" class="form-label">Email de contact</label>
-                                <input type="email" class="form-control" id="contact_email" name="contact_email">
-                                <div class="form-text">
-                                    Si vide, l'email du vendeur sera utilis
-                                </div>
-                            </div>
-                            
-                            <div class="col-md-6">
-                                <label for="contact_phone" class="form-label">Tlphone de contact</label>
-                                <input type="tel" class="form-control" id="contact_phone" name="contact_phone">
-                            </div>
-                            
                             <div class="col-12">
                                 <label for="address" class="form-label">Adresse de la boutique</label>
                                 <textarea class="form-control" id="address" name="address" rows="2"></textarea>
@@ -116,10 +102,10 @@
                             <div class="col-12 mt-4">
                                 <div class="d-flex justify-content-between">
                                     <a href="{{ url_for('admin_users.manage_shops') }}" class="btn btn-outline-secondary">
-                                        <i class="bi bi-arrow-left"></i> Annuler
+                                        <i class="bi bi-arrow-left"></i> Retour
                                     </a>
                                     <button type="submit" class="btn btn-primary">
-                                        <i class="bi bi-check-circle"></i> Crer la boutique
+                                        <i class="bi bi-check-circle"></i> {{ 'Enregistrer la boutique' if current_user.role == 'manager' else 'Crer la boutique' }}
                                     </button>
                                 </div>
                             </div>
@@ -132,7 +118,7 @@
             <div class="card admin-card mt-4">
                 <div class="card-header">
                     <h6 class="mb-0">
-                        <i class="bi bi-people"></i> Vendeurs disponibles ({{ vendors_without_shop|length }})
+                        <i class="bi bi-people"></i> {{ 'Vendeurs disponibles' if current_user.role == 'manager' else 'Vendeurs disponibles' }} ({{ vendors_without_shop|length }})
                     </h6>
                 </div>
                 <div class="card-body p-0">
@@ -155,8 +141,6 @@
                                     <br>
                                     <button type="button" class="btn btn-sm btn-outline-primary mt-1"
                                             data-vendor-id="{{ vendor.id }}"
-                                            data-email="{{ vendor.email }}"
-                                            data-phone="{{ vendor.phone or '' }}"
                                             data-address="{{ vendor.address or '' }}"
                                             data-select-vendor>
                                         Slectionner
@@ -169,10 +153,10 @@
                     {% else %}
                     <div class="card-body text-center py-4">
                         <i class="bi bi-people display-4 text-muted mb-3"></i>
-                        <h5>Aucun vendeur disponible</h5>
-                        <p class="text-muted">Tous les vendeurs ont dj une boutique.</p>
+                        <h5>{{ 'Aucun vendeur disponible' if current_user.role == 'manager' else 'Aucun vendeur disponible' }}</h5>
+                        <p class="text-muted">{{ 'Tous les vendeurs ont deja une boutique.' if current_user.role == 'manager' else 'Tous les vendeurs ont deja une boutique.' }}</p>
                         <a href="{{ url_for('admin_users.create_user') }}" class="btn btn-success">
-                            <i class="bi bi-person-plus"></i> Crer un nouveau vendeur
+                            <i class="bi bi-person-plus"></i> {{ 'Ajouter un vendeur' if current_user.role == 'manager' else 'Crer un nouveau vendeur' }}
                         </a>
                     </div>
                     {% endif %}
@@ -197,37 +181,17 @@ document.getElementById('name').addEventListener('input', function() {
     }
 });
 
-// Auto-remplir les informations de contact
+// Auto-remplir les informations vendeur
 function selectVendor(button) {
     const vendorId = button.dataset.vendorId;
-    const email = button.dataset.email;
-    const phone = button.dataset.phone;
     const address = button.dataset.address;
 
     document.getElementById('vendor_id').value = vendorId;
-    document.getElementById('contact_email').value = email;
-    document.getElementById('contact_phone').value = phone || '';
     document.getElementById('address').value = address || '';
 
     // Scroll vers le haut du formulaire
     document.querySelector('form').scrollIntoView({ behavior: 'smooth' });
 }
-
-// Auto-remplir l'email du vendeur slectionn
-document.getElementById('vendor_id').addEventListener('change', function() {
-    const selectedOption = this.options[this.selectedIndex];
-    if (selectedOption.value) {
-        // On peut extraire l'email du texte de l'option
-        const text = selectedOption.text;
-        const emailMatch = text.match(/\(([^)]+)\)/);
-        if (emailMatch && emailMatch[1]) {
-            const emailInput = document.getElementById('contact_email');
-            if (emailInput && !emailInput.value) {
-                emailInput.value = emailMatch[1];
-            }
-        }
-    }
-});
 
 const primaryTypeSelect = document.getElementById('primary_type');
 const allowAllTypesBtn = document.getElementById('allowAllTypesBtn');
@@ -272,3 +236,4 @@ document.querySelectorAll('[data-select-vendor]').forEach(function(button) {
 });
 </script>
 {% endblock %}
+

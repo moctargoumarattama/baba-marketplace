@@ -4,6 +4,9 @@
     radial-gradient(720px 340px at 104% 4%, rgba(249, 115, 22, 0.16), transparent 70%),
     linear-gradient(180deg, #f5f7fb 0%, #eef3f8 100%);
   overflow: hidden;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: clip;
 }
 
 .checkout-screen {
@@ -157,6 +160,8 @@
   background: #fff;
   color: #0f172a;
   transition: box-shadow 0.2s ease, border-color 0.2s ease;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .checkout-form .form-control:focus,
@@ -354,7 +359,7 @@
   .checkout-form .form-control,
   .checkout-form .form-select {
     min-height: 40px;
-    font-size: 0.95rem;
+    font-size: 16px;
   }
 
   .checkout-location-btn {
@@ -374,6 +379,20 @@
 }
 
 @media (max-width: 575.98px) {
+  .checkout-screen {
+    min-height: auto;
+    height: auto;
+  }
+
+  .checkout-card-full,
+  .checkout-body,
+  .checkout-form,
+  .checkout-step {
+    height: auto;
+    max-height: none;
+    overflow: visible;
+  }
+
   .checkout-header {
     padding: 0.46rem 0.58rem 0.42rem;
   }
@@ -393,7 +412,10 @@
   }
 
   #checkout_step_1 .step-actions {
-    padding-top: 0.5rem;
+    position: static;
+    margin-top: 0.4rem;
+    padding-top: 0.35rem;
+    background: none;
   }
 }
 
@@ -406,3 +428,4 @@
     animation: none;
   }
 }
+

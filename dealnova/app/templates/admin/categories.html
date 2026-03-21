@@ -1,6 +1,7 @@
-{% extends "admin/base.html" %}
+﻿{% extends "admin/base.html" %}
 {% block title %}Catégories | Admin{% endblock %}
 {% block page_title %}Catégories{% endblock %}
+{% block body_attrs %}data-adm-page="categories" data-ajax-owner="admin"{% endblock %}
 
 {% block head %}
 <style>
@@ -142,14 +143,14 @@
       </div>
     </div>
     <div class="lc-body">
-      <div class="fbar">
+      <form class="fbar adm-filters" id="categoriesFiltersForm" method="get" action="{{ url_for('admin_categories.index') }}">
         <div class="fg">
           <label>Recherche</label>
-          <input class="fc" type="text" id="fq" value="{{ q }}" placeholder="Nom, slug…" autocomplete="off">
+          <input class="fc adm-search" type="text" id="fq" name="q" value="{{ q }}" placeholder="Nom, slug..." autocomplete="off">
         </div>
         <div class="fg">
           <label>Type</label>
-          <select class="fs" id="ftype">
+          <select class="fs" id="ftype" name="cat_type">
             <option value="">Tous</option>
             {% for key, label in category_type_labels.items() %}
               <option value="{{ key }}" {{ 'selected' if type_filter==key }}>{{ label }}</option>
@@ -159,12 +160,12 @@
         <div class="fg-btns">
           <button class="btn-r" id="btnReset" type="button"><i class="bi bi-x"></i> Reset</button>
         </div>
-      </div>
+      </form>
     </div>
   </div>
 
   <!-- TABLE -->
-  <div class="lc">
+  <div class="lc adm-listing" data-adm-listing="categories">
     <div class="lc-hd">
       <h6><i class="bi bi-list-ul"></i> Liste des catégories</h6>
       <span class="sub" id="catSub">{{ total }} catégorie{{ 's' if total != 1 }} · page {{ pagination.page }}/{{ [pagination.pages,1]|max }}</span>
@@ -200,7 +201,7 @@
                     </a>
                     <form action="{{ url_for('admin_categories.delete_category', cid=cat.id) }}" method="POST" style="margin:0">
                       {% include "admin/partials/_csrf.html" %}
-                      <button class="btn-del" type="submit" data-confirm-click="Supprimer {{ cat.name }} ?" title="Supprimer">
+                      <button class="btn-del" type="submit" data-confirm-click="Supprimer {{ cat.name }} " title="Supprimer">
                         <i class="bi bi-trash"></i>
                       </button>
                     </form>
@@ -216,24 +217,24 @@
       </div>
 
       <!-- PAGINATION -->
-      <div class="pg" id="catPg">
+      <div class="pg adm-pager" id="catPg" data-adm-pager="categories">
         {% if pagination.pages > 1 %}
           {% if pagination.has_prev %}
-            <a data-p="{{ pagination.prev_num }}"><i class="bi bi-chevron-left"></i></a>
+            <a class="page-link" data-p="{{ pagination.prev_num }}" href="{{ url_for('admin_categories.index', q=(q if q else None), cat_type=(type_filter if type_filter else None), page=pagination.prev_num) }}"><i class="bi bi-chevron-left"></i></a>
           {% else %}<span class="dis"><i class="bi bi-chevron-left"></i></span>{% endif %}
 
           {% for p in pagination.iter_pages(left_edge=1,right_edge=1,left_current=2,right_current=2) %}
             {% if p %}
-              <a class="{{ 'cur' if p==pagination.page }}" data-p="{{ p }}">{{ p }}</a>
+              <a class="page-link {{ 'cur' if p==pagination.page }}" data-p="{{ p }}" href="{{ url_for('admin_categories.index', q=(q if q else None), cat_type=(type_filter if type_filter else None), page=p) }}">{{ p }}</a>
             {% else %}
-              <span class="dis">…</span>
+              <span class="dis">...</span>
             {% endif %}
           {% endfor %}
 
           <span class="pinfo">{{ pagination.page }}/{{ pagination.pages }} · {{ pagination.total }}</span>
 
           {% if pagination.has_next %}
-            <a data-p="{{ pagination.next_num }}"><i class="bi bi-chevron-right"></i></a>
+            <a class="page-link" data-p="{{ pagination.next_num }}" href="{{ url_for('admin_categories.index', q=(q if q else None), cat_type=(type_filter if type_filter else None), page=pagination.next_num) }}"><i class="bi bi-chevron-right"></i></a>
           {% else %}<span class="dis"><i class="bi bi-chevron-right"></i></span>{% endif %}
         {% endif %}
       </div>
@@ -251,114 +252,12 @@
   "base_url":   {{ url_for('admin_categories.index')|tojson }}
 }
 </script>
-
-<script>
-(function(){
-'use strict';
-
-var PV   = JSON.parse(document.getElementById('pv').textContent);
-var BASE = PV.base_url;
-
-var state = { q: PV.q, type: PV.type_filter, page: PV.page };
-
-var fq       = document.getElementById('fq');
-var ftype    = document.getElementById('ftype');
-var btnReset = document.getElementById('btnReset');
-var catMask  = document.getElementById('catMask');
-var catTbody = document.getElementById('catTbody');
-var catPg    = document.getElementById('catPg');
-var catSub   = document.getElementById('catSub');
-var searchInd= document.getElementById('searchInd');
-
-function buildURL(page) {
-  var p = new URLSearchParams();
-  if (state.q)    p.set('q', state.q);
-  if (state.type) p.set('cat_type', state.type);
-  p.set('page', page || state.page);
-  return BASE + '?' + p.toString();
-}
-
-function loadPage(page) {
-  var scrollY = window.scrollY;
-  state.page  = page;
-  catMask.classList.add('on');
-
-  fetch(buildURL(page), { headers: {'X-Requested-With':'XMLHttpRequest'} })
-    .then(function(r){ return r.text(); })
-    .then(function(html){
-      var doc = new DOMParser().parseFromString(html, 'text/html');
-
-      var nb = doc.getElementById('catTbody');
-      if (nb) {
-        catTbody.innerHTML = nb.innerHTML;
-        catTbody.classList.add('fade-in');
-        setTimeout(function(){ catTbody.classList.remove('fade-in'); }, 200);
-      }
-
-      var np = doc.getElementById('catPg');
-      if (np) { catPg.innerHTML = np.innerHTML; bindPg(); }
-
-      var ns = doc.getElementById('catSub');
-      if (ns) catSub.textContent = ns.textContent;
-
-      window.history.replaceState(null, '', buildURL(page));
-      catMask.classList.remove('on');
-      window.scrollTo({ top: scrollY, behavior: 'instant' }); /* no jump */
-    })
-    .catch(function(){
-      catMask.classList.remove('on');
-      window.location.href = buildURL(page);
-    });
-}
-
-function bindPg() {
-  catPg.querySelectorAll('[data-p]').forEach(function(el){
-    el.addEventListener('click', function(e){
-      e.preventDefault();
-      loadPage(parseInt(el.dataset.p));
-    });
-  });
-}
-bindPg();
-
-/* search debounce 700ms */
-var debTimer = null;
-
-function applyFilters() {
-  state.q    = fq ? fq.value.trim() : '';
-  state.type = ftype ? ftype.value : '';
-  state.page = 1;
-  searchInd.classList.remove('on');
-  loadPage(1);
-}
-
-if (fq) {
-  fq.addEventListener('input', function(){
-    searchInd.classList.add('on');
-    clearTimeout(debTimer);
-    debTimer = setTimeout(applyFilters, 700);
-  });
-  fq.addEventListener('keydown', function(e){
-    if (e.key === 'Enter') { e.preventDefault(); clearTimeout(debTimer); applyFilters(); }
-  });
-}
-
-if (ftype) {
-  ftype.addEventListener('change', function(){
-    clearTimeout(debTimer);
-    applyFilters();
-  });
-}
-
-if (btnReset) {
-  btnReset.addEventListener('click', function(){
-    if (fq)    fq.value    = '';
-    if (ftype) ftype.value = '';
-    clearTimeout(debTimer);
-    applyFilters();
-  });
-}
-
-})();
-</script>
 {% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="{{ url_for('static', filename='js/pages/admin_categories_page.js', v=app_static_version) }}" defer></script>
+{% endblock %}
+
+
+

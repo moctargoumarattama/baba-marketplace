@@ -78,6 +78,43 @@
     font-weight: 800;
     color: #ffffff;
   }
+  
+  /* === NOUVEAU STYLE POUR LE BADGE MAINTENANCE === */
+  .maintenance-badge {
+    background: rgba(15, 23, 42, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 20px;
+    padding: 0.4rem 1rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    color: white;
+    font-size: 0.9rem;
+    backdrop-filter: blur(4px);
+  }
+  .maintenance-badge i {
+    font-size: 1.1rem;
+  }
+  .maintenance-badge .next-time {
+    font-weight: 700;
+    color: #a7f3d0;
+  }
+  .maintenance-badge .countdown {
+    background: rgba(255, 255, 255, 0.15);
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+  .maintenance-wrap[data-theme="noc"] .maintenance-badge {
+    background: rgba(56, 189, 248, 0.16);
+    border-color: rgba(103, 232, 249, 0.35);
+  }
+  .maintenance-wrap[data-theme="noc"] .maintenance-badge .next-time {
+    color: #7dd3fc;
+  }
+  /* ============================================== */
+  
   .card-shell {
     background: var(--monitor-card);
     border: 1px solid var(--monitor-border);
@@ -314,6 +351,10 @@
     color: #991b1b;
     font-weight: 600;
   }
+  .lock-card {
+    max-width: 760px;
+    margin: 0 auto;
+  }
   @media (max-width: 991.98px) {
     .monitor-hero-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
@@ -371,11 +412,47 @@
   <section class="monitor-hero">
     <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
       <h4><i class="bi bi-speedometer2"></i> Monitoring plateforme</h4>
-      <button type="button" class="theme-toggle" id="maintenanceThemeToggle">
-        <i class="bi bi-moon-stars"></i> Theme NOC
-      </button>
+      <div class="d-flex align-items-center gap-3">
+        <!-- === NOUVEAU BADGE MAINTENANCE 3H === -->
+        <div class="maintenance-badge" title="Prochaine maintenance automatique">
+          <i class="bi bi-clock-history"></i>
+          <span class="next-time">{{ next_maintenance_time }}</span>
+          <span class="countdown" id="maintenanceCountdown">(dans {{ next_maintenance_in }})</span>
+        </div>
+        <button type="button" class="theme-toggle" id="maintenanceThemeToggle">
+          <i class="bi bi-moon-stars"></i> Theme NOC
+        </button>
+      </div>
     </div>
     <p>Centre de supervision maintenance, trafic live, erreurs et operations critiques.</p>
+    
+    <!-- SCRIPT POUR METTRE À JOUR LE COMPTE À REBOURS -->
+    <script>
+    function updateMaintenanceCountdown() {
+        const now = new Date();
+        const target = new Date(now);
+        target.setHours(3, 0, 0, 0); // 3h du matin UTC
+        
+        if (now >= target) {
+            target.setDate(target.getDate() + 1);
+        }
+        
+        const diffMs = target - now;
+        const diffHrs = Math.floor(diffMs / 3600000);
+        const diffMins = Math.floor((diffMs % 3600000) / 60000);
+        
+        const countdownEl = document.getElementById('maintenanceCountdown');
+        if (countdownEl) {
+            countdownEl.textContent = `(dans ${diffHrs}h ${diffMins.toString().padStart(2, '0')}min)`;
+        }
+    }
+    
+    // Mettre à jour toutes les minutes
+    updateMaintenanceCountdown();
+    setInterval(updateMaintenanceCountdown, 60000);
+    </script>
+    <!-- ===================================== -->
+    
     <div class="monitor-hero-kpis">
       <div class="hero-kpi">
         <strong>Derniere execution</strong>
@@ -387,15 +464,53 @@
       </div>
       <div class="hero-kpi">
         <strong>Mode maintenance</strong>
-        <span>{{ 'ON' if maintenance_mode.active else 'OFF' }}</span>
+        <span>{{ 'Actif' if maintenance_mode.active else 'Inactif' }}</span>
       </div>
       <div class="hero-kpi">
         <strong>Trafic live</strong>
-        <span>{{ 'Disponible' if live_traffic.available else 'N/A' }}</span>
+        <span>{{ 'Disponible' if live_traffic.available else 'Non disponible' }}</span>
       </div>
     </div>
   </section>
 
+  {% if maintenance_panel_locked %}
+  <section class="card-shell lock-card">
+    <div class="section-head">
+      <div>
+        <h5 class="section-title"><i class="bi bi-shield-lock"></i> Déverrouillage maintenance</h5>
+        <p class="section-sub">Deuxième mot de passe requis pour accéder aux actions et aux données sensibles de maintenance.</p>
+      </div>
+    </div>
+    <div class="alert alert-warning mb-3">
+      <strong>Page verrouillée.</strong>
+      Saisis le mot de passe maintenance pour ouvrir cette zone pendant {{ maintenance_unlock_minutes }} minutes.
+      {% if maintenance_mode.active %}
+      <div class="mt-2">
+        Le mode maintenance est actuellement <strong>actif</strong>. Déverrouille d'abord cette page pour pouvoir le désactiver proprement.
+      </div>
+      {% endif %}
+    </div>
+    <form method="post" action="{{ url_for('admin.maintenance_unlock') }}" class="row g-3 align-items-end">
+      {% include "admin/partials/_csrf.html" %}
+      <input type="hidden" name="days" value="{{ days }}">
+      <input type="hidden" name="errors_page" value="{{ errors_block.page or 1 }}">
+      <div class="col-md-8">
+        <label class="form-label">Mot de passe maintenance</label>
+        <input type="password" name="maintenance_password" class="form-control" autocomplete="current-password" required>
+      </div>
+      <div class="col-md-4 d-flex align-items-end">
+        <button type="submit" class="btn btn-primary w-100">
+          <i class="bi bi-unlock"></i> Déverrouiller {{ maintenance_unlock_minutes }} min
+        </button>
+      </div>
+    </form>
+  </section>
+  {% else %}
+  {% if maintenance_panel_password_enabled and maintenance_unlock_until_label %}
+  <div class="alert alert-info mb-0">
+    Verrou maintenance ouvert jusqu'à <strong>{{ maintenance_unlock_until_label }}</strong>.
+  </div>
+  {% endif %}
   {% if report and report_cleanup %}
   <section class="card-shell report-top" id="last-report">
     <div class="section-head">
@@ -405,15 +520,15 @@
       </div>
     </div>
     <div class="report-list">
-      <div class="report-item"><strong>Mode</strong><span>{{ report.mode or (last_run.mode if last_run else 'N/A') }}</span></div>
-      <div class="report-item"><strong>Date execution</strong><span>{{ report.ran_at or ((last_run.finished_at or last_run.started_at).strftime('%d/%m/%Y %H:%M:%S') if last_run else 'N/A') }}</span></div>
-      <div class="report-item"><strong>Duree</strong><span>{{ report.duration_ms if report.duration_ms is not none else (last_run.duration_ms if last_run else 'N/A') }} ms</span></div>
-      <div class="report-item"><strong>Fichiers supprimes</strong><span>{{ report_cleanup.get('files_deleted', 'N/A') }}</span></div>
-      <div class="report-item"><strong>Orphelins supprimes</strong><span>{{ report_cleanup.get('orphan_media_removed', 'N/A') }}</span></div>
-      <div class="report-item"><strong>Locations purgees</strong><span>{{ report_cleanup.get('locations_purged', 'N/A') }}</span></div>
+      <div class="report-item"><strong>Mode</strong><span>{{ 'rapide' if (report.mode or (last_run.mode if last_run else '')) == 'quick' else ('complet' if (report.mode or (last_run.mode if last_run else '')) == 'full' else (report.mode or (last_run.mode if last_run else 'Non disponible'))) }}</span></div>
+      <div class="report-item"><strong>Date d'execution</strong><span>{{ report.ran_at or ((last_run.finished_at or last_run.started_at).strftime('%d/%m/%Y %H:%M:%S') if last_run else 'Non disponible') }}</span></div>
+      <div class="report-item"><strong>Duree</strong><span>{{ report.duration_ms if report.duration_ms is not none else (last_run.duration_ms if last_run else 'Non disponible') }} ms</span></div>
+      <div class="report-item"><strong>Fichiers supprimes</strong><span>{{ report_cleanup.get('files_deleted', 'Non disponible') }}</span></div>
+      <div class="report-item"><strong>Orphelins supprimes</strong><span>{{ report_cleanup.get('orphan_media_removed', 'Non disponible') }}</span></div>
+      <div class="report-item"><strong>Locations purgees</strong><span>{{ report_cleanup.get('locations_purged', 'Non disponible') }}</span></div>
       <div class="report-item"><strong>Cache vide</strong><span>{{ 'oui' if report_cleanup.get('cache_cleared') else 'non' }}</span></div>
-      <div class="report-item"><strong>Sessions supprimees</strong><span>{{ report_cleanup.get('sessions_deleted', 'N/A') if report_cleanup.get('sessions_cleaned') else 'non supporte' }}</span></div>
-      <div class="report-item"><strong>ErrorLog purges</strong><span>{{ report_cleanup.get('error_logs_purged', 0) }}</span></div>
+      <div class="report-item"><strong>Sessions supprimees</strong><span>{{ report_cleanup.get('sessions_deleted', 'Non disponible') if report_cleanup.get('sessions_cleaned') else 'non supporte' }}</span></div>
+      <div class="report-item"><strong>Erreurs 500 purgees</strong><span>{{ report_cleanup.get('error_logs_purged', 0) }}</span></div>
     </div>
 
     {% set cleanup_errors = report_cleanup.get('errors', []) %}
@@ -433,8 +548,8 @@
   <section class="card-shell">
     <div class="section-head">
       <div>
-        <h5 class="section-title"><i class="bi bi-heart-pulse"></i> Sante systeme (dernier rapport CLI)</h5>
-        <p class="section-sub">Seuils preventifs et metriques issues du dernier run CLI.</p>
+        <h5 class="section-title"><i class="bi bi-heart-pulse"></i> Sante systeme (dernier rapport console)</h5>
+        <p class="section-sub">Seuils preventifs et metriques issues du dernier passage console.</p>
       </div>
       <div class="d-flex align-items-center gap-2 flex-wrap">
         <form method="get" class="d-flex align-items-center gap-2">
@@ -456,19 +571,19 @@
       {% set uploads_level = uploads_badge.level if uploads_badge else 'na' %}
       <div class="metric-tags">
         <span class="sla-pill {{ 'sla-p1' if uploads_level == 'danger' else ('sla-p2' if uploads_level == 'warning' else ('sla-p3' if uploads_level == 'ok' else 'sla-na')) }}">
-          {{ 'P1' if uploads_level == 'danger' else ('P2' if uploads_level == 'warning' else ('P3' if uploads_level == 'ok' else 'N/A')) }}
+          {{ 'P1' if uploads_level == 'danger' else ('P2' if uploads_level == 'warning' else ('P3' if uploads_level == 'ok' else 'ND')) }}
         </span>
-        <span class="status-pill {{ uploads_badge.class_name if uploads_badge else 'status-na' }}">{{ uploads_badge.label if uploads_badge else 'N/A' }}</span>
+        <span class="status-pill {{ uploads_badge.class_name if uploads_badge else 'status-na' }}">{{ uploads_badge.label if uploads_badge else 'Non disponible' }}</span>
       </div>
     </div>
 
-    <div class="health-value">{{ health.uploads_size or 'N/A' }}</div>
-    <div class="small text-muted">{{ health.uploads_file_count if health.uploads_file_count is not none else 'N/A' }} fichiers</div>
+    <div class="health-value">{{ health.uploads_size or 'Non disponible' }}</div>
+    <div class="small text-muted">{{ health.uploads_file_count if health.uploads_file_count is not none else 'Non disponible' }} fichiers</div>
 
     {# SAFE: uploads_size_gb peut être None ou "N/A" -> float(0) #}
     {% set uploads_gb_num = (health.uploads_size_gb | float(0)) %}
     {% set uploads_pct = [(((uploads_gb_num / 6.0) * 100) | int), 100] | min %}
-    <div class="sparkline"><span style="width: {{ uploads_pct }}%"></span></div>
+    <div class="sparkline"><span data-spark-width="{{ uploads_pct }}"></span></div>
   </article>
 
   <article class="health-item">
@@ -478,21 +593,21 @@
       {% set expired_level = expired_badge.level if expired_badge else 'na' %}
       <div class="metric-tags">
         <span class="sla-pill {{ 'sla-p1' if expired_level == 'danger' else ('sla-p2' if expired_level == 'warning' else ('sla-p3' if expired_level == 'ok' else 'sla-na')) }}">
-          {{ 'P1' if expired_level == 'danger' else ('P2' if expired_level == 'warning' else ('P3' if expired_level == 'ok' else 'N/A')) }}
+          {{ 'P1' if expired_level == 'danger' else ('P2' if expired_level == 'warning' else ('P3' if expired_level == 'ok' else 'ND')) }}
         </span>
-        <span class="status-pill {{ expired_badge.class_name if expired_badge else 'status-na' }}">{{ expired_badge.label if expired_badge else 'N/A' }}</span>
+        <span class="status-pill {{ expired_badge.class_name if expired_badge else 'status-na' }}">{{ expired_badge.label if expired_badge else 'Non disponible' }}</span>
       </div>
     </div>
 
     <div class="health-value">
-      {{ health.expired_locations_gt_days if health.expired_locations_gt_days is not none else (health.expired_locations_count if health.expired_locations_count is not none else 'N/A') }}
+      {{ health.expired_locations_gt_days if health.expired_locations_gt_days is not none else (health.expired_locations_count if health.expired_locations_count is not none else 'Non disponible') }}
     </div>
 
     {# SAFE: loc_val peut être None ou "N/A" -> int(0) #}
     {% set loc_val_raw = (health.expired_locations_gt_days if health.expired_locations_gt_days is not none else health.expired_locations_count) %}
     {% set loc_val = (loc_val_raw | int(0)) %}
     {% set loc_pct = [(((loc_val / 100.0) * 100) | int), 100] | min %}
-    <div class="sparkline"><span style="width: {{ loc_pct }}%"></span></div>
+    <div class="sparkline"><span data-spark-width="{{ loc_pct }}"></span></div>
   </article>
 
   <article class="health-item">
@@ -502,27 +617,27 @@
       {% set orphan_level = orphan_badge.level if orphan_badge else 'na' %}
       <div class="metric-tags">
         <span class="sla-pill {{ 'sla-p1' if orphan_level == 'danger' else ('sla-p2' if orphan_level == 'warning' else ('sla-p3' if orphan_level == 'ok' else 'sla-na')) }}">
-          {{ 'P1' if orphan_level == 'danger' else ('P2' if orphan_level == 'warning' else ('P3' if orphan_level == 'ok' else 'N/A')) }}
+          {{ 'P1' if orphan_level == 'danger' else ('P2' if orphan_level == 'warning' else ('P3' if orphan_level == 'ok' else 'ND')) }}
         </span>
-        <span class="status-pill {{ orphan_badge.class_name if orphan_badge else 'status-na' }}">{{ orphan_badge.label if orphan_badge else 'N/A' }}</span>
+        <span class="status-pill {{ orphan_badge.class_name if orphan_badge else 'status-na' }}">{{ orphan_badge.label if orphan_badge else 'Non disponible' }}</span>
       </div>
     </div>
 
-    <div class="health-value">{{ health.orphan_media_count if health.orphan_media_count is not none else 'N/A' }}</div>
+    <div class="health-value">{{ health.orphan_media_count if health.orphan_media_count is not none else 'Non disponible' }}</div>
 
     {# SAFE: force en int même si c'est "N/A" #}
     {% set orphan_count = (health.orphan_media_count | int(0)) %}
     {% set orphan_pct = [(((orphan_count / 200.0) * 100) | int), 100] | min %}
-    <div class="sparkline"><span style="width: {{ orphan_pct }}%"></span></div>
+    <div class="sparkline"><span data-spark-width="{{ orphan_pct }}"></span></div>
   </article>
 
   <article class="health-item">
     <div class="health-label">Cache</div>
     <div class="health-value">
       {% set cache_ok = (health.cache_status == 'OK') %}
-      <span class="status-pill {{ 'status-ok' if cache_ok else 'status-off' }}">{{ health.cache_status or 'N/A' }}</span>
+      <span class="status-pill {{ 'status-ok' if cache_ok else 'status-off' }}">{{ health.cache_status or 'Non disponible' }}</span>
     </div>
-    <div class="sparkline"><span style="width: {{ 100 if cache_ok else 12 }}%"></span></div>
+    <div class="sparkline"><span data-spark-width="{{ 100 if cache_ok else 12 }}"></span></div>
   </article>
 
   <article class="health-item">
@@ -532,19 +647,19 @@
       {% set db_level = db_badge.level if db_badge else 'na' %}
       <div class="metric-tags">
         <span class="sla-pill {{ 'sla-p1' if db_level == 'danger' else ('sla-p2' if db_level == 'warning' else ('sla-p3' if db_level == 'ok' else 'sla-na')) }}">
-          {{ 'P1' if db_level == 'danger' else ('P2' if db_level == 'warning' else ('P3' if db_level == 'ok' else 'N/A')) }}
+          {{ 'P1' if db_level == 'danger' else ('P2' if db_level == 'warning' else ('P3' if db_level == 'ok' else 'ND')) }}
         </span>
-        <span class="status-pill {{ db_badge.class_name if db_badge else 'status-na' }}">{{ db_badge.label if db_badge else 'N/A' }}</span>
+        <span class="status-pill {{ db_badge.class_name if db_badge else 'status-na' }}">{{ db_badge.label if db_badge else 'Non disponible' }}</span>
       </div>
     </div>
 
-    <div class="health-value">{{ health.db_size or 'N/A' }}</div>
-    <div class="small text-muted">Moteur: {{ health.db_engine or 'N/A' }}</div>
+    <div class="health-value">{{ health.db_size or 'Non disponible' }}</div>
+    <div class="small text-muted">Moteur: {{ health.db_engine or 'Non disponible' }}</div>
 
     {# SAFE: db_size_mb peut être None ou "N/A" -> float(0) #}
     {% set db_size_mb_num = (health.db_size_mb | float(0)) %}
     {% set db_pct = [(((db_size_mb_num / 800.0) * 100) | int), 100] | min %}
-    <div class="sparkline"><span style="width: {{ db_pct }}%"></span></div>
+    <div class="sparkline"><span data-spark-width="{{ db_pct }}"></span></div>
   </article>
 </div>
 
@@ -563,24 +678,24 @@
     <div class="section-head">
       <div>
         <h5 class="section-title"><i class="bi bi-broadcast"></i> Trafic live</h5>
-        <p class="section-sub">Flux temps reel non persistant, fallback automatique en N/A.</p>
+        <p class="section-sub">Flux temps reel non persistant, repli automatique en indisponible.</p>
       </div>
       <span class="status-pill {{ 'status-live' if live_traffic.available else 'status-na' }}">
-        {{ 'LIVE' if live_traffic.available else 'N/A' }}
+        {{ 'En direct' if live_traffic.available else 'Indisponible' }}
       </span>
     </div>
     <div class="report-list">
       <div class="report-item">
         <strong>Requetes / minute</strong>
-        <span>{{ live_traffic.rpm if live_traffic.rpm is not none else 'N/A' }}</span>
+        <span>{{ live_traffic.rpm if live_traffic.rpm is not none else 'Non disponible' }}</span>
       </div>
       <div class="report-item">
         <strong>Visiteurs actifs (5 min)</strong>
-        <span>{{ live_traffic.active_visitors_5m if live_traffic.active_visitors_5m is not none else 'N/A' }}</span>
+        <span>{{ live_traffic.active_visitors_5m if live_traffic.active_visitors_5m is not none else 'Non disponible' }}</span>
       </div>
       <div class="report-item">
         <strong>Commandes / heure</strong>
-        <span>{{ live_traffic.orders_per_hour if live_traffic.orders_per_hour is not none else 'N/A' }}</span>
+        <span>{{ live_traffic.orders_per_hour if live_traffic.orders_per_hour is not none else 'Non disponible' }}</span>
       </div>
     </div>
     {% if live_traffic.error %}
@@ -595,12 +710,12 @@
         <p class="section-sub">Activation immediate ou planifiee, admins non bloques.</p>
       </div>
       <span class="status-pill {{ 'status-danger' if maintenance_mode.active else 'status-ok' }}">
-        {{ 'ON' if maintenance_mode.active else 'OFF' }}
+        {{ 'Actif' if maintenance_mode.active else 'Inactif' }}
       </span>
     </div>
     <div class="report-list mb-3">
-      <div class="report-item"><strong>Message actuel</strong><span>{{ maintenance_mode.message or 'N/A' }}</span></div>
-      <div class="report-item"><strong>Activation manuelle</strong><span>{{ 'ON' if maintenance_mode.manual_enabled else 'OFF' }}</span></div>
+      <div class="report-item"><strong>Message actuel</strong><span>{{ maintenance_mode.message or 'Non disponible' }}</span></div>
+      <div class="report-item"><strong>Activation manuelle</strong><span>{{ 'Oui' if maintenance_mode.manual_enabled else 'Non' }}</span></div>
       <div class="report-item"><strong>Date activation</strong><span>{{ maintenance_mode.enabled_at_label }}</span></div>
       <div class="report-item"><strong>Debut programme</strong><span>{{ maintenance_mode.starts_at_label }}</span></div>
       <div class="report-item"><strong>Fin programmee</strong><span>{{ maintenance_mode.ends_at_label }}</span></div>
@@ -646,7 +761,7 @@
     </div>
     {% if maintenance_mode.available is defined and not maintenance_mode.available %}
       <div class="alert alert-warning mt-3 mb-0">
-        Maintenance mode indisponible: {{ maintenance_mode.error or 'etat settings inaccessible' }}
+        Mode maintenance indisponible: {{ maintenance_mode.error or 'etat des parametres inaccessible' }}
       </div>
     {% endif %}
   </section>
@@ -655,7 +770,7 @@
     <div class="section-head">
       <div>
         <h5 class="section-title"><i class="bi bi-clock-history"></i> Historique nettoyage</h5>
-        <p class="section-sub">Derniers runs quick/full et indicateurs d’erreurs.</p>
+        <p class="section-sub">Derniers nettoyages rapide/complet et indicateurs d'erreurs.</p>
       </div>
       {% if report %}
         <a class="btn btn-sm btn-outline-primary" href="#last-report">Voir dernier rapport</a>
@@ -665,21 +780,21 @@
     </div>
     <div class="report-list">
       <div class="report-item">
-        <strong>Dernier quick</strong>
+        <strong>Dernier nettoyage rapide</strong>
         <span>
           {% if last_quick_run %}
-            {{ (last_quick_run.finished_at or last_quick_run.started_at).strftime('%d/%m/%Y %H:%M:%S') if (last_quick_run.finished_at or last_quick_run.started_at) else 'N/A' }}
+            {{ (last_quick_run.finished_at or last_quick_run.started_at).strftime('%d/%m/%Y %H:%M:%S') if (last_quick_run.finished_at or last_quick_run.started_at) else 'Non disponible' }}
           {% else %}
-            N/A
+            Non disponible
           {% endif %}
         </span>
-        <div class="small text-muted mt-1">Duree: {{ last_quick_run.duration_ms if last_quick_run and last_quick_run.duration_ms is not none else 'N/A' }} ms</div>
+        <div class="small text-muted mt-1">Duree: {{ last_quick_run.duration_ms if last_quick_run and last_quick_run.duration_ms is not none else 'Non disponible' }} ms</div>
       </div>
       <div class="report-item">
-        <strong>Dernier full</strong>
+        <strong>Dernier nettoyage complet</strong>
         <span>
           {% if last_full_run %}
-            {{ (last_full_run.finished_at or last_full_run.started_at).strftime('%d/%m/%Y %H:%M:%S') if (last_full_run.finished_at or last_full_run.started_at) else 'N/A' }}
+            {{ (last_full_run.finished_at or last_full_run.started_at).strftime('%d/%m/%Y %H:%M:%S') if (last_full_run.finished_at or last_full_run.started_at) else 'Non disponible' }}
           {% else %}
             Jamais execute
           {% endif %}
@@ -688,7 +803,7 @@
       </div>
       <div class="report-item">
         <strong>Erreurs dernier run</strong>
-        <span>{{ last_run.error_count if last_run else 'N/A' }}</span>
+        <span>{{ last_run.error_count if last_run else 'Non disponible' }}</span>
       </div>
     </div>
   </section>
@@ -713,7 +828,7 @@
       </article>
       <article class="action-box">
         <h6>Nettoyage complet (CLI)</h6>
-        <p>Rapide + purge locations stale + purge archives + nettoyage sessions filesystem + purge ErrorLog > 7 jours.</p>
+        <p>Rapide + purge des locations obsoletes + purge des archives + nettoyage des sessions sur disque + purge des erreurs 500 de plus de 7 jours.</p>
         <div class="report-item"><strong>Commande</strong><span><code>flask cleanup --mode full --days {{ days }}</code></span></div>
         <form method="post" action="{{ url_for('admin.run_maintenance', mode='full') }}" class="mt-2">
           {% include "admin/partials/_csrf.html" %}
@@ -756,7 +871,7 @@
                 <th>Date</th>
                 <th>Methode</th>
                 <th>Route</th>
-                <th>Status</th>
+                <th>Code</th>
                 <th>Message</th>
                 <th class="text-end">Action</th>
               </tr>
@@ -764,11 +879,11 @@
             <tbody>
               {% for err in errors_block.get('items', []) %}
                 <tr>
-                  <td data-label="Date">{{ err.created_at.strftime('%d/%m/%Y %H:%M:%S') if err.created_at else 'N/A' }}</td>
-                  <td data-label="Methode">{{ err.method or 'N/A' }}</td>
-                  <td data-label="Route"><code>{{ err.path or 'N/A' }}</code></td>
-                  <td data-label="Status">{{ err.status_code or 'N/A' }}</td>
-                  <td data-label="Message">{{ err.short_message or 'N/A' }}</td>
+                  <td data-label="Date">{{ err.created_at.strftime('%d/%m/%Y %H:%M:%S') if err.created_at else 'Non disponible' }}</td>
+                  <td data-label="Methode">{{ err.method or 'Non disponible' }}</td>
+                  <td data-label="Route"><code>{{ err.path or 'Non disponible' }}</code></td>
+                  <td data-label="Code">{{ err.status_code or 'Non disponible' }}</td>
+                  <td data-label="Message">{{ err.short_message or 'Non disponible' }}</td>
                   <td data-label="Action" class="text-end">
                     <form method="post" action="{{ url_for('admin.maintenance_error_delete', error_id=err.id) }}" data-confirm-submit="Supprimer cette erreur ?" class="d-inline">
                       {% include "admin/partials/_csrf.html" %}
@@ -810,12 +925,12 @@
         <div class="alert alert-light border mt-3 mb-0">Aucune erreur 500 sur les 24 dernieres heures.</div>
       {% endif %}
     {% else %}
-      <div class="alert alert-secondary mt-3 mb-0">{{ errors_block.note or 'N/A (source de logs indisponible)' }}</div>
+      <div class="alert alert-secondary mt-3 mb-0">{{ errors_block.note or 'Non disponible (source de logs indisponible)' }}</div>
     {% endif %}
   </section>
 
   <section class="card-shell danger-zone">
-    <h5 class="mb-2">Reset base (admin uniquement)</h5>
+    <h5 class="mb-2">Reinitialisation de la base (admin uniquement)</h5>
     <p class="danger-note mb-2">Supprime toutes les donnees applicatives et conserve uniquement les comptes admin.</p>
     <form method="post" action="{{ url_for('admin.maintenance_reset_data') }}" data-confirm-submit="Cette action est irreversible. Continuer ?" class="row g-2">
       {% include "admin/partials/_csrf.html" %}
@@ -837,7 +952,7 @@
         <button type="submit" class="btn btn-outline-danger w-100"><i class="bi bi-trash3"></i> Reinitialiser la base</button>
       </div>
     </form>
-    {% if reset_result %}
+  {% if reset_result %}
       <div class="alert alert-success mt-3 mb-0">
         Reinitialisation terminee. Comptes admin conserves: <strong>{{ reset_result.admins_kept }}</strong>
         {% if reset_result.backup %}
@@ -849,9 +964,17 @@
       </div>
     {% endif %}
   </section>
+  {% endif %}
 </div>
 <script>
 (function () {
+  document.querySelectorAll('.sparkline [data-spark-width]').forEach(function (node) {
+    var width = Number(node.getAttribute('data-spark-width'));
+    if (!Number.isFinite(width)) width = 0;
+    width = Math.max(0, Math.min(100, width));
+    node.style.width = width + '%';
+  });
+
   var root = document.querySelector('.maintenance-wrap');
   var btn = document.getElementById('maintenanceThemeToggle');
   if (!root || !btn) return;
@@ -876,4 +999,4 @@
   });
 })();
 </script>
-{% endblock %}
+{% endblock %}  

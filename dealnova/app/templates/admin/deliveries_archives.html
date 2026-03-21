@@ -1,6 +1,6 @@
-{% extends "admin/base.html" %}
-{% block title %}Archives livraisons | Admin DealNova{% endblock %}
-{% block page_title %}Archives livraisons{% endblock %}
+﻿{% extends "admin/base.html" %}
+{% block title %}Archives livraison par periode | Admin DealNova{% endblock %}
+{% block page_title %}Archives livraison par periode{% endblock %}
 
 {% block head %}
 <style>
@@ -46,15 +46,18 @@
   <section class="card-shell">
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
       <div>
-        <h5 class="mb-1">Livraisons archivees</h5>
-        <small class="text-muted">Periodes fermees uniquement. Suppression definitive apres 40 jours et statut final.</small>
+        <h5 class="mb-1">Archives livraisons</h5>
+        <small class="text-muted">Retrouvez ici les anciennes livraisons archivees.</small>
       </div>
       <div class="d-flex gap-2">
         <a href="{{ url_for('admin.deliveries') }}" class="btn btn-sm btn-outline-primary">
-          <i class="bi bi-arrow-left"></i> Livraisons actives
+          <i class="bi bi-arrow-left"></i> Centre livraison
         </a>
-        <a href="{{ url_for('admin.order_periods') }}" class="btn btn-sm btn-outline-secondary">
-          <i class="bi bi-calendar3"></i> Periodes
+        <a href="{{ url_for('admin.pricing_settings', section='archives') }}" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-archive"></i> Archives commandes
+        </a>
+        <a href="{{ url_for('admin.pricing_settings', section='periods') }}" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-calendar3"></i> Voir les periodes
         </a>
       </div>
     </div>
@@ -62,9 +65,9 @@
     <form method="get" class="mt-3">
       <div class="filter-grid">
         <div>
-          <label class="form-label">Periode</label>
+          <label class="form-label">Archive</label>
           <select name="period_id" class="form-select form-select-sm">
-            <option value="">Toutes les periodes fermees</option>
+            <option value="">Toutes les archives</option>
             {% for p in closed_periods %}
               <option value="{{ p.id }}" {% if period_id == p.id %}selected{% endif %}>
                 #{{ p.id }} - {{ p.name }}
@@ -86,7 +89,7 @@
           <select name="source" class="form-select form-select-sm">
             <option value="" {% if not source_filter %}selected{% endif %}>Toutes</option>
             <option value="marketplace" {% if source_filter == 'marketplace' %}selected{% endif %}>Marketplace</option>
-            <option value="special" {% if source_filter == 'special' %}selected{% endif %}>Speciale</option>
+            <option value="special" {% if source_filter == 'special' %}selected{% endif %}>Livraison speciale</option>
           </select>
         </div>
         <div>
@@ -125,7 +128,7 @@
       </div>
       <div class="d-flex gap-2 mt-2">
         <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-funnel"></i> Filtrer</button>
-        <a href="{{ url_for('admin.deliveries_archives') }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-x-circle"></i> Reset</a>
+        <a href="{{ url_for('admin.deliveries_archives') }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-x-circle"></i> Reinitialiser</a>
       </div>
     </form>
   </section>
@@ -188,12 +191,12 @@
                 </td>
                 <td>
                   <div class="d-flex gap-2">
-                    <a href="{{ url_for('admin.order_detail', oid=o.id) }}" class="btn btn-sm btn-outline-primary">
+                    <a href="{{ url_for('admin.order_detail', oid=o.id, next=request.full_path) }}" class="btn btn-sm btn-outline-primary">
                       <i class="bi bi-eye"></i>
                     </a>
                     {% if o.period_id %}
                     <a href="{{ url_for('admin.deliveries', period_id=o.period_id) }}" class="btn btn-sm btn-outline-secondary" title="Voir la periode en consultation">
-                      <i class="bi bi-calendar-range"></i> Voir periode
+                      <i class="bi bi-calendar-range"></i> Ouvrir
                     </a>
                     {% endif %}
                     <form method="post" action="{{ url_for('admin.delete_archived_order', oid=o.id) }}">
@@ -229,9 +232,10 @@
     {% else %}
       <div class="text-center text-muted py-4">
         <i class="bi bi-inbox" style="font-size: 2rem;"></i>
-        <div class="mt-2">Aucune livraison archivee pour ces filtres.</div>
+        <div class="mt-2">Aucune archive livraison trouvee pour ces filtres.</div>
       </div>
     {% endif %}
   </section>
 </div>
 {% endblock %}
+

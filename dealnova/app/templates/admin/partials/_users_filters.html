@@ -1,32 +1,36 @@
-<section class="users-card">
+﻿<section class="users-card">
   <div class="users-card-header">
-    <h5>Filtres & recherche</h5>
-    <span class="text-muted small">Affinez la liste des utilisateurs</span>
+    <h5>{{ 'Recherche' if current_user.role == 'manager' else 'Filtres & recherche' }}</h5>
+    <span class="text-muted small">{{ 'Cherchez un compte rapidement' if current_user.role == 'manager' else 'Affinez la liste des utilisateurs' }}</span>
   </div>
   <form method="get">
     <div class="filter-grid">
       <div>
         <label for="search" class="form-label">Rechercher</label>
-        <input type="text" class="form-control" id="search" name="search"
+        <input type="text" class="form-control adm-search" id="search" name="search"
                value="{{ search }}" placeholder="Nom, email, telephone...">
       </div>
       <div>
-        <label for="role" class="form-label">Role</label>
+        <label for="role" class="form-label">{{ 'Type de compte' if current_user.role == 'manager' else 'Role' }}</label>
         <select class="form-select" id="role" name="role">
-          <option value="">Tous les roles</option>
+          <option value="">{{ 'Tous les comptes' if current_user.role == 'manager' else 'Tous les roles' }}</option>
           <option value="vendor" {% if role_filter == 'vendor' %}selected{% endif %}>Vendeur</option>
           <option value="courier" {% if role_filter == 'courier' %}selected{% endif %}>Livreur</option>
+          {% if current_user.role == 'admin' %}
+          <option value="manager" {% if role_filter == 'manager' %}selected{% endif %}>Gestionnaire</option>
           <option value="admin" {% if role_filter == 'admin' %}selected{% endif %}>Admin</option>
+          {% endif %}
         </select>
       </div>
       <div class="filter-actions">
         <button type="submit" class="btn btn-primary">
-          <i class="bi bi-filter"></i> Filtrer
+          <i class="bi bi-filter"></i> {{ 'Rechercher' if current_user.role == 'manager' else 'Filtrer' }}
         </button>
         <a href="{{ url_for('admin_users.manage_users') }}" class="btn btn-outline-secondary">
-          <i class="bi bi-x-circle"></i> Reinitialiser
+          <i class="bi bi-x-circle"></i> {{ 'Tout afficher' if current_user.role == 'manager' else 'Reinitialiser' }}
         </a>
       </div>
     </div>
   </form>
 </section>
+

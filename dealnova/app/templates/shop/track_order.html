@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 {% block title %}Suivi commande #{{ order.id }} | Baba Market{% endblock %}
 
 {% block head %}
@@ -296,7 +296,6 @@
           <div class="info-box">
             <div class="info-k">Montant</div>
             <div class="info-v">{{ '%.2f'|format((order.total or 0) / 100) }} MAD</div>
-            <div class="info-v" style="font-size:0.82rem;font-weight:600;">Part Baba: {{ '%.2f'|format((order.delivery_platform_fee_cents or 0) / 100) }} MAD</div>
           </div>
         </div>
 
@@ -310,143 +309,12 @@
   </div>
 </div>
 
-<script>
-(function () {
-  const page = document.getElementById("trackOrderPage");
-  const dataset = page ? page.dataset : {};
-  const orderToken = String(dataset.token || "");
-  const statusBadge = document.getElementById("statusBadge");
-  const liveText = document.getElementById("liveText");
-  const flow = ["new", "assigned", "picked_up", "delivering", "delivered"];
-  const fallbackLabels = { _fallback: "En cours" };
-  document.querySelectorAll(".timeline-step[data-step]").forEach((node) => {
-    const step = String(node.getAttribute("data-step") || "").trim();
-    const titleNode = node.querySelector(".timeline-title");
-    const label = titleNode ? String(titleNode.textContent || "").trim() : "";
-    if (step && label) {
-      fallbackLabels[step] = label;
-    }
-  });
 
-  function normalizeStatus(value) {
-    const raw = String(value || "").toLowerCase().trim();
-    if (raw === "cancelled") return "canceled";
-    return raw || "new";
-  }
-
-  function setBadge(status, label) {
-    if (!statusBadge) return;
-    const ds = normalizeStatus(status);
-    statusBadge.className = `status-badge badge-${ds}`;
-    statusBadge.textContent = label || fallbackLabels[ds] || fallbackLabels._fallback || ds;
-  }
-
-  function setTimeline(status) {
-    const ds = normalizeStatus(status);
-    const currentIdx = flow.indexOf(ds);
-    document.querySelectorAll(".timeline-step[data-step]").forEach((node) => {
-      const step = node.getAttribute("data-step");
-      const idx = flow.indexOf(step);
-      node.classList.remove("done", "active");
-      if (currentIdx > -1 && idx < currentIdx) node.classList.add("done");
-      if (currentIdx > -1 && idx === currentIdx) node.classList.add("active");
-      if (ds === "canceled") node.classList.remove("active");
-    });
-  }
-
-  function setTime(step, isoValue) {
-    const node = document.getElementById(`time-${step}`);
-    if (!node || !isoValue) return;
-    const dt = new Date(isoValue);
-    if (Number.isNaN(dt.getTime())) return;
-    node.textContent = dt.toLocaleString("fr-FR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  }
-
-  async function refreshStatus() {
-    if (!orderToken) return;
-    try {
-      const response = await fetch(`/cart/track/${orderToken}/status`, {
-        cache: "no-store",
-        headers: { Accept: "application/json" },
-      });
-      if (!response.ok) return;
-      const data = await response.json();
-      const ds = normalizeStatus(data.delivery_status || data.status);
-      setBadge(ds, data.delivery_status_label || data.status_label || ds);
-      setTimeline(ds);
-      setTime("assigned", data.assigned_at);
-      setTime("picked_up", data.picked_up_at);
-      setTime("delivered", data.delivered_at);
-      if (liveText) {
-        const now = new Date();
-        liveText.textContent = `Derniere mise a jour: ${now.toLocaleTimeString("fr-FR")}`;
-      }
-    } catch (_) {
-      // Keep page stable if polling fails.
-    }
-  }
-
-  function copyLink() {
-    const value = window.location.href;
-    const fallback = () => {
-      const input = document.createElement("input");
-      input.value = value;
-      document.body.appendChild(input);
-      input.select();
-      document.execCommand("copy");
-      input.remove();
-    };
-
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(value).catch(fallback);
-    } else {
-      fallback();
-    }
-  }
-
-  const copyBtn = document.getElementById("copyBtn");
-  if (copyBtn) copyBtn.addEventListener("click", copyLink);
-
-  const shareBtn = document.getElementById("shareBtn");
-  if (shareBtn) {
-    shareBtn.addEventListener("click", async () => {
-      const orderId = Number(dataset.orderId || 0);
-      const title = orderId > 0 ? `Suivi commande #${orderId}` : "Suivi commande";
-      const payload = {
-        title,
-        text: title,
-        url: window.location.href,
-      };
-      if (navigator.share) {
-        try {
-          await navigator.share(payload);
-          return;
-        } catch (_) {}
-      }
-      copyLink();
-    });
-  }
-
-  const refreshBtn = document.getElementById("refreshBtn");
-  if (refreshBtn) {
-    refreshBtn.addEventListener("click", (event) => {
-      event.preventDefault();
-      refreshStatus();
-    });
-  }
-
-  const initialStatus = String(dataset.initialStatus || "new");
-  const initialLabel = String(dataset.initialLabel || "");
-  setBadge(initialStatus, initialLabel);
-  setTimeline(initialStatus);
-  refreshStatus();
-  setInterval(refreshStatus, 10000);
-})();
-</script>
 {% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="{{ url_for('static', filename='js/pages/track_order_page.js', v=app_static_version) }}" defer></script>
+{% endblock %}
+
+

@@ -1,7 +1,7 @@
-<section class="shops-card">
+﻿<section class="shops-card adm-listing" data-adm-listing="shops">
   <div class="shops-card-header">
     <h5>Boutiques ({{ pagination.total }})</h5>
-    <span class="text-muted">Page {{ pagination.page }} sur {{ pagination.pages }}</span>
+    <span class="text-muted">{{ 'Page' if current_user.role == 'manager' else 'Page' }} {{ pagination.page }} {{ 'sur' if current_user.role == 'manager' else 'sur' }} {{ pagination.pages }}</span>
   </div>
   {% if shops_with_vendors %}
   <div class="table-responsive">
@@ -14,7 +14,7 @@
           <th>Contact</th>
           <th>Types</th>
           <th>Statut</th>
-          <th>Creation</th>
+          <th>{{ 'Ajout' if current_user.role == 'manager' else 'Creation' }}</th>
           <th>Actions</th>
         </tr>
       </thead>
@@ -26,7 +26,10 @@
             <div class="d-flex align-items-center gap-3">
               <div class="shop-avatar">
                 {% if shop.logo %}
-                  <img src="{{ url_for('static', filename='uploads/shops/' + shop.logo) }}" alt="{{ shop.name }}">
+                  <img src="{{ url_for('static', filename='uploads/' + shop.logo) }}"
+                       alt="{{ shop.name }}"
+                       loading="lazy"
+                       onerror="this.style.display='none'; this.parentElement.innerHTML='<i class=&quot;bi bi-shop&quot;></i>';">
                 {% else %}
                   <i class="bi bi-shop"></i>
                 {% endif %}
@@ -59,14 +62,19 @@
           <td data-label="Statut">
             <span class="badge status-pill bg-{{ 'success' if shop.is_active else 'secondary' }}"
                   data-shop-status="{{ shop.id }}"
-                  data-active-text="Active"
-                  data-inactive-text="Inactive"
+                  data-active-text="Ouverte"
+                  data-inactive-text="Fermee"
                   data-active-class="bg-success"
                   data-inactive-class="bg-secondary">
-              {{ 'Active' if shop.is_active else 'Inactive' }}
+              {{ 'Ouverte' if shop.is_active else 'Fermee' }}
             </span>
+            <div class="mt-1">
+              <span class="badge bg-{{ 'success' if shop.is_profile_complete else 'warning text-dark' }}">
+                {{ 'Complete' if shop.is_profile_complete else 'A completer' }}
+              </span>
+            </div>
           </td>
-          <td data-label="Creation">{{ shop.created_at.strftime('%d/%m/%Y') }}</td>
+          <td data-label="{{ 'Ajout' if current_user.role == 'manager' else 'Creation' }}">{{ shop.created_at.strftime('%d/%m/%Y') }}</td>
           <td data-label="Actions" class="shop-actions">
             <div class="btn-group btn-group-sm" role="group">
               <a href="{{ url_for('admin_users.shop_detail', shop_id=shop.id) }}"
@@ -78,7 +86,7 @@
                     class="d-inline"
                     data-ajax="true"
                     data-action="toggle-shop"
-                    data-confirm="Voulez-vous activer/desactiver cette boutique ?">
+                    data-confirm="{{ 'Voulez-vous changer le statut de cette boutique ?' if current_user.role == 'manager' else 'Voulez-vous activer/desactiver cette boutique ?' }}">
                 {% include "admin/partials/_csrf.html" %}
                 <button type="submit"
                         class="btn btn-outline-{{ 'danger' if shop.is_active else 'success' }}"
@@ -97,7 +105,7 @@
                     class="d-inline"
                     data-ajax="true"
                     data-action="delete-shop"
-                    data-confirm="Supprimer cette boutique ?"
+                    data-confirm="{{ 'Supprimer cette boutique ?' if current_user.role == 'manager' else 'Supprimer cette boutique ?' }}"
                     data-remove-target="tr">
                 {% include "admin/partials/_csrf.html" %}
                 <button type="submit" class="btn btn-outline-danger" title="Supprimer">
@@ -112,11 +120,11 @@
     </table>
   </div>
   {% else %}
-    <div class="empty-state">Aucune boutique trouvee.</div>
+    <div class="empty-state">{{ 'Aucune boutique trouvee.' if current_user.role == 'manager' else 'Aucune boutique trouvee.' }}</div>
   {% endif %}
 
   {% if pagination.pages > 1 %}
-  <div class="card-footer">
+  <div class="card-footer adm-pager" data-adm-pager="shops">
     {% set endpoint = 'admin_users.manage_shops' %}
     {% set params = {'status': status_filter, 'search': search} %}
     {% set iter_args = {'left_edge': 2, 'left_current': 2, 'right_current': 3, 'right_edge': 2} %}
@@ -124,3 +132,4 @@
   </div>
   {% endif %}
 </section>
+

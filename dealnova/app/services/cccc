@@ -1,0 +1,61 @@
+# =========================
+# Application
+# =========================
+FLASK_APP=run.py
+FLASK_ENV=production
+APP_STATIC_VERSION=20260225O
+
+# =========================
+# Security
+# =========================
+SECRET_KEY=48026f119c31b946038d310c467d9c7b051293c80bd24b38852bf376f11db7a9
+
+SECURITY_HSTS_ENABLED=1
+SECURITY_HSTS_TRUST_X_FORWARDED_PROTO=1
+FAIL_FAST_CRITICAL_BLUEPRINTS=1
+
+# =========================
+# Database
+# =========================
+DATABASE_URL=mysql+pymysql://FORLIFE:Alkaline05@FORLIFE.mysql.pythonanywhere-services.com/FORLIFE$default
+
+DB_USER=FORLIFE
+DB_PASSWORD=Alkaline05
+DB_HOST=FORLIFE.mysql.pythonanywhere-services.com
+DB_NAME=FORLIFE$default
+
+# =========================
+# Public app / uploads
+# =========================
+PUBLIC_BASE_URL=https://www.babamarket.ma
+SITE_LOGO=logo.png
+UPLOAD_FOLDER=app/static/uploads
+MAX_CONTENT_LENGTH=80 * 1024 * 1024
+
+# =========================
+# Proxy / PythonAnywhere / Cloudflare
+# =========================
+TRUST_PROXY=1
+PROXY_FIX_X_FOR=1
+PROXY_FIX_X_PROTO=1
+PROXY_FIX_X_HOST=1
+PROXY_FIX_X_PORT=0
+PROXY_FIX_X_PREFIX=0
+
+# Headers possibles pour detecter la ville
+ANALYTICS_CITY_HEADERS=CF-IPCity,CloudFront-Viewer-City,CloudFront-Viewer-City-Name,X-City,X-Geo-City,X-AppEngine-City,X-Real-City,X-Client-City,True-Client-City,Fly-Client-City,Geo-City
+
+# =========================
+# Cache
+# =========================
+# Garde SimpleCache pour des stats live rapides
+CACHE_TYPE=SimpleCache
+CACHE_DEFAULT_TIMEOUT=3600
+CACHE_IGNORE_ERRORS=1
+CACHE_THRESHOLD=10000
+
+# =========================
+# Maintenance
+# =========================
+MAINTENANCE_PANEL_PASSWORD_HASH=scrypt:32768:8:1$X8dqNFrZD3V7o1Vq$9583689710465fb66e41ae3fec1b7950c55e7af8c8b28bc483b0e1f7cc5a7c2b23573297bd3e18f3b07193152f78e4917336f88f67fac3be625eb4a797744bbe
+MAINTENANCE_PANEL_UNLOCK_MINUTES=90

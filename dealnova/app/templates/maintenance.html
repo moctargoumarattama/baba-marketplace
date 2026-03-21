@@ -1,87 +1,301 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="fr">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Maintenance en cours</title>
+  <title>Maintenance — {{ config.SITE_NAME if config and config.SITE_NAME else "Baba Market" }}</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #f8fafc;
-      --card: #ffffff;
-      --text: #0f172a;
-      --muted: #64748b;
-      --accent: #f59e0b;
-      --border: #e2e8f0;
+      --ink: #0f172a; --muted: #64748b; --amber: #f59e0b;
+      --amber-light: #fffbeb; --amber-border: #fcd34d;
+      --g1: #10b981; --g2: #047857;
+      --line: #e2e8f0; --white: #ffffff;
     }
-    * { box-sizing: border-box; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ── FOND ANIMÉ ── */
     body {
-      margin: 0;
-      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
-      background: radial-gradient(circle at top, #fff7ed 0%, var(--bg) 45%, #eef2ff 100%);
-      color: var(--text);
-      min-height: 100vh;
-      display: grid;
-      place-items: center;
-      padding: 1rem;
+      min-height: 100dvh;
+      display: flex; align-items: center; justify-content: center;
+      padding: clamp(1rem, 4vw, 2rem);
+      font-family: 'DM Sans', sans-serif;
+      background: #f7f4f0;
+      overflow: hidden;
+      position: relative;
     }
+
+    /* Orbes de fond */
+    .orb {
+      position: fixed; border-radius: 50%;
+      filter: blur(80px); pointer-events: none; z-index: 0;
+    }
+    .orb-1 {
+      width: 600px; height: 600px;
+      background: radial-gradient(circle, rgba(245,158,11,.13), transparent 70%);
+      top: -200px; left: -150px;
+      animation: drift1 18s ease-in-out infinite;
+    }
+    .orb-2 {
+      width: 500px; height: 500px;
+      background: radial-gradient(circle, rgba(16,185,129,.1), transparent 70%);
+      bottom: -150px; right: -100px;
+      animation: drift2 22s ease-in-out infinite;
+    }
+    .orb-3 {
+      width: 300px; height: 300px;
+      background: radial-gradient(circle, rgba(245,158,11,.08), transparent 70%);
+      top: 40%; left: 60%;
+      animation: drift3 14s ease-in-out infinite;
+    }
+    @keyframes drift1 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(60px,40px)} }
+    @keyframes drift2 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(-50px,-30px)} }
+    @keyframes drift3 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(-40px,50px)} }
+
+    /* ── CARD ── */
     .card {
-      width: min(680px, 100%);
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 18px;
-      box-shadow: 0 16px 40px rgba(15, 23, 42, .08);
-      padding: 1.25rem;
+      position: relative; z-index: 1;
+      width: min(560px, 100%);
+      background: rgba(255,255,255,.92);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255,255,255,.7);
+      border-radius: 28px;
+      box-shadow:
+        0 2px 4px rgba(15,23,42,.04),
+        0 12px 40px -8px rgba(15,23,42,.12),
+        0 0 0 1px rgba(255,255,255,.5) inset;
+      padding: clamp(2rem, 6vw, 3rem) clamp(1.5rem, 5vw, 2.5rem);
       text-align: center;
+      animation: rise .7s cubic-bezier(.34,1.56,.64,1) both;
     }
+    @keyframes rise { from{opacity:0;transform:translateY(32px) scale(.97)} to{opacity:1;transform:none} }
+
+    /* ── BADGE ── */
     .badge {
-      display: inline-flex;
-      align-items: center;
-      border: 1px solid #fcd34d;
-      background: #fffbeb;
-      color: #92400e;
-      border-radius: 999px;
-      padding: .25rem .75rem;
-      font-size: .82rem;
-      font-weight: 700;
-      margin-bottom: .75rem;
+      display: inline-flex; align-items: center; gap: .4rem;
+      background: var(--amber-light); border: 1px solid var(--amber-border);
+      color: #92400e; border-radius: 999px;
+      padding: .3rem .9rem; font-size: .75rem; font-weight: 700;
+      letter-spacing: .05em; text-transform: uppercase;
+      margin-bottom: 1.75rem;
+      animation: rise .7s .1s both;
     }
-    .logo-wrap { margin-bottom: .75rem; }
-    .logo-wrap img {
-      max-height: 52px;
-      width: auto;
-      object-fit: contain;
+    .badge-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--amber);
+      animation: blink 1.5s ease infinite;
     }
+    @keyframes blink { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.7)} }
+
+    /* ── GEAR ANIMATION ── */
+    .gear-wrap {
+      position: relative;
+      width: 100px; height: 100px;
+      margin: 0 auto 1.75rem;
+      animation: rise .7s .15s both;
+    }
+    .gear-outer {
+      width: 100px; height: 100px;
+      border-radius: 50%;
+      background: linear-gradient(145deg, var(--amber-light), #fff8e0);
+      border: 2px solid var(--amber-border);
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 8px 24px -6px rgba(245,158,11,.25);
+    }
+    .gear-svg { animation: spin 8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .gear-inner {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+    }
+    /* Le logo contre-tourne pour rester droit pendant que la roue tourne */
+    .gear-logo {
+      width: 38px; height: 38px;
+      border-radius: 50%; background: white;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,.1);
+      animation: counter-spin 8s linear infinite;
+      overflow: hidden; flex-shrink: 0;
+    }
+    .gear-logo img { width: 28px; height: 28px; object-fit: contain; }
+    .gear-logo-fallback {
+      font-size: .65rem; font-weight: 800; color: var(--amber);
+      font-family: 'DM Serif Display', serif; letter-spacing: -.02em;
+      text-align: center; line-height: 1; padding: 2px;
+    }
+    @keyframes counter-spin { to { transform: rotate(-360deg); } }
+
+    /* ── LOGO ── */
+    .logo-wrap {
+      margin-bottom: 1.25rem;
+      animation: rise .7s .2s both;
+    }
+    .logo-wrap img { max-height: 44px; width: auto; object-fit: contain; }
+
+    /* ── TEXTE ── */
     h1 {
-      margin: .3rem 0 .35rem;
-      font-size: clamp(1.35rem, 3vw, 1.9rem);
+      font-family: 'DM Serif Display', serif;
+      font-size: clamp(1.6rem, 4vw, 2.1rem);
+      color: var(--ink); line-height: 1.2;
+      margin-bottom: .5rem;
+      animation: rise .7s .25s both;
     }
-    p { margin: .3rem 0; }
-    .muted { color: var(--muted); }
-    .msg {
-      margin-top: .85rem;
-      padding: .8rem;
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      background: #f8fafc;
-      color: #1e293b;
-      white-space: pre-wrap;
-      word-break: break-word;
+    h1 em { font-style: italic; color: var(--amber); }
+
+    .subtitle {
+      color: var(--muted); font-size: clamp(.85rem, 2.5vw, .95rem);
+      line-height: 1.6; max-width: 38ch; margin: 0 auto 1.75rem;
+      animation: rise .7s .3s both;
+    }
+
+    /* ── MESSAGE ADMIN ── */
+    .msg-wrap {
+      background: linear-gradient(145deg, #fffbeb, #fff8e0);
+      border: 1px solid var(--amber-border);
+      border-radius: 16px; padding: 1rem 1.25rem;
+      margin-bottom: 1.75rem;
+      animation: rise .7s .35s both;
+    }
+    .msg-label {
+      font-size: .7rem; font-weight: 700; letter-spacing: .08em;
+      text-transform: uppercase; color: #92400e;
+      margin-bottom: .4rem;
+    }
+    .msg-text {
+      color: #78350f; font-size: .9rem; line-height: 1.6;
+      white-space: pre-wrap; word-break: break-word;
+    }
+
+    /* ── PROGRESS BAR ── */
+    .progress-wrap {
+      margin-bottom: 1.75rem;
+      animation: rise .7s .4s both;
+    }
+    .progress-label {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: .75rem; font-weight: 600; color: var(--muted);
+      margin-bottom: .5rem;
+    }
+    .progress-track {
+      height: 6px; background: #f1f5f9; border-radius: 999px; overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%; border-radius: 999px;
+      background: linear-gradient(90deg, var(--amber), #f97316);
+      width: 65%;
+      animation: fill 1.8s cubic-bezier(.4,0,.2,1) .3s both;
+      position: relative; overflow: hidden;
+    }
+    .progress-fill::after {
+      content: '';
+      position: absolute; inset: 0;
+      background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,.35) 50%, transparent 100%);
+      animation: sweep 2.5s ease 2.2s infinite;
+    }
+    @keyframes fill  { from{width:65%} to{width:72%} }
+    @keyframes sweep { from{transform:translateX(-100%)} to{transform:translateX(400%)} }
+
+    /* ── FOOTER CARD ── */
+    .card-foot {
+      display: flex; align-items: center; justify-content: center;
+      gap: .4rem; font-size: .75rem; color: var(--muted);
+      border-top: 1px solid var(--line); padding-top: 1.25rem;
+      animation: rise .7s .45s both;
+    }
+    .card-foot .dot { color: var(--g1); font-size: .85rem; }
+    .card-foot strong { color: var(--ink); }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .01ms !important; }
     }
   </style>
 </head>
 <body>
+
+  <!-- Orbes de fond -->
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+
   <main class="card">
-    <div class="badge">Maintenance active</div>
 
-    {% if config.SITE_LOGO %}
-      <div class="logo-wrap">
-        <img src="{{ url_for('static', filename=config.SITE_LOGO) }}" alt="Logo">
+    <!-- Badge statut -->
+    <div class="badge">
+      <span class="badge-dot"></span>
+      En Maintenance
+    </div>
+
+    <!-- Icône animée -->
+    <div class="gear-wrap">
+      <div class="gear-outer">
+        <svg class="gear-svg" width="52" height="52" viewBox="0 0 24 24" fill="none"
+             stroke="#f59e0b" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/>
+        </svg>
       </div>
-    {% endif %}
+      <div class="gear-inner">
+        <div class="gear-logo">
+          {% if config and config.SITE_LOGO %}
+            <img src="{{ url_for('static', filename=config.SITE_LOGO) }}" alt="Logo">
+          {% else %}
+            <span class="gear-logo-fallback">{{ (config.SITE_NAME or 'B')[:2] }}</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
 
-    <h1>Nous revenons bientot</h1>
-    <p class="muted">Le site est temporairement indisponible pour maintenance technique.</p>
-    <div class="msg">{{ maintenance.message if maintenance and maintenance.message else "Maintenance technique en cours." }}</div>
+    <!-- Titre & sous-titre -->
+    <h1>Nous revenons <em>bientôt</em></h1>
+    <p class="subtitle">
+      Le site est temporairement indisponible pour une maintenance technique.
+      Merci de votre patience.
+    </p>
+
+    <!-- Message admin -->
+    <div class="msg-wrap">
+      <p class="msg-label">Message de l'équipe</p>
+      <p class="msg-text">{{ maintenance.message if maintenance and maintenance.message else "Maintenance technique en cours. Nous faisons de notre mieux pour revenir rapidement." }}</p>
+    </div>
+
+    <!-- Barre de progression fictive -->
+    <div class="progress-wrap">
+      <div class="progress-label">
+        <span>Progression</span>
+        <span id="pct">65%</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="fill"></div>
+      </div>
+    </div>
+
+    <!-- Pied de carte -->
+    <div class="card-foot">
+      <span class="dot">&#9679;</span>
+      Nos équipes travaillent activement —
+      <strong>{{ config.SITE_NAME if config and config.SITE_NAME else "Baba Market" }}</strong>
+    </div>
+
   </main>
+
+  <script>
+    // Compteur de progression synchronisé avec l'animation CSS
+    (function () {
+      const pct = document.getElementById("pct");
+      if (!pct) return;
+      const start_val = 65, target = 72;
+      const duration = 1800;
+      const start_time = performance.now() + 300;
+      pct.textContent = start_val + "%";
+      function step(now) {
+        const elapsed = Math.max(0, now - start_time);
+        const t = Math.min(elapsed / duration, 1);
+        const ease = 1 - Math.pow(1 - t, 3);
+        pct.textContent = Math.round(start_val + ease * (target - start_val)) + "%";
+        if (t < 1) requestAnimationFrame(step);
+      }
+      requestAnimationFrame(step);
+    })();
+  </script>
 </body>
 </html>

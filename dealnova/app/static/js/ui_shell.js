@@ -1,4 +1,4 @@
-(function () {
+﻿(function () {
   "use strict";
 
   const csrfMeta = document.querySelector('meta[name="csrf-token"]');
@@ -6,6 +6,87 @@
   window.csrfToken = csrfToken;
   let deferredInstallPrompt = null;
   const uiScrollLocks = new Set();
+  const perfFlags = window.BM_PERF_FLAGS || {};
+  const frontFluidityEnabled = perfFlags.frontFluidity !== false;
+  const PWA_SESSION_SCOPE_KEY = "bm:pwa-session-scope";
+  const PWA_DEBUG = (function () {
+    try {
+      return (
+        window.location.hostname === "localhost" ||
+        window.location.hostname === "127.0.0.1" ||
+        localStorage.getItem("pwaDebug") === "1"
+      );
+    } catch (_error) {
+      return window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+    }
+  })();
+
+  function pwaLog(level) {
+    if (!PWA_DEBUG || !window.console) return;
+    const method = typeof window.console[level] === "function" ? level : "log";
+    const args = Array.prototype.slice.call(arguments, 1);
+    window.console[method].apply(window.console, ["[PWA]"].concat(args));
+  }
+
+  function currentSessionScope() {
+    const body = document.body;
+    if (!body || !body.dataset) return "anon";
+    const scope = String(body.dataset.sessionScope || "").trim();
+    return scope || "anon";
+  }
+
+  function postServiceWorkerMessage(message) {
+    if (!("serviceWorker" in navigator) || !message) return;
+    const controller = navigator.serviceWorker.controller;
+    if (!controller || typeof controller.postMessage !== "function") return;
+    try {
+      controller.postMessage(message);
+    } catch (_error) {}
+  }
+
+  async function clearPublicPageCaches() {
+    if (!("caches" in window)) return false;
+    try {
+      const keys = await window.caches.keys();
+      await Promise.all(
+        keys
+          .filter(function (key) {
+            return key.indexOf("dealnova-") === 0 && /-pages$/.test(key);
+          })
+          .map(function (key) {
+            return window.caches.delete(key);
+          })
+      );
+      postServiceWorkerMessage({ type: "BM_CLEAR_PUBLIC_PAGE_CACHE" });
+      return true;
+    } catch (error) {
+      pwaLog("warn", "Failed to clear public page caches", error);
+      return false;
+    }
+  }
+
+  async function reconcilePwaSessionScope() {
+    const nextScope = currentSessionScope();
+    let previousScope = "";
+    try {
+      previousScope = localStorage.getItem(PWA_SESSION_SCOPE_KEY) || "";
+    } catch (_error) {
+      previousScope = "";
+    }
+
+    const shouldClear = previousScope ? previousScope !== nextScope : nextScope !== "anon";
+    if (shouldClear) {
+      pwaLog("info", "Session scope changed, clearing cached public pages", {
+        from: previousScope || "(none)",
+        to: nextScope,
+      });
+      await clearPublicPageCaches();
+    }
+
+    try {
+      localStorage.setItem(PWA_SESSION_SCOPE_KEY, nextScope);
+    } catch (_error) {}
+  }
 
   function applyScrollLockState() {
     const shouldLock = uiScrollLocks.size > 0;
@@ -75,6 +156,45 @@
       return pathname === prefix || pathname.startsWith(prefix + "/");
     });
   }
+
+  function trackAnalyticsEvent(eventName, extra) {
+    const name = String(eventName || "").trim();
+    if (!name) return;
+    const payload = Object.assign(
+      {
+        event: name,
+        path: window.location.pathname || "/",
+      },
+      extra || {}
+    );
+    const body = JSON.stringify(payload);
+
+    try {
+      if (navigator.sendBeacon) {
+        const blob = new Blob([body], { type: "application/json" });
+        if (navigator.sendBeacon("/api/analytics/event", blob)) {
+          return;
+        }
+      }
+    } catch (_error) {}
+
+    try {
+      fetch("/api/analytics/event", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Requested-With": "fetch",
+        },
+        body: body,
+        credentials: "same-origin",
+        keepalive: true,
+      }).catch(function () {});
+    } catch (_error) {}
+  }
+
+  window.BMAnalytics = window.BMAnalytics || {
+    track: trackAnalyticsEvent,
+  };
 
   function elementNeedsOnline(el) {
     if (!el || !el.closest) return false;
@@ -228,6 +348,96 @@
   }
 
   document.addEventListener("DOMContentLoaded", function () {
+    reconcilePwaSessionScope().catch(function (error) {
+      pwaLog("warn", "Session scope reconciliation failed", error);
+    });
+
+    window.addEventListener("storage", function (event) {
+      if (!event || event.key !== PWA_SESSION_SCOPE_KEY) return;
+      const storedScope = String(event.newValue || "").trim();
+      if (!storedScope || storedScope === currentSessionScope()) return;
+      clearPublicPageCaches().catch(function (error) {
+        pwaLog("warn", "Cross-tab public page cache clear failed", error);
+      });
+    });
+
+    // Preserve and restore scroll per page to keep UX stable on back/forward/reload.
+    (function preservePublicScroll() {
+      const KEY_PREFIX = "bm:scroll:";
+
+      function pageKeyFromLocation(loc) {
+        const path = (loc && loc.pathname) || "";
+        const search = (loc && loc.search) || "";
+        return KEY_PREFIX + path + search;
+      }
+
+      function saveCurrentScroll() {
+        try {
+          const y = Math.max(window.scrollY || window.pageYOffset || 0, 0);
+          sessionStorage.setItem(pageKeyFromLocation(window.location), String(y));
+        } catch (_error) {}
+      }
+
+      function restoreCurrentScroll() {
+        try {
+          const key = pageKeyFromLocation(window.location);
+          const raw = sessionStorage.getItem(key);
+          if (raw == null) return;
+          sessionStorage.removeItem(key);
+          const y = parseInt(raw, 10);
+          if (!Number.isFinite(y) || y < 0) return;
+          requestAnimationFrame(function () {
+            requestAnimationFrame(function () {
+              try {
+                window.scrollTo({ top: y, left: 0, behavior: "instant" });
+              } catch (_e) {
+                window.scrollTo(0, y);
+              }
+            });
+          });
+        } catch (_error) {}
+      }
+
+      if ("scrollRestoration" in history) {
+        history.scrollRestoration = "manual";
+      }
+
+      window.addEventListener("beforeunload", saveCurrentScroll, { capture: true, passive: true });
+      document.addEventListener(
+        "submit",
+        function (event) {
+          const form = event.target;
+          if (!form || form.dataset.preserveScroll === "off") return;
+          saveCurrentScroll();
+        },
+        true
+      );
+
+      document.addEventListener(
+        "click",
+        function (event) {
+          const link = event.target && event.target.closest ? event.target.closest("a[href]") : null;
+          if (!link) return;
+          if (link.dataset.preserveScroll === "off") return;
+          if (link.target && link.target !== "_self") return;
+          const href = String(link.getAttribute("href") || "").trim();
+          if (!href || href.startsWith("#") || href.startsWith("javascript:") || href.startsWith("mailto:") || href.startsWith("tel:")) return;
+          let targetUrl;
+          try {
+            targetUrl = new URL(href, window.location.href);
+          } catch (_error) {
+            return;
+          }
+          if (targetUrl.origin !== window.location.origin) return;
+          saveCurrentScroll();
+        },
+        true
+      );
+
+      window.addEventListener("pageshow", restoreCurrentScroll);
+      restoreCurrentScroll();
+    })();
+
     const navbar = document.querySelector(".navbar");
     if (navbar) {
       let ticking = false;
@@ -253,26 +463,44 @@
     // Mobile drawer behavior is handled in static/js/ui_drawer.js.
 
     const backBtn = document.querySelector(".back-fab");
-    if (backBtn) {
+    if (backBtn && backBtn.dataset.backManaged !== "1") {
       function shouldShowBackButton() {
         const currentPath = window.location.pathname;
-        const previousUrl = document.referrer;
+        const previousUrl = document.referrer || "";
 
         if (currentPath === "/" || currentPath === "/index.html") return false;
+        if (window.history.length > 1) return true;
         if (!previousUrl) return false;
-        if (previousUrl.includes(currentPath)) return false;
-        return true;
+        try {
+          const prev = new URL(previousUrl, window.location.origin);
+          if (prev.origin !== window.location.origin) return false;
+          if (prev.pathname === window.location.pathname && prev.search === window.location.search) return false;
+          return true;
+        } catch (_error) {
+          return false;
+        }
       }
 
       backBtn.style.display = shouldShowBackButton() ? "flex" : "none";
 
       backBtn.addEventListener("click", function (e) {
         e.preventDefault();
-        if (document.referrer) {
-          window.location.href = document.referrer;
-        } else {
+        if (window.history.length > 1) {
           window.history.back();
+          return;
         }
+        const fallback = backBtn.getAttribute("data-fallback") || "/";
+        const previousUrl = document.referrer || "";
+        if (previousUrl) {
+          try {
+            const prev = new URL(previousUrl, window.location.origin);
+            if (prev.origin === window.location.origin) {
+              window.location.assign(prev.href);
+              return;
+            }
+          } catch (_error) {}
+        }
+        window.location.assign(fallback);
       });
 
       window.addEventListener("pageshow", function () {
@@ -299,13 +527,39 @@
       const prefersReducedMotion = Boolean(
         window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches
       );
-      let isNavRefreshInFlight = false;
+      const navRefreshSeq =
+        window.BMAjaxGuard && typeof window.BMAjaxGuard.makeRequestSeq === "function"
+          ? window.BMAjaxGuard.makeRequestSeq()
+          : (function () {
+              let latest = 0;
+              return {
+                next: function () {
+                  latest += 1;
+                  return latest;
+                },
+                isLatest: function (id) {
+                  return Number(id) === latest;
+                },
+              };
+            })();
+      let navRefreshAbortController = null;
       let cartAttentionTimer = null;
+      let navPollStableCount = 0;
+      const navPollHotMs = 90000;
+      const navPollWarmMs = 150000;
+      const navPollColdMs = 180000;
       const navState = {
         initialized: false,
         cartCount: Number((cartBadge && cartBadge.getAttribute("data-cart-count")) || (cartBadge && cartBadge.textContent) || 0) || 0,
         trackActive: Boolean(trackBadge && trackBadge.getAttribute("data-track-active") === "1"),
       };
+
+      function nextNavPollDelay() {
+        if (!navigator.onLine) return navPollColdMs;
+        if (navState.trackActive || navState.cartCount > 0) return navPollHotMs;
+        if (navPollStableCount >= 3) return navPollColdMs;
+        return navPollWarmMs;
+      }
 
       function setVisible(node, visible) {
         if (!node) return;
@@ -415,36 +669,93 @@
         navState.initialized = true;
       }
 
-      async function fetchNavStatus() {
-        const response = await fetch("/cart/api/nav-status", {
-          method: "GET",
-          headers: {
-            "X-Requested-With": "fetch",
-            Accept: "application/json",
-          },
-          credentials: "same-origin",
-          cache: "no-store",
-        });
-        if (!response.ok) throw new Error("nav-status-http");
-        return response.json();
+      async function requestNavStatus(signal) {
+        if (window.BMAjaxFetch && typeof window.BMAjaxFetch.requestJSON === "function") {
+          return window.BMAjaxFetch.requestJSON("/cart/api/nav-status", {
+            method: "GET",
+            headers: {
+              "X-Requested-With": "fetch",
+              Accept: "application/json",
+            },
+            credentials: "same-origin",
+            cache: "no-store",
+            signal: signal,
+            timeoutMs: 12000,
+          });
+        }
+
+        try {
+          const response = await fetch("/cart/api/nav-status", {
+            method: "GET",
+            headers: {
+              "X-Requested-With": "fetch",
+              Accept: "application/json",
+            },
+            credentials: "same-origin",
+            cache: "no-store",
+            signal: signal,
+          });
+          let data = null;
+          try {
+            data = await response.json();
+          } catch (_parseError) {
+            data = null;
+          }
+          return {
+            ok: response.ok,
+            status: response.status,
+            data: data,
+            error: response.ok ? null : "nav-status-http",
+            aborted: false,
+            timedOut: false,
+          };
+        } catch (error) {
+          return {
+            ok: false,
+            status: 0,
+            data: null,
+            error: String((error && error.message) || "network_error"),
+            aborted: !!(error && error.name === "AbortError"),
+            timedOut: false,
+          };
+        }
       }
 
       async function refreshNavBadges(options) {
-        if (isNavRefreshInFlight) return;
-        isNavRefreshInFlight = true;
+        const requestId = navRefreshSeq.next();
+        if (navRefreshAbortController) {
+          try {
+            navRefreshAbortController.abort();
+          } catch (_abortError) {}
+        }
+        navRefreshAbortController = typeof AbortController !== "undefined" ? new AbortController() : null;
         try {
-          const payload = await fetchNavStatus();
+          const result = await requestNavStatus(navRefreshAbortController ? navRefreshAbortController.signal : undefined);
+          if (!navRefreshSeq.isLatest(requestId)) return false;
+          if (!result || result.aborted || result.timedOut || !result.ok) return false;
+          const payload = result.data || {};
+          const nextCartCount = Math.max(0, Number(payload && payload.cart_count) || 0);
+          const nextTrackActive = Boolean(payload && payload.track_active);
+          const changed =
+            nextCartCount !== navState.cartCount ||
+            nextTrackActive !== navState.trackActive ||
+            !navState.initialized;
           applyNavState(
             {
-              cartCount: payload && payload.cart_count,
-              trackActive: payload && payload.track_active,
+              cartCount: nextCartCount,
+              trackActive: nextTrackActive,
             },
             options || {}
           );
+          navPollStableCount = changed ? 0 : Math.min(navPollStableCount + 1, 6);
+          return changed;
         } catch (_) {
           // Keep UI stable on network or backend issues.
+          return false;
         } finally {
-          isNavRefreshInFlight = false;
+          if (navRefreshSeq.isLatest(requestId)) {
+            navRefreshAbortController = null;
+          }
         }
       }
 
@@ -458,27 +769,15 @@
         return false;
       }
 
-      if (typeof window.fetch === "function" && !window.__navBadgeFetchWrapped) {
-        const nativeFetch = window.fetch.bind(window);
-        window.fetch = function (input, init) {
-          let pathname = "";
-          try {
-            pathname = safePath(typeof input === "string" ? input : (input && input.url) || "");
-          } catch (_) {
-            pathname = "";
-          }
-
-          return nativeFetch(input, init).then(function (response) {
-            if (response && response.ok && watchedPath(pathname)) {
-              window.setTimeout(function () {
-                refreshNavBadges({ pulse: true });
-              }, 120);
-            }
-            return response;
-          });
-        };
-        window.__navBadgeFetchWrapped = true;
-      }
+      document.addEventListener("bm:ajax:response", function (event) {
+        const detail = event && event.detail ? event.detail : null;
+        if (!detail || !detail.ok || detail.aborted || detail.timedOut) return;
+        const pathname = safePath(detail.url || "");
+        if (!watchedPath(pathname)) return;
+        window.setTimeout(function () {
+          refreshNavBadges({ pulse: true });
+        }, 120);
+      });
 
       window.refreshNavBadges = function (opts) {
         return refreshNavBadges(opts || {});
@@ -492,18 +791,74 @@
         refreshNavBadges({ pulse: true });
       });
 
+      document.addEventListener("bm:ajax-form-success", function (event) {
+        const detail = event && event.detail ? event.detail : null;
+        const action = detail && detail.action ? String(detail.action) : "";
+        if (action !== "add-to-cart") return;
+        refreshNavBadges({ pulse: true });
+      });
+
       document.addEventListener("ajax:page-replaced", function () {
         refreshNavBadges({ pulse: false });
       });
 
       document.addEventListener("visibilitychange", function () {
-        if (!document.hidden) refreshNavBadges({ pulse: false });
+        if (!document.hidden && navigator.onLine) refreshNavBadges({ pulse: false });
       });
 
-      refreshNavBadges({ pulse: false });
-      window.setInterval(function () {
+      if (navigator.onLine) {
         refreshNavBadges({ pulse: false });
-      }, 45000);
+      }
+      if (window.BMAjaxPolling && typeof window.BMAjaxPolling.start === "function") {
+        window.BMAjaxPolling.start({
+          key: "ui-shell-nav-badges",
+          fn: function () {
+            return refreshNavBadges({ pulse: false });
+          },
+          intervalMs: navPollHotMs,
+          inactiveIntervalMs: navPollColdMs,
+          hiddenPause: true,
+          when: function () {
+            return !!document.querySelector("[data-nav-badges]") && navigator.onLine;
+          },
+        });
+      } else {
+        let navPollTimer = null;
+        function clearNavPollTimer() {
+          if (navPollTimer) {
+            clearTimeout(navPollTimer);
+            navPollTimer = null;
+          }
+        }
+        function scheduleNavPoll(delayMs) {
+          clearNavPollTimer();
+          navPollTimer = window.setTimeout(runNavPoll, Math.max(1000, Number(delayMs) || nextNavPollDelay()));
+        }
+        function runNavPoll() {
+          if (document.hidden || !navigator.onLine) {
+            clearNavPollTimer();
+            return;
+          }
+          refreshNavBadges({ pulse: false }).finally(function () {
+            scheduleNavPoll(nextNavPollDelay());
+          });
+        }
+        document.addEventListener("visibilitychange", function () {
+          if (document.hidden) {
+            clearNavPollTimer();
+            return;
+          }
+          if (!navigator.onLine) return;
+          scheduleNavPoll(2500);
+        });
+        window.addEventListener("online", function () {
+          scheduleNavPoll(2500);
+        });
+        window.addEventListener("offline", function () {
+          clearNavPollTimer();
+        });
+        scheduleNavPoll(nextNavPollDelay());
+      }
     }
 
     const offlineBanner = document.getElementById("offlineBanner");
@@ -520,6 +875,10 @@
     const pwaModalToday = document.getElementById("pwaModalToday");
     const iosHint = document.getElementById("iosHint");
     const PWA_HIDE_UNTIL_KEY = "pwa_hide_until";
+    const onlineRequiredRegistry = {
+      dirty: true,
+      nodes: [],
+    };
     let onlineNoticeTimer = null;
     let wasOffline = !navigator.onLine;
     let androidShimmerTimer = null;
@@ -528,6 +887,39 @@
     const prefersReducedMotion = Boolean(
       window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches
     );
+
+    function isDrawerVisiblyOpen() {
+      const drawer = document.getElementById("mainNavbar");
+      return Boolean(drawer && drawer.classList.contains("show") && window.matchMedia("(max-width: 991.98px)").matches);
+    }
+
+    function isInstallModalOpen() {
+      if (!installModal) return false;
+      const ariaHidden = installModal.getAttribute("aria-hidden");
+      return !installModal.classList.contains("hidden") && ariaHidden !== "true";
+    }
+
+    function ensureScrollLockConsistency() {
+      const shouldLock = isDrawerVisiblyOpen() || isInstallModalOpen();
+      if (!shouldLock) {
+        if (
+          uiScrollLocks.size > 0 ||
+          document.documentElement.classList.contains("scroll-locked") ||
+          document.body.classList.contains("scroll-locked")
+        ) {
+          hardResetUI();
+        }
+        return;
+      }
+
+      if (uiScrollLocks.size === 0) {
+        if (isDrawerVisiblyOpen()) uiScrollLocks.add("drawer");
+        if (isInstallModalOpen()) uiScrollLocks.add("install-modal");
+      }
+      applyScrollLockState();
+    }
+
+    window.ensureScrollLockConsistency = ensureScrollLockConsistency;
 
     function isIOS() {
       return /iphone|ipad|ipod/i.test(window.navigator.userAgent || "");
@@ -667,6 +1059,7 @@
       stopAndroidInstallEffects();
       androidInstallBtn.classList.add("pulse");
       androidShimmerTimer = window.setInterval(function () {
+        if (document.hidden) return;
         if (!androidInstallBtn || !androidInstallBar || androidInstallBar.classList.contains("hidden")) return;
         androidInstallBtn.classList.add("shimmer");
         androidShimmerCleanupTimer = window.setTimeout(function () {
@@ -749,8 +1142,7 @@
       }
     }
 
-    function refreshOnlineRequiredUI() {
-      const offline = !navigator.onLine;
+    function collectOnlineRequiredNodes() {
       const nodes = new Set();
 
       document.querySelectorAll("[data-requires-online]").forEach(function (node) {
@@ -772,7 +1164,31 @@
         });
       });
 
-      nodes.forEach(function (node) {
+      return Array.from(nodes);
+    }
+
+    function markOnlineRequiredRegistryDirty() {
+      onlineRequiredRegistry.dirty = true;
+    }
+
+    function getOnlineRequiredNodes() {
+      if (!frontFluidityEnabled) {
+        return collectOnlineRequiredNodes();
+      }
+      if (!onlineRequiredRegistry.dirty && onlineRequiredRegistry.nodes.length) {
+        onlineRequiredRegistry.nodes = onlineRequiredRegistry.nodes.filter(function (node) {
+          return !!(node && node.isConnected);
+        });
+        return onlineRequiredRegistry.nodes;
+      }
+      onlineRequiredRegistry.nodes = collectOnlineRequiredNodes();
+      onlineRequiredRegistry.dirty = false;
+      return onlineRequiredRegistry.nodes;
+    }
+
+    function refreshOnlineRequiredUI() {
+      const offline = !navigator.onLine;
+      getOnlineRequiredNodes().forEach(function (node) {
         node.classList.toggle("is-offline-disabled", offline);
         if (offline && "disabled" in node && node.tagName !== "A") {
           if (!node.hasAttribute("data-offline-original-disabled")) {
@@ -854,7 +1270,31 @@
 
     window.addEventListener("online", updateOfflineBanner);
     window.addEventListener("offline", updateOfflineBanner);
+    document.addEventListener("ajax:page-replaced", function () {
+      markOnlineRequiredRegistryDirty();
+      refreshOnlineRequiredUI();
+    });
     updateOfflineBanner();
+
+    document.addEventListener("shown.bs.collapse", function (e) {
+      if (e && e.target && e.target.id === "mainNavbar") ensureScrollLockConsistency();
+    });
+    document.addEventListener("hidden.bs.collapse", function (e) {
+      if (e && e.target && e.target.id === "mainNavbar") ensureScrollLockConsistency();
+    });
+    window.addEventListener("pageshow", function () {
+      window.requestAnimationFrame(ensureScrollLockConsistency);
+    });
+    window.addEventListener("focus", function () {
+      window.requestAnimationFrame(ensureScrollLockConsistency);
+    });
+    window.addEventListener("orientationchange", function () {
+      window.setTimeout(ensureScrollLockConsistency, 120);
+    });
+    document.addEventListener("visibilitychange", function () {
+      if (!document.hidden) window.requestAnimationFrame(ensureScrollLockConsistency);
+    });
+    window.requestAnimationFrame(ensureScrollLockConsistency);
 
     if (pwaBannerInstall) {
       pwaBannerInstall.addEventListener("click", handleInstallClick);
@@ -944,7 +1384,19 @@
       closePwaBanner();
       hideAndroidInstallBar();
       deferredInstallPrompt = null;
+      trackAnalyticsEvent("pwa_installed", { source: "browser_event" });
     });
+
+    document.addEventListener("click", function (event) {
+      const link = event.target && event.target.closest
+        ? event.target.closest('a[href*="wa.me/"], a[href*="api.whatsapp.com/"]')
+        : null;
+      if (!link) return;
+      trackAnalyticsEvent("whatsapp_open", {
+        href: link.getAttribute("href") || "",
+        page: window.location.pathname || "/",
+      });
+    }, true);
 
     window.addEventListener("load", function () {
       showSoftInstallUI();
@@ -955,6 +1407,9 @@
 
     document.addEventListener("visibilitychange", function () {
       if (document.hidden) return;
+      reconcilePwaSessionScope().catch(function (error) {
+        pwaLog("warn", "Session scope refresh failed", error);
+      });
       if (isStandalone()) {
         closePwaModal();
         closePwaBanner();
@@ -966,6 +1421,9 @@
     });
 
     window.addEventListener("focus", function () {
+      reconcilePwaSessionScope().catch(function (error) {
+        pwaLog("warn", "Session scope focus sync failed", error);
+      });
       if (isStandalone()) {
         closePwaModal();
         closePwaBanner();
@@ -974,15 +1432,39 @@
 
     if ("serviceWorker" in navigator) {
       const staticVersion = (document.body && document.body.dataset && document.body.dataset.staticVersion) || "dev";
-      const swUrl = "/sw.js?v=" + encodeURIComponent(staticVersion);
+      const swUrl = "/sw.js?v=" + encodeURIComponent(staticVersion) + (PWA_DEBUG ? "&debug=1" : "");
+      navigator.serviceWorker.addEventListener("controllerchange", function () {
+        pwaLog("info", "Service worker controller changed");
+      });
       navigator.serviceWorker
         .register(swUrl, { scope: "/", updateViaCache: "none" })
         .then(function (registration) {
+          pwaLog("info", "Service worker registered", { scope: registration && registration.scope });
+          if (registration && registration.waiting) {
+            pwaLog("info", "Service worker update is waiting");
+          }
+          if (registration) {
+            registration.addEventListener("updatefound", function () {
+              const nextWorker = registration.installing;
+              if (!nextWorker) return;
+              pwaLog("info", "Service worker update found");
+              nextWorker.addEventListener("statechange", function () {
+                pwaLog("info", "Service worker state", nextWorker.state);
+                if (nextWorker.state === "installed" && navigator.serviceWorker.controller) {
+                  pwaLog("info", "New service worker installed and waiting");
+                }
+              });
+            });
+          }
           if (registration && typeof registration.update === "function") {
-            registration.update().catch(function () {});
+            registration.update().catch(function (error) {
+              pwaLog("warn", "Service worker update failed", error);
+            });
           }
         })
-        .catch(function () {});
+        .catch(function (error) {
+          pwaLog("error", "Service worker registration failed", error);
+        });
     }
   });
 })();

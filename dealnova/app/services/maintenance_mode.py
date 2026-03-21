@@ -5,8 +5,11 @@ from datetime import datetime, timezone
 from threading import Lock
 from typing import Any
 
+from flask import current_app
+
 from ..extensions import db
 from ..models.platform_settings import PlatformSettings
+from ..services.audit import log_access
 
 DEFAULT_MAINTENANCE_MESSAGE = "Maintenance technique en cours. Nous revenons bientot."
 MAINTENANCE_CACHE_TTL_SECONDS = 5
@@ -155,6 +158,13 @@ def enable_maintenance_mode(message: str | None = None, at: datetime | None = No
         settings.maintenance_message = cleaned
     db.session.commit()
     _invalidate_maintenance_cache()
+    
+    # Log optionnel
+    try:
+        current_app.logger.info("Maintenance mode ENABLED")
+    except:
+        pass
+    
     return get_maintenance_state(force_refresh=True)
 
 
@@ -163,6 +173,13 @@ def disable_maintenance_mode() -> dict[str, Any]:
     settings.maintenance_enabled = False
     db.session.commit()
     _invalidate_maintenance_cache()
+    
+    # Log optionnel
+    try:
+        current_app.logger.info("Maintenance mode DISABLED")
+    except:
+        pass
+    
     return get_maintenance_state(force_refresh=True)
 
 
@@ -184,5 +201,24 @@ def schedule_maintenance_mode(
         settings.maintenance_message = cleaned
     db.session.commit()
     _invalidate_maintenance_cache()
+    
+    # Log optionnel
+    try:
+        current_app.logger.info(f"Maintenance mode SCHEDULED: {starts_at} → {ends_at}")
+    except:
+        pass
+    
     return get_maintenance_state(force_refresh=True)
 
+
+def cleanup_expired_schedules() -> int:
+    """Nettoie les plannings de maintenance expirés."""
+    now = datetime.utcnow()
+    settings = PlatformSettings.get()
+    if settings.maintenance_ends_at and settings.maintenance_ends_at < now:
+        settings.maintenance_starts_at = None
+        settings.maintenance_ends_at = None
+        db.session.commit()
+        _invalidate_maintenance_cache()
+        return 1
+    return 0

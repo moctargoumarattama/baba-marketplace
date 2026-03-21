@@ -1,4 +1,4 @@
-<section class="users-card">
+﻿<section class="users-card adm-listing" data-adm-listing="users">
   <div class="users-card-header">
     <h5>Utilisateurs ({{ pagination.total }})</h5>
     <span class="text-muted">Page {{ pagination.page }} sur {{ pagination.pages }}</span>
@@ -39,9 +39,9 @@
             </div>
           </td>
           <td data-label="Email">{{ user.email }}</td>
-          <td data-label="Role">
+          <td data-label="{{ 'Type' if current_user.role == 'manager' else 'Role' }}">
             <span class="badge role-pill role-{{ user.role }}">
-              {{ user.role|title }}
+              {{ 'Gestionnaire' if user.role == 'manager' else user.role|title }}
             </span>
             <span class="badge status-pill bg-{{ 'success' if user.is_active else 'secondary' }} ms-1"
                   data-user-status="{{ user.id }}"
@@ -53,9 +53,9 @@
             </span>
             {% if user.role == 'courier' %}
               <div class="user-meta mt-1">
-                Disponibilite: {{ 'Oui' if user.courier_is_available else 'Non' }} ·
-                Equipe active: {{ 'Oui' if user.courier_is_active else 'Non' }} ·
-                Livrees: {{ user.courier_delivered_count or 0 }}
+                {{ 'Disponible' if current_user.role == 'manager' else 'Disponibilite' }}: {{ 'Oui' if user.courier_is_available else 'Non' }} ·
+                {{ 'Actif' if current_user.role == 'manager' else 'Equipe active' }}: {{ 'Oui' if user.courier_is_active else 'Non' }} ·
+                {{ 'Livraisons finies' if current_user.role == 'manager' else 'Livrees' }}: {{ user.courier_delivered_count or 0 }}
               </div>
             {% endif %}
           </td>
@@ -112,7 +112,7 @@
   {% endif %}
 
   {% if pagination.pages > 1 %}
-  <div class="card-footer">
+  <div class="card-footer adm-pager" data-adm-pager="users">
     {% set endpoint = 'admin_users.manage_users' %}
     {% set params = {'role': role_filter, 'search': search} %}
     {% set iter_args = {'left_edge': 2, 'left_current': 2, 'right_current': 3, 'right_edge': 2} %}
@@ -120,3 +120,4 @@
   </div>
   {% endif %}
 </section>
+

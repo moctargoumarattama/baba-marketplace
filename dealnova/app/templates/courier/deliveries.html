@@ -1,4 +1,4 @@
-{% extends "admin/base.html" %}
+﻿{% extends "admin/base.html" %}
 {% block title %}Mes livraisons | Livreur{% endblock %}
 {% block page_title %}Mes livraisons{% endblock %}
 
@@ -72,6 +72,32 @@
     display: inline-flex;
     align-items: center;
     gap: .36rem;
+  }
+  .courier-sound-btn {
+    border-radius: 999px;
+    font-size: .8rem;
+    font-weight: 800;
+    padding: .42rem .78rem;
+    display: inline-flex;
+    align-items: center;
+    gap: .34rem;
+  }
+  .courier-refresh-btn {
+    border-radius: 999px;
+    font-size: .8rem;
+    font-weight: 800;
+    padding: .42rem .78rem;
+    display: inline-flex;
+    align-items: center;
+    gap: .34rem;
+  }
+  .courier-live-meta {
+    color: #475569;
+    font-size: .78rem;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
   }
   .courier-tabs {
     display: inline-flex;
@@ -222,7 +248,7 @@
     gap: .26rem;
     border: 1px solid transparent;
   }
-  .status-pill::before { content: "•"; font-size: .9rem; line-height: 1; }
+  .status-pill::before { content: "\2022"; font-size: .9rem; line-height: 1; }
   .s-new { background: #e2e8f0; color: #334155; border-color: #cbd5e1; }
   .s-assigned { background: #dbeafe; color: #1d4ed8; border-color: #bfdbfe; }
   .s-picked_up { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
@@ -296,15 +322,28 @@
 {% endblock %}
 
 {% block content %}
-<div class="courier-wrap">
+<div
+  class="courier-wrap"
+  data-current-tab="{{ tab }}"
+  data-assigned-watch-url="{{ url_for('courier.panel_deliveries', tab='in_progress') }}"
+>
   <section class="courier-hero">
     <h2><i class="bi bi-truck"></i>Livraisons assignees</h2>
-    <p>Tu vois uniquement les commandes qui te sont assignees.</p>
+    <p>Tu vois uniquement les commandes qui te sont assignees. L'historique affiche les {{ history_days or 10 }} derniers jours.</p>
     <div class="hero-toolbar">
       <span class="availability-chip {{ 'on' if courier_is_available else 'off' }}">
         <i class="bi {{ 'bi-check-circle-fill' if courier_is_available else 'bi-x-circle-fill' }}"></i>
         Statut: {{ 'Disponible' if courier_is_available else 'Indisponible' }}
       </span>
+      <button type="button" class="btn btn-sm btn-outline-secondary courier-refresh-btn" id="courierRefreshBtn">
+        <i class="bi bi-arrow-clockwise"></i>Actualiser
+      </button>
+      <button type="button" class="btn btn-sm btn-outline-primary courier-sound-btn" id="courierSoundTestBtn">
+        <i class="bi bi-bell"></i>Tester le son
+      </button>
+      <small class="courier-live-meta" id="courierLiveStatus">
+        <i class="bi bi-broadcast-pin"></i>Mise a jour auto active
+      </small>
       {% if courier_last_seen_at %}
       <small class="text-muted"><i class="bi bi-clock-history"></i> Derniere activite: {{ courier_last_seen_at.strftime('%d/%m/%Y %H:%M') }}</small>
       {% endif %}
@@ -393,7 +432,7 @@
           </thead>
           <tbody>
             {% for o in orders %}
-              <tr>
+              <tr data-order-id="{{ o.id }}" data-delivery-status="{{ o.delivery_status }}">
                 <td data-label="#">{{ o.id }}</td>
                 <td data-label="Client">
                   <div class="fw-semibold">{{ o.full_name }}</div>
@@ -563,59 +602,30 @@
     {% endif %}
   </section>
 </div>
+
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
 <script>
 (function () {
-  const root = document.querySelector('.courier-wrap');
-  if (!root) return;
-
-  function restoreY(y) {
-    if (typeof window.restoreInstantScroll === 'function') {
-      window.restoreInstantScroll(y);
-      return;
-    }
-    const target = Math.max(Number(y || 0), 0);
-    requestAnimationFrame(() => {
-      try {
-        window.scrollTo({ top: target, left: 0, behavior: 'instant' });
-      } catch (e) {
-        window.scrollTo(0, target);
-      }
-    });
+  if (typeof window === "undefined" || typeof history === "undefined") return;
+  var lockUrl = "{{ url_for('courier.panel_deliveries', tab=tab) }}";
+  try {
+    history.replaceState({ courierLocked: true }, "", lockUrl);
+    history.pushState({ courierLocked: true }, "", lockUrl);
+  } catch (error) {
+    return;
   }
-
-  function bindAjaxPagination() {
-    document.querySelectorAll('.courier-card .page-link').forEach((link) => {
-      if (link.dataset.ajaxBound === '1') return;
-      link.dataset.ajaxBound = '1';
-      link.addEventListener('click', (event) => {
-        const href = link.getAttribute('href');
-        const parent = link.closest('.page-item');
-        if (!href || (parent && parent.classList.contains('disabled'))) return;
-        event.preventDefault();
-        const keepY = window.scrollY || 0;
-        fetch(href, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-          .then((response) => response.text())
-          .then((html) => {
-            const doc = new DOMParser().parseFromString(html, 'text/html');
-            const nextCard = doc.querySelector('.courier-card');
-            const currentCard = document.querySelector('.courier-card');
-            if (!nextCard || !currentCard) {
-              window.location.href = href;
-              return;
-            }
-            currentCard.innerHTML = nextCard.innerHTML;
-            window.history.replaceState({}, '', href);
-            bindAjaxPagination();
-            restoreY(keepY);
-          })
-          .catch(() => {
-            window.location.href = href;
-          });
-      });
-    });
-  }
-
-  bindAjaxPagination();
+  window.addEventListener("popstate", function () {
+    try {
+      history.pushState({ courierLocked: true }, "", lockUrl);
+    } catch (error) {}
+    window.location.replace(lockUrl);
+  });
 })();
 </script>
+<script src="{{ url_for('static', filename='js/pages/courier_deliveries_page.js', v=app_static_version) }}" defer></script>
 {% endblock %}
+
+

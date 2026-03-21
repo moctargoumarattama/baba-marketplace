@@ -5,16 +5,68 @@ from urllib.parse import quote
 from flask import Blueprint, render_template, redirect, url_for, flash, request, session, current_app
 from flask_login import current_user
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import joinedload, load_only
 
 from ..extensions import db
 from ..middleware.rate_limit import rate_limit
 from ..models.blocked import BlockedContact
 from ..models.booking import Booking
 from ..models.product import Product
+from ..models.shop import Shop
 from ..services.pricing import prix_final
+from ..services.traffic_stats import track_custom_event
 
 
 bp = Blueprint("booking", __name__, url_prefix="/booking")
+
+
+def _booking_product_query():
+    return Product.query.options(
+        load_only(
+            Product.id,
+            Product.kind,
+            Product.name,
+            Product.description,
+            Product.price,
+            Product.is_active,
+            Product.shop_id,
+        ),
+        joinedload(Product.shop).load_only(
+            Shop.id,
+            Shop.name,
+            Shop.address,
+            Shop.contact_phone,
+            Shop.is_active,
+            Shop.is_open,
+            Shop.closed_until,
+        ),
+    )
+
+
+def _booking_track_query():
+    return Booking.query.options(
+        load_only(
+            Booking.id,
+            Booking.token,
+            Booking.product_id,
+            Booking.shop_id,
+            Booking.full_name,
+            Booking.phone,
+            Booking.scheduled_for,
+            Booking.note,
+            Booking.status,
+        ),
+        joinedload(Booking.product).load_only(
+            Product.id,
+            Product.name,
+            Product.description,
+            Product.price,
+        ),
+        joinedload(Booking.shop).load_only(
+            Shop.id,
+            Shop.name,
+        ),
+    )
 
 
 def _digits_only(value: str) -> str:
@@ -39,15 +91,14 @@ def _client_ip() -> str:
 
 
 def _shop_is_currently_open(shop) -> bool:
-    if not shop:
-        return True
-    if getattr(shop, "is_active", True) is False:
+    """Vérifie si la boutique est ouverte (version robuste)."""
+    if not shop or not shop.is_active:
         return False
-    now = datetime.utcnow()
-    closed_until = getattr(shop, "closed_until", None)
-    if closed_until and closed_until > now:
+    if shop.closed_until and shop.closed_until > datetime.utcnow():
         return False
-    return getattr(shop, "is_open", True) is True
+    if hasattr(shop, 'is_open_now') and callable(shop.is_open_now):
+        return shop.is_open_now()
+    return bool(shop.is_open)
 
 
 def _recent_booking_url(pid: int, max_age_seconds: int = 120) -> str | None:
@@ -136,8 +187,9 @@ def build_whatsapp_booking_message(booking: Booking) -> str:
 @bp.route("/<int:pid>", methods=["GET", "POST"])
 @rate_limit(limit=20, window_seconds=300, key_prefix="booking", methods=("POST",))
 def book(pid):
-    product = Product.query.get_or_404(pid)
+    product = _booking_product_query().filter(Product.id == pid).first_or_404()
     kind = (getattr(product, "kind", "physical") or "physical").strip().lower()
+
     if kind != "service":
         flash("Cet article est un produit livrable. Ajoutez-le au panier.", "info")
         return redirect(url_for("shop.product_detail", pid=product.id))
@@ -148,17 +200,23 @@ def book(pid):
 
     shop = getattr(product, "shop", None)
 
+    # Si la boutique est fermée, on propose directement WhatsApp
     if shop and not _shop_is_currently_open(shop):
         recent = _recent_booking_url(product.id)
         if recent:
-            return render_template("booking/open_whatsapp.html", wa_url=recent, booking=None, reused=True)
+            return render_template(
+                "booking/open_whatsapp.html",
+                wa_url=recent,
+                booking=None,
+                reused=True,
+            )
 
         number = _whatsapp_number_from_shop(product)
         if not number:
             flash("Contact boutique manquant.", "warning")
             return redirect(url_for("shop.product_detail", pid=product.id))
 
-        shop_name = getattr(shop, "name", "") or "Boutique"
+        shop_name = (getattr(shop, "name", "") or "").strip() or "Boutique"
         service_url = url_for("shop.product_detail", pid=product.id, _external=True)
         message = (
             f"Bonjour 👋 Je souhaite un rendez-vous pour: {product.name} chez {shop_name}. "
@@ -166,21 +224,36 @@ def book(pid):
             f"Lien: {service_url}"
         )
         wa_url = f"https://wa.me/{number}?text={quote(message)}"
+
         session["last_booking_url"] = wa_url
         session["last_booking_at"] = datetime.utcnow().isoformat()
         session["last_booking_pid"] = product.id
+        try:
+            track_custom_event("whatsapp_open")
+        except Exception:
+            pass
 
-        return render_template("booking/open_whatsapp.html", wa_url=wa_url, booking=None, reused=False)
+        return render_template(
+            "booking/open_whatsapp.html",
+            wa_url=wa_url,
+            booking=None,
+            reused=False,
+        )
 
     if request.method == "POST":
         recent = _recent_booking_url(product.id)
         if recent:
-            return render_template("booking/open_whatsapp.html", wa_url=recent, booking=None, reused=True)
+            return render_template(
+                "booking/open_whatsapp.html",
+                wa_url=recent,
+                booking=None,
+                reused=True,
+            )
 
-        full_name = (request.form.get("full_name") or "").strip()
+        full_name = (request.form.get("full_name") or "").strip()[:100]
         phone_raw = (request.form.get("phone") or "").strip()
         scheduled_raw = (request.form.get("scheduled_for") or "").strip()
-        note = (request.form.get("note") or "").strip()
+        note = (request.form.get("note") or "").strip()[:2000]
 
         phone = normalize_phone(phone_raw)
         phone_digits = _digits_only(phone)
@@ -194,8 +267,23 @@ def book(pid):
             flash("Numéro de téléphone invalide.", "danger")
             return redirect(url_for("booking.book", pid=product.id))
 
-        blocked_phone = BlockedContact.query.filter_by(kind="phone", value=phone_digits, is_active=True).first() if phone_digits else None
-        blocked_ip = BlockedContact.query.filter_by(kind="ip", value=client_ip, is_active=True).first() if client_ip else None
+        blocked_phone = (
+            BlockedContact.query.filter_by(
+                kind="phone",
+                value=phone_digits,
+                is_active=True,
+            ).first()
+            if phone_digits else None
+        )
+        blocked_ip = (
+            BlockedContact.query.filter_by(
+                kind="ip",
+                value=client_ip,
+                is_active=True,
+            ).first()
+            if client_ip else None
+        )
+
         if blocked_phone or blocked_ip:
             flash("Réservation bloquée. Contactez le support.", "danger")
             return redirect(url_for("booking.book", pid=product.id))
@@ -208,12 +296,16 @@ def book(pid):
                 flash("Date/heure invalide.", "danger")
                 return redirect(url_for("booking.book", pid=product.id))
 
+            # Pas trop strict : on refuse seulement une date clairement passée
+            if scheduled_for < datetime.utcnow() - timedelta(minutes=5):
+                flash("La date de rendez-vous semble être dans le passé.", "danger")
+                return redirect(url_for("booking.book", pid=product.id))
+
         number = _whatsapp_number_from_shop(product)
         if not number:
             flash("Le prestataire n'a pas configuré de numéro de contact WhatsApp.", "warning")
             return redirect(url_for("shop.product_detail", pid=product.id))
 
-        booking = None
         try:
             booking = Booking(
                 buyer_id=current_user.id if current_user.is_authenticated else None,
@@ -223,7 +315,7 @@ def book(pid):
                 phone=phone,
                 phone_digits=phone_digits,
                 scheduled_for=scheduled_for,
-                note=note[:2000] if note else None,
+                note=note or None,
                 status="pending",
                 booking_ip=client_ip,
             )
@@ -239,17 +331,32 @@ def book(pid):
 
         message = build_whatsapp_booking_message(booking)
         wa_url = f"https://wa.me/{number}?text={quote(message)}"
+
         session["last_booking_url"] = wa_url
         session["last_booking_at"] = datetime.utcnow().isoformat()
         session["last_booking_pid"] = product.id
+        try:
+            track_custom_event("whatsapp_open")
+        except Exception:
+            pass
 
-        return render_template("booking/open_whatsapp.html", wa_url=wa_url, booking=booking, reused=False)
+        return render_template(
+            "booking/open_whatsapp.html",
+            wa_url=wa_url,
+            booking=booking,
+            reused=False,
+        )
 
     remembered_phone = session.get("track_phone", "")
-    return render_template("booking/booking_form.html", product=product, shop=shop, remembered_phone=remembered_phone, prix_final=prix_final)
-
+    return render_template(
+        "booking/booking_form.html",
+        product=product,
+        shop=shop,
+        remembered_phone=remembered_phone,
+        prix_final=prix_final,
+    )
 
 @bp.route("/track/<token>")
 def track(token):
-    booking = Booking.query.filter_by(token=token).first_or_404()
+    booking = _booking_track_query().filter_by(token=token).first_or_404()
     return render_template("booking/track_booking.html", booking=booking, prix_final=prix_final)

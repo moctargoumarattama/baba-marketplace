@@ -1,13 +1,13 @@
-<section class="shops-card">
+﻿<section class="shops-card">
   <div class="shops-card-header">
-    <h5>Filtres & recherche</h5>
-    <span class="text-muted small">Affinez les boutiques affichees</span>
+    <h5>{{ 'Recherche' if current_user.role == 'manager' else 'Filtres & recherche' }}</h5>
+    <span class="text-muted small">{{ 'Cherchez une boutique rapidement' if current_user.role == 'manager' else 'Affinez les boutiques affichees' }}</span>
   </div>
   <form method="get">
     <div class="filter-grid">
       <div>
         <label for="search" class="form-label">Rechercher</label>
-        <input type="text" class="form-control" id="search" name="search"
+        <input type="text" class="form-control adm-search" id="search" name="search"
                value="{{ search }}" placeholder="Nom, description, email...">
       </div>
       <div>
@@ -20,12 +20,13 @@
       </div>
       <div class="filter-actions">
         <button type="submit" class="btn btn-primary">
-          <i class="bi bi-filter"></i> Filtrer
+          <i class="bi bi-filter"></i> {{ 'Rechercher' if current_user.role == 'manager' else 'Filtrer' }}
         </button>
         <a href="{{ url_for('admin_users.manage_shops') }}" class="btn btn-outline-secondary">
-          <i class="bi bi-x-circle"></i> Reinitialiser
+          <i class="bi bi-x-circle"></i> {{ 'Tout afficher' if current_user.role == 'manager' else 'Reinitialiser' }}
         </a>
       </div>
     </div>
   </form>
 </section>
+

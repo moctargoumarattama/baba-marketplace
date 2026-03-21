@@ -1,250 +1,410 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 
-{% block title %}Locations | {{ config.SITE_NAME }}{% endblock %}
+{% block title %}Locations à Rabat, Salé, Kénitra et Témara | BabaMarket{% endblock %}
 
 {% block head %}
+{% set seo_title = "Locations à Rabat, Salé, Kénitra et Témara | BabaMarket" %}
+{% set seo_description = "Parcourez les annonces de locations sur BabaMarket à Rabat, Salé, Kénitra et Témara pour chambres, appartements, studios et espaces avec contact rapide." %}
+{% set canonical_url = "https://www.babamarket.ma" ~ url_for('rentals.locations_home') %}
+{% set og_image_url = "https://www.babamarket.ma" ~ url_for('static', filename='images/produit.jpeg') %}
+{% set listing_items = namespace(items=[]) %}
+{% for listing in listings[:10] %}
+  {% set _ = listing_items.items.append({
+    "@type": "ListItem",
+    "position": loop.index,
+    "name": listing.title,
+    "url": ("https://www.babamarket.ma" ~ url_for('rentals.location_detail', slug=listing.slug))
+  }) %}
+{% endfor %}
+<meta name="description" content="{{ seo_description }}">
+<meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
+<link rel="canonical" href="{{ canonical_url }}">
+<meta property="og:locale" content="fr_MA">
+<meta property="og:site_name" content="BabaMarket">
+<meta property="og:title" content="{{ seo_title }}">
+<meta property="og:description" content="{{ seo_description }}">
+<meta property="og:type" content="website">
+<meta property="og:url" content="{{ canonical_url }}">
+<meta property="og:image" content="{{ og_image_url }}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{ seo_title }}">
+<meta name="twitter:description" content="{{ seo_description }}">
+<meta name="twitter:image" content="{{ og_image_url }}">
+<script type="application/ld+json">
+  {{
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "CollectionPage",
+          "name": seo_title,
+          "url": canonical_url,
+          "description": seo_description,
+          "isPartOf": {
+            "@type": "WebSite",
+            "name": "BabaMarket",
+            "url": "https://www.babamarket.ma/"
+          }
+        },
+        {
+          "@type": "ItemList",
+          "name": "Annonces de locations BabaMarket",
+          "itemListElement": listing_items.items
+        }
+      ]
+    }|tojson
+  }}
+</script>
 <style>
-  .back-fab { display: none !important; }
-  .rentals-shell { max-width: 1280px; margin: 0 auto; padding: .9rem; }
-  .rentals-hero {
-    background: linear-gradient(135deg, #0f766e, #10b981);
-    color: #fff;
-    border-radius: 24px;
-    padding: 1.2rem;
-    box-shadow: 0 18px 45px rgba(15, 118, 110, .25);
-    margin-bottom: .95rem;
-  }
-  .hero-topline { display: flex; justify-content: flex-end; margin-bottom: .35rem; }
-  .hero-return-link {
-    display: inline-flex;
-    align-items: center;
-    gap: .38rem;
-    border: 1px solid rgba(255,255,255,.45);
-    background: rgba(255,255,255,.13);
-    color: #fff;
-    text-decoration: none;
-    border-radius: 999px;
-    padding: .34rem .7rem;
-    font-size: .76rem;
-    font-weight: 800;
-  }
-  .hero-return-link:hover { color: #fff; background: rgba(255,255,255,.22); }
-  .rentals-hero h2 { margin: 0; font-size: clamp(1.25rem, 2vw, 1.9rem); font-weight: 900; letter-spacing: .01em; }
-  .rentals-hero p { margin: .35rem 0 0; opacity: .93; font-weight: 500; }
+/* ─── SHELL ─────────────────────────────────────────── */
+.back-fab { display: none !important; }
+.rentals-shell { max-width: 1280px; margin: 0 auto; padding: .9rem; width: 100%; max-width: 100%; min-width: 0; overflow-x: clip; }
 
-  .filter-wrap {
-    background: #fff;
-    border: 1px solid #dbe2ea;
-    border-radius: 16px;
-    padding: .8rem;
-    margin-bottom: .9rem;
-    box-shadow: 0 10px 26px rgba(2, 6, 23, .06);
-  }
-  .filter-primary-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: .55rem;
-    align-items: center;
-  }
-  .filter-grid { display: grid; gap: .55rem; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: center; margin-top: .55rem; }
-  .price-range-group {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: .42rem;
-    align-items: center;
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
-    padding: .3rem;
-    background: #f8fafc;
-  }
-  .price-range-group .form-control {
-    border: 1px solid #e2e8f0;
-    min-height: 38px;
-    padding: .45rem .55rem;
-  }
-  .auto-note { font-size: .8rem; color: #64748b; font-weight: 700; margin-top: .35rem; display: flex; gap: .35rem; align-items: center; }
-  .filter-actions { margin-top: .6rem; display: flex; gap: .5rem; justify-content: flex-end; flex-wrap: wrap; }
-  .btn-clear-search {
-    border: 0;
-    color: #fff;
-    background: linear-gradient(135deg, #0f766e, #10b981);
-    box-shadow: 0 10px 20px rgba(16,185,129,.28);
-    font-weight: 800;
-  }
-  .btn-clear-search:hover { color: #fff; transform: translateY(-1px); }
-  .btn-clear-search.empty-attention { animation: clearPulse 1.2s ease-in-out infinite; }
-  @keyframes clearPulse {
-    0%, 100% { box-shadow: 0 10px 20px rgba(16,185,129,.28); }
-    50% { box-shadow: 0 10px 28px rgba(16,185,129,.46); transform: translateY(-1px); }
-  }
-  .results-row { display: flex; justify-content: flex-start; align-items: center; gap: .7rem; margin-bottom: .7rem; flex-wrap: wrap; }
-  .results-count { font-size: .88rem; color: #334155; font-weight: 700; }
-  .results-dot { width: 8px; height: 8px; border-radius: 999px; display: inline-block; margin-right: .38rem; background: #10b981; box-shadow: 0 0 0 6px rgba(16,185,129,.16); }
-  .active-filters-badge {
-    font-size: .78rem;
-    color: #0f766e;
-    border: 1px solid #99f6e4;
-    background: #ecfeff;
-    border-radius: 999px;
-    padding: .22rem .6rem;
-    font-weight: 800;
-  }
+/* ─── HERO ───────────────────────────────────────────── */
+.rentals-hero {
+  background: linear-gradient(140deg, #064e3b, #0d9488);
+  border-radius: 0 0 24px 24px;
+  margin: 0 -.9rem .9rem;
+  padding: 1.1rem 1.1rem 1.4rem;
+  color: #fff;
+  width: auto;
+  max-width: none;
+  min-width: 0;
+  overflow: hidden;
+}
+.hero-topline { display: flex; justify-content: flex-start; margin-bottom: .55rem; }
+.hero-return-link {
+  display: inline-flex; align-items: center; gap: .35rem;
+  border: 1px solid rgba(255,255,255,.3);
+  background: rgba(255,255,255,.1);
+  color: #fff; text-decoration: none;
+  border-radius: 999px; padding: .28rem .7rem;
+  font-size: .74rem; font-weight: 800;
+  transition: background .15s;
+}
+.hero-return-link:hover { background: rgba(255,255,255,.2); color: #fff; }
+.rentals-hero h2 {
+  margin: 0 0 .2rem;
+  font-size: clamp(1.18rem, 2.7vw, 1.7rem);
+  font-weight: 900;
+  letter-spacing: .01em;
+  text-align: center;
+  text-shadow: 0 10px 24px rgba(0,0,0,.22), 0 0 18px rgba(255,255,255,.12);
+}
+.rentals-hero p  {
+  margin: 0 0 .8rem;
+  font-size: .82rem;
+  opacity: .9;
+  text-align: center;
+}
 
-  .rentals-grid { display: grid; gap: .65rem; grid-template-columns: repeat(auto-fill, minmax(198px, 1fr)); }
-  .rental-card {
-    background: #fff;
-    border: 1px solid #e5e7eb;
-    border-radius: 14px;
-    overflow: hidden;
-    box-shadow: 0 8px 22px rgba(2,6,23,.06);
-    transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
-    animation: cardIn .35s ease both;
+/* Barre de recherche dans le hero */
+.hero-search {
+  display: flex; gap: .45rem;
+  background: rgba(255,255,255,.12);
+  border: 1px solid rgba(255,255,255,.2);
+  border-radius: 12px;
+  padding: .4rem .4rem .4rem .75rem;
+  align-items: center;
+  backdrop-filter: blur(4px);
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+.hero-search i { color: rgba(255,255,255,.7); font-size: .95rem; flex-shrink: 0; }
+.hero-search input {
+  flex: 1; background: transparent !important; border: none !important;
+  color: #fff !important; font-size: .9rem !important;
+  padding: 0 !important; min-height: 36px; box-shadow: none !important;
+  outline: none !important;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+.hero-search input::placeholder { color: rgba(255,255,255,.55); }
+
+/* ─── FILTRE SECONDAIRE ──────────────────────────────── */
+.filter-wrap {
+  background: #fff;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 14px;
+  padding: .75rem;
+  margin-bottom: .8rem;
+  box-shadow: 0 2px 10px rgba(0,0,0,.04);
+  transition: border-color .2s;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+.filter-wrap.is-optimistic { border-color: #6ee7b7; }
+
+/* input caché qui garde la valeur pour le JS */
+.filter-primary-row { display: none; }
+
+.filter-wrap .form-control,
+.filter-wrap .form-select {
+  background: #f9fafb !important;
+  border: 1.5px solid #e5e7eb !important;
+  border-radius: 10px !important;
+  font-size: .84rem !important;
+  min-height: 42px;
+  padding: .5rem .75rem !important;
+  box-shadow: none !important;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+.filter-wrap .form-control:focus,
+.filter-wrap .form-select:focus {
+  border-color: #10b981 !important;
+  background: #fff !important;
+  box-shadow: 0 0 0 3px rgba(16,185,129,.1) !important;
+}
+
+/* 4 colonnes sur une seule ligne */
+.filter-grid {
+  display: grid; gap: .45rem;
+  grid-template-columns: 1fr 1fr 1fr auto;
+  align-items: start;
+  margin-bottom: 0;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+.price-range-group { display: grid; grid-template-columns: 1fr 1fr; gap: .35rem; width: 100%; min-width: 0; }
+
+.auto-note { display: none; } /* superflu avec recherche dans hero */
+.filter-actions { display: none; } /* bouton reset dans footer filtre */
+
+/* Footer filtre : note + reset sur même ligne */
+.filter-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: .55rem; padding-top: .5rem;
+  border-top: 1px solid #f1f5f9;
+  gap: .5rem;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.filter-foot-note { font-size: .72rem; color: #94a3b8; display: flex; align-items: center; gap: .3rem; min-width: 0; max-width: 100%; }
+
+.btn-clear-search { display: none; }
+#restoreSearchBtn {
+  display: inline-flex; align-items: center; gap: .38rem;
+  background: linear-gradient(135deg, #059669, #10b981);
+  color: #fff; border: none; border-radius: 999px;
+  font-size: .76rem; font-weight: 800;
+  padding: .35rem .85rem; cursor: pointer;
+  box-shadow: 0 2px 10px rgba(16,185,129,.22);
+  flex-shrink: 0;
+  max-width: 100%;
+}
+#restoreSearchBtn.empty-attention { animation: restorePulse 1.4s ease-in-out infinite; }
+@keyframes restorePulse {
+  0%,100% { box-shadow: 0 2px 10px rgba(16,185,129,.22); }
+  50%      { box-shadow: 0 2px 20px rgba(16,185,129,.44); transform: translateY(-1px); }
+}
+
+/* ─── BARRE RÉSULTATS ────────────────────────────────── */
+.results-row { display: flex; align-items: center; gap: .55rem; margin-bottom: .65rem; flex-wrap: wrap; }
+.results-count { font-size: .85rem; font-weight: 700; color: #374151; }
+.results-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: .3rem; background: #10b981; box-shadow: 0 0 0 5px rgba(16,185,129,.15); }
+.active-filters-badge { font-size: .74rem; font-weight: 800; color: #059669; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 999px; padding: .18rem .55rem; }
+
+/* ─── CONTENEUR RÉSULTATS ────────────────────────────── */
+.locations-results { position: relative; min-height: 120px; width: 100%; max-width: 100%; min-width: 0; overflow-x: clip; transition: opacity .14s ease; }
+.locations-results.is-loading { opacity: .82; }
+.locations-results.is-swapping { position: relative; }
+.locations-results.is-swapping #locationsListing,
+.locations-results.is-swapping #rentalsGrid { contain: layout paint; }
+
+/* ─── GRILLE ─────────────────────────────────────────── */
+.rentals-grid { display: grid; gap: .6rem; grid-template-columns: repeat(auto-fill, minmax(195px, 1fr)); width: 100%; max-width: 100%; min-width: 0; }
+
+/* ─── CARTE ──────────────────────────────────────────── */
+.rental-card {
+  background: #fff; border: 1px solid #e5e7eb; border-radius: 14px;
+  overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,.05);
+  transition: transform .2s, box-shadow .2s, border-color .2s;
+  animation: cardIn .3s ease both;
+  min-width: 0;
+  max-width: 100%;
+}
+.rental-card:hover { transform: translateY(-3px); box-shadow: 0 10px 24px rgba(0,0,0,.1); border-color: #a7f3d0; }
+@keyframes cardIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+
+/* ─── MEDIA / CAROUSEL ───────────────────────────────── */
+.rental-media { position: relative; background: #f0fdf9; height: 138px; overflow: hidden; }
+.rental-track { display: flex; height: 100%; transition: transform .32s ease; touch-action: pan-y; }
+.rental-track img,
+.rental-track video,
+.rental-video-frame { width: 100%; height: 100%; flex: 0 0 100%; }
+.rental-track img,
+.rental-track video { object-fit: cover; display: block; }
+.rental-video-frame { position: relative; background: #0f172a; }
+.rental-video-badge {
+  position: absolute; right: .45rem; bottom: .45rem; z-index: 2;
+  background: rgba(15,23,42,.72); color: #fff; border-radius: 999px;
+  padding: .18rem .45rem; font-size: .66rem; font-weight: 800;
+}
+
+.pill-type {
+  position: absolute; top: .45rem; left: .45rem; z-index: 2;
+  background: rgba(5,150,105,.9); color: #fff; border-radius: 999px;
+  padding: .2rem .55rem; font-size: .67rem; font-weight: 800; backdrop-filter: blur(2px);
+}
+.slide-nav { position: absolute; inset-inline: 0; top: 50%; transform: translateY(-50%); display: flex; justify-content: space-between; padding: 0 .3rem; pointer-events: none; }
+.slide-btn { width: 24px; height: 24px; border-radius: 50%; border: none; background: rgba(15,23,42,.45); color: #fff; pointer-events: auto; display: flex; align-items: center; justify-content: center; font-size: .7rem; }
+.slide-dots { position: absolute; bottom: .32rem; left: 50%; transform: translateX(-50%); display: flex; gap: .22rem; z-index: 2; }
+.slide-dot { width: 5px; height: 5px; border-radius: 50%; background: rgba(255,255,255,.5); transition: width .18s; }
+.slide-dot.active { background: #fff; width: 12px; border-radius: 999px; }
+
+/* ─── CORPS CARTE ────────────────────────────────────── */
+.rental-body    { padding: .68rem; display: grid; gap: .25rem; min-width: 0; }
+.rental-title   { margin: 0; font-size: .9rem; font-weight: 800; color: #111827; line-height: 1.22; min-height: 2.2em; }
+.rental-meta    { color: #6b7280; font-size: .77rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rental-price   { color: #059669; font-size: .97rem; font-weight: 900; }
+.rental-actions { display: grid; grid-template-columns: 1fr 1fr; gap: .4rem; margin-top: .1rem; min-width: 0; }
+.rental-actions .btn { font-size: .78rem; font-weight: 700; padding: .35rem .4rem; min-height: 40px; border-radius: 10px; }
+
+/* ─── EMPTY ──────────────────────────────────────────── */
+.empty-state { text-align: center; padding: 2.5rem 1rem; color: #9ca3af; font-weight: 700; background: #fff; border: 1.5px dashed #e5e7eb; border-radius: 14px; }
+.empty-state i { font-size: 2rem; display: block; margin-bottom: .5rem; color: #d1d5db; }
+
+/* ─── SKELETON ───────────────────────────────────────── */
+.locations-skeleton { display: none; gap: .6rem; grid-template-columns: repeat(auto-fill, minmax(195px, 1fr)); margin-top: .45rem; }
+.locations-skeleton.show { display: grid; }
+.locations-skeleton-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 14px; padding: .62rem; }
+.locations-skeleton-media,
+.locations-skeleton-line {
+  background: linear-gradient(100deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  background-size: 200% 100%;
+  animation: locationsShimmer 1.45s linear infinite;
+  border-radius: 8px;
+}
+.locations-skeleton-media { height: 118px; margin-bottom: .5rem; }
+.locations-skeleton-line  { height: 11px; margin-bottom: .38rem; }
+.locations-skeleton-line.is-wide  { width: 84%; }
+.locations-skeleton-line.is-short { width: 58%; margin-bottom: 0; }
+@keyframes locationsShimmer { 0% { background-position:200% 0; } 100% { background-position:-200% 0; } }
+
+/* ─── PAGINATION ─────────────────────────────────────── */
+.locations-pagination { margin-top: .85rem; }
+.locations-pagination .pagination { gap: .4rem; }
+.locations-pagination .page-link { border-radius: 10px; border-color: #e5e7eb; font-weight: 800; color: #374151; min-height: 40px; display: inline-flex; align-items: center; justify-content: center; padding-inline: .85rem; box-shadow: 0 2px 8px rgba(0,0,0,.04); }
+.locations-pagination .page-item.active .page-link { background: #059669; border-color: #059669; color: #fff; }
+.locations-pagination .page-item .page-link.next-link { background: linear-gradient(135deg,#059669,#10b981); color: #fff; border-color: #059669; padding-inline: 1rem; }
+.locations-pagination .page-item .page-link.next-link i { margin-left: .35rem; }
+.locations-pagination .page-item .page-link.prev-link i { margin-right: .35rem; }
+.locations-pagination .page-item.disabled .page-link { opacity: .55; background: #f8fafc; color: #94a3b8; }
+
+/* ─── RESPONSIVE ─────────────────────────────────────── */
+@media (max-width: 980px) { .filter-grid { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 760px) {
+  .rentals-shell { padding: .6rem; }
+  .rentals-hero  { margin: 0 -.6rem .75rem; border-radius: 0 0 16px 16px; }
+  .filter-grid   { grid-template-columns: 1fr 1fr; }
+  .rentals-grid  { grid-template-columns: repeat(2, 1fr); gap: .5rem; }
+  .rental-media  { height: 118px; }
+  .hero-search input,
+  .filter-wrap .form-control,
+  .filter-wrap .form-select {
+    font-size: 16px !important;
   }
-  .rental-card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 16px 30px rgba(2,6,23,.12);
-    border-color: #bae6fd;
-  }
-  @keyframes cardIn {
-    from { opacity: 0; transform: translateY(8px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-  .rental-media { position: relative; background: #eef2f7; height: 138px; overflow: hidden; }
-  .rental-track { display: flex; height: 100%; transition: transform .35s ease; touch-action: pan-y; }
-  .rental-track img { width: 100%; height: 100%; flex: 0 0 100%; object-fit: cover; }
+}
+@media (max-width: 480px) {
+  .filter-grid { grid-template-columns: 1fr; }
+  .rentals-grid { grid-template-columns: repeat(2, 1fr); }
+  .filter-foot { flex-direction: column; align-items: stretch; }
+  #restoreSearchBtn { width: 100%; justify-content: center; }
+}
+@media (max-width: 360px) { .rentals-grid { grid-template-columns: 1fr; } }
+@media (pointer: coarse), (prefers-reduced-motion: reduce) {
+  .hero-search,
   .pill-type {
-    position: absolute; top: .5rem; left: .5rem;
-    background: rgba(15,118,110,.92); color: #fff; border-radius: 999px;
-    padding: .22rem .55rem; font-size: .68rem; font-weight: 800; z-index: 2;
-    backdrop-filter: blur(2px);
-  }
-  .slide-nav {
-    position: absolute; inset-inline: 0; top: 50%; transform: translateY(-50%);
-    display: flex; justify-content: space-between; padding: 0 .35rem; pointer-events: none;
-  }
-  .slide-btn {
-    width: 24px; height: 24px; border-radius: 999px; border: 0;
-    background: rgba(15,23,42,.5); color: #fff; pointer-events: auto;
-  }
-  .slide-dots { position: absolute; left: 50%; transform: translateX(-50%); bottom: .35rem; display: flex; gap: .25rem; z-index: 2; }
-  .slide-dot { width: 6px; height: 6px; border-radius: 999px; background: rgba(255,255,255,.58); transition: width .2s ease; }
-  .slide-dot.active { background: #fff; width: 14px; }
-  .rental-body { padding: .68rem; display: grid; gap: .28rem; }
-  .rental-title { margin: 0; font-size: .92rem; font-weight: 800; color: #0f172a; line-height: 1.22; min-height: 2.25em; }
-  .rental-meta { color: #475569; font-size: .79rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .rental-price { color: #0f766e; font-size: .98rem; font-weight: 900; }
-  .rental-actions { display: grid; grid-template-columns: 1fr 1fr; gap: .42rem; margin-top: .15rem; }
-  .rental-actions .btn { font-size: .8rem; font-weight: 700; padding: .36rem .4rem; min-height: 40px; }
-  .empty-state { text-align: center; padding: 2rem 1rem; color: #64748b; font-weight: 700; background: #fff; border: 1px dashed #cbd5e1; border-radius: 14px; }
-  .locations-results {
-    position: relative;
-    min-height: 120px;
-  }
-  .locations-results.is-loading {
-    opacity: .7;
-    transition: opacity .15s ease;
-  }
-  .locations-pagination {
-    margin-top: .85rem;
-  }
-  .locations-pagination .pagination {
-    gap: .45rem;
-  }
-  .locations-pagination .page-link {
-    border-radius: 10px;
-    border-color: #dbe4ef;
-    font-weight: 800;
-    color: #334155;
-    min-height: 38px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding-inline: .85rem;
-    box-shadow: 0 4px 12px rgba(2, 6, 23, .05);
-  }
-  .locations-pagination .page-item.active .page-link {
-    background: #0f766e;
-    border-color: #0f766e;
-    color: #fff;
-  }
-  .locations-pagination .page-item .page-link.next-link {
-    background: linear-gradient(135deg, #0f766e, #10b981);
-    color: #fff;
-    border-color: #0f766e;
-    padding-inline: 1rem;
-  }
-  .locations-pagination .page-item .page-link.next-link i {
-    margin-left: .35rem;
-  }
-  .locations-pagination .page-item .page-link.prev-link i {
-    margin-right: .35rem;
-  }
-  .locations-pagination .page-item.disabled .page-link {
-    opacity: .55;
-    background: #f8fafc;
-    color: #94a3b8;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
 
-  @media (max-width: 980px) { .filter-grid { grid-template-columns: repeat(2, 1fr); } }
-  @media (max-width: 760px) {
-    .rentals-shell { padding: .65rem; }
-    .filter-wrap { padding: .62rem; border-radius: 14px; }
-    .rentals-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .55rem; }
-    .rental-media { height: 118px; }
-    .filter-grid { grid-template-columns: 1fr; margin-top: .48rem; }
-    .filter-actions { justify-content: stretch; }
-    .filter-actions .btn { flex: 1; font-size: .76rem; min-height: 38px; padding-inline: .35rem; }
-    .btn-clear-search.empty-attention { animation: none; }
+  .rental-card,
+  .locations-skeleton-media,
+  .locations-skeleton-line,
+  #restoreSearchBtn.empty-attention {
+    animation: none !important;
   }
-  @media (max-width: 520px) {
-    .filter-grid { grid-template-columns: 1fr; }
-    .rental-title { font-size: .86rem; }
-    .rental-meta { font-size: .74rem; }
-    .rental-price { font-size: .9rem; }
+
+  .rental-card {
+    transition: border-color .16s ease, box-shadow .16s ease;
   }
+
+  .rental-card:hover {
+    transform: none;
+    box-shadow: 0 6px 14px rgba(0,0,0,.08);
+  }
+
+  .rental-track {
+    transition: transform .22s ease;
+  }
+}
 </style>
 {% endblock %}
 
+{% block body_attrs %}data-page="locations_index"{% endblock %}
+
 {% block content %}
 <div class="rentals-shell">
+
   <section class="rentals-hero">
     <div class="hero-topline">
       <a href="{{ url_for('shop.home') }}" class="hero-return-link">
         <i class="bi bi-arrow-left"></i> Retour
       </a>
     </div>
-    <h2>DABA DABA IMMOBILIER</h2>
-    <p>Parcourez rapidement des centaines d'annonces avec nos filtres intelligents.</p>
+    <h2>Trouvez votre location</h2>
+    <p>Explorez facilement les biens disponibles selon votre budget et votre quartier.</p>
+    <div class="hero-search">
+      <i class="bi bi-search"></i>
+      <input type="text" form="locationsFilterForm" name="_q_mirror"
+             placeholder="Recherche annonce, ville, quartier…"
+             autocomplete="off" id="heroSearchInput">
+    </div>
   </section>
 
   {% set has_active_filters = q or listing_type or property_type or city_area or price_min or price_max %}
+
   <form method="get" class="filter-wrap" id="locationsFilterForm">
     <div class="filter-primary-row">
-      <input type="text" class="form-control" name="q" value="{{ q }}" placeholder="Recherche annonce, ville, quartier...">
+      <input type="text" class="form-control" name="q" value="{{ q }}" id="hiddenQInput">
     </div>
     <div class="filter-grid">
       <select class="form-select" name="type">
         <option value="">Type (tous)</option>
         <option value="monthly" {{ 'selected' if listing_type == 'monthly' else '' }}>Mensuel</option>
-        <option value="daily" {{ 'selected' if listing_type == 'daily' else '' }}>Journalier</option>
+        <option value="daily"   {{ 'selected' if listing_type == 'daily'   else '' }}>Journalier</option>
       </select>
       <select class="form-select" name="property_type">
         <option value="">Catégorie (toutes)</option>
-        <option value="room" {{ 'selected' if property_type == 'room' else '' }}>Chambre</option>
+        <option value="room"      {{ 'selected' if property_type == 'room'      else '' }}>Chambre</option>
         <option value="apartment" {{ 'selected' if property_type == 'apartment' else '' }}>Appartement</option>
-        <option value="studio" {{ 'selected' if property_type == 'studio' else '' }}>Studio</option>
-        <option value="store" {{ 'selected' if property_type == 'store' else '' }}>Boutique à louer</option>
+        <option value="studio"    {{ 'selected' if property_type == 'studio'    else '' }}>Studio</option>
+        <option value="store"     {{ 'selected' if property_type == 'store'     else '' }}>Boutique à louer</option>
       </select>
-      <input type="text" class="form-control" name="city" value="{{ city_area }}" placeholder="Ville / quartier">
+      <input type="text" class="form-control" name="city" value="{{ city_area }}"
+             placeholder="Ville / quartier">
       <div class="price-range-group">
-        <input type="number" step="0.01" min="0" class="form-control" name="min" value="{{ price_min }}" placeholder="Prix min (DH)">
-        <input type="number" step="0.01" min="0" class="form-control" name="max" value="{{ price_max }}" placeholder="Prix max (DH)">
+        <input type="number" step="0.01" min="0" class="form-control" name="min"
+               value="{{ price_min }}" placeholder="Min DH">
+        <input type="number" step="0.01" min="0" class="form-control" name="max"
+               value="{{ price_max }}" placeholder="Max DH">
       </div>
     </div>
-    <div class="auto-note"><i class="bi bi-lightning-charge"></i> Prévisualisation instantanée. Chargement après pause/validation.</div>
-    <div class="filter-actions">
-      <button type="button" class="btn btn-sm btn-clear-search {% if has_active_filters %}empty-attention{% endif %}" id="restoreSearchBtn">
-        <i class="bi bi-arrow-counterclockwise"></i> Restaurer la recherche
+    <div class="filter-foot">
+      <span class="filter-foot-note"><i class="bi bi-lightning-charge"></i> Résultats instantanés</span>
+      <button type="button" id="restoreSearchBtn"
+              class="btn-clear-search {% if has_active_filters %}empty-attention{% endif %}">
+        <i class="bi bi-arrow-counterclockwise"></i> Réinitialiser
       </button>
     </div>
     <button class="d-none" type="submit" aria-hidden="true" tabindex="-1">submit</button>
@@ -253,212 +413,22 @@
   <div id="locationsResults" class="locations-results">
     {% include "partials/_locations_listing.html" %}
   </div>
+
 </div>
+{% endblock %}
 
+{% block scripts %}
+{{ super() }}
 <script>
-  (function () {
-    const form = document.getElementById('locationsFilterForm');
-    const locationsResults = document.getElementById('locationsResults');
-    if (!form || !locationsResults) return;
-
-    let submitTimer = null;
-
-    if ('scrollRestoration' in history) {
-      history.scrollRestoration = 'manual';
-    }
-
-    function currentGrid() {
-      return document.getElementById('rentalsGrid');
-    }
-
-    function buildUrlFromForm(resetPage) {
-      const url = new URL(window.location.href);
-      const params = new URLSearchParams();
-      if (!form) return url.toString();
-      const fd = new FormData(form);
-      fd.forEach(function (value, key) {
-        const v = String(value || '').trim();
-        if (!v || key === 'page') return;
-        params.set(key, v);
-      });
-      if (!resetPage) {
-        const currentPage = url.searchParams.get('page');
-        if (currentPage) params.set('page', currentPage);
-      }
-      const q = params.toString();
-      return q ? (url.pathname + '?' + q) : url.pathname;
-    }
-
-    function parseDh(value) {
-      const parsed = Number.parseFloat(String(value || '').replace(',', '.'));
-      return Number.isFinite(parsed) ? Math.round(parsed * 100) : null;
-    }
-
-    function localFilterPreview() {
-      const grid = currentGrid();
-      if (!grid || !form) return;
-      const cards = grid.querySelectorAll('.js-rental-card');
-      const qInput = form.querySelector('input[name="q"]');
-      const cityInput = form.querySelector('input[name="city"]');
-      const typeInput = form.querySelector('select[name="type"]');
-      const propertyInput = form.querySelector('select[name="property_type"]');
-      const minInput = form.querySelector('input[name="min"]');
-      const maxInput = form.querySelector('input[name="max"]');
-
-      const q = (qInput && qInput.value ? qInput.value : '').toLowerCase().trim();
-      const c = (cityInput && cityInput.value ? cityInput.value : '').toLowerCase().trim();
-      const tVal = typeInput ? typeInput.value : '';
-      const pVal = propertyInput ? propertyInput.value : '';
-      const min = parseDh(minInput ? minInput.value : '');
-      const max = parseDh(maxInput ? maxInput.value : '');
-
-      cards.forEach(function (card) {
-        const title = card.getAttribute('data-title') || '';
-        const city = card.getAttribute('data-city') || '';
-        const type = card.getAttribute('data-type') || '';
-        const prop = card.getAttribute('data-property') || '';
-        const rent = Number.parseInt(card.getAttribute('data-rent') || '0', 10);
-        const okQ = !q || title.indexOf(q) !== -1 || city.indexOf(q) !== -1;
-        const okC = !c || city.indexOf(c) !== -1;
-        const okT = !tVal || type === tVal;
-        const okP = !pVal || prop === pVal;
-        const okMin = min === null || rent >= min;
-        const okMax = max === null || rent <= max;
-        card.style.display = okQ && okC && okT && okP && okMin && okMax ? '' : 'none';
-      });
-    }
-
-    function initCarousels(scope) {
-      (scope || document).querySelectorAll('.js-card-carousel').forEach(function (carousel) {
-        if (carousel.dataset.carouselInit === '1') return;
-        carousel.dataset.carouselInit = '1';
-
-        const track = carousel.querySelector('.rental-track');
-        if (!track) return;
-        const slides = track.querySelectorAll('img');
-        if (!slides || slides.length <= 1) return;
-
-        const prev = carousel.querySelector('.js-prev');
-        const next = carousel.querySelector('.js-next');
-        const dots = carousel.querySelectorAll('.slide-dot');
-        let index = 0;
-        let timer = null;
-        let touchStartX = 0;
-        let touchEndX = 0;
-
-        function render() {
-          track.style.transform = `translateX(-${index * 100}%)`;
-          dots.forEach(function (dot, idx) {
-            if (idx === index) dot.classList.add('active');
-            else dot.classList.remove('active');
-          });
-        }
-
-        function go(step) {
-          index += step;
-          if (index >= slides.length) index = 0;
-          if (index < 0) index = slides.length - 1;
-          render();
-        }
-
-        function restartAuto() {
-          if (timer) clearInterval(timer);
-          timer = setInterval(function () { go(1); }, 3800);
-        }
-
-        if (prev) prev.addEventListener('click', function () { go(-1); restartAuto(); });
-        if (next) next.addEventListener('click', function () { go(1); restartAuto(); });
-
-        carousel.addEventListener('touchstart', function (event) {
-          touchStartX = event.changedTouches[0].screenX;
-        }, { passive: true });
-        carousel.addEventListener('touchend', function (event) {
-          touchEndX = event.changedTouches[0].screenX;
-          const delta = touchEndX - touchStartX;
-          if (Math.abs(delta) > 35) {
-            if (delta < 0) go(1); else go(-1);
-            restartAuto();
-          }
-        }, { passive: true });
-
-        carousel.addEventListener('mouseenter', function () { if (timer) clearInterval(timer); });
-        carousel.addEventListener('mouseleave', function () { restartAuto(); });
-
-        render();
-        restartAuto();
-      });
-    }
-
-    function fetchAndSwap(url, pushState) {
-      if (submitTimer) clearTimeout(submitTimer);
-      if (window.AjaxPagination && typeof window.AjaxPagination.navigate === 'function') {
-        window.AjaxPagination.navigate(url, { push: pushState !== false, scrollMode: 'preserve' });
-        return;
-      }
-      window.location.href = url;
-    }
-
-    if (form) {
-      const qInput = form.querySelector('input[name="q"]');
-      const cityInput = form.querySelector('input[name="city"]');
-      const typeInput = form.querySelector('select[name="type"]');
-      const propertyInput = form.querySelector('select[name="property_type"]');
-      const minInput = form.querySelector('input[name="min"]');
-      const maxInput = form.querySelector('input[name="max"]');
-      const restoreSearchBtn = document.getElementById('restoreSearchBtn');
-
-      function scheduleFetch(resetPage) {
-        if (submitTimer) clearTimeout(submitTimer);
-        submitTimer = setTimeout(function () {
-          fetchAndSwap(buildUrlFromForm(resetPage), true);
-        }, 320);
-      }
-
-      [qInput, cityInput, minInput, maxInput].forEach(function (el) {
-        if (!el) return;
-        el.addEventListener('input', localFilterPreview);
-        el.addEventListener('blur', function () { scheduleFetch(true); });
-        el.addEventListener('keydown', function (event) {
-          if (event.key === 'Enter') {
-            event.preventDefault();
-            scheduleFetch(true);
-          }
-        });
-      });
-
-      [typeInput, propertyInput].forEach(function (el) {
-        if (!el) return;
-        el.addEventListener('change', function () {
-          localFilterPreview();
-          scheduleFetch(true);
-        });
-      });
-
-      form.addEventListener('submit', function (event) {
-        event.preventDefault();
-        if (submitTimer) clearTimeout(submitTimer);
-        fetchAndSwap(buildUrlFromForm(true), true);
-      });
-
-      if (restoreSearchBtn) {
-        restoreSearchBtn.addEventListener('click', function () {
-          if (qInput) qInput.value = '';
-          if (cityInput) cityInput.value = '';
-          if (typeInput) typeInput.value = '';
-          if (propertyInput) propertyInput.value = '';
-          if (minInput) minInput.value = '';
-          if (maxInput) maxInput.value = '';
-          localFilterPreview();
-          fetchAndSwap(buildUrlFromForm(true), true);
-        });
-      }
-    }
-
-    initCarousels(document);
-    document.addEventListener('ajax:page-replaced', function () {
-      initCarousels(locationsResults);
-      localFilterPreview();
-    });
-  })();
+(function(){
+  var hero = document.getElementById('heroSearchInput');
+  var hidden = document.getElementById('hiddenQInput');
+  if (!hero || !hidden) return;
+  // Pré-remplir le hero si valeur existante
+  if (hidden.value) hero.value = hidden.value;
+  // Sync hero → hidden (le JS du filtre écoute le hidden via name="q")
+  hero.addEventListener('input', function(){ hidden.value = hero.value; hidden.dispatchEvent(new Event('input', {bubbles:true})); });
+  hero.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); hidden.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true})); } });
+})();
 </script>
 {% endblock %}

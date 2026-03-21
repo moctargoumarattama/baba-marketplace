@@ -1,134 +1,292 @@
-/* Home-only bottom tabs (mobile shell) */
-:root {
-  --home-tab-bg: rgba(255, 255, 255, 0.18);
-  --home-tab-border: rgba(255, 255, 255, 0.24);
-  --home-tab-shadow: 0 18px 34px rgba(4, 20, 16, 0.22);
-  --home-tab-active: linear-gradient(140deg, #0e7c66, #0a5f4f);
-  --home-tab-text: #eafff8;
-  --home-tab-text-muted: rgba(234, 255, 248, 0.82);
+﻿/* ══════════════════════════════════════════════════════
+   Baba Market — Bottom Nav  |  Ultra Premium v3
+   Classes identiques — zéro collision JS/Bootstrap
+   ══════════════════════════════════════════════════════ */
+
+/* ── Keyframes (namespace bm-tab-* pour éviter collision) ── */
+@keyframes bm-tab-pop {
+  0%   { transform: scale(1);    }
+  40%  { transform: scale(0.88); }
+  70%  { transform: scale(1.08); }
+  100% { transform: scale(1);    }
 }
 
-.home-bottom-tabs {
+@keyframes bm-tab-glow-in {
+  from { opacity: 0; transform: translateX(-50%) scaleX(0.4); }
+  to   { opacity: 1; transform: translateX(-50%) scaleX(1);   }
+}
+
+@keyframes bm-bar-float {
+  0%, 100% { box-shadow:
+    0 0 0 1px rgba(16,185,129,0.10) inset,
+    0 1px 0  rgba(255,255,255,0.12) inset,
+    0 28px 60px rgba(0,0,0,0.55),
+    0 12px 28px rgba(0,0,0,0.32),
+    0  4px 12px rgba(16,185,129,0.10); }
+  50% { box-shadow:
+    0 0 0 1px rgba(16,185,129,0.14) inset,
+    0 1px 0  rgba(255,255,255,0.14) inset,
+    0 32px 68px rgba(0,0,0,0.58),
+    0 14px 32px rgba(0,0,0,0.35),
+    0  6px 18px rgba(16,185,129,0.14); }
+}
+
+/* ══════════════════════
+   CONTENEUR PRINCIPAL
+══════════════════════ */
+.home-bottom-tabs,
+.bm-home-tabs {
   position: fixed;
   left: 50%;
-  bottom: calc(0.62rem + env(safe-area-inset-bottom, 0px));
+  bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
   transform: translateX(-50%);
-  width: min(95vw, 33.25rem);
+  width: min(94vw, 33rem);
   z-index: 1032;
+
   display: grid;
-  grid-template-columns: 1.18fr 1.18fr 1fr;
-  gap: 0.36rem;
-  padding: 0.4rem;
-  border-radius: 1.18rem;
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.26), rgba(255, 255, 255, 0.08)),
-    radial-gradient(130% 120% at 5% 0%, rgba(255, 255, 255, 0.24), transparent 45%),
-    linear-gradient(155deg, rgba(14, 124, 102, 0.75), rgba(8, 78, 63, 0.78));
-  border: 1px solid var(--home-tab-border);
-  box-shadow: var(--home-tab-shadow);
-  backdrop-filter: blur(16px) saturate(120%);
-  -webkit-backdrop-filter: blur(16px) saturate(120%);
+  grid-template-columns: 1.15fr 1.15fr 1fr;
+  gap: 0.3rem;
+  padding: 0.34rem;
+  border-radius: 1.35rem;
+  background: linear-gradient(180deg, rgba(7, 30, 24, 0.96), rgba(5, 19, 15, 0.98));
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 10px 24px rgba(4, 20, 16, 0.22);
+  animation: none;
+  backdrop-filter: blur(14px) saturate(135%);
+  -webkit-backdrop-filter: blur(14px) saturate(135%);
 }
 
+/* Taille minimale pour les grands onglets */
 .home-bottom-tabs .home-tab[data-tab-key="home"],
-.home-bottom-tabs .home-tab[data-tab-key="search"] {
-  min-height: 50px;
+.home-bottom-tabs .bm-home-tab[data-tab-key="home"],
+.bm-home-tabs .home-tab[data-tab-key="home"],
+.bm-home-tabs .bm-home-tab[data-tab-key="home"],
+.home-bottom-tabs .home-tab[data-tab-key="search"],
+.home-bottom-tabs .bm-home-tab[data-tab-key="search"],
+.bm-home-tabs .home-tab[data-tab-key="search"],
+.bm-home-tabs .bm-home-tab[data-tab-key="search"] {
+  min-height: 52px;
 }
 
-.home-tab {
+/* ══════════════════════
+   ONGLET INDIVIDUEL
+══════════════════════ */
+.home-tab,
+.bm-home-tab {
   position: relative;
-  min-height: 48px;
+  min-height: 50px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.18rem;
-  border-radius: 0.9rem;
+  gap: 0.22rem;
+  border-radius: 1rem;
   text-decoration: none;
-  color: var(--home-tab-text-muted);
+  color: rgba(224, 245, 238, 0.72);
   border: 1px solid transparent;
-  transition: transform 150ms ease, background-color 180ms ease, color 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+
+  transition:
+    transform      180ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    color          180ms ease,
+    background     180ms ease,
+    border-color   180ms ease,
+    box-shadow     180ms ease,
+    opacity        180ms ease;
+
   will-change: transform;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  cursor: pointer;
 }
 
-.home-tab i {
-  font-size: 1.04rem;
+/* Icône */
+.home-tab i,
+.bm-home-tab i {
+  font-size: 1.125rem;
   line-height: 1;
+  transition:
+    transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    filter    200ms ease,
+    color     180ms ease;
 }
 
-.home-tab span {
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.01em;
+/* Label */
+.home-tab span,
+.bm-home-tab span {
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
   line-height: 1.1;
+  transition: opacity 180ms ease, color 180ms ease;
 }
 
-.home-tab:hover {
+/* ── Hover ── */
+.home-tab:hover,
+.bm-home-tab:hover {
   color: #ffffff;
-  transform: translateY(-1px);
+  transform: none;
 }
 
-.home-tab:focus-visible {
+.home-tab:hover i,
+.bm-home-tab:hover i {
+  transform: none;
+}
+
+/* ── Focus visible ── */
+.home-tab:focus-visible,
+.bm-home-tab:focus-visible {
   outline: none;
-  border-color: rgba(255, 255, 255, 0.72);
-  box-shadow: 0 0 0 2px rgba(14, 124, 102, 0.42);
+  border-color: rgba(16,185,129,0.55);
+  box-shadow: 0 0 0 2px rgba(16,185,129,0.32);
 }
 
-.home-tab.is-active {
-  color: var(--home-tab-text);
-  background: var(--home-tab-active);
-  border-color: rgba(255, 255, 255, 0.34);
-  box-shadow: 0 8px 18px rgba(7, 90, 74, 0.35);
+/* ════════════════════════════════
+   ÉTAT ACTIF — "Frosted Crystal"
+   Fond clair quasi-blanc sur dark
+════════════════════════════════ */
+.home-tab.is-active,
+.bm-home-tab.is-active {
+  color: #ffffff;
+  background: linear-gradient(135deg, rgba(255,255,255,0.14), rgba(255,255,255,0.08));
+  border-color: rgba(80, 220, 160, 0.28);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
 }
 
-.home-tab.is-pressed {
-  transform: scale(0.98);
-}
-
-.home-tab-badge {
+/* Indicateur lumineux en haut */
+.home-tab.is-active::before,
+.bm-home-tab.is-active::before {
+  content: '';
   position: absolute;
-  top: 0.18rem;
-  right: 0.42rem;
+  top: 0.28rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 1.45rem;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    rgba(16,185,129,0)    0%,
+    rgba(52,211,153,1)   35%,
+    rgba(110,231,183,1)  50%,
+    rgba(52,211,153,1)   65%,
+    rgba(16,185,129,0)  100%
+  );
+  box-shadow: none;
+  animation: bm-tab-glow-in 260ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* Glow sous le tab actif */
+.home-tab.is-active::after,
+.bm-home-tab.is-active::after {
+  display: none;
+}
+
+/* Icône active — lift + glow */
+.home-tab.is-active i,
+.bm-home-tab.is-active i {
+  transform: none;
+  filter: none;
+  color: #ffffff;
+}
+
+.home-tab.is-active span,
+.bm-home-tab.is-active span {
+  color: rgba(255,255,255,0.95);
+  opacity: 1;
+}
+
+/* ── Pressed / tap ── */
+.home-tab.is-pressed,
+.bm-home-tab.is-pressed {
+  transform: scale(0.91);
+  opacity: 0.8;
+  transition:
+    transform 80ms ease,
+    opacity   80ms ease;
+}
+
+.home-tab.is-pressed i,
+.bm-home-tab.is-pressed i {
+  transform: scale(0.91);
+  filter: none;
+}
+
+/* ── Badge ── */
+.home-tab-badge,
+.bm-home-tab-badge {
+  position: absolute;
+  top: 0.2rem;
+  right: 0.38rem;
   min-width: 1rem;
   height: 1rem;
   padding: 0 0.2rem;
   border-radius: 999px;
-  background: #f59e0b;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
   color: #fff;
-  font-size: 0.58rem;
+  font-size: 0.56rem;
   font-weight: 800;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(255, 255, 255, 0.58);
+  border: 1.5px solid rgba(8,26,19,0.75);
   line-height: 1;
+  box-shadow: none;
 }
 
+/* ── Padding main ── */
 main.has-home-tabs {
-  padding-bottom: calc(6rem + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(6.5rem + env(safe-area-inset-bottom, 0px));
 }
 
-body.menu-open .home-bottom-tabs {
+/* ── Masqué quand menu ouvert ── */
+body.menu-open .home-bottom-tabs,
+body.menu-open .bm-home-tabs {
   opacity: 0;
   pointer-events: none;
-  transform: translate(-50%, 14px);
+  transform: translate(-50%, 20px);
+  transition:
+    opacity   200ms ease,
+    transform 200ms ease;
 }
 
+/* ── Desktop : caché ── */
 @media (min-width: 992px) {
-  .home-bottom-tabs {
+  .home-bottom-tabs,
+  .bm-home-tabs {
     display: none !important;
   }
-
   main.has-home-tabs {
     padding-bottom: 0;
   }
 }
 
+/* ── Reduced motion ── */
 @media (prefers-reduced-motion: reduce) {
   .home-bottom-tabs,
+  .bm-home-tabs {
+    animation: none !important;
+  }
+  .home-bottom-tabs,
+  .bm-home-tabs,
   .home-tab,
-  body.menu-open .home-bottom-tabs {
+  .bm-home-tab,
+  .home-tab i,
+  .bm-home-tab i,
+  .home-tab span,
+  .bm-home-tab span,
+  .home-tab.is-active::before,
+  .bm-home-tab.is-active::before,
+  body.menu-open .home-bottom-tabs,
+  body.menu-open .bm-home-tabs {
     transition: none !important;
     animation: none !important;
+  }
+}
+
+/* ── Print ── */
+@media print {
+  .home-bottom-tabs,
+  .bm-home-tabs {
+    display: none !important;
   }
 }

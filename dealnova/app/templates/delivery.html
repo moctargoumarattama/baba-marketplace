@@ -1,383 +1,491 @@
-{% extends "base.html" %}
-{% block title %}Livraison speciale | Baba Market{% endblock %}
+﻿{% extends "base.html" %}
+{% block title %}Livraison spéciale | Baba Market{% endblock %}
 
 {% block head %}
 <style>
-  .delivery-wrap { max-width: 900px; margin: 1rem auto 2rem; padding: 0 0.75rem; }
-  .delivery-wrap,
-  .delivery-wrap * {
+.dlv {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 0 1rem 3rem;
+  font-family: system-ui, sans-serif;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: clip;
+}
+
+.dlv,
+.dlv *,
+.dlv *::before,
+.dlv *::after {
+  box-sizing: border-box;
+}
+
+/* Hero */
+.dlv-hero {
+  background: linear-gradient(140deg, #064e3b, #0d9488);
+  border-radius: 0 0 20px 20px;
+  margin: 0 -1rem 1rem;
+  padding: 1.4rem 1.2rem 1.6rem;
+  color: #fff;
+  min-width: 0;
+  overflow: hidden;
+}
+.dlv-hero small { font-size:.72rem; font-weight:700; letter-spacing:.06em; opacity:.7; text-transform:uppercase; }
+.dlv-hero h1 { font-size:1.2rem; font-weight:900; margin:.25rem 0 .3rem; line-height:1.25; }
+.dlv-hero p  { font-size:.83rem; opacity:.8; margin:0; }
+
+/* Prix */
+.dlv-price {
+  display:flex; align-items:center; justify-content:space-between;
+  background:#fff; border:2px solid #d1fae5; border-radius:14px;
+  padding:.75rem 1rem; margin-bottom:.9rem;
+  box-shadow: 0 4px 16px rgba(5,150,105,.1);
+}
+.dlv-price-val { font-size:1.4rem; font-weight:900; color:#059669; }
+.dlv-price-val.err { font-size:.9rem; color:#dc2626; }
+.dlv-price-lbl { font-size:.7rem; font-weight:700; text-transform:uppercase; color:#6b7280; }
+.dlv-price i { font-size:1.4rem; color:#10b981; }
+
+/* Cards */
+.dlv-card {
+  background:#fff;
+  border:1px solid #e5e7eb;
+  border-radius:14px;
+  padding:1rem;
+  margin-bottom:.7rem;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+.dlv-card-title { font-size:.8rem; font-weight:800; text-transform:uppercase; letter-spacing:.06em; color:#6b7280; margin:0 0 .8rem; display:flex; align-items:center; gap:.4rem; }
+.dlv-card-title i { color:#059669; }
+
+/* Labels */
+.dlv label.fl { display:block; font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:#9ca3af; margin-bottom:.25rem; }
+.dlv .req { color:#ef4444; }
+.dlv .mb { margin-bottom:.65rem; }
+
+/* Inputs */
+.dlv .form-control, .dlv .form-select {
+  background:#f9fafb !important; border:1.5px solid #e5e7eb !important;
+  border-radius:10px !important; font-size:.88rem !important;
+  min-height:46px; padding:.6rem .85rem !important; box-shadow:none !important;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+.dlv .form-control:focus, .dlv .form-select:focus {
+  border-color:#10b981 !important; background:#fff !important;
+  box-shadow:0 0 0 3px rgba(16,185,129,.1) !important;
+}
+.dlv textarea.form-control { min-height:72px; resize:none; }
+.dlv input[type="datetime-local"] {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Bouton position simple */
+.dlv-loc-btn {
+  display:flex; align-items:center; gap:.55rem;
+  width:100%; padding:.65rem .9rem; margin-top:.5rem;
+  background:#f0fdf9; border:1.5px dashed #6ee7b7;
+  border-radius:10px; cursor:pointer; font-size:.85rem;
+  font-weight:700; color:#059669; transition:background .15s;
+  max-width: 100%;
+  min-width: 0;
+}
+.dlv-loc-btn:hover { background:#d1fae5; }
+.dlv-loc-btn i { font-size:1rem; flex-shrink:0; }
+.dlv-loc-btn small { font-size:.72rem; font-weight:400; color:#6b7280; display:block; }
+/* Status après détection */
+.dlv-loc-status {
+  display:none; align-items:center; gap:.55rem;
+  margin-top:.45rem; padding:.5rem .75rem;
+  background:#f0fdf9; border:1.5px solid #6ee7b7;
+  border-radius:10px; font-size:.8rem; color:#059669; font-weight:700;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.dlv-loc-status.active { display:flex; }
+.dlv-loc-status a { font-size:.74rem; color:#0d9488; margin-left:auto; text-decoration:underline; white-space:nowrap; }
+.dlv-loc-err { font-size:.75rem; color:#dc2626; margin-top:.35rem; display:none; }
+.dlv-loc-err.active { display:block; }
+
+/* Zone coller lien arrivée */
+.dlv-paste-box { margin-top:.5rem; background:#f0fdf9; border:1.5px dashed #6ee7b7; border-radius:10px; padding:.65rem .75rem; }
+.dlv-paste-label { font-size:.78rem; font-weight:700; color:#065f46; margin-bottom:.45rem; display:flex; align-items:center; gap:.4rem; }
+.dlv-paste-row { display:flex; gap:.35rem; width: 100%; max-width: 100%; min-width: 0; }
+.dlv-paste-row input { flex:1; background:#fff !important; border:1.5px solid #d1fae5 !important; border-radius:8px !important; font-size:.85rem !important; padding:.5rem .75rem !important; min-height:42px; color:#111827 !important; box-shadow:none !important; width: 100%; max-width: 100%; min-width: 0; }
+.dlv-paste-row input:focus { border-color:#10b981 !important; outline:none !important; }
+.dlv-paste-row button { background:#059669; color:#fff; border:none; border-radius:8px; font-size:1rem; font-weight:700; padding:0 .9rem; cursor:pointer; min-height:42px; flex-shrink:0; }
+.dlv-paste-box small { font-size:.72rem; margin-top:.3rem; display:block; min-height:.9em; }
+
+/* Urgent */
+.dlv-urgent { display:flex; align-items:center; gap:.6rem; background:#fffbeb; border:1.5px solid #fde68a; border-radius:10px; padding:.65rem .85rem; cursor:pointer; }
+.dlv-urgent input { width:18px; height:18px; accent-color:#059669; cursor:pointer; }
+.dlv-urgent span { font-size:.85rem; font-weight:700; color:#92400e; }
+.dlv-urgent small { font-size:.73rem; color:#b45309; display:block; }
+
+/* Boutons */
+.dlv-btn { display:flex; align-items:center; justify-content:center; gap:.5rem; width:100%; min-height:50px; border-radius:12px; font-size:.9rem; font-weight:800; border:none; cursor:pointer; text-decoration:none; }
+.dlv-btn-wa { background:linear-gradient(135deg,#128c7e,#25d366); color:#fff; box-shadow:0 4px 16px rgba(37,211,102,.3); margin-bottom:.45rem; }
+.dlv-btn-wa:disabled { background:#d1d5db; color:#9ca3af; box-shadow:none; cursor:not-allowed; }
+.dlv-btn-outline { background:#fff; color:#128c7e; border:2px solid #25d366 !important; min-height:44px; font-size:.83rem !important; }
+.dlv-sep { text-align:center; font-size:.72rem; color:#9ca3af; margin:.2rem 0; }
+
+.dlv .row,
+.dlv [class*="col-"] {
+  min-width: 0;
+}
+
+.dlv .row {
+  --bs-gutter-x: .5rem;
+}
+
+@media (max-width: 767.98px) {
+  .dlv .form-control,
+  .dlv .form-select,
+  .dlv-paste-row input {
+    font-size: 16px !important;
+  }
+
+  .dlv input[type="datetime-local"] {
+    font-size: 14px !important;
+    padding-inline: .65rem !important;
+  }
+
+  .dlv .row {
+    margin-left: 0;
+    margin-right: 0;
+  }
+
+  .dlv .row > [class*="col-"] {
+    padding-left: .25rem;
+    padding-right: .25rem;
+  }
+
+  .dlv-loc-status a {
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .dlv {
+    padding-inline: .75rem;
+  }
+
+  .dlv-hero {
+    margin: 0 -.75rem 1rem;
+  }
+
+  .dlv .row {
+    --bs-gutter-x: 0;
+  }
+
+  .dlv .row > [class*="col-"] {
+    flex: 0 0 100%;
+    width: 100%;
     max-width: 100%;
-    box-sizing: border-box;
-  }
-  .delivery-hero {
-    background: linear-gradient(135deg, #0ea5a5, #10b981);
-    border-radius: 18px;
-    color: #fff;
-    padding: 1rem;
-    box-shadow: 0 16px 28px rgba(16, 185, 129, 0.25);
-    margin-bottom: 1rem;
-  }
-  .delivery-hero h1 { font-size: 1.35rem; font-weight: 800; margin: 0; }
-  .delivery-hero p { margin: .35rem 0 0; opacity: .95; }
-  .delivery-card {
-    background: #fff;
-    border: 1px solid #e5e7eb;
-    border-radius: 16px;
-    padding: 1rem;
-    box-shadow: 0 12px 26px rgba(2, 6, 23, .06);
-  }
-  .price-box {
-    border: 1px solid #99f6e4;
-    background: #f0fdfa;
-    color: #115e59;
-    border-radius: 12px;
-    padding: .7rem .8rem;
-    font-weight: 700;
-    margin-bottom: .9rem;
-  }
-  .price-box.is-error {
-    border-color: #fecaca;
-    background: #fef2f2;
-    color: #991b1b;
-  }
-  .required-dot { color: #dc2626; }
-  .btn-wa {
-    min-height: 46px;
-    font-weight: 700;
-    border-radius: 12px;
-  }
-  .gps-panel {
-    border: 1px solid #d1d5db;
-    border-radius: 12px;
-    padding: .7rem;
-    background: #f8fafc;
-  }
-  .gps-meta {
-    font-size: .85rem;
-    color: #475569;
-    margin: .35rem 0;
-  }
-  .gps-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: .35rem;
+    padding-left: 0;
+    padding-right: 0;
   }
 
-  .gps-actions .btn,
-  .gps-actions a {
-    min-height: 38px;
+  .dlv-paste-row {
+    flex-direction: column;
   }
 
-  .delivery-card .form-control,
-  .delivery-card .form-select,
-  .gps-meta {
-    overflow-wrap: anywhere;
-    word-break: break-word;
+  .dlv-paste-row button {
+    width: 100%;
   }
-  @media (max-width: 767.98px) {
-    .delivery-hero h1 { font-size: 1.2rem; }
-    .delivery-card { padding: .85rem; }
-    .gps-actions .btn,
-    .gps-actions a {
-      flex: 1 1 calc(50% - .35rem);
-      justify-content: center;
-    }
-  }
+}
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="delivery-wrap">
-  <section class="delivery-hero">
-    <h1>Livraison speciale (hors marketplace)</h1>
-    <p>Remplissez le formulaire, le prix est calcule automatiquement par ville puis envoye sur WhatsApp.</p>
-  </section>
+<div class="dlv">
 
-  <section class="delivery-card">
-    <form id="specialDeliveryForm"
-          method="post"
-          action="{{ url_for('delivery_special.delivery_form') }}"
-          data-pricing-endpoint="{{ url_for('api.pricing_delivery') }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <div id="deliveryPriceBox" class="price-box">Prix livraison : N/A</div>
-      <input type="hidden" name="delivery_price_cents" id="deliveryPriceCents" value="">
+  <div class="dlv-hero">
+    <small><i class="bi bi-clock-fill"></i> 7j/7 · 8h – 2h</small>
+    <h1>Livraison rapide<br>Rabat, Salé, Témara, Kénitra</h1>
+    <p>Prix calculé automatiquement selon votre ville.</p>
+  </div>
 
-      <div class="row g-3">
-        <div class="col-md-4">
-          <label class="form-label">Ville <span class="required-dot">*</span></label>
-          <select name="city" id="deliveryCity" class="form-select" required>
-            <option value="">Choisir une ville</option>
-            {% for city in cities %}
-              <option value="{{ city }}">{{ city }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="col-md-4">
-          <label class="form-label">Nom <span class="required-dot">*</span></label>
+  <form id="dlvForm" method="post"
+        action="{{ url_for('delivery_special.delivery_form') }}"
+        data-pricing-endpoint="{{ url_for('api.pricing_delivery') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="delivery_price_cents" id="dlvPriceCents">
+    <input type="hidden" name="pickup_lat"       id="pickupLat">
+    <input type="hidden" name="pickup_lng"       id="pickupLng">
+    <input type="hidden" name="pickup_maps_url"  id="pickupMapsUrl">
+    <input type="hidden" name="dropoff_lat"      id="dropoffLat">
+    <input type="hidden" name="dropoff_lng"      id="dropoffLng">
+    <input type="hidden" name="dropoff_maps_url" id="dropoffMapsUrl">
+
+    <!-- Prix -->
+    <div class="dlv-price" id="dlvPriceCard">
+      <div>
+        <div class="dlv-price-lbl">Prix livraison</div>
+        <div class="dlv-price-val" id="dlvPriceVal">N/A</div>
+      </div>
+      <i class="bi bi-truck"></i>
+    </div>
+    <div id="deliveryPriceBox" style="display:none"></div>
+
+    <!-- Infos -->
+    <div class="dlv-card">
+      <p class="dlv-card-title"><i class="bi bi-person"></i> Vos informations</p>
+      <div class="mb">
+        <label class="fl">Ville <span class="req">*</span></label>
+        <select name="city" id="deliveryCity" class="form-select" required>
+          <option value="">Choisir une ville</option>
+          {% for city in cities %}<option value="{{ city }}">{{ city }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="row g-2 mb">
+        <div class="col-6">
+          <label class="fl">Nom <span class="req">*</span></label>
           <input type="text" name="name" class="form-control" required maxlength="150" placeholder="Votre nom">
         </div>
-        <div class="col-md-4">
-          <label class="form-label">Telephone <span class="required-dot">*</span></label>
-          <input type="tel" name="phone" class="form-control" required maxlength="40" placeholder="+2126...">
-        </div>
-
-        <div class="col-md-6">
-          <label class="form-label">Objet a livrer</label>
-          <input type="text" name="item_text" class="form-control" maxlength="255" placeholder="Ex: document, colis...">
-        </div>
-        <div class="col-md-6">
-          <label class="form-label">Date/heure souhaitee</label>
-          <input type="datetime-local" name="desired_datetime" class="form-control">
-        </div>
-
-        <div class="col-md-6">
-          <label class="form-label">Adresse depart</label>
-          <input type="text" name="pickup_text" class="form-control" maxlength="255" placeholder="Point de depart">
-          <input type="hidden" name="pickup_lat" id="pickupLat">
-          <input type="hidden" name="pickup_lng" id="pickupLng">
-          <input type="hidden" name="pickup_maps_url" id="pickupMapsUrl">
-        </div>
-        <div class="col-md-6">
-          <label class="form-label">Adresse arrivee</label>
-          <input type="text" name="dropoff_text" class="form-control" maxlength="255" placeholder="Point d'arrivee">
-          <input type="hidden" name="dropoff_lat" id="dropoffLat">
-          <input type="hidden" name="dropoff_lng" id="dropoffLng">
-          <input type="hidden" name="dropoff_maps_url" id="dropoffMapsUrl">
-        </div>
-
-        <div class="col-md-6">
-          <div class="gps-panel">
-            <div class="d-flex justify-content-between align-items-center gap-2">
-              <strong>GPS Depart</strong>
-              <button type="button" class="btn btn-sm btn-outline-primary" id="pickupGeoBtn">Utiliser ma position</button>
-            </div>
-            <div class="gps-meta" id="pickupGpsMeta">Position: N/A</div>
-            <div class="gps-actions">
-              <button type="button" class="btn btn-sm btn-outline-secondary" id="pickupCopyCoordsBtn" disabled>Copier coords</button>
-              <button type="button" class="btn btn-sm btn-outline-secondary" id="pickupCopyMapBtn" disabled>Copier lien</button>
-              <a class="btn btn-sm btn-outline-success disabled" id="pickupOpenMapBtn" href="#" target="_blank" rel="noopener" aria-disabled="true">Ouvrir Maps</a>
-            </div>
-            <small class="text-muted d-block mt-2" id="pickupGeoHint"></small>
-          </div>
-        </div>
-        <div class="col-md-6">
-          <div class="gps-panel">
-            <div class="d-flex justify-content-between align-items-center gap-2">
-              <strong>GPS Arrivee</strong>
-              <button type="button" class="btn btn-sm btn-outline-primary" id="dropoffGeoBtn">Utiliser ma position</button>
-            </div>
-            <div class="gps-meta" id="dropoffGpsMeta">Position: N/A</div>
-            <div class="gps-actions">
-              <button type="button" class="btn btn-sm btn-outline-secondary" id="dropoffCopyCoordsBtn" disabled>Copier coords</button>
-              <button type="button" class="btn btn-sm btn-outline-secondary" id="dropoffCopyMapBtn" disabled>Copier lien</button>
-              <a class="btn btn-sm btn-outline-success disabled" id="dropoffOpenMapBtn" href="#" target="_blank" rel="noopener" aria-disabled="true">Ouvrir Maps</a>
-            </div>
-            <small class="text-muted d-block mt-2" id="dropoffGeoHint"></small>
-          </div>
-        </div>
-
-        <div class="col-12">
-          <label class="form-label">Note / repere</label>
-          <textarea name="note_text" class="form-control" rows="2" maxlength="255" placeholder="Details utiles pour la livraison"></textarea>
-        </div>
-
-        <div class="col-12">
-          <div class="form-check">
-            <input class="form-check-input" type="checkbox" value="1" id="deliveryUrgent" name="urgent">
-            <label class="form-check-label" for="deliveryUrgent">Urgent</label>
-          </div>
-        </div>
-
-        <div class="col-12">
-          <button id="deliverySubmitBtn" type="submit" class="btn btn-success w-100 btn-wa" disabled>
-            <i class="bi bi-whatsapp me-1"></i> Demander une livraison sur WhatsApp
-          </button>
-        </div>
-        <div class="col-12">
-          {% set support_wa = (config.get('SUPPORT_WHATSAPP_NUMBER') or config.get('ADMIN_PHONE') or '212770010264') %}
-          <a class="btn btn-outline-success w-100 btn-wa"
-             href="https://wa.me/{{ support_wa|replace('+','')|replace(' ','') }}?text={{ 'Bonjour%20je%20veux%20une%20livraison%20speciale.' }}"
-             target="_blank"
-             rel="noopener">
-            <i class="bi bi-whatsapp me-1"></i> Ouvrir WhatsApp (si echec)
-          </a>
+        <div class="col-6">
+          <label class="fl">Téléphone <span class="req">*</span></label>
+          <input type="tel" name="phone" class="form-control" required maxlength="40" placeholder="+2126…">
         </div>
       </div>
-    </form>
-  </section>
+      <div class="row g-2">
+        <div class="col-6">
+          <label class="fl">Objet</label>
+          <input type="text" name="item_text" class="form-control" maxlength="255" placeholder="Colis, document…">
+        </div>
+        <div class="col-6">
+          <label class="fl">Date / heure</label>
+          <input type="datetime-local" name="desired_datetime" class="form-control">
+        </div>
+      </div>
+    </div>
+
+    <!-- Adresses -->
+    <div class="dlv-card">
+      <p class="dlv-card-title"><i class="bi bi-geo-alt"></i> Départ &amp; arrivée</p>
+
+      <div class="mb">
+        <label class="fl"><i class="bi bi-circle-fill text-success" style="font-size:.5rem;"></i> Adresse départ</label>
+        <input type="text" name="pickup_text" class="form-control" maxlength="255" placeholder="Ex: Avenue Hassan II, Rabat">
+        <button type="button" class="dlv-loc-btn" id="pickupGeoBtn">
+          <i class="bi bi-crosshair"></i>
+          <div><span>Utiliser ma position actuelle</span><small>On détecte automatiquement votre emplacement</small></div>
+        </button>
+        <div class="dlv-loc-status" id="pickupStatus">
+          <i class="bi bi-check-circle-fill"></i> Position détectée
+          <a id="pickupOpenMapBtn" href="#" target="_blank" rel="noopener">Voir sur Maps</a>
+        </div>
+        <div class="dlv-loc-err" id="pickupGeoHint">Impossible de détecter la position. Écrivez l'adresse manuellement.</div>
+      </div>
+
+      <div>
+        <label class="fl"><i class="bi bi-circle-fill text-danger" style="font-size:.5rem;"></i> Adresse arrivée</label>
+        <input type="text" name="dropoff_text" class="form-control" maxlength="255" placeholder="Ex: Rue Patrice Lumumba, Salé">
+        <div class="dlv-paste-box">
+          <div class="dlv-paste-label"><i class="bi bi-whatsapp" style="color:#25d366;"></i> Lien de localisation  ?</div>
+          <div class="dlv-paste-row">
+            <input type="text" id="dropoffPasteInput" placeholder="Collez le lien Maps, Apple Maps, Waze…" autocomplete="off">
+            <button type="button" id="dropoffPasteBtn"><i class="bi bi-check-lg"></i></button>
+          </div>
+          <small id="dropoffPasteHint"></small>
+        </div>
+        <div class="dlv-loc-status" id="dropoffStatus">
+          <i class="bi bi-check-circle-fill"></i> Position enregistrée
+          <a id="dropoffOpenMapBtn" href="#" target="_blank" rel="noopener">Voir sur Maps</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Note + Urgent -->
+    <div class="dlv-card">
+      <p class="dlv-card-title"><i class="bi bi-chat-text"></i> Détails</p>
+      <div class="mb">
+        <label class="fl">Note / repère</label>
+        <textarea name="note_text" class="form-control" maxlength="255" placeholder="Étage, couleur portail, interphone…"></textarea>
+      </div>
+      <label class="dlv-urgent" for="deliveryUrgent">
+        <input type="checkbox" id="deliveryUrgent" name="urgent" value="1">
+        <div>
+          <span><i class="bi bi-lightning-charge-fill"></i> Urgent</span>
+          <small>Priorité maximale</small>
+        </div>
+      </label>
+    </div>
+
+    <!-- CTA -->
+    <button id="deliverySubmitBtn" type="submit" class="dlv-btn dlv-btn-wa" disabled>
+      <i class="bi bi-whatsapp" style="font-size:1.1rem;"></i> Demander via WhatsApp
+    </button>
+    <div class="dlv-sep">ou</div>
+    {% set wa = (config.get('SUPPORT_WHATSAPP_NUMBER') or config.get('ADMIN_PHONE') or '212770010264') %}
+    <a class="dlv-btn dlv-btn-outline"
+       href="https://wa.me/{{ wa|replace('+','')|replace(' ','') }}?text=Bonjour%20je%20veux%20une%20livraison%20sp%C3%A9ciale."
+       target="_blank" rel="noopener">
+      <i class="bi bi-whatsapp"></i> Contacter directement
+    </a>
+  </form>
 </div>
 
-<script src="{{ url_for('static', filename='js/delivery_pricing.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/delivery_pricing.js', v=app_static_version) }}" defer></script>
 <script>
-  (function () {
-    function boot() {
-    const citySelect = document.getElementById("deliveryCity");
-    const priceBox = document.getElementById("deliveryPriceBox");
-    const submitBtn = document.getElementById("deliverySubmitBtn");
-    const priceHidden = document.getElementById("deliveryPriceCents");
-    const deliveryForm = document.getElementById("specialDeliveryForm");
-    if (!citySelect || !priceBox || !submitBtn) return;
+(function () {
+  'use strict';
+  function boot() {
+    var form       = document.getElementById('dlvForm');
+    var priceCard  = document.getElementById('dlvPriceCard');
+    var priceVal   = document.getElementById('dlvPriceVal');
+    var priceBox   = document.getElementById('deliveryPriceBox');
+    var submitBtn  = document.getElementById('deliverySubmitBtn');
+    var hidden     = document.getElementById('dlvPriceCents');
+    if (!form || !submitBtn) return;
 
-    const decimals = 6;
-
-    async function copyText(text, button) {
-      if (!text) return false;
-      let ok = false;
-      try {
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          await navigator.clipboard.writeText(text);
-          ok = true;
-        }
-      } catch (_) {}
-      if (!ok) {
-        const area = document.createElement("textarea");
-        area.value = text;
-        area.setAttribute("readonly", "");
-        area.style.position = "absolute";
-        area.style.left = "-9999px";
-        document.body.appendChild(area);
-        area.select();
-        try {
-          ok = document.execCommand("copy");
-        } catch (_) {
-          ok = false;
-        }
-        document.body.removeChild(area);
-      }
-      if (button) {
-        const prev = button.textContent;
-        button.textContent = ok ? "Copie OK" : "Echec";
-        setTimeout(() => { button.textContent = prev; }, 1200);
-      }
-      return ok;
-    }
 
     function setLoading() {
-      priceBox.classList.remove("is-error");
-      priceBox.textContent = "Prix livraison : calcul en cours...";
-      submitBtn.disabled = true;
-      if (priceHidden) priceHidden.value = "";
+      priceCard.classList.remove('err-card');
+      priceVal.className = 'dlv-price-val'; priceVal.textContent = '…';
+      submitBtn.disabled = true; if (hidden) hidden.value = '';
+    }
+    function setError(msg) {
+      priceCard.style.borderColor = '#fecaca';
+      priceVal.className = 'dlv-price-val err'; priceVal.textContent = msg || 'N/A';
+      submitBtn.disabled = true; if (hidden) hidden.value = '';
+    }
+    function setPrice(cents) {
+      cents = Math.max(0, Math.trunc(Number(cents || 0)));
+      priceCard.style.borderColor = '#d1fae5';
+      priceVal.className = 'dlv-price-val'; priceVal.textContent = (cents/100).toFixed(2) + ' DH';
+      if (priceBox) priceBox.textContent = 'Prix livraison : ' + (cents/100).toFixed(2) + ' DH';
+      submitBtn.disabled = false; if (hidden) hidden.value = String(cents);
     }
 
-    function setError(message) {
-      priceBox.classList.add("is-error");
-      priceBox.textContent = message || "Prix indisponible";
-      submitBtn.disabled = true;
-      if (priceHidden) priceHidden.value = "";
-    }
 
-    function setPrice(priceCents) {
-      const cents = Math.max(0, Math.trunc(Number(priceCents || 0)));
-      priceBox.classList.remove("is-error");
-      priceBox.textContent = "Prix livraison : " + (cents / 100).toFixed(2) + " DH";
-      submitBtn.disabled = false;
-      if (priceHidden) priceHidden.value = String(cents);
-    }
+    function wireGps(p) {
+      var btn    = document.getElementById(p+'GeoBtn');
+      var latEl  = document.getElementById(p+'Lat');
+      var lngEl  = document.getElementById(p+'Lng');
+      var mapU   = document.getElementById(p+'MapsUrl');
+      var status = document.getElementById(p+'Status');
+      var oMap   = document.getElementById(p+'OpenMapBtn');
+      var err    = document.getElementById(p+'GeoHint');
+      if (!btn) return;
 
-    function wireGps(prefix) {
-      const geoBtn = document.getElementById(prefix + "GeoBtn");
-      const latEl = document.getElementById(prefix + "Lat");
-      const lngEl = document.getElementById(prefix + "Lng");
-      const mapEl = document.getElementById(prefix + "MapsUrl");
-      const metaEl = document.getElementById(prefix + "GpsMeta");
-      const hintEl = document.getElementById(prefix + "GeoHint");
-      const copyCoordsBtn = document.getElementById(prefix + "CopyCoordsBtn");
-      const copyMapBtn = document.getElementById(prefix + "CopyMapBtn");
-      const openMapBtn = document.getElementById(prefix + "OpenMapBtn");
-      if (!geoBtn || !latEl || !lngEl || !mapEl || !metaEl || !copyCoordsBtn || !copyMapBtn || !openMapBtn) return;
-
-      function applyState(lat, lng, mapsUrl) {
-        const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
-        const coordsText = hasCoords ? lat.toFixed(decimals) + ", " + lng.toFixed(decimals) : "";
-        latEl.value = hasCoords ? String(lat.toFixed(decimals)) : "";
-        lngEl.value = hasCoords ? String(lng.toFixed(decimals)) : "";
-        mapEl.value = mapsUrl || "";
-        metaEl.textContent = "Position: " + (coordsText || "N/A");
-        copyCoordsBtn.disabled = !hasCoords;
-        copyMapBtn.disabled = !mapsUrl;
-        if (mapsUrl) {
-          openMapBtn.classList.remove("disabled");
-          openMapBtn.removeAttribute("aria-disabled");
-          openMapBtn.href = mapsUrl;
-        } else {
-          openMapBtn.classList.add("disabled");
-          openMapBtn.setAttribute("aria-disabled", "true");
-          openMapBtn.href = "#";
-        }
+      function setGeoErrorMessage(message) {
+        if (!err) return;
+        err.textContent = message;
+        err.classList.add('active');
       }
 
-      applyState(null, null, "");
-
-      geoBtn.addEventListener("click", () => {
-        hintEl.textContent = "";
+      btn.addEventListener('click', function() {
         if (!navigator.geolocation) {
-          hintEl.textContent = "Geolocalisation non disponible sur cet appareil.";
+          setGeoErrorMessage('La géolocalisation n’est pas prise en charge sur ce navigateur. Écrivez l’adresse manuellement.');
           return;
         }
-        geoBtn.disabled = true;
-        geoBtn.textContent = "Localisation...";
+        if (!window.isSecureContext && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+          setGeoErrorMessage('La page est ouverte hors HTTPS ou dans un navigateur mobile qui bloque la géolocalisation.');
+          return;
+        }
+        btn.innerHTML = '<i class="bi bi-hourglass-split"></i><div><span>Localisation en cours…</span></div>';
+        btn.disabled = true;
         navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            const lat = Number(pos.coords.latitude);
-            const lng = Number(pos.coords.longitude);
-            const mapsUrl = "https://www.google.com/maps?q=" + lat.toFixed(decimals) + "," + lng.toFixed(decimals);
-            applyState(lat, lng, mapsUrl);
-            geoBtn.disabled = false;
-            geoBtn.textContent = "Utiliser ma position";
+          function(pos) {
+            var la = pos.coords.latitude, ln = pos.coords.longitude;
+            var url = 'https://www.google.com/maps?q='+la.toFixed(6)+','+ln.toFixed(6);
+            if (latEl)  latEl.value  = la.toFixed(6);
+            if (lngEl)  lngEl.value  = ln.toFixed(6);
+            if (mapU)   mapU.value   = url;
+            if (oMap)   oMap.href    = url;
+            if (status) status.classList.add('active');
+            if (err)    err.classList.remove('active');
+            btn.style.display = 'none';
           },
-          () => {
-            hintEl.textContent = "Autorisez la localisation pour enregistrer la position exacte.";
-            geoBtn.disabled = false;
-            geoBtn.textContent = "Utiliser ma position";
+          function(geoError) {
+            btn.innerHTML = '<i class="bi bi-crosshair"></i><div><span>Utiliser ma position actuelle</span><small>On détecte automatiquement votre emplacement</small></div>';
+            btn.disabled = false;
+            if (!geoError || typeof geoError.code !== 'number') {
+              setGeoErrorMessage('Impossible de détecter la position. Écrivez l’adresse manuellement.');
+              return;
+            }
+            if (geoError.code === 1) {
+              setGeoErrorMessage('Permission refusée: autorisez la localisation dans le navigateur puis réessayez.');
+              return;
+            }
+            if (geoError.code === 2) {
+              setGeoErrorMessage('Position indisponible: vérifiez le GPS ou le réseau du téléphone.');
+              return;
+            }
+            if (geoError.code === 3) {
+              setGeoErrorMessage('La localisation a pris trop de temps. Réessayez ou écrivez l’adresse manuellement.');
+              return;
+            }
+            setGeoErrorMessage('Impossible de détecter la position. Écrivez l’adresse manuellement.');
           },
-          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+          { enableHighAccuracy:true, timeout:10000, maximumAge:0 }
         );
       });
-
-      copyCoordsBtn.addEventListener("click", () => {
-        const value = metaEl.textContent.replace(/^Position:\s*/, "");
-        copyText(value && value !== "N/A" ? value : "", copyCoordsBtn);
-      });
-      copyMapBtn.addEventListener("click", () => {
-        copyText(mapEl.value || "", copyMapBtn);
-      });
     }
 
-    let pricingEndpoint = "/api/pricing/delivery";
-    if (deliveryForm && typeof deliveryForm.dataset.pricingEndpoint === "string" && deliveryForm.dataset.pricingEndpoint.trim()) {
-      pricingEndpoint = deliveryForm.dataset.pricingEndpoint.trim();
+
+
+    var ep = '/api/pricing/delivery';
+    if (form.dataset.pricingEndpoint) ep = form.dataset.pricingEndpoint;
+    if (window.DeliveryPricing && typeof window.DeliveryPricing.init === 'function') {
+      window.DeliveryPricing.init({ citySelector:'#deliveryCity', hiddenPriceSelector:'#dlvPriceCents', endpoint:ep, source:'special', debounceMs:150,
+        onEmpty: function(){ priceVal.className='dlv-price-val'; priceVal.textContent='N/A'; submitBtn.disabled=true; if(hidden)hidden.value=''; },
+        onLoading: setLoading, onPrice: setPrice, onError: setError });
+    } else { setError('N/A'); }
+
+    function wireDropoffPaste() {
+      var input  = document.getElementById('dropoffPasteInput');
+      var btn    = document.getElementById('dropoffPasteBtn');
+      var hint   = document.getElementById('dropoffPasteHint');
+      var latEl  = document.getElementById('dropoffLat');
+      var lngEl  = document.getElementById('dropoffLng');
+      var mapU   = document.getElementById('dropoffMapsUrl');
+      var status = document.getElementById('dropoffStatus');
+      var oMap   = document.getElementById('dropoffOpenMapBtn');
+      if (!btn || !input) return;
+
+      function validate() {
+        var raw = (input.value || '').trim();
+        // Accepte tout lien Maps (google.com/maps, maps.app.goo.gl, maps.google.com…)
+        var isMaps = /maps\.app\.goo\.gl|google\.[a-z.]+\/maps|maps\.google\.|maps\.apple\.com|waze\.com|maps\.me|here\.com\/maps|openstreetmap\.org/i.test(raw);
+        if (!raw || !isMaps) {
+          hint.style.color = '#dc2626';
+          hint.textContent = 'Lien non reconnu. Copiez le lien depuis Google Maps, Apple Maps ou Waze.';
+          return;
+        }
+        // Essaie d'extraire les coords si présentes (optionnel)
+        var m = raw.match(/[@?&/](-?\d{1,3}\.\d{4,})[,+](-?\d{1,3}\.\d{4,})/);
+        if (m) {
+          if (latEl) latEl.value = parseFloat(m[1]).toFixed(6);
+          if (lngEl) lngEl.value = parseFloat(m[2]).toFixed(6);
+        }
+        if (mapU)   mapU.value = raw;
+        if (oMap)   oMap.href  = raw;
+        if (status) status.classList.add('active');
+        hint.style.color = '#059669';
+        hint.textContent = 'Lien enregistré ✓';
+        input.value = '';
+        setTimeout(function(){ hint.textContent = ''; }, 2500);
+      }
+
+      btn.addEventListener('click', validate);
+      input.addEventListener('keydown', function(e){ if (e.key==='Enter'){ e.preventDefault(); validate(); } });
     }
 
-    if (window.DeliveryPricing && typeof window.DeliveryPricing.init === "function") {
-      window.DeliveryPricing.init({
-        citySelector: "#deliveryCity",
-        hiddenPriceSelector: "#deliveryPriceCents",
-        endpoint: pricingEndpoint,
-        source: "special",
-        debounceMs: 150,
-        onEmpty: function () {
-          priceBox.classList.remove("is-error");
-          priceBox.textContent = "Prix livraison : N/A";
-          submitBtn.disabled = true;
-          if (priceHidden) priceHidden.value = "";
-        },
-        onLoading: setLoading,
-        onPrice: setPrice,
-        onError: setError
-      });
-    } else {
-      setError("Prix livraison : N/A");
-    }
-
-    wireGps("pickup");
-    wireGps("dropoff");
-    }
-
-    if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", boot, { once: true });
-    } else {
-      boot();
-    }
-  })();
+    wireGps('pickup');
+    wireDropoffPaste();
+  }
+  document.readyState === 'loading' ? document.addEventListener('DOMContentLoaded', boot, {once:true}) : boot();
+})();
 </script>
 {% endblock %}

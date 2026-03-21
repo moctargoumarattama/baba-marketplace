@@ -1,0 +1,310 @@
+{% extends "vendor/base.html" %}
+
+{% block title %}Catalogue | {{ config.SITE_NAME|trim }}{% endblock %}
+
+{% block head %}
+{{ super() }}
+<style>
+  .vendor-catalog-page{--bg:radial-gradient(circle at top left,rgba(16,185,129,.14),transparent 32%),radial-gradient(circle at top right,rgba(37,99,235,.13),transparent 28%),linear-gradient(180deg,#f6fffb 0%,#eef8ff 48%,#f9fbff 100%);--card:rgba(255,255,255,.88);--line:rgba(15,23,42,.08);--text:#0f172a;--muted:#64748b;--shadow:0 18px 44px rgba(15,23,42,.08);background:var(--bg);min-height:calc(100vh - 90px)}
+  .catalog-shell{max-width:1420px;margin:0 auto}
+  .catalog-hero,.catalog-panel,.catalog-toolbar,.catalog-pagination,.catalog-stat,.catalog-empty{background:var(--card);border:1px solid var(--line);box-shadow:var(--shadow);backdrop-filter:blur(18px)}
+  .catalog-hero{position:relative;overflow:hidden;border-radius:26px;padding:1.1rem 1.2rem;background:linear-gradient(135deg,rgba(7,117,83,.97),rgba(16,185,129,.92) 46%,rgba(37,99,235,.86));color:#fff;box-shadow:0 24px 54px rgba(15,23,42,.16)}
+  .catalog-hero:before,.catalog-hero:after{content:"";position:absolute;border-radius:999px;background:rgba(255,255,255,.12)}
+  .catalog-hero:before{width:220px;height:220px;top:-70px;right:-45px}
+  .catalog-hero:after{width:140px;height:140px;left:-25px;bottom:-45px}
+  .catalog-kicker{display:inline-flex;align-items:center;gap:.55rem;padding:.52rem .9rem;border-radius:999px;background:rgba(255,255,255,.16);font-size:.8rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+  .catalog-title{margin:.35rem 0 .15rem;font-size:clamp(1.55rem,3vw,2.3rem);line-height:1;font-weight:900}
+  .catalog-hero-actions,.catalog-chip-row,.catalog-card-actions{display:flex;flex-wrap:wrap;gap:.75rem}
+  .catalog-btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;min-height:44px;padding:.7rem .95rem;border-radius:16px;border:1px solid transparent;font-weight:800;text-decoration:none;transition:.18s ease}
+  .catalog-btn:hover{transform:translateY(-1px)}
+  .catalog-btn-soft{background:rgba(255,255,255,.13);border-color:rgba(255,255,255,.22);color:#fff}
+  .catalog-btn-primary{background:linear-gradient(135deg,#f59e0b,#f97316);color:#fff;box-shadow:0 14px 28px rgba(249,115,22,.28)}
+  .catalog-stat{height:100%;border-radius:20px;padding:.9rem}
+  .catalog-stat-label{font-size:.78rem;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.05em}
+  .catalog-stat-value{margin-top:.3rem;font-size:clamp(1.55rem,2.6vw,2.05rem);font-weight:900;line-height:1;color:var(--text)}
+  .catalog-stat-note{margin-top:.35rem;color:var(--muted);font-size:.84rem;line-height:1.25}
+  .catalog-panel{border-radius:28px;padding:1.25rem;margin-top:1.35rem}
+  .catalog-panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;margin-bottom:1rem}
+  .catalog-panel-title{font-size:1.15rem;font-weight:900;color:var(--text)}
+  .catalog-panel-copy{margin:.25rem 0 0;color:var(--muted)}
+  .catalog-smart{display:inline-flex;align-items:center;gap:.5rem;padding:.74rem 1rem;border-radius:999px;background:rgba(16,185,129,.1);color:#0b7f59;font-weight:800}
+  .catalog-search-wrap{position:relative}
+  .catalog-search-icon,.catalog-search-clear{position:absolute;top:50%;transform:translateY(-50%)}
+  .catalog-search-icon{left:1rem;color:var(--muted)}
+  .catalog-search-clear{right:.8rem;width:38px;height:38px;border:0;border-radius:12px;background:rgba(15,23,42,.06);color:var(--muted)}
+  .catalog-search-clear[hidden]{display:none}
+  .catalog-search-input,.catalog-select{border:1px solid rgba(15,23,42,.08);background:rgba(255,255,255,.92);font-weight:600}
+  .catalog-search-input{min-height:60px;padding:1rem 3.15rem 1rem 3rem;border-radius:20px}
+  .catalog-select{min-height:52px;border-radius:16px}
+  .catalog-label{margin-bottom:.45rem;color:var(--text);font-weight:800;font-size:.9rem}
+  .catalog-chip{display:inline-flex;align-items:center;gap:.45rem;padding:.56rem .84rem;border-radius:999px;background:rgba(15,23,42,.06);font-size:.88rem;font-weight:700;color:var(--text)}
+  .catalog-chip button{padding:0;border:0;background:transparent;color:inherit}
+  .catalog-toolbar,.catalog-pagination{border-radius:22px;padding:1rem 1.1rem}
+  .catalog-toolbar{display:flex;align-items:center;justify-content:space-between;gap:.75rem;margin:1.1rem 0 1rem}
+  .catalog-toolbar-copy{color:var(--muted);font-weight:700}
+  .catalog-toolbar-copy strong{color:var(--text)}
+  .catalog-live{display:inline-flex;align-items:center;gap:.55rem;font-size:.92rem;font-weight:800;color:#0b7f59}
+  .catalog-live-dot{width:10px;height:10px;border-radius:999px;background:#10b981;box-shadow:0 0 0 6px rgba(16,185,129,.16)}
+  .catalog-results-region{position:relative;transition:opacity .18s ease, transform .18s ease}
+  .catalog-results-region.is-loading{opacity:.58;transform:translateY(2px);pointer-events:none}
+  .catalog-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(245px,1fr));gap:.9rem}
+  .catalog-card{overflow:hidden;border-radius:20px;background:rgba(255,255,255,.95);border:1px solid rgba(15,23,42,.08);box-shadow:0 16px 34px rgba(15,23,42,.08);transition:.18s ease}
+  .catalog-card:hover{transform:translateY(-3px);box-shadow:0 28px 58px rgba(15,23,42,.12)}
+  .catalog-card.is-hidden{display:none}
+  .catalog-media{position:relative;aspect-ratio:1.68/1;background:linear-gradient(135deg,#dcfce7,#dbeafe)}
+  .catalog-media img{width:100%;height:100%;object-fit:cover}
+  .catalog-placeholder{width:100%;height:100%;display:grid;place-items:center;color:rgba(15,23,42,.26);font-size:2.3rem}
+  .catalog-badges{position:absolute;top:.75rem;left:.75rem;right:.75rem;display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem}
+  .catalog-badge{display:inline-flex;align-items:center;gap:.32rem;padding:.34rem .56rem;border-radius:999px;background:rgba(15,23,42,.7);color:#fff;font-size:.71rem;font-weight:800}
+  .catalog-badge.category{background:rgba(255,255,255,.92);color:#0f172a;max-width:80%}
+  .catalog-badge.active{background:rgba(5,150,105,.9)} .catalog-badge.inactive{background:rgba(100,116,139,.9)} .catalog-badge.promo{background:rgba(249,115,22,.92)}
+  .catalog-card-body{padding:.88rem}
+  .catalog-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:.8rem}
+  .catalog-card-title{margin:0;font-size:.96rem;font-weight:900;line-height:1.18}
+  .catalog-card-title a{color:#0f172a;text-decoration:none}
+  .catalog-price{color:#ea580c;font-weight:900;white-space:nowrap;font-size:.95rem}
+  .catalog-desc{min-height:2.15rem;margin:.4rem 0 .65rem;color:var(--muted);font-size:.84rem}
+  .catalog-mini-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.48rem;margin-bottom:.68rem}
+  .catalog-mini-stat{padding:.55rem;border-radius:13px;background:linear-gradient(180deg,rgba(248,250,252,.95),rgba(241,245,249,.92));border:1px solid rgba(148,163,184,.12)}
+  .catalog-mini-label{font-size:.64rem;text-transform:uppercase;letter-spacing:.05em;font-weight:800;color:var(--muted)}
+  .catalog-mini-value{margin-top:.16rem;font-weight:900;color:var(--text);font-size:.88rem}
+  .catalog-note{margin-bottom:.68rem;padding:.6rem .72rem;border-radius:14px;background:rgba(245,158,11,.12);color:#92400e;font-weight:800;font-size:.79rem}
+  .catalog-card-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.48rem}
+  .catalog-action{display:inline-flex;align-items:center;justify-content:center;gap:.35rem;min-height:39px;padding:.56rem .64rem;border-radius:13px;border:1px solid rgba(15,23,42,.08);background:#fff;color:var(--text);text-decoration:none;font-weight:800;transition:.18s ease;font-size:.84rem}
+  .catalog-action:hover{transform:translateY(-1px);box-shadow:0 14px 24px rgba(15,23,42,.1)}
+  .catalog-action.primary{background:linear-gradient(135deg,#0ea5e9,#2563eb);color:#fff;border-color:transparent}
+  .catalog-action.success{background:rgba(16,185,129,.08);border-color:rgba(16,185,129,.18);color:#0b7f59}
+  .catalog-action.warm{background:linear-gradient(135deg,#f59e0b,#f97316);color:#fff;border-color:transparent}
+  .catalog-action.danger{background:rgba(239,68,68,.08);border-color:rgba(239,68,68,.18);color:#dc2626}
+  .catalog-empty{display:none;border-radius:28px;padding:2.4rem 1.5rem;text-align:center;color:var(--muted)}
+  .catalog-empty.is-visible{display:block}
+  .catalog-pagination .disabled{pointer-events:none;opacity:.45}
+  @media (max-width:991.98px){.catalog-hero{padding:1rem 1.05rem}.catalog-hero-actions{justify-content:flex-start}}
+  @media (max-width:575.98px){.catalog-hero{padding:.9rem;border-radius:22px}.catalog-title{font-size:1.45rem}.catalog-btn{min-height:41px;padding:.62rem .8rem;border-radius:14px}.catalog-stat{padding:.8rem;border-radius:18px}.catalog-stat-value{font-size:1.45rem}.catalog-stat-note{font-size:.8rem}.catalog-mini-stats,.catalog-card-actions{grid-template-columns:1fr}}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4 px-2 px-md-3 vendor-catalog-page">
+  <div class="catalog-shell">
+    <section class="catalog-hero">
+      <div class="row g-4 align-items-center position-relative" style="z-index:1">
+        <div class="col-xl-8">
+          <h1 class="catalog-title">Catalogue</h1>
+        </div>
+        <div class="col-xl-4">
+          <div class="catalog-hero-actions">
+            <a href="{{ url_for('vendor.dashboard') }}" class="catalog-btn catalog-btn-soft"><i class="bi bi-arrow-left"></i>Dashboard</a>
+            <a href="{{ url_for('vendor.product_new') }}" class="catalog-btn catalog-btn-primary"><i class="bi bi-plus-circle"></i>{{ catalog_create_label }}</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="row g-3 mt-2">
+      <div class="col-6 col-xl-3"><div class="catalog-stat"><div class="catalog-stat-label">Total</div><div class="catalog-stat-value">{{ total_products }}</div><div class="catalog-stat-note">Dans votre catalogue</div></div></div>
+      <div class="col-6 col-xl-3"><div class="catalog-stat"><div class="catalog-stat-label">En ligne</div><div class="catalog-stat-value" style="color:#059669">{{ active_products }}</div><div class="catalog-stat-note">Visibles pour les clients</div></div></div>
+      <div class="col-6 col-xl-3"><div class="catalog-stat"><div class="catalog-stat-label">À compléter</div><div class="catalog-stat-value" style="color:#64748b">{{ inactive_products }}</div><div class="catalog-stat-note">À vérifier ou finir</div></div></div>
+      <div class="col-6 col-xl-3"><div class="catalog-stat"><div class="catalog-stat-label">Répartition</div><div class="catalog-stat-value" style="font-size:1.4rem">{{ physical_total }} / {{ service_total }}</div><div class="catalog-stat-note">Produits / Services</div></div></div>
+    </div>
+
+    <section class="catalog-panel">
+      <div class="catalog-panel-head">
+        <div>
+          <div class="catalog-panel-title">Rechercher et trier</div>
+        </div>
+        <div class="catalog-smart"><i class="bi bi-sliders"></i>Recherche rapide</div>
+      </div>
+
+      <form method="get" id="catalogFilterForm" class="row g-3">
+        <div class="col-12 col-xl-5">
+          <label class="catalog-label" for="catalogSearchInput">Recherche</label>
+          <div class="catalog-search-wrap">
+            <span class="catalog-search-icon"><i class="bi bi-search"></i></span>
+            <input id="catalogSearchInput" name="q" type="search" class="form-control catalog-search-input" placeholder="Nom, description, catégorie..." value="{{ search_term }}" autocomplete="off" spellcheck="false">
+            <button type="button" class="catalog-search-clear" id="catalogSearchClear" {% if not search_term %}hidden{% endif %}><i class="bi bi-x-lg"></i></button>
+          </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-2"><label class="catalog-label" for="catalogStatusSelect">Visibilité</label><select id="catalogStatusSelect" name="status" class="form-select catalog-select"><option value="all" {% if selected_status == 'all' %}selected{% endif %}>Tous</option><option value="active" {% if selected_status == 'active' %}selected{% endif %}>En ligne</option><option value="inactive" {% if selected_status == 'inactive' %}selected{% endif %}>À compléter</option></select></div>
+        <div class="col-6 col-md-4 col-xl-2"><label class="catalog-label" for="catalogKindSelect">Type</label><select id="catalogKindSelect" name="kind" class="form-select catalog-select"><option value="all" {% if selected_kind == 'all' %}selected{% endif %}>Tout</option>{% if allows_products %}<option value="physical" {% if selected_kind == 'physical' %}selected{% endif %}>Produits</option>{% endif %}{% if allows_services %}<option value="service" {% if selected_kind == 'service' %}selected{% endif %}>Services</option>{% endif %}</select></div>
+        <div class="col-6 col-md-4 col-xl-3"><label class="catalog-label" for="catalogCategorySelect">Catégorie</label><select id="catalogCategorySelect" name="category_id" class="form-select catalog-select"><option value="">Toutes</option>{% for category in category_options %}<option value="{{ category.id }}" {% if selected_category_id == category.id %}selected{% endif %}>{{ category.name }} ({{ category.count }})</option>{% endfor %}</select></div>
+        <div class="col-6 col-md-4 col-xl-2"><label class="catalog-label" for="catalogStockSelect">Stock</label><select id="catalogStockSelect" name="stock" class="form-select catalog-select"><option value="all" {% if selected_stock == 'all' %}selected{% endif %}>Tous</option><option value="available" {% if selected_stock == 'available' %}selected{% endif %}>Disponibles</option><option value="low" {% if selected_stock == 'low' %}selected{% endif %}>Stock faible</option><option value="out" {% if selected_stock == 'out' %}selected{% endif %}>Rupture</option></select></div>
+        <div class="col-6 col-md-4 col-xl-2"><label class="catalog-label" for="catalogSortSelect">Tri</label><select id="catalogSortSelect" name="sort" class="form-select catalog-select"><option value="recent" {% if selected_sort == 'recent' %}selected{% endif %}>Plus récents</option><option value="oldest" {% if selected_sort == 'oldest' %}selected{% endif %}>Plus anciens</option><option value="name" {% if selected_sort == 'name' %}selected{% endif %}>Nom A-Z</option><option value="price_asc" {% if selected_sort == 'price_asc' %}selected{% endif %}>Prix croissant</option><option value="price_desc" {% if selected_sort == 'price_desc' %}selected{% endif %}>Prix décroissant</option><option value="stock_desc" {% if selected_sort == 'stock_desc' %}selected{% endif %}>Stock élevé</option><option value="stock_asc" {% if selected_sort == 'stock_asc' %}selected{% endif %}>Stock faible</option><option value="views_desc" {% if selected_sort == 'views_desc' %}selected{% endif %}>Plus vus</option></select></div>
+        <div class="col-6 col-md-4 col-xl-2"><label class="catalog-label" for="catalogPerPageSelect">Par page</label><select id="catalogPerPageSelect" name="per_page" class="form-select catalog-select">{% for choice in [12, 24, 48, 100] %}<option value="{{ choice }}" {% if per_page == choice %}selected{% endif %}>{{ choice }}</option>{% endfor %}</select></div>
+        <div class="col-12 d-flex flex-wrap justify-content-between align-items-center gap-3">
+          <div class="catalog-chip-row" id="catalogActiveChips" aria-live="polite"></div>
+          <div class="d-flex flex-wrap gap-2">
+            <a href="{{ url_for('vendor.catalog') }}" class="btn btn-outline-secondary">Réinitialiser</a>
+            <button type="submit" class="btn btn-primary">Appliquer</button>
+          </div>
+        </div>
+      </form>
+    </section>
+
+    <div id="catalogResultsRegion" class="catalog-results-region" data-fetch-url="{{ url_for('vendor.catalog') }}">
+      {% include "vendor/partials/_catalog_results.html" %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const form = document.getElementById('catalogFilterForm');
+  const cards = Array.from(document.querySelectorAll('[data-catalog-card]'));
+  const searchInput = document.getElementById('catalogSearchInput');
+  const searchClear = document.getElementById('catalogSearchClear');
+  const statusSelect = document.getElementById('catalogStatusSelect');
+  const kindSelect = document.getElementById('catalogKindSelect');
+  const categorySelect = document.getElementById('catalogCategorySelect');
+  const stockSelect = document.getElementById('catalogStockSelect');
+  const sortSelect = document.getElementById('catalogSortSelect');
+  const perPageSelect = document.getElementById('catalogPerPageSelect');
+  const chipRow = document.getElementById('catalogActiveChips');
+  const resultsRegion = document.getElementById('catalogResultsRegion');
+  const fetchUrl = resultsRegion ? resultsRegion.dataset.fetchUrl : form.getAttribute('action') || window.location.pathname;
+  if (!form || !searchInput) return;
+
+  let submitTimer = null;
+  let activeRequest = 0;
+  const normalize = (value) => String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+  const filters = () => ({q: normalize(searchInput.value), status: statusSelect ? statusSelect.value : 'all', kind: kindSelect ? kindSelect.value : 'all', categoryId: categorySelect ? categorySelect.value : '', stock: stockSelect ? stockSelect.value : 'all', sort: sortSelect ? sortSelect.value : 'recent', perPage: perPageSelect ? perPageSelect.value : '24'});
+  const getVisibleCountEl = () => document.getElementById('catalogVisibleCount');
+  const getEmptyStateEl = () => document.getElementById('catalogEmptyState');
+  const getLiveStatusEl = () => document.getElementById('catalogLiveStatus');
+  const getCards = () => Array.from(document.querySelectorAll('[data-catalog-card]'));
+  const setLoading = (loading) => resultsRegion && resultsRegion.classList.toggle('is-loading', loading);
+
+  const renderChips = (state) => {
+    if (!chipRow) return;
+    const items = [];
+    if (state.q) items.push({key:'q', label:`Recherche: ${searchInput.value.trim()}`});
+    if (state.status !== 'all') items.push({key:'status', label:`Statut: ${statusSelect.selectedOptions[0].text}`});
+    if (state.kind !== 'all') items.push({key:'kind', label:`Type: ${kindSelect.selectedOptions[0].text}`});
+    if (state.categoryId) items.push({key:'category', label:`Catégorie: ${categorySelect.selectedOptions[0].text}`});
+    if (state.stock !== 'all') items.push({key:'stock', label:`Stock: ${stockSelect.selectedOptions[0].text}`});
+    if (state.sort !== 'recent') items.push({key:'sort', label:`Tri: ${sortSelect.selectedOptions[0].text}`});
+    if (state.perPage !== '24') items.push({key:'perPage', label:`${state.perPage} / page`});
+    chipRow.innerHTML = items.map((item) => `<span class="catalog-chip">${item.label}<button type="button" data-clear-chip="${item.key}" aria-label="Retirer ${item.label}"><i class="bi bi-x-lg"></i></button></span>`).join('');
+  };
+
+  const matches = (card, state) => {
+    const tokens = state.q.split(/\s+/).filter(Boolean);
+    const blob = normalize(`${card.dataset.name} ${card.dataset.description} ${card.dataset.category}`);
+    const searchOk = !tokens.length || tokens.every((token) => blob.includes(token));
+    const statusOk = state.status === 'all' || card.dataset.status === state.status;
+    const kindOk = state.kind === 'all' || card.dataset.kind === state.kind;
+    const categoryOk = !state.categoryId || card.dataset.categoryId === state.categoryId;
+    const stockOk = state.stock === 'all' || card.dataset.stockState === state.stock;
+    return searchOk && statusOk && kindOk && categoryOk && stockOk;
+  };
+
+  const applyRealtimeFilter = () => {
+    const cards = getCards();
+    const state = filters();
+    renderChips(state);
+    let visible = 0;
+    cards.forEach((card) => {
+      const show = matches(card, state);
+      card.classList.toggle('is-hidden', !show);
+      if (show) visible += 1;
+    });
+    const visibleCount = getVisibleCountEl();
+    const emptyState = getEmptyStateEl();
+    const liveStatus = getLiveStatusEl();
+    if (visibleCount) visibleCount.textContent = String(visible);
+    if (emptyState) emptyState.classList.toggle('is-visible', visible === 0 && cards.length > 0);
+    if (searchClear) searchClear.hidden = !searchInput.value.trim();
+    if (liveStatus) liveStatus.innerHTML = visible === cards.length ? '<span class="catalog-live-dot"></span>Vue complète' : '<span class="catalog-live-dot"></span>Résultats mis à jour';
+  };
+
+  const buildQueryString = (pageValue) => {
+    const params = new URLSearchParams(new FormData(form));
+    if (pageValue && String(pageValue) !== '1') {
+      params.set('page', String(pageValue));
+    } else {
+      params.delete('page');
+    }
+    return params.toString();
+  };
+
+  const fetchCatalog = async (pageValue = 1, {pushHistory = true} = {}) => {
+    if (!resultsRegion) {
+      form.submit();
+      return;
+    }
+    const requestId = ++activeRequest;
+    const query = buildQueryString(pageValue);
+    const targetUrl = query ? `${fetchUrl}?${query}` : fetchUrl;
+    setLoading(true);
+    try {
+      const response = await fetch(targetUrl, {
+        headers: {
+          'X-Requested-With': 'fetch',
+          'X-Catalog-Partial': '1',
+          'Accept': 'application/json'
+        },
+        credentials: 'same-origin'
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const payload = await response.json();
+      if (!payload.success || requestId !== activeRequest) return;
+      resultsRegion.innerHTML = payload.html || '';
+      if (pushHistory) {
+        window.history.replaceState({catalog: true}, '', targetUrl);
+      }
+      applyRealtimeFilter();
+    } catch (error) {
+      form.submit();
+      return;
+    } finally {
+      if (requestId === activeRequest) setLoading(false);
+    }
+  };
+
+  const scheduleSubmit = (delay) => {
+    window.clearTimeout(submitTimer);
+    submitTimer = window.setTimeout(() => fetchCatalog(1), delay);
+  };
+
+  searchInput.addEventListener('input', () => { applyRealtimeFilter(); scheduleSubmit(520); });
+  [statusSelect, kindSelect, categorySelect, stockSelect].forEach((field) => field && field.addEventListener('change', () => { applyRealtimeFilter(); scheduleSubmit(260); }));
+  [sortSelect, perPageSelect].forEach((field) => field && field.addEventListener('change', () => fetchCatalog(1)));
+  if (searchClear) searchClear.addEventListener('click', () => { searchInput.value = ''; applyRealtimeFilter(); scheduleSubmit(120); searchInput.focus(); });
+  if (chipRow) chipRow.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-clear-chip]');
+    if (!button) return;
+    const key = button.getAttribute('data-clear-chip');
+    if (key === 'q') searchInput.value = '';
+    if (key === 'status' && statusSelect) statusSelect.value = 'all';
+    if (key === 'kind' && kindSelect) kindSelect.value = 'all';
+    if (key === 'category' && categorySelect) categorySelect.value = '';
+    if (key === 'stock' && stockSelect) stockSelect.value = 'all';
+    if (key === 'sort' && sortSelect) sortSelect.value = 'recent';
+    if (key === 'perPage' && perPageSelect) perPageSelect.value = '24';
+    applyRealtimeFilter();
+    scheduleSubmit(140);
+  });
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    fetchCatalog(1);
+  });
+  if (resultsRegion) {
+    resultsRegion.addEventListener('click', (event) => {
+      const link = event.target.closest('[data-catalog-page-link]');
+      if (!link || link.classList.contains('disabled')) return;
+      event.preventDefault();
+      const href = link.getAttribute('href') || '';
+      if (!href || href === '#') return;
+      const target = new URL(href, window.location.origin);
+      const pageValue = target.searchParams.get('page') || '1';
+      fetchCatalog(pageValue);
+    });
+  }
+
+  applyRealtimeFilter();
+});
+</script>
+{% endblock %}

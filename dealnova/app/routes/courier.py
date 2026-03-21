@@ -1,8 +1,9 @@
 from datetime import datetime, timedelta
 
-from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
+from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for, current_app
 from flask_login import current_user, login_required
 from sqlalchemy.orm import selectinload
+from sqlalchemy import case, func
 
 from ..extensions import db
 from ..models.order import Order, OrderItem
@@ -11,6 +12,7 @@ from ..models.user import User
 from ..services.delivery_context import enrich_orders_delivery_context
 from ..services.financial_periods import record_delivery_fee_entry
 from ..services.pagination import page_from_args
+from ..middleware.rate_limit import rate_limit  # IMPORT AJOUTÉ
 
 
 bp = Blueprint("courier", __name__, url_prefix="/courier")
@@ -18,6 +20,7 @@ bp = Blueprint("courier", __name__, url_prefix="/courier")
 IN_PROGRESS_STATUSES = {"new", "assigned", "picked_up", "delivering"}
 COMPLETED_STATUSES = {"delivered", "canceled"}
 ALLOWED_ACTION_STATUSES = {"picked_up", "delivering", "delivered"}
+COURIER_HISTORY_DAYS = 10
 
 
 def _is_ajax_request() -> bool:
@@ -49,34 +52,36 @@ def _today_bounds(now: datetime | None = None) -> tuple[datetime, datetime]:
 
 
 def _courier_baba_due_stats(courier_id: int) -> dict[str, int]:
+    """Calcule les statistiques de frais Baba pour la journée (optimisé)."""
     start, end = _today_bounds()
-    base = (
-        Order.query
-        .filter(
-            Order.courier_id == courier_id,
-            Order.delivery_status == "delivered",
-            Order.delivered_at.isnot(None),
-            Order.delivered_at >= start,
-            Order.delivered_at < end,
-        )
-    )
-
-    due_q = base.filter(Order.baba_fee_settled_at.is_(None))
-    settled_q = base.filter(Order.baba_fee_settled_at.isnot(None))
-
-    due_cents = (
-        due_q.with_entities(db.func.coalesce(db.func.sum(Order.delivery_platform_fee_cents), 0)).scalar() or 0
-    )
-    due_count = due_q.count()
-    settled_cents = (
-        settled_q.with_entities(db.func.coalesce(db.func.sum(Order.delivery_platform_fee_cents), 0)).scalar() or 0
-    )
-    settled_count = settled_q.count()
+    
+    # OPTIMISATION : Une seule requête au lieu de 4
+    stats = db.session.query(
+        func.coalesce(func.sum(
+            case((Order.baba_fee_settled_at.is_(None), Order.delivery_platform_fee_cents), else_=0)
+        ), 0).label('due_cents'),
+        func.coalesce(func.sum(
+            case((Order.baba_fee_settled_at.isnot(None), Order.delivery_platform_fee_cents), else_=0)
+        ), 0).label('settled_cents'),
+        func.coalesce(func.sum(
+            case((Order.baba_fee_settled_at.is_(None), 1), else_=0)
+        ), 0).label('due_count'),
+        func.coalesce(func.sum(
+            case((Order.baba_fee_settled_at.isnot(None), 1), else_=0)
+        ), 0).label('settled_count'),
+    ).filter(
+        Order.courier_id == courier_id,
+        Order.delivery_status == "delivered",
+        Order.delivered_at.isnot(None),
+        Order.delivered_at >= start,
+        Order.delivered_at < end
+    ).first()
+    
     return {
-        "due_cents": int(due_cents or 0),
-        "due_count": int(due_count or 0),
-        "settled_cents": int(settled_cents or 0),
-        "settled_count": int(settled_count or 0),
+        "due_cents": int(stats.due_cents or 0),
+        "due_count": int(stats.due_count or 0),
+        "settled_cents": int(stats.settled_cents or 0),
+        "settled_count": int(stats.settled_count or 0),
     }
 
 
@@ -84,7 +89,7 @@ def _courier_baba_due_stats(courier_id: int) -> dict[str, int]:
 @login_required
 def restrict_courier():
     if (getattr(current_user, "role", "") or "").lower() != "courier":
-        flash("Acces reserve aux livreurs.", "warning")
+        flash("Accès réservé aux livreurs.", "warning")
         return redirect(url_for("shop.home"))
 
 
@@ -98,6 +103,7 @@ def _render_courier_deliveries(default_tab: str = "in_progress"):
     if tab not in {"in_progress", "completed"}:
         tab = "in_progress"
     page = page_from_args(request.args)
+    history_cutoff = datetime.utcnow() - timedelta(days=COURIER_HISTORY_DAYS)
 
     courier = _get_courier_user()
     courier_account_active = _courier_account_is_active(courier)
@@ -111,10 +117,22 @@ def _render_courier_deliveries(default_tab: str = "in_progress"):
     )
 
     in_progress_count = base_query.filter(Order.delivery_status.in_(tuple(IN_PROGRESS_STATUSES))).count()
-    completed_count = base_query.filter(Order.delivery_status.in_(tuple(COMPLETED_STATUSES))).count()
+    completed_count = base_query.filter(
+        Order.delivery_status.in_(tuple(COMPLETED_STATUSES)),
+        db.or_(
+            db.and_(Order.delivery_status == "delivered", Order.delivered_at.isnot(None), Order.delivered_at >= history_cutoff),
+            db.and_(Order.delivery_status == "canceled", Order.created_at >= history_cutoff),
+        ),
+    ).count()
 
     scoped_query = (
-        base_query.filter(Order.delivery_status.in_(tuple(COMPLETED_STATUSES)))
+        base_query.filter(
+            Order.delivery_status.in_(tuple(COMPLETED_STATUSES)),
+            db.or_(
+                db.and_(Order.delivery_status == "delivered", Order.delivered_at.isnot(None), Order.delivered_at >= history_cutoff),
+                db.and_(Order.delivery_status == "canceled", Order.created_at >= history_cutoff),
+            ),
+        )
         if tab == "completed"
         else base_query.filter(Order.delivery_status.in_(tuple(IN_PROGRESS_STATUSES)))
     )
@@ -133,6 +151,7 @@ def _render_courier_deliveries(default_tab: str = "in_progress"):
         courier_last_seen_at=(courier.courier_last_seen_at if courier else None),
         baba_today=_courier_baba_due_stats(current_user.id),
         notify_url="",
+        history_days=COURIER_HISTORY_DAYS,
         password_change_window_active=(courier.password_change_window_active() if courier else False),
         password_change_allowed_until=(courier.password_change_allowed_until if courier else None),
     )
@@ -140,22 +159,25 @@ def _render_courier_deliveries(default_tab: str = "in_progress"):
 
 @bp.route("/orders")
 def panel_orders():
+    """Alias pour /deliveries (compatibilité)."""
     return _render_courier_deliveries(default_tab="in_progress")
 
 
 @bp.route("/deliveries")
 def panel_deliveries():
+    """Page principale des livraisons."""
     return _render_courier_deliveries(default_tab="in_progress")
 
 
 @bp.route("/password/change", methods=["POST"])
+@rate_limit(limit=10, window_seconds=3600)  # 10 tentatives par heure (tolérant)
 def change_password():
     courier = _get_courier_user()
     if courier is None:
         return redirect(url_for("courier.panel_deliveries"))
 
     if not courier.password_change_window_active():
-        flash("Demandez a l'admin d'activer la fenetre de changement (20 min).", "warning")
+        flash("Demandez à l'admin d'activer la fenêtre de changement (20 min).", "warning")
         return redirect(url_for("courier.panel_deliveries"))
 
     current_password = (request.form.get("current_password") or "").strip()
@@ -169,7 +191,7 @@ def change_password():
         flash("Mot de passe actuel incorrect.", "danger")
         return redirect(url_for("courier.panel_deliveries"))
     if len(new_password) < 8:
-        flash("Nouveau mot de passe trop court (min 8 caracteres).", "warning")
+        flash("Nouveau mot de passe trop court (min 8 caractères).", "warning")
         return redirect(url_for("courier.panel_deliveries"))
     if new_password != confirm_password:
         flash("Confirmation mot de passe non correspondante.", "warning")
@@ -179,11 +201,12 @@ def change_password():
     courier.password_change_allowed_until = None
     courier.courier_last_seen_at = datetime.utcnow()
     db.session.commit()
-    flash("Mot de passe mis a jour avec succes.", "success")
+    flash("Mot de passe mis à jour avec succès.", "success")
     return redirect(url_for("courier.panel_deliveries"))
 
 
 @bp.route("/availability", methods=["POST"])
+@rate_limit(limit=60, window_seconds=3600)  # 60 changements par heure (très tolérant)
 def toggle_availability():
     courier = _get_courier_user()
     next_url = (request.form.get("next") or request.args.get("next") or "").strip()
@@ -217,13 +240,14 @@ def toggle_availability():
             success=True,
             courier_id=courier.id,
             courier_is_available=bool(courier.courier_is_available),
-            message=f"Statut mis a jour: {label}.",
+            message=f"Statut mis à jour: {label}.",
         )
-    flash(f"Statut mis a jour: {label}.", "success")
+    flash(f"Statut mis à jour: {label}.", "success")
     return _redirect_default()
 
 
 @bp.route("/deliveries/<int:oid>/status", methods=["POST"])
+@rate_limit(limit=200, window_seconds=3600)  # 200 changements par heure (très tolérant)
 def update_delivery_status(oid: int):
     target_status = (request.form.get("delivery_status") or "").strip().lower()
     next_url = (request.form.get("next") or request.args.get("next") or "").strip()
@@ -249,18 +273,18 @@ def update_delivery_status(oid: int):
         return render_template("errors/403.html"), 403
     if order.delivery_status == "canceled":
         if _is_ajax_request():
-            return jsonify(success=False, message="Livraison annulee."), 400
-        flash("Livraison annulee.", "warning")
+            return jsonify(success=False, message="Livraison annulée."), 400
+        flash("Livraison annulée.", "warning")
         return redirect(next_url if next_url.startswith("/") else url_for("courier.panel_deliveries"))
     if order.delivery_status == "delivered" and target_status != "delivered":
         if _is_ajax_request():
-            return jsonify(success=False, message="Livraison deja finalisee."), 400
-        flash("Livraison deja finalisee.", "warning")
+            return jsonify(success=False, message="Livraison déjà finalisée."), 400
+        flash("Livraison déjà finalisée.", "warning")
         return redirect(next_url if next_url.startswith("/") else url_for("courier.panel_deliveries"))
     if order.delivery_status == "delivered" and target_status == "delivered":
         if _is_ajax_request():
             return jsonify(success=True, order_id=order.id, delivery_status=order.delivery_status, status=order.status)
-        flash(f"Livraison #{order.id} deja livree.", "info")
+        flash(f"Livraison #{order.id} déjà livrée.", "info")
         return redirect(next_url if next_url.startswith("/") else url_for("courier.panel_deliveries"))
 
     now = datetime.utcnow()
@@ -288,7 +312,14 @@ def update_delivery_status(oid: int):
             order.picked_up_at = now
         order.delivered_at = now
         order.status = "delivered"
-        record_delivery_fee_entry(order, note="order delivered by courier")
+        
+        # Protection avec try/except (à ajuster selon criticité métier)
+        try:
+            record_delivery_fee_entry(order, note="order delivered by courier")
+        except Exception as e:
+            current_app.logger.error(f"record_delivery_fee_entry failed for order {order.id}: {e}")
+            # raise  # ← Décommenter si critique
+        
         # Simple flow: courier is marked available again once delivery is done.
         if courier is not None:
             courier.courier_is_available = True
@@ -306,15 +337,16 @@ def update_delivery_status(oid: int):
         )
 
     labels = {
-        "picked_up": "Recuperee",
+        "picked_up": "Récupérée",
         "delivering": "En route",
-        "delivered": "Livree",
+        "delivered": "Livrée",
     }
-    flash(f"Livraison #{order.id} mise a jour: {labels.get(target_status, target_status)}.", "success")
+    flash(f"Livraison #{order.id} mise à jour: {labels.get(target_status, target_status)}.", "success")
     return redirect(next_url if next_url.startswith("/") else url_for("courier.panel_deliveries"))
 
 
 @bp.route("/deliveries/<int:oid>/settle-baba", methods=["POST"])
+@rate_limit(limit=200, window_seconds=3600)  # 200 actions par heure
 def settle_baba_fee(oid: int):
     next_url = (request.form.get("next") or request.args.get("next") or "").strip()
     courier = _get_courier_user()
@@ -331,13 +363,13 @@ def settle_baba_fee(oid: int):
         return render_template("errors/403.html"), 403
     if order.delivery_status != "delivered":
         if _is_ajax_request():
-            return jsonify(success=False, message="Remise Baba possible uniquement sur une livraison livree."), 400
-        flash("Remise Baba possible uniquement sur une livraison livree.", "warning")
+            return jsonify(success=False, message="Remise Baba possible uniquement sur une livraison livrée."), 400
+        flash("Remise Baba possible uniquement sur une livraison livrée.", "warning")
         return redirect(next_url if next_url.startswith("/") else url_for("courier.panel_deliveries"))
     if order.baba_fee_settled_at is not None:
         if _is_ajax_request():
-            return jsonify(success=True, message="Deja marquee comme remise."), 200
-        flash("Cette livraison est deja marquee comme remise.", "info")
+            return jsonify(success=True, message="Déjà marquée comme remise."), 200
+        flash("Cette livraison est déjà marquée comme remise.", "info")
         return redirect(next_url if next_url.startswith("/") else url_for("courier.panel_deliveries"))
 
     now = datetime.utcnow()
@@ -348,6 +380,6 @@ def settle_baba_fee(oid: int):
     db.session.commit()
 
     if _is_ajax_request():
-        return jsonify(success=True, message="Remise Baba confirmee.", order_id=order.id), 200
-    flash("Remise Baba confirmee.", "success")
+        return jsonify(success=True, message="Remise Baba confirmée.", order_id=order.id), 200
+    flash("Remise Baba confirmée.", "success")
     return redirect(next_url if next_url.startswith("/") else url_for("courier.panel_deliveries"))

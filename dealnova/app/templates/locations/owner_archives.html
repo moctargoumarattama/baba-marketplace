@@ -1,15 +1,22 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 
-{% block title %}Archives locations | {{ config.SITE_NAME }}{% endblock %}
+{% block title %}Historique location | {{ config.SITE_NAME }}{% endblock %}
+{% block body_attrs %}data-back-target="{{ url_for('rentals.owner_locations') }}"{% endblock %}
 
 {% block head %}
-<style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/locations/owner_pages.css', v=app_static_version) }}">
+<style data-owner-page-head="owner-archives-style">
   .owner-archives-shell {
     max-width: 1180px;
     margin: 0 auto;
     padding: 1rem;
     display: grid;
     gap: 1rem;
+    transition: opacity 0.18s ease;
+  }
+  .owner-archives-shell.is-loading {
+    opacity: 0.68;
+    pointer-events: none;
   }
   .archives-hero {
     background: linear-gradient(135deg, #0f766e, #14b8a6);
@@ -241,14 +248,21 @@
     }
   }
 </style>
+<script src="{{ url_for('static', filename='js/pages/owner_locations_page.js', v=app_static_version) }}" defer></script>
 {% endblock %}
 
 {% block content %}
 <div class="owner-archives-shell">
+  {% set history_labels = {
+    'taken': 'Prise',
+    'expired': 'Expiree',
+    'deleted_by_owner': 'Supprimee par vous',
+    'deleted_by_admin': "Supprimee par l'admin"
+  } %}
   <section class="archives-hero">
     <div>
-      <h1>Archives locations (30 jours)</h1>
-      <p>Historique dedie des annonces cloturees. Cette vue garde uniquement les traces du dernier mois pour rester lisible et rapide.</p>
+      <h1>Historique location</h1>
+      <p>Vue rapide des annonces cloturees sur les {{ history_days }} derniers jours.</p>
     </div>
     <div class="d-flex gap-2 flex-wrap">
       <a class="btn btn-light" href="{{ url_for('rentals.owner_locations') }}">
@@ -263,8 +277,8 @@
       <div class="value">{{ pagination.total }}</div>
     </article>
     <article class="sum-card">
-      <div class="label">Conservation</div>
-      <div class="value">30 jours</div>
+      <div class="label">Fenetre</div>
+      <div class="value">{{ history_days }} jours</div>
     </article>
   </section>
 
@@ -272,16 +286,20 @@
     <div class="archives-head">
       <form method="get" class="archives-filter">
         <input class="form-control form-control-sm" type="text" name="q" value="{{ q }}" placeholder="Titre, ville, zone...">
+        {% if shops|length > 1 %}
         <select class="form-select form-select-sm" name="shop">
           <option value="">Toutes boutiques</option>
           {% for shop in shops %}
             <option value="{{ shop.id }}" {{ 'selected' if selected_shop_id == shop.id else '' }}>{{ shop.name }}</option>
           {% endfor %}
         </select>
+        {% else %}
+        <input type="hidden" name="shop" value="{{ selected_shop_id or (shops[0].id if shops else '') }}">
+        {% endif %}
         <select class="form-select form-select-sm" name="status">
           <option value="">Tous motifs</option>
           {% for st in ['taken', 'expired', 'deleted_by_owner', 'deleted_by_admin'] %}
-            <option value="{{ st }}" {{ 'selected' if status == st else '' }}>{{ st }}</option>
+            <option value="{{ st }}" {{ 'selected' if status == st else '' }}>{{ history_labels.get(st, st) }}</option>
           {% endfor %}
         </select>
         <button type="submit" class="btn btn-success btn-sm">
@@ -316,7 +334,7 @@
                     <div class="small text-muted">{{ archive.city }}{% if archive.area %}, {{ archive.area }}{% endif %}</div>
                   </td>
                   <td>{{ archive.shop.name if archive.shop else '-' }}</td>
-                  <td><span class="status-pill {{ archive.closed_reason }}">{{ archive.closed_reason }}</span></td>
+                  <td><span class="status-pill {{ archive.closed_reason }}">{{ history_labels.get(archive.closed_reason, archive.closed_reason) }}</span></td>
                   <td>{{ cents_to_dh(archive.rent_cents) }}</td>
                   <td>
                     {% if archive.closed_reason == 'taken' %}
@@ -375,7 +393,7 @@
                       </div>
                       <div class="trace-detail-chip">
                         <div class="k">Motif cloture</div>
-                        <div class="v">{{ archive.closed_reason }}</div>
+                        <div class="v">{{ history_labels.get(archive.closed_reason, archive.closed_reason) }}</div>
                       </div>
                       <div class="trace-detail-chip">
                         <div class="k">Cloturee le</div>
@@ -402,7 +420,7 @@
             {% set archived_commission = archive.platform_commission_amount_cents if archive.platform_commission_amount_cents else (commission_amount_from_owner_fee(archive.owner_fee_cents, archive.platform_commission_rate_bps) + (archive.platform_commission_fixed_cents or 0)) %}
             <article class="archive-item-mobile">
               <h3 class="title">{{ archive.title|truncate(54) }}</h3>
-              <div class="line"><span>Motif</span><span class="status-pill {{ archive.closed_reason }}">{{ archive.closed_reason }}</span></div>
+              <div class="line"><span>Motif</span><span class="status-pill {{ archive.closed_reason }}">{{ history_labels.get(archive.closed_reason, archive.closed_reason) }}</span></div>
               <div class="line"><span>Boutique</span><span>{{ archive.shop.name if archive.shop else '-' }}</span></div>
               <div class="line"><span>Loyer</span><span>{{ cents_to_dh(archive.rent_cents) }}</span></div>
               <div class="line">
@@ -483,10 +501,11 @@
         {% endif %}
       {% else %}
         <div class="text-center text-muted fw-semibold py-4">
-          Aucune archive sur les 30 derniers jours pour ces filtres.
+          Aucun historique location sur les {{ history_days }} derniers jours pour ces filtres.
         </div>
       {% endif %}
     </div>
   </section>
 </div>
 {% endblock %}
+

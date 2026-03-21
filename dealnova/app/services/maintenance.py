@@ -4,18 +4,21 @@ import json
 import os
 import sqlite3
 import time
+import random
 from collections import deque
 from datetime import datetime, timedelta
 from pathlib import Path
 from threading import Lock
 from typing import Any
 
+import click
 from flask import current_app
 from sqlalchemy import and_, or_, text
 from sqlalchemy.orm import sessionmaker
 
 from ..extensions import db
 from ..models.maintenance import ErrorLog, MaintenanceRun
+from ..models.platform_settings import PlatformSettings
 from ..models.product import Product
 from ..models.rental import RentalArchive, RentalListing, RentalMedia
 from ..models.shop import Shop
@@ -23,6 +26,15 @@ from ..models.user import User
 from .image import LARGE_SIZE, THUMB_SIZE
 from .rentals import ARCHIVE_RETENTION_DAYS, archive_and_remove_listing
 
+# Définition du blueprint pour les commandes CLI
+try:
+    from flask import Blueprint
+    bp = Blueprint("maintenance_cli", __name__)
+except ImportError:
+    bp = None
+
+
+# Seuils par défaut (surchargés par PlatformSettings)
 UPLOADS_SIZE_GB_WARNING = 3.0
 UPLOADS_SIZE_GB_DANGER = 6.0
 ORPHAN_MEDIA_COUNT_WARNING = 50
@@ -38,6 +50,21 @@ ERROR_LOG_SPAM_MAX_SIGNATURES = 2000
 
 _ERROR_LOG_SPAM_LOCK = Lock()
 _ERROR_LOG_SPAM_BUCKETS: dict[tuple[str, str, int, str], deque[float]] = {}
+
+
+def _get_thresholds():
+    """Récupère les seuils depuis PlatformSettings ou utilise les défauts."""
+    settings = PlatformSettings.get()
+    return {
+        "uploads_warning": getattr(settings, "uploads_size_gb_warning", UPLOADS_SIZE_GB_WARNING),
+        "uploads_danger": getattr(settings, "uploads_size_gb_danger", UPLOADS_SIZE_GB_DANGER),
+        "orphan_warning": getattr(settings, "orphan_media_warning", ORPHAN_MEDIA_COUNT_WARNING),
+        "orphan_danger": getattr(settings, "orphan_media_danger", ORPHAN_MEDIA_COUNT_DANGER),
+        "expired_warning": getattr(settings, "expired_locations_warning", EXPIRED_LOCATIONS_GT_DAYS_WARNING),
+        "expired_danger": getattr(settings, "expired_locations_danger", EXPIRED_LOCATIONS_GT_DAYS_DANGER),
+        "db_warning": getattr(settings, "db_size_mb_warning", DB_SIZE_MB_WARNING),
+        "db_danger": getattr(settings, "db_size_mb_danger", DB_SIZE_MB_DANGER),
+    }
 
 
 def _project_root() -> Path:
@@ -59,6 +86,17 @@ def _sqlite_db_file_path() -> Path | None:
     return db_path
 
 
+def _validate_backup_dir(path: Path) -> bool:
+    """Vérifie que le dossier de backup est accessible en écriture."""
+    try:
+        test_file = path / ".write_test"
+        test_file.touch()
+        test_file.unlink()
+        return True
+    except Exception:
+        return False
+
+
 def _resolve_backup_dir(custom_dir: str | None = None) -> Path:
     configured = (custom_dir or "").strip() or str(current_app.config.get("MAINTENANCE_BACKUP_DIR") or "").strip()
     if not configured:
@@ -67,6 +105,10 @@ def _resolve_backup_dir(custom_dir: str | None = None) -> Path:
     if not path.is_absolute():
         path = (_project_root() / path).resolve()
     path.mkdir(parents=True, exist_ok=True)
+    
+    if not _validate_backup_dir(path):
+        raise RuntimeError(f"Le dossier de backup {path} n'est pas accessible en écriture.")
+    
     return path
 
 
@@ -310,6 +352,43 @@ def _sqlite_db_size_bytes() -> int | None:
     return None
 
 
+def _db_backend_name() -> str:
+    try:
+        return str(db.engine.url.get_backend_name() or "").strip().lower()
+    except Exception:
+        uri = str(current_app.config.get("SQLALCHEMY_DATABASE_URI") or "").strip().lower()
+        if uri.startswith("mysql"):
+            return "mysql"
+        if uri.startswith("postgresql") or uri.startswith("postgres"):
+            return "postgresql"
+        if uri.startswith("sqlite"):
+            return "sqlite"
+        return ""
+
+
+def _mysql_db_size_bytes() -> int | None:
+    try:
+        with db.engine.connect() as conn:
+            db_name = conn.execute(text("SELECT DATABASE()")).scalar()
+            if not db_name:
+                return None
+            size_bytes = conn.execute(
+                text(
+                    """
+                    SELECT COALESCE(SUM(data_length + index_length), 0)
+                    FROM information_schema.tables
+                    WHERE table_schema = :db_name
+                    """
+                ),
+                {"db_name": db_name},
+            ).scalar()
+            if size_bytes is None:
+                return None
+            return int(size_bytes)
+    except Exception:
+        return None
+
+
 def human_size(num_bytes: int | None) -> str:
     if num_bytes is None:
         return "N/A"
@@ -326,6 +405,8 @@ def human_size(num_bytes: int | None) -> str:
 
 def collect_system_health(expired_days: int = 6) -> dict[str, Any]:
     days = max(0, int(expired_days or 0))
+    thresholds = _get_thresholds()
+    
     health: dict[str, Any] = {
         "uploads_size": "N/A",
         "uploads_size_bytes": None,
@@ -341,6 +422,7 @@ def collect_system_health(expired_days: int = 6) -> dict[str, Any]:
         "db_engine": "N/A",
         "errors": [],
         "days_threshold": days,
+        "thresholds": thresholds,
     }
 
     try:
@@ -382,14 +464,24 @@ def collect_system_health(expired_days: int = 6) -> dict[str, Any]:
         health["errors"].append(f"cache_status: {exc}")
 
     try:
-        uri = str(current_app.config.get("SQLALCHEMY_DATABASE_URI") or "")
-        if uri.startswith("sqlite:///"):
+        backend_name = _db_backend_name()
+        if backend_name == "sqlite":
             health["db_engine"] = "SQLite"
             db_size_bytes = _sqlite_db_size_bytes()
             health["db_size_bytes"] = db_size_bytes
             if db_size_bytes is not None:
                 health["db_size_mb"] = round(db_size_bytes / (1024.0 ** 2), 2)
             health["db_size"] = human_size(db_size_bytes)
+        elif backend_name == "mysql":
+            health["db_engine"] = "MySQL"
+            db_size_bytes = _mysql_db_size_bytes()
+            health["db_size_bytes"] = db_size_bytes
+            if db_size_bytes is not None:
+                health["db_size_mb"] = round(db_size_bytes / (1024.0 ** 2), 2)
+            health["db_size"] = human_size(db_size_bytes)
+        elif backend_name in {"postgresql", "postgres"}:
+            health["db_engine"] = "PostgreSQL"
+            health["db_size"] = "N/A"
         else:
             health["db_engine"] = "Postgres/Other"
             health["db_size"] = "N/A"
@@ -458,15 +550,7 @@ def _purge_stale_rentals(expired_days: int = 6) -> tuple[int, int, int, list[str
             purged_count += 1
             media_deleted += int(result.get("removed_files") or 0)
 
-        archive_cutoff = now - timedelta(days=ARCHIVE_RETENTION_DAYS)
-        old_archives = (
-            RentalArchive.query
-            .filter(RentalArchive.closed_at <= archive_cutoff)
-            .all()
-        )
-        archives_deleted = len(old_archives)
-        for archive in old_archives:
-            db.session.delete(archive)
+        archives_deleted = 0
 
         db.session.commit()
     except Exception as exc:
@@ -715,3 +799,91 @@ def reset_database_keep_admins() -> dict[str, Any]:
             conn.execute(text("PRAGMA foreign_keys = ON"))
 
     return {"admins_kept": len(admin_ids)}
+
+
+def cleanup_old_reports(days=20) -> int:
+    """Supprime les rapports de maintenance plus vieux que days."""
+    try:
+        cutoff = datetime.utcnow() - timedelta(days=days)
+        deleted = MaintenanceRun.query.filter(MaintenanceRun.finished_at < cutoff).delete()
+        db.session.commit()
+        return deleted
+    except Exception as e:
+        db.session.rollback()
+        return 0
+
+
+# =====================================================
+# NETTOYAGE AUTOMATIQUE NIGHTLY
+# =====================================================
+
+def auto_cleanup_nightly():
+    """Nettoyage automatique quotidien (à lancer à 3h du matin)"""
+    start = datetime.utcnow()
+    results = {
+        "sessions_deleted": 0,
+        "logs_deleted": 0,
+        "cache_cleared": False,
+        "duration_ms": 0
+    }
+    
+    try:
+        # 1. Supprimer les sessions expirées
+        _, sessions_deleted, sessions_error = _cleanup_expired_server_sessions()
+        results["sessions_deleted"] = sessions_deleted
+        if sessions_error:
+            current_app.logger.warning(f"Erreur sessions: {sessions_error}")
+        
+        # 2. Nettoyer les vieux logs (>30 jours)
+        cutoff = datetime.utcnow() - timedelta(days=30)
+        deleted_logs = ErrorLog.query.filter(ErrorLog.created_at < cutoff).delete()
+        results["logs_deleted"] = deleted_logs
+        
+        # 3. Vider le cache périmé (pas tous les jours)
+        if random.random() < 0.1:  # 10% de chance
+            from .cache import cache
+            cache.clear()
+            results["cache_cleared"] = True
+        
+        db.session.commit()
+        
+        duration = (datetime.utcnow() - start).total_seconds() * 1000
+        results["duration_ms"] = int(duration)
+        
+        current_app.logger.info(
+            f"Nettoyage auto: {results['sessions_deleted']} sessions, "
+            f"{results['logs_deleted']} logs, "
+            f"{'cache vidé' if results['cache_cleared'] else 'cache intact'} "
+            f"({results['duration_ms']} ms)"
+        )
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Nettoyage auto échoué: {e}")
+        results["error"] = str(e)
+    
+    return results
+
+
+# =====================================================
+# COMMANDES CLI
+# =====================================================
+
+def init_cli_commands(app):
+    """Initialise les commandes CLI pour l'application."""
+    
+    @app.cli.command("nightly-cleanup")
+    def nightly_cleanup_command():
+        """Commande CLI pour le nettoyage automatique"""
+        results = auto_cleanup_nightly()
+        click.echo(f"Sessions supprimées: {results['sessions_deleted']}")
+        click.echo(f"Logs supprimés: {results['logs_deleted']}")
+        click.echo(f"Cache vidé: {results['cache_cleared']}")
+        click.echo(f"Durée: {results['duration_ms']} ms")
+    
+    @app.cli.command("cleanup-old-reports")
+    @click.option("--days", default=20, help="Nombre de jours de rétention")
+    def cleanup_old_reports_command(days):
+        """Supprime les anciens rapports de maintenance"""
+        deleted = cleanup_old_reports(days=days)
+        click.echo(f"{deleted} rapports supprimés (>{days} jours)")

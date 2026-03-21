@@ -1,0 +1,48 @@
+﻿:root {
+  --adm-color-primary: #ff6b35;
+  --adm-color-secondary: #0f766e;
+  --adm-color-accent: #f59e0b;
+  --adm-color-dark: #0f172a;
+  --adm-color-text: #1f2937;
+  --adm-color-muted: #6b7280;
+  --adm-color-line: #e2e8f0;
+  --adm-color-surface: #ffffff;
+  --adm-color-surface-soft: #f8fafc;
+
+  --adm-radius-sm: 10px;
+  --adm-radius-md: 12px;
+  --adm-radius-lg: 16px;
+  --adm-radius-xl: 20px;
+  --adm-radius-pill: 999px;
+
+  --adm-shadow-sm: 0 4px 10px rgba(15, 23, 42, 0.04);
+  --adm-shadow-md: 0 8px 18px rgba(15, 23, 42, 0.08);
+  --adm-shadow-lg: 0 12px 26px rgba(0, 0, 0, 0.06);
+
+  --adm-space-1: 0.25rem;
+  --adm-space-2: 0.5rem;
+  --adm-space-3: 0.75rem;
+  --adm-space-4: 1rem;
+  --adm-space-5: 1.25rem;
+  --adm-space-6: 1.5rem;
+
+  --adm-z-floating: 100;
+  --adm-z-overlay: 1000;
+}
+
+html[data-admin-theme="noc"] {
+  --adm-color-primary: #22d3ee;
+  --adm-color-secondary: #0ea5e9;
+  --adm-color-accent: #06b6d4;
+  --adm-color-dark: #e2e8f0;
+  --adm-color-text: #cbd5e1;
+  --adm-color-muted: #94a3b8;
+  --adm-color-line: #334155;
+  --adm-color-surface: rgba(15, 23, 42, 0.82);
+  --adm-color-surface-soft: rgba(15, 23, 42, 0.72);
+
+  --adm-shadow-sm: 0 4px 10px rgba(2, 6, 23, 0.35);
+  --adm-shadow-md: 0 8px 18px rgba(2, 6, 23, 0.45);
+  --adm-shadow-lg: 0 12px 26px rgba(2, 6, 23, 0.5);
+}
+

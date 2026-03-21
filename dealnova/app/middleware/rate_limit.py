@@ -14,16 +14,20 @@ def _client_ip():
     return request.remote_addr or "unknown"
 
 
-def rate_limit(limit=5, window_seconds=60, key_prefix=None, key_func=None, methods=None):
+def rate_limit(limit=10, window_seconds=60, key_prefix=None, key_func=None, methods=None):
     """Simple in-memory rate limiter backed by Flask-Caching."""
     def decorator(f):
         @wraps(f)
         def wrapped(*args, **kwargs):
+            # Si la méthode n'est pas dans la liste, on laisse passer
             if methods and request.method not in methods:
                 return f(*args, **kwargs)
+            
+            # Si le rate limiting est désactivé globalement, on laisse passer
             if not current_app.config.get("SECURITY_RATE_LIMIT_ENABLED", True):
                 return f(*args, **kwargs)
 
+            # Identifier
             identifier = None
             if key_func:
                 try:
@@ -39,27 +43,34 @@ def rate_limit(limit=5, window_seconds=60, key_prefix=None, key_func=None, metho
             data = cache.get(key)
 
             if not data or not isinstance(data, dict) or data.get("reset", 0) < now:
+                # Première requête ou cache expiré
                 data = {"count": 0, "reset": now + window_seconds}
 
+            # ✅ VERSION ÉQUILIBRÉE
             if data["count"] >= limit:
+                # 1. On logue (pour toi)
                 logging_service.log_activity(
                     "security",
-                    "rate_limit",
+                    "rate_limit_exceeded",
                     message=f"Rate limit exceeded on {endpoint} ({identifier})",
-                    level="WARNING",
+                    level="INFO",
                 )
-                send_security_alert(
-                    f"Rate limit exceeded on {endpoint}",
-                    meta={"identifier": identifier, "limit": limit, "window": window_seconds},
-                    level="warning",
-                )
+                
+                # 2. Message clair
                 if request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest":
-                    return jsonify({"error": "rate_limited"}), 429
-                flash("Trop de tentatives. Merci de réessayer plus tard.", "warning")
-                return redirect(url_for("shop.home"))
+                    return jsonify({
+                        "error": "rate_limited",
+                        "message": f"Maximum {limit} requêtes par minute. Veuillez patienter.",
+                        "retry_after": data["reset"] - now
+                    }), 429
+                
+                flash(f"Maximum {limit} actions par minute. Merci de patienter.", "warning")
+                return redirect(request.referrer or url_for("shop.home"))
 
+            # ✅ Incrémentation normale
             data["count"] += 1
             cache.set(key, data, timeout=window_seconds)
+            
             return f(*args, **kwargs)
         return wrapped
     return decorator

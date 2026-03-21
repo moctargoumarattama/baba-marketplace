@@ -1,8 +1,73 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 
-{% block title %}{{ listing.title }} | Locations{% endblock %}
+{% block title %}{{ listing.title }} | Location à {{ listing.city }} | BabaMarket{% endblock %}
 
 {% block head %}
+{% set canonical_url = "https://www.babamarket.ma" ~ url_for('rentals.location_detail', slug=listing.slug) %}
+{% set page_title = listing.title ~ " | Location à " ~ listing.city ~ " | BabaMarket" %}
+{% set page_description = (listing.description or ("Découvrez cette annonce de location à " ~ listing.city ~ (" - " ~ listing.area if listing.area else "") ~ " sur BabaMarket."))|striptags|trim %}
+{% set first_video = videos[0] if videos else None %}
+{% set first_video_poster_rel = rental_video_poster_rel_path(first_video.file_path) if first_video and rental_video_poster_rel_path is defined else None %}
+{% set og_image_path = first_video_poster_rel or (images[0].file_path if images else 'images/produit.jpeg') %}
+{% set og_image_url = "https://www.babamarket.ma" ~ url_for('static', filename=og_image_path) %}
+<meta name="description" content="{{ page_description[:160] }}">
+<meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
+<link rel="canonical" href="{{ canonical_url }}">
+<meta property="og:locale" content="fr_MA">
+<meta property="og:site_name" content="BabaMarket">
+<meta property="og:title" content="{{ page_title }}">
+<meta property="og:description" content="{{ page_description[:200] }}">
+<meta property="og:type" content="article">
+<meta property="og:url" content="{{ canonical_url }}">
+<meta property="og:image" content="{{ og_image_url }}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{ page_title }}">
+<meta name="twitter:description" content="{{ page_description[:200] }}">
+<meta name="twitter:image" content="{{ og_image_url }}">
+<script type="application/ld+json">
+  {{
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "WebPage",
+          "name": page_title,
+          "url": canonical_url,
+          "description": page_description,
+          "image": og_image_url,
+          "isPartOf": {
+            "@type": "WebSite",
+            "name": "BabaMarket",
+            "url": "https://www.babamarket.ma/"
+          }
+        },
+        {
+          "@type": "BreadcrumbList",
+          "itemListElement": [
+            {
+              "@type": "ListItem",
+              "position": 1,
+              "name": "BabaMarket",
+              "item": "https://www.babamarket.ma/"
+            },
+            {
+              "@type": "ListItem",
+              "position": 2,
+              "name": "Locations",
+              "item": "https://www.babamarket.ma" ~ url_for('rentals.locations_home')
+            },
+            {
+              "@type": "ListItem",
+              "position": 3,
+              "name": listing.title,
+              "item": canonical_url
+            }
+          ]
+        }
+      ]
+    }|tojson
+  }}
+</script>
 <style>
   .detail-shell { max-width: 1200px; margin: 0 auto; padding: 1rem; }
   .detail-back { margin-bottom: .75rem; }
@@ -16,50 +81,72 @@
   }
   .gallery-main {
     position: relative;
-    aspect-ratio: 16/10;
-    background: #ecf2f7;
+    height: clamp(270px, 58vw, 520px);
+    background: linear-gradient(180deg, #ffffff, #f8fafc);
+    border: 1px solid rgba(15,23,42,.08);
+    border-radius: 20px;
     overflow: hidden;
+    box-shadow: 0 10px 24px rgba(15,23,42,.04);
   }
-  .gallery-track { display: flex; height: 100%; transition: transform .35s ease; }
-  .gallery-track > * { width: 100%; flex: 0 0 100%; height: 100%; object-fit: cover; }
-  .gallery-main img, .gallery-main video { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .gallery-track { display: flex; height: 100%; transition: transform .35s ease; will-change: transform; }
+  .gallery-track > * { width: 100%; flex: 0 0 100%; height: 100%; }
+  .gallery-main img, .gallery-main video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    display: block;
+  }
+  .gallery-main video {
+    object-fit: cover;
+  }
   .gallery-chip {
     position: absolute; top: .7rem; left: .7rem; z-index: 2;
-    padding: .3rem .7rem; border-radius: 999px; font-size: .72rem;
-    font-weight: 800; color: #fff; background: rgba(15,118,110,.92);
+    padding: .34rem .72rem; border-radius: 999px; font-size: .72rem;
+    font-weight: 800; color: #0f172a; background: rgba(255,255,255,.94);
+    border: 1px solid rgba(15,23,42,.08); box-shadow: 0 8px 20px rgba(15,23,42,.08);
   }
   .gallery-nav {
     position: absolute; inset-inline: 0; top: 50%; transform: translateY(-50%);
     display: flex; justify-content: space-between; pointer-events: none; padding: 0 .55rem;
   }
   .gallery-btn {
-    width: 34px; height: 34px; border-radius: 999px; border: 0;
-    background: rgba(15,23,42,.56); color: #fff; pointer-events: auto;
+    width: 36px; height: 36px; border-radius: 999px; border: 1px solid rgba(15,23,42,.1);
+    background: rgba(255,255,255,.94); color: #0f172a; pointer-events: auto;
+    box-shadow: 0 10px 20px rgba(15,23,42,.08);
   }
   .gallery-dots {
     position: absolute; left: 50%; transform: translateX(-50%);
     bottom: .65rem; display: flex; gap: .35rem;
   }
-  .gallery-dot { width: 7px; height: 7px; border-radius: 999px; background: rgba(255,255,255,.55); transition: all .2s ease; }
+  .gallery-dot { width: 7px; height: 7px; border-radius: 999px; background: rgba(255,255,255,.72); border: 1px solid rgba(15,23,42,.08); transition: all .2s ease; }
   .gallery-dot.active { width: 16px; background: #fff; }
   .thumbs {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(82px, 1fr));
-    gap: .45rem;
-    padding: .75rem;
+    gap: .55rem;
+    padding: .9rem .85rem .85rem;
     border-top: 1px solid #eef2f7;
   }
   .thumb-btn {
-    border: 1px solid #d5dce5;
-    border-radius: 11px;
+    border: 1px solid rgba(15,23,42,.1);
+    border-radius: 13px;
     padding: 0;
     overflow: hidden;
-    background: #f8fafc;
+    background: linear-gradient(180deg, #ffffff, #f8fafc);
     position: relative;
+    aspect-ratio: 1;
+    box-shadow: 0 6px 16px rgba(15,23,42,.05);
   }
-  .thumb-btn.active { border-color: #0f766e; box-shadow: 0 0 0 2px rgba(15,118,110,.15); }
-  .thumb-btn img, .thumb-btn video { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; }
-  .detail-body { padding: 1rem 1rem 1.1rem; }
+  .thumb-btn.active { border-color: rgba(15,23,42,.16); box-shadow: 0 0 0 2px rgba(255,255,255,.96), 0 0 0 3px rgba(15,23,42,.08); }
+  .thumb-btn img, .thumb-btn video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    display: block;
+  }
+  .detail-body { padding: 1.05rem 1rem 1.15rem; }
   .title { margin: 0 0 .45rem; color: #0f172a; font-weight: 900; font-size: clamp(1.15rem, 2.2vw, 1.55rem); }
   .meta-row { display: flex; align-items: center; gap: .65rem; flex-wrap: wrap; margin-bottom: .6rem; }
   .meta-pill {
@@ -82,6 +169,9 @@
   @media (max-width: 960px) {
     .detail-grid { grid-template-columns: 1fr; }
     .detail-shell { padding: .75rem; }
+    .gallery-main { height: clamp(250px, 72vw, 380px); }
+    .thumbs { padding: .8rem .75rem .75rem; gap: .5rem; }
+    .detail-body { padding-top: .95rem; }
   }
 </style>
 {% endblock %}
@@ -97,7 +187,8 @@
         {% set _ = gallery.append({'kind': 'image', 'src': url_for('static', filename=image.file_path)}) %}
       {% endfor %}
       {% for video in videos %}
-        {% set _ = gallery.append({'kind': 'video', 'src': url_for('static', filename=video.file_path)}) %}
+        {% set video_poster_rel = rental_video_poster_rel_path(video.file_path) if rental_video_poster_rel_path is defined else None %}
+        {% set _ = gallery.append({'kind': 'video', 'src': url_for('static', filename=video.file_path), 'poster': (url_for('static', filename=video_poster_rel) if video_poster_rel else '')}) %}
       {% endfor %}
 
       {% if gallery %}
@@ -108,7 +199,7 @@
               {% if media.kind == 'image' %}
                 <img src="{{ media.src }}" alt="{{ listing.title }}" loading="lazy">
               {% else %}
-                <video controls playsinline preload="metadata">
+                <video controls playsinline preload="metadata"{% if media.poster %} poster="{{ media.poster }}"{% endif %}>
                   <source src="{{ media.src }}">
                 </video>
               {% endif %}
@@ -133,7 +224,7 @@
                 {% if media.kind == 'image' %}
                   <img src="{{ media.src }}" alt="Media {{ loop.index }}">
                 {% else %}
-                  <video preload="metadata" muted playsinline>
+                  <video preload="metadata" muted playsinline{% if media.poster %} poster="{{ media.poster }}"{% endif %}>
                     <source src="{{ media.src }}">
                   </video>
                 {% endif %}
@@ -155,7 +246,7 @@
         <div class="meta-row">
           <span class="meta-pill"><i class="bi bi-geo-alt"></i> {{ listing.city }}{% if listing.area %}, {{ listing.area }}{% endif %}</span>
           <span class="meta-pill"><i class="bi bi-building"></i> {{ listing.property_type }}</span>
-          <span class="meta-pill"><i class="bi bi-shop"></i> {{ listing.shop.name if listing.shop else '—' }}</span>
+          <span class="meta-pill"><i class="bi bi-shop"></i> {{ listing.shop.name if listing.shop else '?' }}</span>
         </div>
         <div class="price">{{ cents_to_dh(listing.rent_cents) }}</div>
         {% if listing.description %}
@@ -176,11 +267,11 @@
             {% if listing.owner_fee_text %} · {{ listing.owner_fee_text }}{% endif %}
           </strong>
         </div>
-        <div class="info-line"><span>Publié</span><strong>{{ listing.created_at.strftime('%d/%m/%Y') if listing.created_at else '—' }}</strong></div>
+        <div class="info-line"><span>Publi?</span><strong>{{ listing.created_at.strftime('%d/%m/%Y') if listing.created_at else '?' }}</strong></div>
         <div class="info-line"><span>Consultations</span><strong>{{ listing.view_count }}</strong></div>
       </div>
 
-      <a class="btn btn-success cta" href="{{ whatsapp_url }}">
+      <a class="btn btn-success cta" href="{{ url_for('rentals.location_inquiry', slug=listing.slug) }}">
         <i class="bi bi-whatsapp"></i> Demander visite / infos
       </a>
       <p class="note">
@@ -255,3 +346,4 @@
   })();
 </script>
 {% endblock %}
+

@@ -1,22 +1,33 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, current_app
+import os
+from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, current_app, session
 from flask_login import login_required, current_user, logout_user
 from datetime import date, datetime, timedelta
 from urllib.parse import quote
+from werkzeug.security import check_password_hash
 
 from ..extensions import db
 from ..models.order import Order, OrderItem
 from ..models.order_period import OrderPeriod
-from ..models.financial import FinancialPeriod, FinancialEntry
+from ..models.financial import FinancialEntry
 from ..models.maintenance import ErrorLog, MaintenanceRun
 from ..models.product import Product
+from ..models.featured_item import FeaturedItem
 from ..models.shop import Shop
 from ..models.user import User
 from ..models.vendor_fulfillment import VendorFulfillment
 from ..models.vendor_payout import VendorPayout
 from ..models.vendor_receipt import VendorReceipt
+from ..models.rental import RentalListing
 from ..services.audit import log_access
 from sqlalchemy.orm import selectinload
-from sqlalchemy import or_
+from sqlalchemy import case, or_
+from ..services.cache import bump_catalog_version
+from ..services.featured_items import (
+    disable_featured_item,
+    featured_duration_choices,
+    normalize_featured_duration,
+    upsert_featured_item,
+)
 
 from ..models.platform_settings import PlatformSettings
 from ..services.maintenance import (
@@ -26,6 +37,7 @@ from ..services.maintenance import (
     EXPIRED_LOCATIONS_GT_DAYS_WARNING,
     ORPHAN_MEDIA_COUNT_DANGER,
     ORPHAN_MEDIA_COUNT_WARNING,
+    collect_system_health,
     UPLOADS_SIZE_GB_DANGER,
     UPLOADS_SIZE_GB_WARNING,
     create_pre_reset_backup,
@@ -47,18 +59,13 @@ from ..services.order_periods import (
     create_order_period,
     close_order_period,
     order_delete_guard,
+    period_bounds,
 )
 from ..services.financial_periods import (
     ENTRY_TYPE_DELIVERY_FEE,
     ENTRY_TYPE_RENTAL_COMMISSION,
     ENTRY_TYPE_SUBSCRIPTION,
-    FINANCIAL_PERIOD_CLOSED,
-    FINANCIAL_PERIOD_DELETE_RETENTION_DAYS,
-    FINANCIAL_PERIOD_OPEN,
-    close_financial_period,
-    compute_period_totals,
-    create_financial_period,
-    financial_period_delete_guard,
+    ensure_financial_period_for_order_period,
     record_delivery_fee_entry,
 )
 from ..services.delivery_context import (
@@ -73,12 +80,48 @@ from ..services.delivery_context import (
 from ..services.traffic_stats import get_live_traffic_metrics
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
+MAINTENANCE_PANEL_SESSION_KEY = "maintenance_panel_unlock_until"
+MAINTENANCE_PANEL_DEFAULT_UNLOCK_MINUTES = 90
 
 FINAL_DELIVERY_ORDER_STATUSES = {"delivered", "cancelled", "archived"}
 COURIER_ASSIGNMENT_FILTERS = {"", "unassigned", "assigned", "delivered"}
 COURIER_DELIVERY_IN_PROGRESS = {"new", "assigned", "picked_up", "delivering"}
 COURIER_DELIVERY_COMPLETED = {"delivered", "canceled"}
 DELIVERY_SOURCE_FILTERS = {"", DELIVERY_SOURCE_MARKETPLACE, DELIVERY_SOURCE_SPECIAL}
+ORDER_STATUS_FILTERS = {"", "pending", "delivered", "cancelled"}
+DELIVERY_STATUS_FILTERS = {"", "new", "assigned", "picked_up", "delivering", "delivered", "canceled"}
+FEATURED_SEARCH_LIMIT = 18
+FEATURED_STATUS_FILTERS = {"all", "active", "expired", "stopped"}
+FEATURED_VIEW_FILTERS = {"overview", "history"}
+ADMIN_ROLE = "admin"
+MANAGER_ROLE = "manager"
+MANAGER_BLOCKED_ADMIN_ENDPOINTS = {
+    "admin.maintenance",
+    "admin.maintenance_unlock",
+    "admin.maintenance_error_delete",
+    "admin.maintenance_errors_purge",
+    "admin.maintenance_mode_enable",
+    "admin.maintenance_mode_disable",
+    "admin.maintenance_mode_schedule",
+    "admin.run_maintenance",
+    "admin.maintenance_reset_data",
+}
+
+
+def _current_admin_role() -> str:
+    return (getattr(current_user, "role", "") or "").strip().lower()
+
+
+def _is_manager_user() -> bool:
+    return _current_admin_role() == MANAGER_ROLE
+
+
+def _sensitive_admin_forbidden_response():
+    message = "Acces reserve aux administrateurs principaux."
+    if _is_ajax_request():
+        return jsonify(success=False, message=message), 403
+    flash(message, "danger")
+    return redirect(url_for("admin_users.admin_dashboard"))
 
 def _is_ajax_request() -> bool:
     return (
@@ -119,15 +162,6 @@ def _order_period_choices() -> list[OrderPeriod]:
             OrderPeriod.id.desc(),
         )
         .all()
-    )
-
-
-def _open_order_period() -> OrderPeriod | None:
-    return (
-        OrderPeriod.query
-        .filter(OrderPeriod.status == OPEN_STATUS)
-        .order_by(OrderPeriod.opened_at.desc(), OrderPeriod.id.desc())
-        .first()
     )
 
 
@@ -178,10 +212,80 @@ def _archived_orders_query():
     )
 
 
+def _archived_orders_context(source=None) -> dict:
+    source = source or request.args
+    archives_page = page_from_args(source, key="archives_page", default=1)
+    archive_period_id = source.get("archive_period_id", type=int)
+
+    query = _archived_orders_query().options(
+        selectinload(Order.items).selectinload(OrderItem.product),
+        selectinload(Order.period),
+    )
+    if archive_period_id:
+        query = query.filter(Order.period_id == archive_period_id)
+
+    archives_pagination = query.order_by(Order.created_at.desc()).paginate(
+        page=archives_page, per_page=50, error_out=False
+    )
+    archive_orders = archives_pagination.items
+
+    closed_periods = (
+        OrderPeriod.query
+        .filter(OrderPeriod.status == CLOSED_STATUS)
+        .order_by(OrderPeriod.closed_at.desc(), OrderPeriod.id.desc())
+        .all()
+    )
+
+    now = datetime.utcnow()
+    archive_delete_guards = {}
+    for order in archive_orders:
+        allowed, message, available_at = order_delete_guard(order, now=now)
+        archive_delete_guards[order.id] = {
+            "allowed": allowed,
+            "message": message,
+            "available_at": available_at,
+        }
+
+    return {
+        "archive_orders": archive_orders,
+        "archives_pagination": archives_pagination,
+        "archive_period_id": archive_period_id,
+        "closed_periods": closed_periods,
+        "archive_delete_guards": archive_delete_guards,
+        "retention_days": ORDER_DELETE_RETENTION_DAYS,
+    }
+
+
+def _order_periods_context() -> dict:
+    periods = (
+        OrderPeriod.query
+        .order_by(OrderPeriod.opened_at.desc(), OrderPeriod.id.desc())
+        .all()
+    )
+    open_period = next((period for period in periods if period.status == OPEN_STATUS), None)
+
+    period_counts = {
+        row.period_id: int(row.count)
+        for row in (
+            db.session.query(Order.period_id, db.func.count(Order.id).label("count"))
+            .group_by(Order.period_id)
+            .all()
+        )
+        if row.period_id is not None
+    }
+
+    return {
+        "periods": periods,
+        "open_period": open_period,
+        "period_counts": period_counts,
+    }
+
+
 def _apply_delivery_filters(
     base_query,
     *,
-    status_filter: str = "",
+    order_status_filter: str = "",
+    delivery_status_filter: str = "",
     source_filter: str = "",
     city_filter: str = "",
     client_filter: str = "",
@@ -192,8 +296,10 @@ def _apply_delivery_filters(
     shop_filter: str = "",
 ):
     query = base_query
-    if status_filter:
-        query = query.filter(Order.status == status_filter)
+    if order_status_filter:
+        query = query.filter(Order.status == order_status_filter)
+    if delivery_status_filter:
+        query = query.filter(Order.delivery_status == delivery_status_filter)
     if source_filter:
         query = query.filter(Order.delivery_source == source_filter)
     if city_filter:
@@ -304,6 +410,16 @@ def _normalize_delivery_source_filter(raw_value: str | None) -> str:
     return normalize_delivery_source(value)
 
 
+def _normalize_order_status_filter(raw_value: str | None) -> str:
+    value = (raw_value or "").strip().lower()
+    return value if value in ORDER_STATUS_FILTERS else ""
+
+
+def _normalize_delivery_status_filter(raw_value: str | None) -> str:
+    value = (raw_value or "").strip().lower()
+    return value if value in DELIVERY_STATUS_FILTERS else ""
+
+
 def _apply_courier_assignment_filter(query, assignment_filter: str):
     if assignment_filter == "unassigned":
         return query.filter(Order.courier_id.is_(None))
@@ -315,6 +431,36 @@ def _apply_courier_assignment_filter(query, assignment_filter: str):
     if assignment_filter == "delivered":
         return query.filter(Order.delivery_status == "delivered")
     return query
+
+
+def _sync_courier_availability(courier: User | None) -> None:
+    if courier is None:
+        return
+    if not courier.is_active or not courier.courier_is_active:
+        courier.courier_is_available = False
+        return
+    has_active_delivery = (
+        Order.query
+        .filter(
+            Order.courier_id == courier.id,
+            Order.delivery_status.in_(tuple(COURIER_DELIVERY_IN_PROGRESS)),
+        )
+        .first()
+        is not None
+    )
+    courier.courier_is_available = not has_active_delivery
+
+
+def _operational_deliveries_query(base_query, *, now: datetime | None = None, window_hours: int = 24):
+    current_time = now or datetime.utcnow()
+    cutoff = current_time - timedelta(hours=window_hours)
+    return base_query.filter(
+        or_(
+            Order.delivery_status.in_(tuple(COURIER_DELIVERY_IN_PROGRESS)),
+            Order.created_at >= cutoff,
+            Order.delivered_at >= cutoff,
+        )
+    )
 
 
 def _maintenance_health_placeholder(days: int, note: str = "metrics moved to CLI") -> dict:
@@ -429,6 +575,13 @@ def _maintenance_view_context(days: int, reset_result=None, errors_page: int = 1
         last_quick_run = None
         last_full_run = None
 
+    try:
+        live_health = collect_system_health(expired_days=days)
+        for key in ("db_size", "db_size_bytes", "db_size_mb", "db_engine"):
+            health[key] = live_health.get(key)
+    except Exception:
+        db.session.rollback()
+
     health_badges = _maintenance_badges(health)
 
     errors_block = {
@@ -496,14 +649,302 @@ def _maintenance_view_context(days: int, reset_result=None, errors_page: int = 1
     }
 
 
+def _featured_search_results(source=None):
+    source = source or request.args
+    shop_q = (source.get("shop_q") or "").strip()
+    product_q = (source.get("product_q") or "").strip()
+    location_q = (source.get("location_q") or "").strip()
+
+    shop_results = []
+    product_results = []
+    location_results = []
+
+    if len(shop_q) >= 2:
+        shop_results = (
+            Shop.query
+            .options(selectinload(Shop.vendor).load_only(User.id, User.username))
+            .filter(Shop.name.ilike(f"%{shop_q}%"))
+            .order_by(Shop.name.asc())
+            .limit(FEATURED_SEARCH_LIMIT)
+            .all()
+        )
+
+    if len(product_q) >= 2:
+        product_results = (
+            Product.query
+            .options(
+                selectinload(Product.shop).load_only(Shop.id, Shop.name),
+                selectinload(Product.vendor).load_only(User.id, User.username),
+            )
+            .filter(Product.name.ilike(f"%{product_q}%"))
+            .order_by(Product.created_at.desc())
+            .limit(FEATURED_SEARCH_LIMIT)
+            .all()
+        )
+
+    if len(location_q) >= 2:
+        like_term = f"%{location_q}%"
+        location_results = (
+            RentalListing.query
+            .options(selectinload(RentalListing.shop).load_only(Shop.id, Shop.name))
+            .filter(
+                or_(
+                    RentalListing.title.ilike(like_term),
+                    RentalListing.city.ilike(like_term),
+                    RentalListing.area.ilike(like_term),
+                )
+            )
+            .order_by(RentalListing.created_at.desc())
+            .limit(FEATURED_SEARCH_LIMIT)
+            .all()
+        )
+
+    return {
+        "shop_q": shop_q,
+        "product_q": product_q,
+        "location_q": location_q,
+        "shop_results": shop_results,
+        "product_results": product_results,
+        "location_results": location_results,
+    }
+
+
+def _normalize_featured_status(raw_value: str | None) -> str:
+    value = (raw_value or "all").strip().lower()
+    return value if value in FEATURED_STATUS_FILTERS else "all"
+
+
+def _normalize_featured_view(raw_value: str | None) -> str:
+    value = (raw_value or "overview").strip().lower()
+    return value if value in FEATURED_VIEW_FILTERS else "overview"
+
+
+def _featured_items_url_from_context(context: dict) -> str:
+    params = {}
+    if context.get("featured_view") and context["featured_view"] != "overview":
+        params["view"] = context["featured_view"]
+    if context.get("status_filter") and context["status_filter"] != "all":
+        params["status"] = context["status_filter"]
+    if context.get("shop_q"):
+        params["shop_q"] = context["shop_q"]
+    if context.get("product_q"):
+        params["product_q"] = context["product_q"]
+    if context.get("location_q"):
+        params["location_q"] = context["location_q"]
+    return url_for("admin.featured_items", **params)
+
+
+def _build_featured_items_context(source=None) -> dict:
+    source = source or request.args
+    featured_view = _normalize_featured_view(source.get("view"))
+    status_filter = _normalize_featured_status(source.get("status"))
+    now = datetime.utcnow()
+    latest_rows_query = (
+        FeaturedItem.query
+        .options(
+            selectinload(FeaturedItem.shop).selectinload(Shop.vendor),
+            selectinload(FeaturedItem.product).selectinload(Product.shop),
+            selectinload(FeaturedItem.location).selectinload(RentalListing.shop),
+            selectinload(FeaturedItem.vendor),
+            selectinload(FeaturedItem.created_by_admin),
+        )
+        .order_by(
+            FeaturedItem.is_active.desc(),
+            case(
+                (FeaturedItem.target_type == FeaturedItem.TARGET_SHOP, 0),
+                (FeaturedItem.target_type == FeaturedItem.TARGET_PRODUCT, 1),
+                (FeaturedItem.target_type == FeaturedItem.TARGET_LOCATION, 2),
+                else_=3,
+            ),
+            FeaturedItem.ends_at.desc(),
+            FeaturedItem.created_at.desc(),
+        )
+    )
+    latest_rows = []
+    history_items = []
+    seen_targets = set()
+    for item in latest_rows_query.all():
+        target_key = (item.target_type, item.target_id)
+        if target_key in seen_targets:
+            item.ui_status = "history"
+            item.can_delete_after = item.created_at + timedelta(days=30)
+            item.can_delete_now = item.can_delete_after <= now
+            history_items.append(item)
+            continue
+        seen_targets.add(target_key)
+        if item.ends_at < now:
+            item.ui_status = "expired"
+        elif item.is_active and item.starts_at <= now <= item.ends_at:
+            item.ui_status = "active"
+        else:
+            item.ui_status = "stopped"
+        if item.ui_status == "active":
+            latest_rows.append(item)
+        else:
+            item.can_delete_after = item.created_at + timedelta(days=30)
+            item.can_delete_now = item.can_delete_after <= now
+            history_items.append(item)
+
+    history_items.sort(key=lambda item: (item.created_at, item.id), reverse=True)
+
+    if status_filter == "active":
+        active_items = latest_rows
+    elif status_filter in {"expired", "stopped"}:
+        active_items = []
+    else:
+        active_items = latest_rows
+
+    total_count = len(latest_rows)
+    active_count = sum(1 for item in latest_rows if item.ui_status == "active")
+    expiring_soon = sorted(
+        [
+            item for item in latest_rows
+            if item.ui_status == "active" and item.ends_at <= now + timedelta(days=3)
+        ],
+        key=lambda item: item.ends_at,
+    )
+    counts_by_type = {
+        "shop": 0,
+        "product": 0,
+        "location": 0,
+    }
+    active_target_keys = set()
+    for item in latest_rows:
+        if item.ui_status == "active" and item.target_type in counts_by_type:
+            counts_by_type[item.target_type] += 1
+            active_target_keys.add((item.target_type, item.target_id))
+
+    context = {
+        "active_items": active_items,
+        "history_items": history_items,
+        "history_count": len(history_items),
+        "active_target_keys": active_target_keys,
+        "featured_view": featured_view,
+        "status_filter": status_filter,
+        "total_count": total_count,
+        "active_count": active_count,
+        "expiring_soon": expiring_soon,
+        "counts_by_type": counts_by_type,
+        "duration_choices": featured_duration_choices(),
+        "now_utc": now,
+    }
+    context.update(_featured_search_results(source))
+    return context
+
+
+def _maintenance_panel_password_hash() -> str:
+    configured = current_app.config.get("MAINTENANCE_PANEL_PASSWORD_HASH")
+    if configured:
+        return str(configured).strip()
+    return (os.getenv("MAINTENANCE_PANEL_PASSWORD_HASH") or "").strip()
+
+
+def _maintenance_panel_unlock_minutes() -> int:
+    raw_value = current_app.config.get("MAINTENANCE_PANEL_UNLOCK_MINUTES")
+    if raw_value in (None, ""):
+        raw_value = os.getenv("MAINTENANCE_PANEL_UNLOCK_MINUTES", str(MAINTENANCE_PANEL_DEFAULT_UNLOCK_MINUTES))
+    try:
+        return max(1, min(1440, int(raw_value)))
+    except (TypeError, ValueError):
+        return MAINTENANCE_PANEL_DEFAULT_UNLOCK_MINUTES
+
+
+def _maintenance_panel_enabled() -> bool:
+    return bool(_maintenance_panel_password_hash())
+
+
+def _maintenance_panel_unlock_until() -> datetime | None:
+    raw_value = session.get(MAINTENANCE_PANEL_SESSION_KEY)
+    if not raw_value:
+        return None
+    try:
+        return datetime.fromisoformat(str(raw_value))
+    except (TypeError, ValueError):
+        session.pop(MAINTENANCE_PANEL_SESSION_KEY, None)
+        return None
+
+
+def _maintenance_panel_is_unlocked() -> bool:
+    if not _maintenance_panel_enabled():
+        return True
+    unlock_until = _maintenance_panel_unlock_until()
+    if unlock_until is None:
+        return False
+    if unlock_until <= datetime.utcnow():
+        session.pop(MAINTENANCE_PANEL_SESSION_KEY, None)
+        return False
+    return True
+
+
+def _set_maintenance_panel_unlock() -> datetime:
+    unlock_until = datetime.utcnow() + timedelta(minutes=_maintenance_panel_unlock_minutes())
+    session[MAINTENANCE_PANEL_SESSION_KEY] = unlock_until.isoformat()
+    session.modified = True
+    return unlock_until
+
+
+def _maintenance_protected_redirect(days: int | None = None, errors_page: int | None = None):
+    if _is_ajax_request():
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "error": "maintenance_unlock_required",
+                    "unlock_url": url_for("admin.maintenance"),
+                }
+            ),
+            423,
+        )
+
+    flash("Déverrouillez d'abord la page maintenance avec le mot de passe dédié.", "warning")
+    route_args = {}
+    if days is not None:
+        route_args["days"] = days
+    if errors_page is not None:
+        route_args["errors_page"] = errors_page
+    return redirect(url_for("admin.maintenance", **route_args))
+
+
+def _maintenance_runtime_context() -> dict:
+    now = datetime.utcnow()
+    next_maintenance = now.replace(hour=3, minute=0, second=0, microsecond=0)
+    if now >= next_maintenance:
+        next_maintenance = next_maintenance + timedelta(days=1)
+
+    time_until = next_maintenance - now
+    hours = int(time_until.total_seconds() // 3600)
+    minutes = int((time_until.total_seconds() % 3600) // 60)
+
+    last_maintenance = MaintenanceRun.query.order_by(MaintenanceRun.finished_at.desc()).first()
+    maintenance_mode = get_maintenance_state(force_refresh=True)
+    maintenance_mode["enabled_at_label"] = format_maintenance_datetime(maintenance_mode.get("enabled_at"))
+    maintenance_mode["starts_at_label"] = format_maintenance_datetime(maintenance_mode.get("starts_at"))
+    maintenance_mode["ends_at_label"] = format_maintenance_datetime(maintenance_mode.get("ends_at"))
+    maintenance_mode["starts_at_local"] = _format_datetime_local(maintenance_mode.get("starts_at"))
+    maintenance_mode["ends_at_local"] = _format_datetime_local(maintenance_mode.get("ends_at"))
+
+    unlock_until = _maintenance_panel_unlock_until()
+    return {
+        "next_maintenance_time": next_maintenance.strftime("%H:%M"),
+        "next_maintenance_in": f"{hours}h {minutes:02d}min",
+        "last_maintenance": last_maintenance,
+        "now": now,
+        "maintenance_mode": maintenance_mode,
+        "maintenance_panel_password_enabled": _maintenance_panel_enabled(),
+        "maintenance_panel_locked": not _maintenance_panel_is_unlocked(),
+        "maintenance_unlock_minutes": _maintenance_panel_unlock_minutes(),
+        "maintenance_unlock_until_label": format_maintenance_datetime(unlock_until),
+    }
+
+
 # ======================
 # ADMIN ONLY
 # ======================
 @bp.before_request
 @login_required
 def restrict_admin():
-    role = (getattr(current_user, "role", "") or "").lower()
-    if role == "admin":
+    role = _current_admin_role()
+    if role in {ADMIN_ROLE, MANAGER_ROLE}:
         return None
 
     if role == "courier":
@@ -511,6 +952,12 @@ def restrict_admin():
 
     flash("Accès réservé aux administrateurs", "danger")
     return redirect(url_for("shop.home"))
+
+
+@bp.before_request
+def restrict_sensitive_pages_for_manager():
+    if _is_manager_user() and request.endpoint in MANAGER_BLOCKED_ADMIN_ENDPOINTS:
+        return _sensitive_admin_forbidden_response()
 
 
 # ======================
@@ -549,12 +996,19 @@ def deliveries():
         period_base = period_base.filter(Order.delivery_source == source_filter)
     delivery_scope = _normalize_courier_assignment_filter(request.args.get("delivery_scope"))
     courier_id_filter = request.args.get("courier_id", type=int)
+    order_status_filter = _normalize_order_status_filter(request.args.get("order_status") or request.args.get("status"))
+    delivery_status_filter = _normalize_delivery_status_filter(request.args.get("delivery_status"))
     scoped_base = _apply_courier_assignment_filter(period_base, delivery_scope)
     if courier_id_filter:
         scoped_base = scoped_base.filter(Order.courier_id == courier_id_filter)
+    if order_status_filter:
+        scoped_base = scoped_base.filter(Order.status == order_status_filter)
+    if delivery_status_filter:
+        scoped_base = scoped_base.filter(Order.delivery_status == delivery_status_filter)
+    operational_base = _operational_deliveries_query(scoped_base, now=now, window_hours=24)
 
     pending_query = (
-        scoped_base.filter(Order.delivery_status.in_(tuple(COURIER_DELIVERY_IN_PROGRESS)))
+        operational_base.filter(Order.delivery_status.in_(tuple(COURIER_DELIVERY_IN_PROGRESS)))
         .options(
             selectinload(Order.courier),
             selectinload(Order.items).selectinload(OrderItem.product).selectinload(Product.shop),
@@ -564,18 +1018,16 @@ def deliveries():
     pending = enrich_orders(pending_query.limit(25).all())
 
     delivered_recent_query = (
-        scoped_base.filter(Order.delivery_status == "delivered")
-        .filter(Order.delivered_at.is_(None) | (Order.delivered_at >= (now - timedelta(hours=72))))
+        operational_base.filter(Order.delivery_status == "delivered")
+        .filter(Order.delivered_at.is_(None) | (Order.delivered_at >= (now - timedelta(hours=24))))
     )
     total_baba_fee = (
         delivered_recent_query.with_entities(
             db.func.coalesce(db.func.sum(Order.delivery_platform_fee_cents), 0)
         ).scalar() or 0
     ) / 100
-    pending_count = scoped_base.filter(Order.delivery_status.in_(tuple(COURIER_DELIVERY_IN_PROGRESS))).count()
+    pending_count = operational_base.filter(Order.delivery_status.in_(tuple(COURIER_DELIVERY_IN_PROGRESS))).count()
     delivered_recent_count = delivered_recent_query.count()
-
-    status_filter = request.args.get("status", "")
     date_from = request.args.get("from", "")
     date_to = request.args.get("to", "")
     product_filter = request.args.get("product", "")
@@ -586,8 +1038,9 @@ def deliveries():
     page = page_from_args(request.args)
 
     history_query = _apply_delivery_filters(
-        scoped_base,
-        status_filter=status_filter,
+        operational_base,
+        order_status_filter=order_status_filter,
+        delivery_status_filter=delivery_status_filter,
         source_filter=source_filter,
         city_filter=city_filter,
         client_filter=client_filter,
@@ -646,7 +1099,7 @@ def deliveries():
             output.getvalue(),
             mimetype="text/csv; charset=utf-8"
         )
-        response.headers["Content-Disposition"] = "attachment; filename=deliveries_history.csv"
+        response.headers["Content-Disposition"] = "attachment; filename=deliveries_operational.csv"
         return response
 
     return render_template(
@@ -659,7 +1112,8 @@ def deliveries():
         pagination=pagination,
         history_orders=history_orders,
         source_filter=source_filter,
-        status_filter=status_filter,
+        order_status_filter=order_status_filter,
+        delivery_status_filter=delivery_status_filter,
         date_from=date_from,
         date_to=date_to,
         product_filter=product_filter,
@@ -685,6 +1139,8 @@ def deliveries():
             source=source_filter or None,
             delivery_scope=delivery_scope or None,
             courier_id=courier_id_filter or None,
+            order_status=order_status_filter or None,
+            delivery_status=delivery_status_filter or None,
         ),
     )
 
@@ -702,7 +1158,7 @@ def mark_delivered(oid):
     order.delivery_status = "delivered"
     order.delivered_at = datetime.utcnow()
     if order.courier is not None:
-        order.courier.courier_is_available = True
+        _sync_courier_availability(order.courier)
     record_delivery_fee_entry(order, note="order delivered by admin")
     db.session.commit()
 
@@ -748,7 +1204,7 @@ def cancel_order(oid):
     order.baba_fee_settled_at = None
     order.baba_fee_settled_by_user_id = None
     if order.courier is not None:
-        order.courier.courier_is_available = True
+        _sync_courier_availability(order.courier)
     FinancialEntry.query.filter(
         FinancialEntry.entry_type == ENTRY_TYPE_DELIVERY_FEE,
         FinancialEntry.order_id == order.id,
@@ -831,6 +1287,7 @@ def assign_courier(oid: int):
             return _redirect_default()
 
     old_courier_id = order.courier_id
+    old_courier = order.courier
     order.courier_id = courier.id if courier else None
 
     if courier:
@@ -839,14 +1296,17 @@ def assign_courier(oid: int):
             order.delivery_status = "assigned"
         order.assigned_at = now
         order.assigned_by_user_id = current_user.id if current_user.is_authenticated else None
-        # Avoid double assignment: once assigned by admin, courier becomes unavailable.
-        courier.courier_is_available = False
         courier.courier_last_seen_at = now
     else:
         if order.delivery_status in {"assigned", "picked_up", "delivering"}:
             order.delivery_status = "new"
             order.picked_up_at = None
         order.assigned_by_user_id = None
+
+    if old_courier is not None and (courier is None or old_courier.id != courier.id):
+        _sync_courier_availability(old_courier)
+    if courier is not None:
+        _sync_courier_availability(courier)
 
     db.session.commit()
 
@@ -925,7 +1385,6 @@ def all_orders():
     couriers = _available_couriers()
     courier_filters = _courier_filter_choices()
     source_filter = _normalize_delivery_source_filter(request.args.get("source"))
-    delivery_scope = _normalize_courier_assignment_filter(request.args.get("delivery_scope"))
     courier_id_filter = request.args.get("courier_id", type=int)
 
     period_base = _orders_query_for_period(
@@ -934,7 +1393,7 @@ def all_orders():
     )
     if source_filter:
         period_base = period_base.filter(Order.delivery_source == source_filter)
-    scoped_base = _apply_courier_assignment_filter(period_base, delivery_scope)
+    scoped_base = period_base.filter(Order.delivery_status == "delivered")
     if courier_id_filter:
         scoped_base = scoped_base.filter(Order.courier_id == courier_id_filter)
 
@@ -952,7 +1411,7 @@ def all_orders():
             db.func.coalesce(db.func.sum(Order.delivery_platform_fee_cents), 0)
         ).scalar() or 0
     ) / 100
-    pending_count = scoped_base.filter(Order.status == "pending").count()
+    pending_count = pagination.total
     latest_order = scoped_base.order_by(Order.created_at.desc()).first()
     latest_order_id = latest_order.id if latest_order else 0
 
@@ -970,8 +1429,10 @@ def all_orders():
         selected_period_id=selected_period_id,
         include_legacy=include_legacy,
         source_filter=source_filter,
-        delivery_scope=delivery_scope,
+        delivery_scope="",
         courier_id_filter=courier_id_filter,
+        order_status_filter="delivered",
+        delivery_status_filter="delivered",
         couriers=couriers,
         courier_filters=courier_filters,
         read_only=read_only,
@@ -980,8 +1441,9 @@ def all_orders():
             period_id=selected_period_id,
             include_legacy=1 if include_legacy else None,
             source=source_filter or None,
-            delivery_scope=delivery_scope or None,
             courier_id=courier_id_filter or None,
+            order_status="delivered",
+            delivery_status="delivered",
         ),
     )
 
@@ -996,14 +1458,13 @@ def orders_notifications():
     source_filter = _normalize_delivery_source_filter(request.args.get("source"))
     if source_filter:
         period_base = period_base.filter(Order.delivery_source == source_filter)
-    delivery_scope = _normalize_courier_assignment_filter(request.args.get("delivery_scope"))
     courier_id_filter = request.args.get("courier_id", type=int)
-    scoped_base = _apply_courier_assignment_filter(period_base, delivery_scope)
+    scoped_base = period_base.filter(Order.delivery_status == "delivered")
     if courier_id_filter:
         scoped_base = scoped_base.filter(Order.courier_id == courier_id_filter)
     latest_order = scoped_base.order_by(Order.created_at.desc()).first()
     latest_order_id = latest_order.id if latest_order else 0
-    pending_count = scoped_base.filter(Order.status == "pending").count()
+    pending_count = scoped_base.count()
     return jsonify(
         latest_id=latest_order_id,
         pending_count=pending_count
@@ -1017,7 +1478,6 @@ def orders_live():
     selected_period_id = selection["selected_period_id"]
     include_legacy = selection["include_legacy"]
     source_filter = _normalize_delivery_source_filter(request.args.get("source"))
-    delivery_scope = _normalize_courier_assignment_filter(request.args.get("delivery_scope"))
     courier_id_filter = request.args.get("courier_id", type=int)
 
     period_base = _orders_query_for_period(
@@ -1026,7 +1486,7 @@ def orders_live():
     )
     if source_filter:
         period_base = period_base.filter(Order.delivery_source == source_filter)
-    scoped_base = _apply_courier_assignment_filter(period_base, delivery_scope)
+    scoped_base = period_base.filter(Order.delivery_status == "delivered")
     if courier_id_filter:
         scoped_base = scoped_base.filter(Order.courier_id == courier_id_filter)
 
@@ -1038,7 +1498,7 @@ def orders_live():
         page=page, per_page=50, error_out=False
     )
     orders = pagination.items
-    pending_count = scoped_base.filter(Order.status == "pending").count()
+    pending_count = pagination.total
     total_orders = pagination.total
     total_baba_fee = (
         scoped_base.with_entities(
@@ -1052,8 +1512,9 @@ def orders_live():
             period_id=selected_period_id,
             include_legacy=1 if include_legacy else None,
             source=source_filter or None,
-            delivery_scope=delivery_scope or None,
             courier_id=courier_id_filter or None,
+            order_status="delivered",
+            delivery_status="delivered",
             page=page,
         )
         items = []
@@ -1081,7 +1542,7 @@ def orders_live():
             "courier_id": o.courier_id,
             "courier_name": o.courier.username if o.courier else "",
             "created_at": o.created_at.strftime("%d/%m/%Y %H:%M") if o.created_at else "",
-            "detail_url": url_for("admin.order_detail", oid=o.id),
+            "detail_url": url_for("admin.order_detail", oid=o.id, next=next_url),
             "deliver_url": url_for("admin.mark_delivered", oid=o.id, next=next_url),
             "cancel_url": url_for("admin.cancel_order", oid=o.id, next=next_url),
             "assign_url": url_for("admin.assign_courier", oid=o.id, next=next_url),
@@ -1097,82 +1558,31 @@ def orders_live():
         selected_period_id=selected_period_id,
         include_legacy=include_legacy,
         source_filter=source_filter,
-        delivery_scope=delivery_scope,
+        delivery_scope="",
         courier_id_filter=courier_id_filter,
+        order_status_filter="delivered",
+        delivery_status_filter="delivered",
         orders=[format_order(o) for o in orders]
     )
 
 
 @bp.route("/orders/archives")
 def order_archives():
-    page = page_from_args(request.args)
+    archives_page = page_from_args(request.args, key="page", default=1)
     period_id = request.args.get("period_id", type=int)
-
-    query = _archived_orders_query().options(
-        selectinload(Order.items).selectinload(OrderItem.product),
-        selectinload(Order.period),
-    )
-    if period_id:
-        query = query.filter(Order.period_id == period_id)
-
-    pagination = query.order_by(Order.created_at.desc()).paginate(
-        page=page, per_page=50, error_out=False
-    )
-    orders = pagination.items
-
-    closed_periods = (
-        OrderPeriod.query
-        .filter(OrderPeriod.status == CLOSED_STATUS)
-        .order_by(OrderPeriod.closed_at.desc(), OrderPeriod.id.desc())
-        .all()
-    )
-    now = datetime.utcnow()
-    delete_guards = {}
-    for order in orders:
-        allowed, message, available_at = order_delete_guard(order, now=now)
-        delete_guards[order.id] = {
-            "allowed": allowed,
-            "message": message,
-            "available_at": available_at,
-        }
-
-    return render_template(
-        "admin/order_archives.html",
-        orders=orders,
-        pagination=pagination,
-        period_id=period_id,
-        closed_periods=closed_periods,
-        delete_guards=delete_guards,
-        retention_days=ORDER_DELETE_RETENTION_DAYS,
+    return redirect(
+        url_for(
+            "admin.pricing_settings",
+            section="archives",
+            archive_period_id=period_id or None,
+            archives_page=archives_page if archives_page > 1 else None,
+        )
     )
 
 
 @bp.route("/order-periods")
 def order_periods():
-    periods = (
-        OrderPeriod.query
-        .order_by(OrderPeriod.opened_at.desc(), OrderPeriod.id.desc())
-        .all()
-    )
-    open_period = next((period for period in periods if period.status == OPEN_STATUS), None)
-
-    period_counts = {
-        row.period_id: int(row.count)
-        for row in (
-            db.session.query(Order.period_id, db.func.count(Order.id).label("count"))
-            .group_by(Order.period_id)
-            .all()
-        )
-        if row.period_id is not None
-    }
-
-    return render_template(
-        "admin/order_periods.html",
-        periods=periods,
-        open_period=open_period,
-        period_counts=period_counts,
-        retention_days=ORDER_DELETE_RETENTION_DAYS,
-    )
+    return redirect(url_for("admin.pricing_settings", section="periods"))
 
 
 @bp.route("/order-periods/create", methods=["POST"])
@@ -1183,6 +1593,7 @@ def order_period_create():
             name=name or None,
             created_by=current_user.id if current_user.is_authenticated else None,
         )
+        ensure_financial_period_for_order_period(period, create_if_missing=True)
         db.session.commit()
         log_access(
             "create_order_period",
@@ -1198,7 +1609,7 @@ def order_period_create():
     except Exception as exc:
         db.session.rollback()
         flash(f"Echec creation periode: {exc}", "danger")
-    return redirect(url_for("admin.order_periods"))
+    return redirect(url_for("admin.pricing_settings", section="periods"))
 
 
 @bp.route("/order-periods/<int:period_id>/close", methods=["POST"])
@@ -1208,23 +1619,27 @@ def order_period_close(period_id: int):
         return render_template("errors/404.html"), 404
     if period.status == CLOSED_STATUS:
         flash("Cette periode est deja fermee.", "info")
-        return redirect(url_for("admin.order_periods"))
+        return redirect(url_for("admin.pricing_settings", section="periods"))
 
     try:
         close_order_period(period)
+        linked_financial_period = ensure_financial_period_for_order_period(period, create_if_missing=True)
         db.session.commit()
         log_access(
             "close_order_period",
             "order_period",
             period.id,
             success=True,
-            changes={"closed_at": period.closed_at.isoformat() if period.closed_at else None},
+            changes={
+                "closed_at": period.closed_at.isoformat() if period.closed_at else None,
+                "financial_period_id": getattr(linked_financial_period, "id", None),
+            },
         )
         flash(f"Periode fermee: {period.name}", "success")
     except Exception as exc:
         db.session.rollback()
         flash(f"Echec fermeture periode: {exc}", "danger")
-    return redirect(url_for("admin.order_periods"))
+    return redirect(url_for("admin.pricing_settings", section="periods"))
 
 
 @bp.route("/financial-periods")
@@ -1241,72 +1656,63 @@ def finance():
     date_from = _parse_iso_date(date_from_raw)
     date_to = _parse_iso_date(date_to_raw)
 
-    periods = (
-        FinancialPeriod.query
-        .filter(FinancialPeriod.deleted_at.is_(None))
-        .order_by(
-            db.case((FinancialPeriod.status == FINANCIAL_PERIOD_OPEN, 0), else_=1),
-            FinancialPeriod.start_date.desc(),
-            FinancialPeriod.id.desc(),
-        )
-        .all()
-    )
+    periods = _order_period_choices()
+    open_period = next((period for period in periods if period.status == OPEN_STATUS), None)
 
     selected_period = None
     if requested_period_id is not None:
         selected_period = next((period for period in periods if period.id == requested_period_id), None)
 
-    if selected_period is None and periods:
-        selected_period = next((period for period in periods if period.status == FINANCIAL_PERIOD_OPEN), periods[0])
+    if selected_period is None and open_period is not None:
+        selected_period = open_period
+    elif selected_period is None and periods:
+        selected_period = periods[0]
 
     selected_period_id = selected_period.id if selected_period else None
 
-    period_ids = [period.id for period in periods]
     period_stats = {
-        period_id: {
+        int(period.id): {
             "delivery_total_cents": 0,
             "subscription_total_cents": 0,
             "rental_total_cents": 0,
             "total_cents": 0,
             "entry_count": 0,
+            "delivery_count": 0,
+            "subscription_count": 0,
+            "rental_count": 0,
         }
-        for period_id in period_ids
+        for period in periods
     }
-    if period_ids:
-        rows = (
-            db.session.query(
-                FinancialEntry.period_id,
-                FinancialEntry.entry_type,
-                db.func.coalesce(db.func.sum(FinancialEntry.amount_cents), 0).label("amount"),
-                db.func.count(FinancialEntry.id).label("count"),
-            )
-            .filter(
-                FinancialEntry.deleted_at.is_(None),
-                FinancialEntry.period_id.in_(period_ids),
-            )
-            .group_by(FinancialEntry.period_id, FinancialEntry.entry_type)
-            .all()
-        )
-        for row in rows:
-            stats = period_stats.get(int(row.period_id))
-            if not stats:
+    all_entries = FinancialEntry.query.filter(FinancialEntry.deleted_at.is_(None)).all()
+    for period in periods:
+        start_at, end_at = period_bounds(period)
+        if start_at is None:
+            continue
+        stats = period_stats.get(int(period.id))
+        if not stats:
+            continue
+        for entry in all_entries:
+            entry_created_at = getattr(entry, "created_at", None)
+            if entry_created_at is None or entry_created_at < start_at:
                 continue
-            amount = int(row.amount or 0)
-            count = int(row.count or 0)
-            if row.entry_type == ENTRY_TYPE_DELIVERY_FEE:
-                stats["delivery_total_cents"] = amount
-            elif row.entry_type == ENTRY_TYPE_SUBSCRIPTION:
-                stats["subscription_total_cents"] = amount
-            elif row.entry_type == ENTRY_TYPE_RENTAL_COMMISSION:
-                stats["rental_total_cents"] = amount
-            stats["entry_count"] += count
-
-        for stats in period_stats.values():
-            stats["total_cents"] = int(
-                stats["delivery_total_cents"]
-                + stats["subscription_total_cents"]
-                + stats["rental_total_cents"]
-            )
+            if end_at is not None and entry_created_at >= end_at:
+                continue
+            amount = int(getattr(entry, "amount_cents", 0) or 0)
+            stats["entry_count"] += 1
+            if entry.entry_type == ENTRY_TYPE_DELIVERY_FEE:
+                stats["delivery_total_cents"] += amount
+                stats["delivery_count"] += 1
+            elif entry.entry_type == ENTRY_TYPE_SUBSCRIPTION:
+                stats["subscription_total_cents"] += amount
+                stats["subscription_count"] += 1
+            elif entry.entry_type == ENTRY_TYPE_RENTAL_COMMISSION:
+                stats["rental_total_cents"] += amount
+                stats["rental_count"] += 1
+        stats["total_cents"] = int(
+            stats["delivery_total_cents"]
+            + stats["subscription_total_cents"]
+            + stats["rental_total_cents"]
+        )
 
     selected_totals = {
         "delivery_total_cents": 0,
@@ -1319,7 +1725,7 @@ def finance():
         "entry_count": 0,
     }
     if selected_period is not None:
-        selected_totals = compute_period_totals(selected_period.id)
+        selected_totals = dict(period_stats.get(int(selected_period.id), selected_totals))
 
     entries_query = (
         FinancialEntry.query
@@ -1331,8 +1737,12 @@ def finance():
         )
         .filter(FinancialEntry.deleted_at.is_(None))
     )
-    if selected_period_id is not None:
-        entries_query = entries_query.filter(FinancialEntry.period_id == selected_period_id)
+    if selected_period is not None:
+        start_at, end_at = period_bounds(selected_period)
+        if start_at is not None:
+            entries_query = entries_query.filter(FinancialEntry.created_at >= start_at)
+        if end_at is not None:
+            entries_query = entries_query.filter(FinancialEntry.created_at < end_at)
     else:
         entries_query = entries_query.filter(FinancialEntry.id == -1)
 
@@ -1367,10 +1777,8 @@ def finance():
     unassigned_count = int((unassigned_row.count if unassigned_row else 0) or 0)
 
     delete_allowed = False
-    delete_message = ""
+    delete_message = "La finance suit maintenant la periode globale admin. Ouvrez, fermez et archivez depuis Periodes commandes."
     delete_available_at = None
-    if selected_period is not None:
-        delete_allowed, delete_message, delete_available_at = financial_period_delete_guard(selected_period)
 
     entry_type_labels = {
         ENTRY_TYPE_DELIVERY_FEE: "Livraison (Part Baba)",
@@ -1381,6 +1789,7 @@ def finance():
     return render_template(
         "admin/finance.html",
         periods=periods,
+        open_period=open_period,
         selected_period=selected_period,
         selected_period_id=selected_period_id,
         period_stats=period_stats,
@@ -1396,135 +1805,37 @@ def finance():
         delete_message=delete_message,
         delete_available_at=delete_available_at,
         entry_type_labels=entry_type_labels,
-        retention_days=FINANCIAL_PERIOD_DELETE_RETENTION_DAYS,
+        retention_days=ORDER_DELETE_RETENTION_DAYS,
     )
 
 
 @bp.route("/finance/periods/open", methods=["POST"])
 def finance_period_open():
-    name = (request.form.get("name") or "").strip()
-    start_date = _parse_iso_date(request.form.get("start_date"))
-    end_date = _parse_iso_date(request.form.get("end_date"))
-    if start_date is None or end_date is None:
-        flash("Dates invalides. Format attendu: YYYY-MM-DD.", "warning")
-        return redirect(url_for("admin.finance"))
-
-    try:
-        period = create_financial_period(name=name or None, start_date=start_date, end_date=end_date)
-        db.session.commit()
-        log_access(
-            "financial_period_open",
-            "financial_period",
-            period.id,
-            success=True,
-            changes={
-                "name": period.name,
-                "start_date": period.start_date.isoformat(),
-                "end_date": period.end_date.isoformat(),
-            },
-        )
-        flash(f"Periode financiere ouverte: {period.name}", "success")
-        return redirect(url_for("admin.finance", period_id=period.id))
-    except ValueError as exc:
-        db.session.rollback()
-        flash(str(exc), "warning")
-    except Exception as exc:
-        db.session.rollback()
-        flash(f"Echec creation periode financiere: {exc}", "danger")
-    return redirect(url_for("admin.finance"))
+    flash("La finance suit la periode globale admin. Ouvrez une periode depuis Periodes commandes.", "info")
+    return redirect(url_for("admin.pricing_settings", section="periods"))
 
 
 @bp.route("/finance/periods/<int:period_id>/close", methods=["POST"])
 def finance_period_close(period_id: int):
-    period = db.session.get(FinancialPeriod, period_id)
-    if period is None:
-        return render_template("errors/404.html"), 404
-    if period.deleted_at is not None:
-        flash("Cette periode est supprimee.", "warning")
-        return redirect(url_for("admin.finance"))
-    if period.status == FINANCIAL_PERIOD_CLOSED:
-        flash("Cette periode financiere est deja fermee.", "info")
-        return redirect(url_for("admin.finance", period_id=period.id))
-
-    try:
-        close_financial_period(period)
-        db.session.commit()
-        log_access(
-            "financial_period_close",
-            "financial_period",
-            period.id,
-            success=True,
-            changes={
-                "closed_at": period.closed_at.isoformat() if period.closed_at else None,
-                "delivery_total_cents": period.delivery_total_cents,
-                "subscription_total_cents": period.subscription_total_cents,
-                "rental_total_cents": period.rental_total_cents,
-                "total_cents": period.total_cents,
-            },
-        )
-        flash(f"Periode fermee: {period.name}", "success")
-    except Exception as exc:
-        db.session.rollback()
-        flash(f"Echec fermeture periode financiere: {exc}", "danger")
-    return redirect(url_for("admin.finance", period_id=period.id))
+    flash("La finance suit la periode globale admin. Fermez la periode depuis Periodes commandes.", "info")
+    return redirect(url_for("admin.pricing_settings", section="periods"))
 
 
 @bp.route("/finance/periods/<int:period_id>/delete", methods=["POST"])
 def finance_period_delete(period_id: int):
-    period = db.session.get(FinancialPeriod, period_id)
-    if period is None:
-        return render_template("errors/404.html"), 404
-    if period.deleted_at is not None:
-        flash("Cette periode est deja supprimee.", "warning")
-        return redirect(url_for("admin.finance"))
-
-    delete_confirm = (request.form.get("confirm_delete") or "").strip()
-    admin_password = request.form.get("admin_password") or ""
-    if delete_confirm != "DELETE":
-        flash("Confirmation invalide. Tapez DELETE.", "warning")
-        return redirect(url_for("admin.finance", period_id=period.id))
-    if not current_user.check_password(admin_password):
-        flash("Mot de passe admin invalide.", "danger")
-        return redirect(url_for("admin.finance", period_id=period.id))
-
-    allowed, message, _available_at = financial_period_delete_guard(period)
-    if not allowed:
-        flash(message or "Suppression refusee.", "warning")
-        return redirect(url_for("admin.finance", period_id=period.id))
-
-    try:
-        removed_entries = (
-            FinancialEntry.query
-            .filter(FinancialEntry.period_id == period.id)
-            .delete(synchronize_session=False)
-        )
-        db.session.delete(period)
-        db.session.commit()
-        log_access(
-            "financial_period_delete",
-            "financial_period",
-            period_id,
-            success=True,
-            changes={"removed_entries": int(removed_entries or 0)},
-        )
-        flash(
-            f"Periode #{period_id} supprimee avec {int(removed_entries or 0)} entree(s).",
-            "success",
-        )
-        return redirect(url_for("admin.finance"))
-    except Exception as exc:
-        db.session.rollback()
-        flash(f"Echec suppression periode financiere: {exc}", "danger")
-        return redirect(url_for("admin.finance", period_id=period.id))
+    flash("La finance n'a plus de suppression separee. Gere la periode globale depuis Periodes commandes.", "info")
+    return redirect(url_for("admin.pricing_settings", section="periods"))
 
 
 @bp.route("/orders/<int:oid>/delete", methods=["POST"])
 def delete_archived_order(oid: int):
     next_url = (request.args.get("next") or request.form.get("next") or "").strip()
 
-    def _redirect_after_delete(default_endpoint: str = "admin.order_archives"):
+    def _redirect_after_delete(default_endpoint: str = "admin.pricing_settings"):
         if next_url.startswith("/"):
             return redirect(next_url)
+        if default_endpoint == "admin.pricing_settings":
+            return redirect(url_for(default_endpoint, section="archives"))
         return redirect(url_for(default_endpoint))
 
     order = (
@@ -1580,8 +1891,8 @@ def deliveries_live():
     source_filter = _normalize_delivery_source_filter(request.args.get("source"))
     delivery_scope = _normalize_courier_assignment_filter(request.args.get("delivery_scope"))
     courier_id_filter = request.args.get("courier_id", type=int)
-
-    status_filter = request.args.get("status", "")
+    order_status_filter = _normalize_order_status_filter(request.args.get("order_status") or request.args.get("status"))
+    delivery_status_filter = _normalize_delivery_status_filter(request.args.get("delivery_status"))
     date_from = request.args.get("from", "")
     date_to = request.args.get("to", "")
     product_filter = request.args.get("product", "")
@@ -1611,9 +1922,14 @@ def deliveries_live():
     scoped_base = _apply_courier_assignment_filter(period_base, delivery_scope)
     if courier_id_filter:
         scoped_base = scoped_base.filter(Order.courier_id == courier_id_filter)
+    if order_status_filter:
+        scoped_base = scoped_base.filter(Order.status == order_status_filter)
+    if delivery_status_filter:
+        scoped_base = scoped_base.filter(Order.delivery_status == delivery_status_filter)
+    operational_base = _operational_deliveries_query(scoped_base, now=now, window_hours=24)
 
     pending_query = (
-        scoped_base.filter(Order.delivery_status.in_(tuple(COURIER_DELIVERY_IN_PROGRESS)))
+        operational_base.filter(Order.delivery_status.in_(tuple(COURIER_DELIVERY_IN_PROGRESS)))
         .options(
             selectinload(Order.courier),
             selectinload(Order.items).selectinload(OrderItem.product).selectinload(Product.shop),
@@ -1623,8 +1939,8 @@ def deliveries_live():
     pending_orders = pending_query.limit(25).all()
 
     delivered_recent_query = (
-        scoped_base.filter(Order.delivery_status == "delivered")
-        .filter(Order.delivered_at.is_(None) | (Order.delivered_at >= (now - timedelta(hours=72))))
+        operational_base.filter(Order.delivery_status == "delivered")
+        .filter(Order.delivered_at.is_(None) | (Order.delivered_at >= (now - timedelta(hours=24))))
     )
     delivered_recent_count = delivered_recent_query.count()
     total_baba_fee = (
@@ -1634,8 +1950,9 @@ def deliveries_live():
     ) / 100
 
     history_query = _apply_delivery_filters(
-        scoped_base,
-        status_filter=status_filter,
+        operational_base,
+        order_status_filter=order_status_filter,
+        delivery_status_filter=delivery_status_filter,
         source_filter=source_filter,
         city_filter=city_filter,
         client_filter=client_filter,
@@ -1664,7 +1981,8 @@ def deliveries_live():
             "source": source_filter or None,
             "delivery_scope": delivery_scope or None,
             "courier_id": courier_id_filter or None,
-            "status": status_filter or None,
+            "order_status": order_status_filter or None,
+            "delivery_status": delivery_status_filter or None,
             "from": date_from or None,
             "to": date_to or None,
             "product": product_filter or None,
@@ -1697,7 +2015,7 @@ def deliveries_live():
             "created_at": order.created_at.strftime("%d/%m/%Y %H:%M") if order.created_at else "",
             "product_names": product_names,
             "shop_names": shop_names,
-            "detail_url": url_for("admin.order_detail", oid=order.id),
+            "detail_url": url_for("admin.order_detail", oid=order.id, next=next_url),
             "deliver_url": url_for("admin.mark_delivered", oid=order.id, next=next_url),
             "cancel_url": url_for("admin.cancel_order", oid=order.id, next=next_url),
             "assign_url": url_for("admin.assign_courier", oid=order.id, next=next_url),
@@ -1705,7 +2023,7 @@ def deliveries_live():
         }
 
     return jsonify(
-        pending_count=scoped_base.filter(Order.delivery_status.in_(tuple(COURIER_DELIVERY_IN_PROGRESS))).count(),
+        pending_count=operational_base.filter(Order.delivery_status.in_(tuple(COURIER_DELIVERY_IN_PROGRESS))).count(),
         delivered_recent_count=delivered_recent_count,
         total_baba_fee=round(total_baba_fee, 2),
         total_commission=round(total_baba_fee, 2),
@@ -1716,6 +2034,8 @@ def deliveries_live():
         source_filter=source_filter,
         delivery_scope=delivery_scope,
         courier_id_filter=courier_id_filter,
+        order_status_filter=order_status_filter,
+        delivery_status_filter=delivery_status_filter,
         history_total=pagination.total,
         page=pagination.page,
         pages=pagination.pages,
@@ -1860,6 +2180,8 @@ def order_detail(oid):
 @bp.route("/pricing", methods=["GET", "POST"])
 def pricing_settings():
     settings = PlatformSettings.get()
+    archives_context = _archived_orders_context()
+    periods_context = _order_periods_context()
 
     if request.method == "POST":
         def _to_float(field_name: str, default_value: float = 0.0) -> float:
@@ -1907,7 +2229,7 @@ def pricing_settings():
             settings.rental_success_commission_mode = "percent"
         except ValueError:
             flash("Valeurs invalides. Vérifiez les nombres saisis.", "warning")
-            return render_template("admin/pricing.html", settings=settings)
+            return render_template("admin/pricing.html", settings=settings, **archives_context, **periods_context)
 
         db.session.commit()
         log_access(
@@ -1928,24 +2250,333 @@ def pricing_settings():
         )
         flash("Paramètres mis à jour", "success")
 
-    return render_template("admin/pricing.html", settings=settings)
+    return render_template("admin/pricing.html", settings=settings, **archives_context, **periods_context)
+
+
+@bp.route("/highlights", methods=["GET"])
+def featured_items():
+    context = _build_featured_items_context()
+    if _is_ajax_request() and request.headers.get("X-Highlights-Partial") == "1":
+        return jsonify(
+            success=True,
+            html=render_template("admin/partials/_highlights_content.html", **context),
+            url=_featured_items_url_from_context(context),
+        )
+    return render_template("admin/highlights.html", **context)
+
+
+@bp.route("/highlights/activate", methods=["POST"])
+def featured_items_activate():
+    target_type = (request.form.get("target_type") or "").strip().lower()
+    target_id = request.form.get("target_id", type=int)
+    duration_days = normalize_featured_duration(request.form.get("duration_days"))
+    note = (request.form.get("note") or "").strip()
+
+    if target_type not in FeaturedItem.TARGET_TYPES or not target_id:
+        if _is_ajax_request():
+            return jsonify(success=False, message="Selection invalide pour la mise en avant."), 400
+        flash("Selection invalide pour la mise en avant.", "warning")
+        return redirect(url_for("admin.featured_items"))
+
+    vendor_id = None
+    if target_type == FeaturedItem.TARGET_SHOP:
+        target = db.session.get(Shop, target_id)
+        vendor_id = getattr(target, "vendor_id", None)
+    elif target_type == FeaturedItem.TARGET_PRODUCT:
+        target = db.session.get(Product, target_id)
+        vendor_id = getattr(target, "vendor_id", None)
+    else:
+        target = db.session.get(RentalListing, target_id)
+        vendor_id = getattr(target, "owner_id", None)
+
+    if target is None:
+        if _is_ajax_request():
+            return jsonify(success=False, message="Element introuvable."), 404
+        flash("Element introuvable.", "warning")
+        return redirect(url_for("admin.featured_items"))
+
+    try:
+        upsert_featured_item(
+            target_type=target_type,
+            target_id=target_id,
+            vendor_id=vendor_id,
+            created_by_admin_id=getattr(current_user, "id", None),
+            duration_days=duration_days,
+            note=note,
+        )
+        db.session.commit()
+        bump_catalog_version()
+        if _is_ajax_request():
+            context = _build_featured_items_context(request.form)
+            return jsonify(
+                success=True,
+                message="Mise en avant activee.",
+                message_type="success",
+                html=render_template("admin/partials/_highlights_content.html", **context),
+                url=_featured_items_url_from_context(context),
+            )
+        flash("Mise en avant activee.", "success")
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception(
+            "admin.featured_items.activate_failed",
+            extra={"target_type": target_type, "target_id": target_id},
+        )
+        if _is_ajax_request():
+            return jsonify(success=False, message="Impossible d'activer la mise en avant."), 500
+        flash("Impossible d'activer la mise en avant.", "danger")
+
+    return redirect(url_for("admin.featured_items"))
+
+
+@bp.route("/highlights/<int:item_id>/disable", methods=["POST"])
+def featured_items_disable(item_id: int):
+    item = db.session.get(FeaturedItem, item_id)
+    if item is None:
+        if _is_ajax_request():
+            return jsonify(success=False, message="Mise en avant introuvable."), 404
+        flash("Mise en avant introuvable.", "warning")
+        return redirect(url_for("admin.featured_items"))
+
+    try:
+        disable_featured_item(item)
+        db.session.commit()
+        bump_catalog_version()
+        if _is_ajax_request():
+            context = _build_featured_items_context(request.form)
+            return jsonify(
+                success=True,
+                message="Mise en avant arretee.",
+                message_type="success",
+                html=render_template("admin/partials/_highlights_content.html", **context),
+                url=_featured_items_url_from_context(context),
+            )
+        flash("Mise en avant arretee.", "success")
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception(
+            "admin.featured_items.disable_failed",
+            extra={"item_id": item_id},
+        )
+        if _is_ajax_request():
+            return jsonify(success=False, message="Impossible d'arreter cette mise en avant."), 500
+        flash("Impossible d'arreter cette mise en avant.", "danger")
+
+    return redirect(url_for("admin.featured_items"))
+
+
+@bp.route("/highlights/<int:item_id>/extend", methods=["POST"])
+def featured_items_extend(item_id: int):
+    item = db.session.get(FeaturedItem, item_id)
+    if item is None:
+        if _is_ajax_request():
+            return jsonify(success=False, message="Mise en avant introuvable."), 404
+        flash("Mise en avant introuvable.", "warning")
+        return redirect(url_for("admin.featured_items"))
+
+    extra_days = normalize_featured_duration(request.form.get("duration_days"))
+    now = datetime.utcnow()
+    base_end = item.ends_at if item.ends_at and item.ends_at > now else now
+    item.is_active = True
+    item.starts_at = item.starts_at if item.starts_at and item.starts_at <= now else now
+    item.ends_at = base_end + timedelta(days=extra_days)
+
+    try:
+        db.session.commit()
+        bump_catalog_version()
+        if _is_ajax_request():
+            context = _build_featured_items_context(request.form)
+            return jsonify(
+                success=True,
+                message="Mise en avant prolongee.",
+                message_type="success",
+                html=render_template("admin/partials/_highlights_content.html", **context),
+                url=_featured_items_url_from_context(context),
+            )
+        flash("Mise en avant prolongee.", "success")
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception(
+            "admin.featured_items.extend_failed",
+            extra={"item_id": item_id, "extra_days": extra_days},
+        )
+        if _is_ajax_request():
+            return jsonify(success=False, message="Impossible de prolonger cette mise en avant."), 500
+        flash("Impossible de prolonger cette mise en avant.", "danger")
+
+    return redirect(url_for("admin.featured_items"))
+
+
+@bp.route("/highlights/cleanup-duplicates", methods=["POST"])
+def featured_items_cleanup_duplicates():
+    now = datetime.utcnow()
+    ordered_items = (
+        FeaturedItem.query
+        .order_by(
+            FeaturedItem.is_active.desc(),
+            FeaturedItem.ends_at.desc(),
+            FeaturedItem.created_at.desc(),
+            FeaturedItem.id.desc(),
+        )
+        .all()
+    )
+    seen_targets = set()
+    cleaned_count = 0
+
+    try:
+        for item in ordered_items:
+            target_key = (item.target_type, item.target_id)
+            if target_key in seen_targets:
+                if item.is_active:
+                    item.is_active = False
+                    if item.ends_at > now:
+                        item.ends_at = now
+                    item.updated_at = now
+                    cleaned_count += 1
+                continue
+            seen_targets.add(target_key)
+
+        if cleaned_count:
+            db.session.commit()
+            bump_catalog_version()
+        else:
+            db.session.rollback()
+
+        if _is_ajax_request():
+            context = _build_featured_items_context(request.form)
+            return jsonify(
+                success=True,
+                message=f"{cleaned_count} doublon(s) ranges dans l'historique.",
+                message_type="success",
+                html=render_template("admin/partials/_highlights_content.html", **context),
+                url=_featured_items_url_from_context(context),
+            )
+        flash(f"{cleaned_count} doublon(s) ranges dans l'historique.", "success")
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception("admin.featured_items.cleanup_duplicates_failed")
+        if _is_ajax_request():
+            return jsonify(success=False, message="Impossible de nettoyer les doublons."), 500
+        flash("Impossible de nettoyer les doublons.", "danger")
+
+    return redirect(url_for("admin.featured_items"))
+
+
+@bp.route("/highlights/<int:item_id>/delete", methods=["POST"])
+def featured_items_delete(item_id: int):
+    item = db.session.get(FeaturedItem, item_id)
+    if item is None:
+        if _is_ajax_request():
+            return jsonify(success=False, message="Element introuvable."), 404
+        flash("Element introuvable.", "warning")
+        return redirect(url_for("admin.featured_items", view="history"))
+
+    can_delete_after = item.created_at + timedelta(days=30)
+    if can_delete_after > datetime.utcnow():
+        if _is_ajax_request():
+            return jsonify(
+                success=False,
+                message=f"Suppression possible a partir du {can_delete_after.strftime('%d/%m/%Y')}.",
+            ), 400
+        flash(f"Suppression possible a partir du {can_delete_after.strftime('%d/%m/%Y')}.", "warning")
+        return redirect(url_for("admin.featured_items", view="history"))
+
+    try:
+        db.session.delete(item)
+        db.session.commit()
+        if _is_ajax_request():
+            context = _build_featured_items_context(request.form)
+            return jsonify(
+                success=True,
+                message="Element supprime de l'historique.",
+                message_type="success",
+                html=render_template("admin/partials/_highlights_content.html", **context),
+                url=_featured_items_url_from_context(context),
+            )
+        flash("Element supprime de l'historique.", "success")
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception("admin.featured_items.delete_failed", extra={"item_id": item_id})
+        if _is_ajax_request():
+            return jsonify(success=False, message="Impossible de supprimer cet historique."), 500
+        flash("Impossible de supprimer cet historique.", "danger")
+
+    return redirect(url_for("admin.featured_items", view="history"))
 
 
 # ======================
 # MAINTENANCE SYSTEME
 # ======================
+from datetime import datetime, timedelta
+from ..models.maintenance import MaintenanceRun  # ← Import à ajouter en haut
+
 @bp.route("/maintenance", methods=["GET"])
 def maintenance():
     days = _parse_days(request.args.get("days"), default=6, minimum=1, maximum=365)
     errors_page = page_from_args(request.args, key="errors_page", default=1)
-    context = _maintenance_view_context(days=days, errors_page=errors_page)
+    runtime_context = _maintenance_runtime_context()
+
+    if runtime_context.get("maintenance_panel_locked"):
+        hidden_health = _maintenance_health_placeholder(
+            days,
+            note="Déverrouillage requis pour afficher les métriques maintenance.",
+        )
+        context = {
+            "health": hidden_health,
+            "health_badges": _maintenance_badges(hidden_health),
+            "days": days,
+            "report": None,
+            "report_cleanup": None,
+            "last_run": None,
+            "last_quick_run": None,
+            "last_full_run": None,
+            "last_run_label": "Déverrouillage requis",
+            "live_traffic": {"available": False},
+            "errors_block": {
+                "available": False,
+                "total_500_last_24h": "Masqué",
+                "items": [],
+                "page": errors_page,
+                "per_page": 20,
+                "pagination": None,
+                "note": "Déverrouillage requis pour consulter le journal 500.",
+            },
+            "reset_result": None,
+        }
+    else:
+        context = _maintenance_view_context(days=days, errors_page=errors_page)
+
+    context.update(runtime_context)
     return render_template("admin/maintenance.html", **context)
 
+
+@bp.route("/maintenance/unlock", methods=["POST"])
+def maintenance_unlock():
+    if not _maintenance_panel_enabled():
+        return redirect(url_for("admin.maintenance"))
+
+    password = (request.form.get("maintenance_password") or "").strip()
+    days = _parse_days(request.form.get("days"), default=6, minimum=1, maximum=365)
+    errors_page = page_from_args(request.form, key="errors_page", default=1)
+    password_hash = _maintenance_panel_password_hash()
+
+    if not password_hash or not password or not check_password_hash(password_hash, password):
+        flash("Mot de passe maintenance invalide.", "danger")
+        return redirect(url_for("admin.maintenance", days=days, errors_page=errors_page))
+
+    unlock_until = _set_maintenance_panel_unlock()
+    flash(
+        f"Page maintenance déverrouillée pour {_maintenance_panel_unlock_minutes()} minutes, jusqu'à {format_maintenance_datetime(unlock_until)}.",
+        "success",
+    )
+    return redirect(url_for("admin.maintenance", days=days, errors_page=errors_page))
 
 @bp.route("/maintenance/errors/<int:error_id>/delete", methods=["POST"])
 def maintenance_error_delete(error_id: int):
     days = _parse_days(request.form.get("days"), default=6, minimum=1, maximum=365)
     errors_page = page_from_args(request.form, key="errors_page", default=1)
+    if not _maintenance_panel_is_unlocked():
+        return _maintenance_protected_redirect(days=days, errors_page=errors_page)
     error_log = db.session.get(ErrorLog, error_id)
     if error_log is None:
         flash("Erreur introuvable ou deja supprimee.", "warning")
@@ -1965,6 +2596,8 @@ def maintenance_error_delete(error_id: int):
 def maintenance_errors_purge():
     days = _parse_days(request.form.get("days"), default=6, minimum=1, maximum=365)
     errors_page = page_from_args(request.form, key="errors_page", default=1)
+    if not _maintenance_panel_is_unlocked():
+        return _maintenance_protected_redirect(days=days, errors_page=errors_page)
     try:
         since = datetime.utcnow() - timedelta(hours=24)
         purged = (
@@ -1983,6 +2616,8 @@ def maintenance_errors_purge():
 @bp.route("/maintenance/mode/enable", methods=["POST"])
 def maintenance_mode_enable():
     days = _parse_days(request.form.get("days"), default=6, minimum=1, maximum=365)
+    if not _maintenance_panel_is_unlocked():
+        return _maintenance_protected_redirect(days=days)
     message = (request.form.get("message") or "").strip()
     try:
         state = enable_maintenance_mode(message=message or None)
@@ -2007,6 +2642,8 @@ def maintenance_mode_enable():
 @bp.route("/maintenance/mode/disable", methods=["POST"])
 def maintenance_mode_disable():
     days = _parse_days(request.form.get("days"), default=6, minimum=1, maximum=365)
+    if not _maintenance_panel_is_unlocked():
+        return _maintenance_protected_redirect(days=days)
     try:
         state = disable_maintenance_mode()
         flash("Mode maintenance desactive.", "success")
@@ -2030,6 +2667,8 @@ def maintenance_mode_disable():
 @bp.route("/maintenance/mode/schedule", methods=["POST"])
 def maintenance_mode_schedule():
     days = _parse_days(request.form.get("days"), default=6, minimum=1, maximum=365)
+    if not _maintenance_panel_is_unlocked():
+        return _maintenance_protected_redirect(days=days)
     start_raw = (request.form.get("starts_at") or "").strip()
     end_raw = (request.form.get("ends_at") or "").strip()
     message = (request.form.get("message") or "").strip()
@@ -2071,6 +2710,8 @@ def run_maintenance(mode: str):
         return redirect(url_for("admin.maintenance"))
 
     days = _parse_days(request.form.get("days"), default=6, minimum=1, maximum=365)
+    if not _maintenance_panel_is_unlocked():
+        return _maintenance_protected_redirect(days=days)
     cli_hint = f"flask cleanup --mode {mode_value} --days {days}"
     message = f"Nettoyage deplace hors requete HTTP. Lancez: {cli_hint}"
     log_access(
@@ -2094,6 +2735,8 @@ def maintenance_reset_data():
     backup_dir = (request.form.get("backup_dir") or "").strip()
     days = _parse_days(request.form.get("days"), default=6, minimum=1, maximum=365)
     errors_page = page_from_args(request.form, key="errors_page", default=1)
+    if not _maintenance_panel_is_unlocked():
+        return _maintenance_protected_redirect(days=days, errors_page=errors_page)
 
     if confirm_text != "RESET":
         flash("Confirmation invalide. Tapez RESET pour continuer.", "warning")

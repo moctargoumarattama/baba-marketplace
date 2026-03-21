@@ -1,4 +1,5 @@
 document.addEventListener("DOMContentLoaded", () => {
+
   /* =======================
      TOAST
   ======================= */
@@ -64,6 +65,9 @@ document.addEventListener("DOMContentLoaded", () => {
         badge.textContent = data.cart_count ?? (parseInt(badge.textContent, 10) || 0) + 1;
         badge.style.display = "flex";
       }
+      document.dispatchEvent(new CustomEvent("cart:changed", {
+        detail: { source: "home_shell", cartCount: data.cart_count ?? null }
+      }));
 
       window.setTimeout(() => {
         btn.innerHTML = originalHTML;

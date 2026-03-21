@@ -1,12 +1,12 @@
-{% extends "admin/base.html" %}
+﻿{% extends "admin/base.html" %}
 
 {% block title %}Boutique: {{ shop.name }} | DealNova Admin{% endblock %}
 
-{% block page_title %}Dtail de la boutique{% endblock %}
+{% block page_title %}Fiche de la boutique{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
-    <!-- En-tte boutique -->
+    <!-- En-tete boutique -->
     <div class="row mb-4">
         <div class="col">
             <div class="card admin-card">
@@ -15,8 +15,13 @@
                         <div class="col-auto">
                             <div class="avatar-lg">
                                 {% if shop.logo %}
-                                    <img src="{{ url_for('static', filename='uploads/shops/' + shop.logo) }}" 
-                                         alt="{{ shop.name }}" class="rounded-circle" width="100" height="100">
+                                    <img src="{{ url_for('static', filename='uploads/' + shop.logo) }}"
+                                         alt="{{ shop.name }}"
+                                         class="rounded-circle"
+                                         width="100"
+                                         height="100"
+                                         loading="lazy"
+                                         onerror="this.style.display='none'; this.insertAdjacentHTML('afterend', '<div class=&quot;bg-secondary rounded-circle d-flex align-items-center justify-content-center&quot; style=&quot;width: 100px; height: 100px;&quot;><i class=&quot;bi bi-shop text-white&quot; style=&quot;font-size: 3rem;&quot;></i></div>');">
                                 {% else %}
                                     <div class="bg-secondary rounded-circle d-flex align-items-center justify-content-center" 
                                          style="width: 100px; height: 100px;">
@@ -31,11 +36,14 @@
                             <div class="mt-2">
                                 <span class="badge bg-{{ 'success' if shop.is_active else 'secondary' }} fs-6"
                                       data-shop-status="{{ shop.id }}"
-                                      data-active-text="Active"
-                                      data-inactive-text="Inactive"
+                                      data-active-text="Ouverte"
+                                      data-inactive-text="Fermee"
                                       data-active-class="bg-success"
                                       data-inactive-class="bg-secondary">
-                                    {{ 'Active' if shop.is_active else 'Inactive' }}
+                                    {{ 'Ouverte' if shop.is_active else 'Fermee' }}
+                                </span>
+                                <span class="badge bg-{{ 'success' if shop.is_profile_complete else 'warning text-dark' }} fs-6 ms-2">
+                                    {{ 'Complete' if shop.is_profile_complete else 'A completer' }}
                                 </span>
                             </div>
                         </div>
@@ -50,18 +58,18 @@
                                         class="d-inline"
                                         data-ajax="true"
                                         data-action="toggle-shop"
-                                        data-confirm="Voulez-vous activer/desactiver cette boutique ?">
+                                        data-confirm="Voulez-vous changer l'etat de cette boutique ?">
                                     {% include "admin/partials/_csrf.html" %}
                                     <button type="submit"
                                             class="btn btn-outline-{{ 'danger' if shop.is_active else 'success' }}"
-                                            data-active-text="Desactiver"
+                                            data-active-text="Fermer"
                                             data-inactive-text="Activer"
                                             data-active-icon="bi bi-power"
                                             data-inactive-icon="bi bi-power"
                                             data-active-class="btn-outline-danger"
                                             data-inactive-class="btn-outline-success">
                                         <i class="bi bi-power"></i>
-                                        {{ 'Desactiver' if shop.is_active else 'Activer' }}
+                                        {{ 'Fermer' if shop.is_active else 'Activer' }}
                                     </button>
                                 </form>
                                 <form method="post"
@@ -84,9 +92,9 @@
         </div>
     </div>
     
-    <!-- Informations dtailles -->
+    <!-- Informations detaillees -->
     <div class="row g-4">
-        <!-- Informations boutique -->
+        <!-- Informations de la boutique -->
         <div class="col-md-6">
             <div class="card admin-card">
                 <div class="card-header">
@@ -96,13 +104,22 @@
                 </div>
                 <div class="card-body">
                     <dl class="row">
+                        <dt class="col-sm-4">Etat du profil</dt>
+                        <dd class="col-sm-8">
+                            {% if shop.is_profile_complete %}
+                                Boutique complete.
+                            {% else %}
+                                A completer : {{ shop.missing_profile_fields|join(', ') }}.
+                            {% endif %}
+                        </dd>
+
                         <dt class="col-sm-4">Description</dt>
-                        <dd class="col-sm-8">{{ shop.description or 'Non renseigne' }}</dd>
+                        <dd class="col-sm-8">{{ shop.description or 'Non renseignee' }}</dd>
                         
                         <dt class="col-sm-4">Type principal</dt>
                         <dd class="col-sm-8">{{ shop.type_label(shop.primary_type) }}</dd>
 
-                        <dt class="col-sm-4">Types activs</dt>
+                        <dt class="col-sm-4">Activites proposees</dt>
                         <dd class="col-sm-8">
                             <div class="d-flex flex-wrap gap-2">
                                 {% for shop_type in shop.get_allowed_types() %}
@@ -114,23 +131,23 @@
                         <dt class="col-sm-4">Email de contact</dt>
                         <dd class="col-sm-8">{{ shop.contact_email }}</dd>
                         
-                        <dt class="col-sm-4">Tlphone</dt>
-                        <dd class="col-sm-8">{{ shop.contact_phone or 'Non renseign' }}</dd>
+                        <dt class="col-sm-4">Telephone</dt>
+                        <dd class="col-sm-8">{{ shop.contact_phone or 'Non renseigne' }}</dd>
                         
                         <dt class="col-sm-4">Adresse</dt>
-                        <dd class="col-sm-8">{{ shop.address or 'Non renseigne' }}</dd>
+                        <dd class="col-sm-8">{{ shop.address or 'Non renseignee' }}</dd>
                         
-                        <dt class="col-sm-4">Date de cration</dt>
+                        <dt class="col-sm-4">Date de creation</dt>
                         <dd class="col-sm-8">{{ shop.created_at.strftime('%d/%m/%Y  %H:%M') }}</dd>
                         
-                        <dt class="col-sm-4">Dernire mise  jour</dt>
+                        <dt class="col-sm-4">Derniere mise a jour</dt>
                         <dd class="col-sm-8">{{ shop.updated_at.strftime('%d/%m/%Y  %H:%M') }}</dd>
                     </dl>
                 </div>
             </div>
         </div>
         
-        <!-- Informations vendeur -->
+        <!-- Informations du vendeur -->
         <div class="col-md-6">
             <div class="card admin-card">
                 <div class="card-header d-flex justify-content-between align-items-center">
@@ -140,7 +157,7 @@
                     {% if vendor %}
                         <a href="{{ url_for('admin_users.user_detail', user_id=vendor.id) }}" 
                            class="btn btn-sm btn-outline-primary">
-                            Voir le profil
+                            Voir le compte
                         </a>
                     {% endif %}
                 </div>
@@ -166,10 +183,10 @@
                         
                         <dl class="row">
                             <dt class="col-sm-4">Nom complet</dt>
-                            <dd class="col-sm-8">{{ vendor.full_name or 'Non renseign' }}</dd>
+                            <dd class="col-sm-8">{{ vendor.full_name or 'Non renseigne' }}</dd>
                             
-                            <dt class="col-sm-4">Tlphone</dt>
-                            <dd class="col-sm-8">{{ vendor.phone or 'Non renseign' }}</dd>
+                            <dt class="col-sm-4">Telephone</dt>
+                            <dd class="col-sm-8">{{ vendor.phone or 'Non renseigne' }}</dd>
                             
                             <dt class="col-sm-4">Date d'inscription</dt>
                             <dd class="col-sm-8">{{ vendor.created_at.strftime('%d/%m/%Y') }}</dd>
@@ -177,7 +194,7 @@
                     {% else %}
                         <div class="text-center py-3">
                             <i class="bi bi-person-x display-4 text-muted mb-3"></i>
-                            <p class="text-muted">Vendeur introuvable</p>
+                            <p class="text-muted">Vendeur introuvable.</p>
                         </div>
                     {% endif %}
                 </div>
@@ -187,7 +204,7 @@
     </div>
 </div>
 
-<!-- Modal d'dition -->
+<!-- Fenetre de modification -->
 <div class="modal fade" id="editShopModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
@@ -206,7 +223,8 @@
                         </div>
                         <div class="col-md-6">
                             <label for="slug" class="form-label">Slug</label>
-                            <input type="text" class="form-control" id="slug" value="{{ shop.slug }}" readonly>
+                            <input type="text" class="form-control" id="slug" name="slug" value="{{ shop.slug }}">
+                            <small class="text-muted">Lien public de la boutique.</small>
                         </div>
                         
                         <div class="col-12">
@@ -227,8 +245,8 @@
                         </div>
                         <div class="col-md-6">
                             <label class="form-label d-flex justify-content-between align-items-center">
-                                <span>Types activs</span>
-                                <button type="button" class="btn btn-sm btn-outline-primary" id="allowAllTypesBtn">Activer mixte 3</button>
+                                <span>Activites proposees</span>
+                                <button type="button" class="btn btn-sm btn-outline-primary" id="allowAllTypesBtn">Tout activer</button>
                             </label>
                             <div class="border rounded p-2 d-grid gap-2">
                                 {% set current_allowed = shop.get_allowed_types() %}
@@ -248,7 +266,7 @@
                                    value="{{ shop.contact_email }}" required>
                         </div>
                         <div class="col-md-6">
-                            <label for="contact_phone" class="form-label">Tlphone de contact</label>
+                            <label for="contact_phone" class="form-label">Telephone de contact</label>
                             <input type="tel" class="form-control" id="contact_phone" name="contact_phone" 
                                    value="{{ shop.contact_phone or '' }}">
                         </div>
@@ -312,3 +330,4 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 {% endblock %}
+

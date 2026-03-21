@@ -1,4 +1,4 @@
-﻿import os
+import os
 import shutil
 import subprocess
 import uuid
@@ -21,6 +21,8 @@ MAX_VIDEO_BYTES = 30 * 1024 * 1024
 ARCHIVE_RETENTION_DAYS = 30
 IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "webp"}
 VIDEO_EXTENSIONS = {"mp4", "mov", "webm", "m4v", "avi", "mkv", "3gp", "mpeg", "mpg", "wmv", "flv"}
+RENTAL_THUMB_SIZE = 300
+VIDEO_POSTER_EXTENSION = "jpg"
 
 
 def cents_to_dh(cents: int | None) -> str:
@@ -65,6 +67,101 @@ def _relative_rental_path(filename: str) -> str:
     return f"{RENTAL_UPLOAD_DIR}/{filename}"
 
 
+def _rental_thumb_filename(filename: str) -> str:
+    base_name, _ = os.path.splitext(filename)
+    return f"{base_name}_{RENTAL_THUMB_SIZE}.webp"
+
+
+def _rental_video_poster_filename(filename: str) -> str:
+    base_name, _ = os.path.splitext(filename)
+    return f"{base_name}_poster.{VIDEO_POSTER_EXTENSION}"
+
+
+def _rental_thumb_rel_path(relative_path: str) -> str | None:
+    normalized = (relative_path or "").replace("\\", "/").lstrip("/")
+    prefix = f"{RENTAL_UPLOAD_DIR}/"
+    if not normalized.startswith(prefix):
+        return None
+
+    filename = normalized[len(prefix):]
+    if filename.endswith(f"_{RENTAL_THUMB_SIZE}.webp"):
+        return None
+
+    ext = os.path.splitext(filename)[1].lower()
+    if ext not in {".jpg", ".jpeg", ".png", ".webp"}:
+        return None
+
+    return _relative_rental_path(_rental_thumb_filename(filename)).replace("\\", "/").lstrip("/")
+
+
+def rental_video_poster_rel_path(relative_path: str) -> str | None:
+    normalized = (relative_path or "").replace("\\", "/").lstrip("/")
+    prefix = f"{RENTAL_UPLOAD_DIR}/"
+    if not normalized.startswith(prefix):
+        return None
+
+    filename = normalized[len(prefix):]
+    ext = os.path.splitext(filename)[1].lower().lstrip(".")
+    if ext not in VIDEO_EXTENSIONS:
+        return None
+
+    return _relative_rental_path(_rental_video_poster_filename(filename)).replace("\\", "/").lstrip("/")
+
+
+def rental_existing_video_poster_rel_path(relative_path: str) -> str | None:
+    poster_rel = rental_video_poster_rel_path(relative_path)
+    if not poster_rel:
+        return None
+    if not os.path.exists(static_abs_path(poster_rel)):
+        return None
+    return poster_rel
+
+
+def _generate_video_poster(video_abs_path: str, poster_abs_path: str, ffmpeg_bin: str) -> bool:
+    try:
+        result = subprocess.run(
+            [
+                ffmpeg_bin,
+                "-y",
+                "-ss",
+                "00:00:00.800",
+                "-i",
+                video_abs_path,
+                "-frames:v",
+                "1",
+                "-vf",
+                "scale='min(960,iw)':-2",
+                poster_abs_path,
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+        return result.returncode == 0 and os.path.exists(poster_abs_path)
+    except Exception:
+        return False
+
+
+def _prepare_rental_image(image: Image.Image) -> Image.Image:
+    try:
+        prepared = ImageOps.exif_transpose(image)
+    except Exception:
+        prepared = image.copy()
+
+    if prepared.mode not in ("RGB", "RGBA"):
+        prepared = prepared.convert("RGBA" if "A" in prepared.getbands() else "RGB")
+    if prepared.mode == "RGBA":
+        prepared = prepared.convert("RGB")
+
+    try:
+        prepared.info.clear()
+    except Exception:
+        pass
+
+    prepared.thumbnail((1920, 1920), Image.LANCZOS)
+    return prepared
+
+
 def save_rental_image(file_obj: FileStorage) -> str:
     size = _file_size(file_obj)
     if size and size > MAX_IMAGE_BYTES:
@@ -77,14 +174,27 @@ def save_rental_image(file_obj: FileStorage) -> str:
     try:
         file_obj.stream.seek(0)
         with Image.open(file_obj.stream) as image:
-            image = ImageOps.exif_transpose(image)
-            if image.mode not in ("RGB", "RGBA"):
-                image = image.convert("RGB")
-            if image.mode == "RGBA":
-                image = image.convert("RGB")
-            image.thumbnail((1920, 1920), Image.LANCZOS)
-            image.save(abs_path, "WEBP", quality=84, method=6)
+            prepared = _prepare_rental_image(image)
+            prepared.save(abs_path, "WEBP", quality=84, method=6)
+            thumb_filename = _rental_thumb_filename(filename)
+            thumb_abs_path = os.path.join(abs_dir, thumb_filename)
+            if not os.path.exists(thumb_abs_path):
+                try:
+                    thumb_image = prepared.copy()
+                    thumb_image.thumbnail((RENTAL_THUMB_SIZE, RENTAL_THUMB_SIZE), Image.LANCZOS)
+                    thumb_image.save(thumb_abs_path, "WEBP", quality=84, method=6)
+                except Exception:
+                    if os.path.exists(thumb_abs_path):
+                        try:
+                            os.remove(thumb_abs_path)
+                        except Exception:
+                            pass
     except Exception as exc:
+        if os.path.exists(abs_path):
+            try:
+                os.remove(abs_path)
+            except Exception:
+                pass
         raise ValueError("Image invalide ou non lisible.") from exc
 
     return _relative_rental_path(filename)
@@ -113,6 +223,8 @@ def save_rental_video(file_obj: FileStorage) -> str:
 
     compressed_filename = f"{base_name}.mp4"
     compressed_abs = os.path.join(abs_dir, compressed_filename)
+    final_abs = source_abs
+    final_rel = _relative_rental_path(source_filename)
 
     try:
         result = subprocess.run(
@@ -138,14 +250,22 @@ def save_rental_video(file_obj: FileStorage) -> str:
             check=False,
         )
         if result.returncode != 0 or not os.path.exists(compressed_abs):
-            return _relative_rental_path(source_filename)
-
-        if os.path.getsize(compressed_abs) > MAX_VIDEO_BYTES:
+            final_abs = source_abs
+            final_rel = _relative_rental_path(source_filename)
+        elif os.path.getsize(compressed_abs) > MAX_VIDEO_BYTES:
             os.remove(compressed_abs)
-            return _relative_rental_path(source_filename)
+            final_abs = source_abs
+            final_rel = _relative_rental_path(source_filename)
+        else:
+            os.remove(source_abs)
+            final_abs = compressed_abs
+            final_rel = _relative_rental_path(compressed_filename)
 
-        os.remove(source_abs)
-        return _relative_rental_path(compressed_filename)
+        poster_rel = rental_video_poster_rel_path(final_rel)
+        if poster_rel:
+            poster_abs = static_abs_path(poster_rel)
+            _generate_video_poster(final_abs, poster_abs, ffmpeg_bin)
+        return final_rel
     except Exception:
         return _relative_rental_path(source_filename)
 
@@ -162,13 +282,24 @@ def delete_static_file(relative_path: str) -> bool:
     static_root = os.path.abspath(current_app.static_folder)
     if not abs_path.startswith(static_root):
         return False
-    if not os.path.exists(abs_path) or not os.path.isfile(abs_path):
-        return False
-    try:
-        os.remove(abs_path)
-        return True
-    except Exception:
-        return False
+    targets = [abs_path]
+    thumb_rel_path = _rental_thumb_rel_path(relative_path)
+    if thumb_rel_path:
+        targets.append(static_abs_path(thumb_rel_path))
+    video_poster_rel_path = rental_video_poster_rel_path(relative_path)
+    if video_poster_rel_path:
+        targets.append(static_abs_path(video_poster_rel_path))
+
+    removed = False
+    for target in targets:
+        if not os.path.exists(target) or not os.path.isfile(target):
+            continue
+        try:
+            os.remove(target)
+            removed = True
+        except Exception:
+            continue
+    return removed
 
 
 def archive_listing(listing: RentalListing, closed_reason: str, closed_at: datetime | None = None) -> RentalArchive:
@@ -199,7 +330,7 @@ def archive_listing(listing: RentalListing, closed_reason: str, closed_at: datet
         closed_at=closed_time,
         created_at_original=listing.created_at,
         expires_at_original=listing.expires_at,
-        archive_delete_after=closed_time + timedelta(days=ARCHIVE_RETENTION_DAYS),
+        archive_delete_after=None,
     )
     db.session.add(archive)
     record_rental_commission_entry(archive, note="rental listing closed as taken")
@@ -227,10 +358,15 @@ def archive_and_remove_listing(listing: RentalListing, closed_reason: str) -> di
 
 def cleanup_orphan_rental_media_files() -> int:
     abs_dir = _rental_abs_dir()
-    used_rel_paths = {
-        (row.file_path or "").replace("\\", "/").lstrip("/")
-        for row in RentalMedia.query.with_entities(RentalMedia.file_path).all()
-    }
+    used_rel_paths: set[str] = set()
+    for (file_path,) in RentalMedia.query.with_entities(RentalMedia.file_path).all():
+        normalized = (file_path or "").replace("\\", "/").lstrip("/")
+        if not normalized:
+            continue
+        used_rel_paths.add(normalized)
+        thumb_rel_path = _rental_thumb_rel_path(normalized)
+        if thumb_rel_path:
+            used_rel_paths.add(thumb_rel_path)
     removed = 0
     for name in os.listdir(abs_dir):
         abs_path = os.path.join(abs_dir, name)
@@ -247,7 +383,7 @@ def cleanup_orphan_rental_media_files() -> int:
     return removed
 
 
-def cleanup_expired_rentals(now: datetime | None = None, include_archive_purge: bool = True) -> dict:
+def cleanup_expired_rentals(now: datetime | None = None, include_archive_purge: bool = False) -> dict:
     current_time = now or datetime.utcnow()
     to_archive = (
         RentalListing.query
@@ -272,15 +408,7 @@ def cleanup_expired_rentals(now: datetime | None = None, include_archive_purge: 
 
     deleted_archives = 0
     if include_archive_purge:
-        archive_cutoff = current_time - timedelta(days=ARCHIVE_RETENTION_DAYS)
-        old_archives = (
-            RentalArchive.query
-            .filter(RentalArchive.closed_at <= archive_cutoff)
-            .all()
-        )
-        deleted_archives = len(old_archives)
-        for archive in old_archives:
-            db.session.delete(archive)
+        deleted_archives = 0
 
     db.session.commit()
 
@@ -291,4 +419,3 @@ def cleanup_expired_rentals(now: datetime | None = None, include_archive_purge: 
         "purged_archives": deleted_archives,
         "orphan_media_removed": orphan_removed,
     }
-

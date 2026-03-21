@@ -1,11 +1,12 @@
-{% extends 'errors/base.html' %}
+﻿{% extends 'errors/base.html' %}
 {% set error_code = 400 %}
-{% set error_title = 'Requete invalide' %}
-{% set error_message = 'La requete est mal formee ou a expire. Verifiez vos donnees et reessayez.' %}
+{% set error_title = 'Requête invalide' %}
+{% set error_message = 'La demande n’a pas pu être traitée. Vérifiez puis réessayez.' %}
 {% set error_tone = 'warning' %}
-{% set error_hint = 'Code 400 - Requete incorrecte' %}
+{% set error_hint = 'Code 400' %}
 
 {% block error_actions %}
 <a class="error-btn error-btn-primary" href="{{ url_for('landing') }}">Retour a l'accueil</a>
 <a class="error-btn error-btn-secondary" href="{{ request.path or url_for('landing') }}">Reessayer</a>
 {% endblock %}
+

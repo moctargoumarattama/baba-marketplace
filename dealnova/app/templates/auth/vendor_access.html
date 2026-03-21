@@ -1,0 +1,256 @@
+﻿{% extends "base.html" %}
+{% block title %}Devenir vendeur | {{ config.SITE_NAME }}{% endblock %}
+
+{% block head %}
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
+
+  .vd-page {
+    min-height: calc(100vh - 60px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f0faf5;
+    font-family: 'DM Sans', sans-serif;
+    padding: 2rem 1rem;
+  }
+
+  .vd-card {
+    background: #fff;
+    border-radius: 22px;
+    padding: 2.2rem 2rem;
+    max-width: 500px;
+    width: 100%;
+    box-shadow: 0 4px 36px rgba(16,185,129,.10);
+  }
+
+  .vd-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.75rem;
+    padding-bottom: 1.25rem;
+    border-bottom: 1px solid #f0fdf4;
+  }
+
+  .vd-icon {
+    width: 52px; height: 52px;
+    flex-shrink: 0;
+    background: linear-gradient(135deg, #25d366, #128c7e);
+    border-radius: 16px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.5rem; color: #fff;
+    box-shadow: 0 4px 16px rgba(37,211,102,.25);
+  }
+
+  .vd-header h2 {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0 0 .2rem;
+  }
+
+  .vd-header p {
+    color: #64748b;
+    font-size: .85rem;
+    margin: 0;
+    line-height: 1.4;
+  }
+
+  .vd-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: .9rem;
+  }
+
+  .vd-grid .full { grid-column: 1 / -1; }
+
+  .vd-label {
+    display: block;
+    font-size: .82rem;
+    font-weight: 600;
+    color: #475569;
+    margin-bottom: .35rem;
+    letter-spacing: .02em;
+    text-transform: uppercase;
+  }
+
+  .vd-input {
+    width: 100%;
+    border: 1.5px solid #d1fae5;
+    border-radius: 11px;
+    padding: .6rem .85rem;
+    font-size: .92rem;
+    font-family: 'DM Sans', sans-serif;
+    color: #0f172a;
+    outline: none;
+    transition: border-color .2s, box-shadow .2s;
+    background: #fafffe;
+  }
+
+  .vd-input:focus {
+    border-color: #10b981;
+    box-shadow: 0 0 0 3px rgba(16,185,129,.10);
+    background: #fff;
+  }
+
+  .vd-btn {
+    display: block;
+    width: 100%;
+    padding: .8rem;
+    background: linear-gradient(135deg, #25d366, #128c7e);
+    color: #fff;
+    font-weight: 700;
+    font-size: .95rem;
+    font-family: 'DM Sans', sans-serif;
+    border: none;
+    border-radius: 13px;
+    cursor: pointer;
+    margin-top: 1.25rem;
+    box-shadow: 0 4px 16px rgba(37,211,102,.22);
+    transition: opacity .2s, transform .15s;
+  }
+
+  .vd-btn:hover { opacity: .9; transform: translateY(-1px); }
+
+  .vd-success {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: 12px;
+    padding: .75rem 1rem;
+    margin-top: 1rem;
+    font-size: .87rem;
+    color: #065f46;
+    font-weight: 500;
+  }
+
+  .vd-open-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: .5rem;
+    margin-top: .6rem;
+    padding: .75rem;
+    background: linear-gradient(135deg, #25d366, #128c7e);
+    color: #fff;
+    font-weight: 700;
+    font-size: .92rem;
+    border-radius: 13px;
+    text-decoration: none;
+    transition: opacity .2s;
+  }
+
+  .vd-open-btn:hover { opacity: .9; color: #fff; }
+
+  .vd-back {
+    display: block;
+    text-align: center;
+    margin-top: 1.1rem;
+    font-size: .85rem;
+    color: #94a3b8;
+    text-decoration: none;
+    transition: color .2s;
+  }
+
+  .vd-back:hover { color: #0f172a; }
+
+  @media (max-width: 420px) {
+    .vd-grid { grid-template-columns: 1fr; }
+    .vd-grid .full { grid-column: 1; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="vd-page">
+  <div class="vd-card">
+
+    <div class="vd-header">
+      <div class="vd-icon"><i class="bi bi-shop"></i></div>
+      <div>
+        <h2>Devenir vendeur</h2>
+        <p>Remplissez vos informations, la demande part sur WhatsApp.</p>
+      </div>
+    </div>
+
+    <form method="post">
+      {% include "partials/_csrf.html" %}
+
+      <div class="vd-grid">
+
+        <div>
+          <label class="vd-label">Nom complet *</label>
+          <input class="vd-input" type="text" name="full_name" required maxlength="120"
+                 placeholder="Votre nom"
+                 value="{{ form_data.full_name or '' }}">
+        </div>
+
+        <div>
+          <label class="vd-label">Téléphone *</label>
+          <input class="vd-input" type="text" name="phone" required maxlength="40"
+                 placeholder="+212 6xx xx xx xx"
+                 value="{{ form_data.phone or '' }}">
+        </div>
+
+        <div>
+          <label class="vd-label">Ville *</label>
+          <input class="vd-input" type="text" name="city" required maxlength="80"
+                 placeholder="Casablanca…"
+                 value="{{ form_data.city or '' }}">
+        </div>
+
+        <div>
+          <label class="vd-label">Nom de la boutique</label>
+          <input class="vd-input" type="text" name="shop_name" maxlength="160"
+                 placeholder="Ma Boutique"
+                 value="{{ form_data.shop_name or '' }}">
+        </div>
+
+        <div class="full">
+          <label class="vd-label">Type d'activité</label>
+          <input class="vd-input" type="text" name="shop_type" maxlength="80"
+                 placeholder="Produits, Services, Location, Mixte…"
+                 value="{{ form_data.shop_type or '' }}">
+        </div>
+
+      </div>
+
+      <button type="submit" class="vd-btn">
+        <i class="bi bi-send me-2"></i>Envoyer la demande
+      </button>
+    </form>
+
+    {% if whatsapp_url %}
+    <div class="vd-success">
+      <i class="bi bi-check-circle-fill"></i>
+      Demande prête — WhatsApp va s'ouvrir automatiquement.
+    </div>
+    <a href="{{ whatsapp_url }}" target="_blank" rel="noopener" id="openWhatsappBtn" class="vd-open-btn">
+      <i class="bi bi-whatsapp"></i> Ouvrir WhatsApp maintenant
+    </a>
+    {% endif %}
+
+    <a href="{{ url_for('auth.login') }}" class="vd-back">← Retour à la connexion</a>
+
+  </div>
+</div>
+
+{% if auto_open_whatsapp and whatsapp_url %}
+<script>
+  (function () {
+    var btn = document.getElementById("openWhatsappBtn");
+    var waUrl = btn ? btn.getAttribute("href") : "";
+    if (!waUrl) return;
+    var opened = false;
+    setTimeout(function () {
+      if (!opened) { opened = true; window.location.href = waUrl; }
+    }, 150);
+    if (btn) btn.addEventListener("click", function () { opened = true; });
+  })();
+</script>
+{% endif %}
+
+{% endblock %}

@@ -1,8 +1,11 @@
-{% if products %}
+﻿{% if products %}
 <div class="products-grid">
     {% for p in products %}
     {% set product_images = p.image_file.split('|') if p.image_file and '|' in p.image_file else [p.image_file] if p.image_file else [] %}
     {% set first_image = product_images[0] if product_images|length > 0 else '' %}
+    {% set product_block_reasons = product_catalog_block_reasons(p) if product_catalog_block_reasons is defined else [] %}
+    {% set promo = product_promos.get(p.id) if product_promos is defined else None %}
+    {% set final_price = calculate_promo_price(p, promo) if calculate_promo_price is defined and promo else (p.price or 0) %}
     
     <div class="product-card" data-product-id="{{ p.id }}">
         <div class="product-image">
@@ -20,13 +23,27 @@
                 {{ p.category.name }}
             </div>
             {% endif %}
+            {% if promo %}
+            <div class="product-category-tag" style="top: auto; bottom: 10px; background: linear-gradient(135deg, #ef4444, #f97316);">
+                Promo
+            </div>
+            {% endif %}
             
             <!-- Image -->
             {% if first_image %}
-            <img src="{{ url_for('static', filename='uploads/' ~ image_variant(first_image, 'thumb')) }}" 
-                 alt="{{ p.name }}"
-                 loading="lazy"
-                 data-placeholder="{{ url_for('static', filename='images/placeholder.jpg') }}">
+            <a href="{{ url_for('shop.product_detail', pid=p.id) }}" class="product-card-link" title="Voir {{ p.name }}">
+                <img src="{{ url_for('static', filename='uploads/' ~ image_variant(first_image, 'thumb')) }}" 
+                     alt="{{ p.name }}"
+                     loading="lazy"
+                     decoding="async"
+                     class="dashboard-product-image-clickable"
+                     data-large="{{ url_for('static', filename='uploads/' ~ image_variant(first_image, 'large')) }}"
+                     data-title="{{ p.name }}"
+                     role="button"
+                     tabindex="0"
+                     aria-label="Voir la photo de {{ p.name }}"
+                     data-placeholder="{{ url_for('static', filename='images/placeholder.jpg') }}">
+            </a>
             {% else %}
             <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;">
                 <i class="fas fa-box-open" style="font-size: 2.5rem; color: rgba(16, 185, 129, 0.2);"></i>
@@ -35,13 +52,29 @@
         </div>
         
         <div class="product-content">
-            <h3 class="product-title">{{ p.name }}</h3>
+            <h3 class="product-title">
+                <a href="{{ url_for('shop.product_detail', pid=p.id) }}" class="product-card-link">
+                    {{ p.name }}
+                </a>
+            </h3>
             <p class="product-description">
                 {{ p.description|truncate(60) if p.description else "Pas de description" }}
             </p>
+            {% if not p.is_active and product_block_reasons %}
+            <div class="product-admin-note" style="margin: 0 0 0.75rem; font-size: 0.84rem; color: #b45309; font-weight: 600;">
+                Masque par l'admin: {{ product_block_reasons|join(', ') }}.
+            </div>
+            {% endif %}
             
             <div class="product-meta">
-                <div class="product-price">{{ p.price }} MAD</div>
+                <div>
+                    <div class="product-price">{{ '%.2f'|format(final_price|float) }} MAD</div>
+                    {% if promo and (p.price or 0) > final_price %}
+                    <div style="font-size: 0.82rem; color: #64748b; text-decoration: line-through;">
+                        {{ '%.2f'|format((p.price or 0)|float) }} MAD
+                    </div>
+                    {% endif %}
+                </div>
                 <div class="product-stock">
                     {% if p.kind == 'service' %}
                         <i class="fas fa-calendar-check"></i>
@@ -59,14 +92,29 @@
             </div>
             
             <div class="product-actions">
+                <a href="{{ url_for('shop.product_detail', pid=p.id) }}"
+                   class="btn-product edit"
+                   style="background: linear-gradient(135deg, #0ea5e9, #2563eb);">
+                    <i class="fas fa-eye"></i>
+                    <span>Voir</span>
+                </a>
                 <a href="{{ url_for('vendor.product_edit', pid=p.id) }}" 
                    class="btn-product edit">
                     <i class="fas fa-edit"></i>
                     <span>Modifier</span>
                 </a>
+                <a href="{{ url_for('vendor.product_promotion', pid=p.id) }}"
+                   class="btn-product edit"
+                   style="background: linear-gradient(135deg, #f59e0b, #f97316);">
+                    <i class="fas fa-tags"></i>
+                    <span>{{ 'Promo' if promo else 'Ajouter promo' }}</span>
+                </a>
                 
                 <form method="POST" 
                       action="{{ url_for('vendor.product_delete', pid=p.id) }}"
+                      data-ajax="true"
+                      data-action="delete-product"
+                      data-remove-target=".product-card"
                       data-confirm="Supprimer ce produit "
                       data-confirm-submit="Supprimer ce produit ?">
                     {% include "partials/_csrf.html" %}
@@ -109,3 +157,4 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 </script>
+

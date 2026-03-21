@@ -1,1467 +1,10 @@
-﻿{% extends "base.html" %}
+﻿{% extends "vendor/base.html" %}
 
 {% block title %}Tableau de bord vendeur  {{ config.SITE_NAME }}{% endblock %}
 
 {% block head %}
-<style>
-:root {
-    --primary: #10B981;
-    --primary-dark: #047857;
-    --primary-light: #34D399;
-    --accent: #F59E0B;
-    --danger: #EF4444;
-    --card-bg: #ffffff;
-    --text-primary: #1f2937;
-    --text-secondary: #6b7280;
-    --border: #e5e7eb;
-    --light-bg: #f9fafb;
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07);
-    --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
-}
-
-@media (prefers-color-scheme: dark) {
-    :root {
-        --card-bg: #1e293b;
-        --text-primary: #f1f5f9;
-        --text-secondary: #94a3b8;
-        --border: #334155;
-        --light-bg: #0f172a;
-    }
-}
-
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
-
-body {
-    background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    line-height: 1.5;
-    color: var(--text-primary);
-}
-
-/* Container */
-.dashboard-wrapper {
-    min-height: 100vh;
-    padding: 1rem;
-    overflow-x: hidden;
-}
-
-.dashboard-container {
-    max-width: 1400px;
-    margin: 0 auto;
-    overflow-x: clip;
-}
-
-.dashboard-wrapper * {
-    min-width: 0;
-}
-
-.dashboard-wrapper img {
-    max-width: 100%;
-    height: auto;
-}
-
-/* Header */
-.dashboard-header {
-    background: var(--card-bg);
-    border-radius: 16px;
-    padding: 1.5rem;
-    margin-bottom: 1.5rem;
-    box-shadow: var(--shadow-md);
-    border: 1px solid var(--border);
-}
-
-.header-title {
-    font-size: 1.75rem;
-    font-weight: 700;
-    color: var(--text-primary);
-    margin-bottom: 1rem;
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-}
-
-.title-icon {
-    width: 40px;
-    height: 40px;
-    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-    border-radius: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-size: 1.25rem;
-}
-
-/* Recherche */
-.search-wrapper {
-    position: relative;
-    margin-bottom: 1rem;
-}
-
-.search-input {
-    width: 100%;
-    padding: 0.875rem 1rem 0.875rem 3rem;
-    border: 2px solid var(--border);
-    border-radius: 12px;
-    font-size: 0.95rem;
-    font-weight: 500;
-    color: var(--text-primary);
-    background: var(--card-bg);
-    transition: all 0.2s ease;
-    outline: none;
-}
-
-.search-input:focus {
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
-}
-
-.search-icon {
-    position: absolute;
-    left: 1rem;
-    top: 50%;
-    transform: translateY(-50%);
-    color: var(--text-secondary);
-    font-size: 1rem;
-}
-
-.search-clear {
-    position: absolute;
-    right: 1rem;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    display: none;
-    align-items: center;
-    justify-content: center;
-    color: var(--text-secondary);
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.search-clear:hover {
-    background: var(--light-bg);
-    color: var(--text-primary);
-}
-
-.search-clear.visible {
-    display: flex;
-}
-
-.search-stats {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-    font-weight: 600;
-    flex-wrap: wrap;
-}
-
-/* Shop open/closed (repos/vacances) */
-.shop-status-bar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
-    flex-wrap: wrap;
-    padding: 0.75rem 0.875rem;
-    border-radius: 14px;
-    background: linear-gradient(135deg, rgba(16,185,129,0.08), rgba(245,158,11,0.06));
-    border: 1px solid var(--border);
-    margin: 0.75rem 0 1rem 0;
-}
-
-.shop-status-left {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    min-width: 220px;
-}
-
-.status-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.4rem 0.75rem;
-    border-radius: 999px;
-    font-weight: 800;
-    letter-spacing: 0.06em;
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    border: 1px solid rgba(0,0,0,0.04);
-}
-
-.status-pill.open {
-    background: rgba(16,185,129,0.16);
-    color: var(--primary-dark);
-}
-
-.status-pill.closed {
-    background: rgba(239,68,68,0.14);
-    color: #991b1b;
-}
-
-.status-sub {
-    font-weight: 700;
-    color: var(--text-secondary);
-    font-size: 0.85rem;
-}
-
-.status-actions {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.vendor-notif-bar {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    flex-wrap: wrap;
-    margin-top: 0.75rem;
-}
-
-.notif-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.55rem;
-    padding: 0.55rem 0.8rem;
-    border-radius: 999px;
-    background: rgba(255,255,255,0.9);
-    border: 1px solid var(--border);
-    box-shadow: var(--shadow-sm);
-    font-weight: 800;
-    min-height: 44px;
-}
-
-.notif-chip i {
-    font-size: 0.95rem;
-    opacity: 0.9;
-}
-
-.notif-chip.pending {
-    border-color: rgba(245, 158, 11, 0.25);
-    background: rgba(245, 158, 11, 0.10);
-    color: #7c2d12;
-}
-
-.notif-chip.to-confirm {
-    border-color: rgba(239, 68, 68, 0.25);
-    background: rgba(239, 68, 68, 0.10);
-    color: #991b1b;
-}
-
-.notif-count {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 30px;
-    height: 26px;
-    padding: 0 10px;
-    border-radius: 999px;
-    background: rgba(15, 23, 42, 0.08);
-    color: #0f172a;
-    font-weight: 900;
-    font-size: 0.9rem;
-}
-
-.vendor-password-card {
-    margin-top: 0.75rem;
-    background: rgba(255, 255, 255, 0.92);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 0.85rem;
-    box-shadow: var(--shadow-sm);
-}
-
-.vendor-password-title {
-    font-size: 0.9rem;
-    font-weight: 800;
-    margin-bottom: 0.5rem;
-    color: var(--text-primary);
-    display: flex;
-    align-items: center;
-    gap: 0.45rem;
-}
-
-.vendor-password-form {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.5rem;
-}
-
-.vendor-password-input {
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 0.55rem 0.65rem;
-    font-size: 0.82rem;
-    min-height: 42px;
-}
-
-.vendor-password-submit {
-    border: 0;
-    border-radius: 10px;
-    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-    color: #fff;
-    font-weight: 800;
-    min-height: 42px;
-    padding: 0.55rem 0.8rem;
-}
-
-.vendor-password-meta {
-    margin-top: 0.45rem;
-    font-size: 0.75rem;
-    color: var(--text-secondary);
-    font-weight: 600;
-}
-
-.status-btn {
-    border: 0;
-    border-radius: 12px;
-    padding: 0.7rem 1rem;
-    font-weight: 800;
-    cursor: pointer;
-    transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
-    min-height: 44px;
-}
-
-.status-btn:active { transform: translateY(1px); }
-
-.status-btn.open {
-    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-    color: #fff;
-    box-shadow: 0 10px 18px rgba(16,185,129,0.18);
-}
-
-.status-btn.closed {
-    background: linear-gradient(135deg, #ef4444, #b91c1c);
-    color: #fff;
-    box-shadow: 0 10px 18px rgba(239,68,68,0.18);
-}
-
-.status-btn:hover { filter: brightness(1.02); }
-
-/* Today cards */
-.today-section {
-    margin-bottom: 1.25rem;
-}
-
-.today-title-row {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 0.75rem;
-    margin: 0.25rem 0 0.75rem 0;
-}
-
-.today-title {
-    font-size: 1.15rem;
-    font-weight: 900;
-    color: var(--text-primary);
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.today-hint {
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-    font-weight: 600;
-}
-
-.today-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 0.75rem;
-}
-
-.today-card {
-    background: var(--card-bg);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 1rem;
-    box-shadow: var(--shadow-sm);
-    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-}
-
-.today-card:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-md);
-    border-color: rgba(16,185,129,0.35);
-}
-
-.today-card-top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
-}
-
-.today-meta {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-}
-
-.today-icon {
-    width: 44px;
-    height: 44px;
-    border-radius: 14px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #fff;
-    font-size: 1.1rem;
-    box-shadow: 0 10px 16px rgba(0,0,0,0.10);
-}
-
-.today-icon.prepare { background: linear-gradient(135deg, #3b82f6, #1d4ed8); }
-.today-icon.booking { background: linear-gradient(135deg, #a855f7, #6d28d9); }
-.today-icon.location { background: linear-gradient(135deg, #f59e0b, #d97706); }
-
-.today-label {
-    font-weight: 800;
-    color: var(--text-primary);
-    font-size: 0.95rem;
-}
-
-.today-value {
-    font-weight: 900;
-    font-size: 1.6rem;
-    color: var(--text-primary);
-    line-height: 1.1;
-}
-
-.today-actions {
-    display: flex;
-    gap: 0.5rem;
-    align-items: center;
-}
-
-.today-link {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    text-decoration: none;
-    padding: 0.6rem 0.8rem;
-    border-radius: 12px;
-    font-weight: 800;
-    border: 1px solid var(--border);
-    color: var(--text-primary);
-    background: rgba(255,255,255,0.65);
-    min-height: 44px;
-}
-
-.today-link:hover {
-    border-color: rgba(16,185,129,0.35);
-    color: var(--primary-dark);
-}
-
-.today-list {
-    margin-top: 0.75rem;
-    display: grid;
-    gap: 0.5rem;
-}
-
-.today-row {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 0.5rem;
-    background: rgba(255,255,255,0.6);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 0.875rem;
-}
-
-.today-row-top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
-    flex-wrap: wrap;
-}
-
-.today-row-title {
-    font-weight: 900;
-    color: var(--text-primary);
-}
-
-.today-row-sub {
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-    font-weight: 600;
-}
-
-.today-row-actions {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-}
-
-.today-outline {
-    text-decoration: none;
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 0.6rem 0.85rem;
-    font-weight: 800;
-    color: var(--text-primary);
-    background: transparent;
-    min-height: 44px;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-}
-
-.today-outline:hover { border-color: rgba(16,185,129,0.35); color: var(--primary-dark); }
-
-.today-empty {
-    padding: 0.75rem 0.875rem;
-    border-radius: 14px;
-    border: 1px dashed rgba(107,114,128,0.35);
-    color: var(--text-secondary);
-    background: rgba(255,255,255,0.35);
-    font-weight: 700;
-}
-
-@media (min-width: 768px) {
-    .today-grid {
-        grid-template-columns: repeat(2, 1fr);
-    }
-
-    .today-row {
-        grid-template-columns: 1fr auto;
-        align-items: center;
-    }
-
-    .today-row-actions {
-        justify-content: flex-end;
-    }
-}
-
-/* Categories */
-.categories-section {
-    margin-bottom: 1.5rem;
-}
-
-.categories-scroll {
-    display: flex;
-    gap: 0.5rem;
-    overflow-x: auto;
-    padding: 0.5rem 0;
-    scrollbar-width: thin;
-    scrollbar-color: var(--border) transparent;
-}
-
-.categories-scroll::-webkit-scrollbar {
-    height: 6px;
-}
-
-.categories-scroll::-webkit-scrollbar-track {
-    background: transparent;
-}
-
-.categories-scroll::-webkit-scrollbar-thumb {
-    background: var(--border);
-    border-radius: 3px;
-}
-
-.category-chip {
-    padding: 0.625rem 1.25rem;
-    border-radius: 50px;
-    background: var(--card-bg);
-    border: 2px solid var(--border);
-    color: var(--text-secondary);
-    font-weight: 600;
-    font-size: 0.875rem;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    white-space: nowrap;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    flex-shrink: 0;
-}
-
-.category-chip:hover {
-    border-color: var(--primary);
-    color: var(--primary);
-}
-
-.category-chip.active {
-    background: var(--primary);
-    border-color: var(--primary);
-    color: white;
-}
-
-.category-badge {
-    background: rgba(16, 185, 129, 0.15);
-    color: var(--primary);
-    padding: 0.125rem 0.5rem;
-    border-radius: 50px;
-    font-size: 0.75rem;
-    font-weight: 700;
-}
-
-.category-chip.active .category-badge {
-    background: rgba(255, 255, 255, 0.2);
-    color: white;
-}
-
-/* Stats */
-.stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: 1rem;
-    margin-bottom: 1.5rem;
-}
-
-.stat-card {
-    background: var(--card-bg);
-    border-radius: 12px;
-    padding: 1.25rem;
-    box-shadow: var(--shadow-sm);
-    border: 1px solid var(--border);
-    transition: all 0.2s ease;
-    position: relative;
-    overflow: hidden;
-}
-
-.stat-card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 3px;
-    background: var(--primary);
-}
-
-.stat-card:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-md);
-}
-
-.stat-value {
-    font-size: 1.75rem;
-    font-weight: 800;
-    color: var(--primary);
-    line-height: 1;
-    margin-bottom: 0.5rem;
-}
-
-.stat-label {
-    font-size: 0.8rem;
-    color: var(--text-secondary);
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-}
-
-/* Alerts */
-.alerts-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 1rem;
-    margin-bottom: 1.5rem;
-}
-
-.alert-card {
-    background: var(--card-bg);
-    border-radius: 12px;
-    padding: 1.25rem;
-    box-shadow: var(--shadow-sm);
-    border-left: 4px solid var(--accent);
-}
-
-.alert-card.info {
-    border-left-color: #3B82F6;
-}
-
-.alert-title {
-    font-weight: 700;
-    font-size: 0.95rem;
-    color: var(--text-primary);
-    margin-bottom: 0.5rem;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.alert-meta {
-    font-size: 0.8rem;
-    color: var(--text-secondary);
-    margin-bottom: 0.75rem;
-}
-
-.alert-list {
-    list-style: none;
-    display: grid;
-    gap: 0.5rem;
-}
-
-.alert-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.5rem 0;
-    border-bottom: 1px solid var(--border);
-    font-size: 0.875rem;
-}
-
-.alert-item:last-child {
-    border-bottom: none;
-}
-
-/* Action Buttons */
-.action-buttons {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-    gap: 0.75rem;
-    margin-bottom: 1.5rem;
-}
-
-.btn-action {
-    padding: 0.875rem 1rem;
-    border-radius: 12px;
-    font-weight: 600;
-    font-size: 0.875rem;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.5rem;
-    text-decoration: none;
-    transition: all 0.2s ease;
-    border: 2px solid var(--border);
-    background: var(--card-bg);
-    color: var(--text-primary);
-    text-align: center;
-}
-
-.btn-action:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-md);
-    border-color: var(--primary);
-    color: var(--primary);
-    text-decoration: none;
-}
-
-.btn-action.primary {
-    background: var(--primary);
-    border-color: var(--primary);
-    color: white;
-}
-
-.btn-action.primary:hover {
-    background: var(--primary-dark);
-    color: white;
-}
-
-.btn-action i {
-    font-size: 1.25rem;
-}
-
-/* Products */
-.products-section-title {
-    font-size: 1.25rem;
-    font-weight: 700;
-    color: var(--text-primary);
-    margin-bottom: 1rem;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.products-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 1rem;
-    margin-bottom: 2rem;
-}
-
-/* Product card */
-.product-card {
-    background: var(--card-bg);
-    border-radius: 12px;
-    overflow: hidden;
-    box-shadow: var(--shadow-sm);
-    border: 1px solid var(--border);
-    transition: all 0.2s ease;
-}
-
-.product-card:hover {
-    transform: translateY(-3px);
-    box-shadow: var(--shadow-lg);
-}
-
-.product-image {
-    position: relative;
-    width: 100%;
-    padding-top: 75%;
-    background: linear-gradient(135deg, #f0fdf4, #dcfce7);
-    overflow: hidden;
-}
-
-.product-image img {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    transition: transform 0.3s ease;
-}
-
-.product-card:hover .product-image img {
-    transform: scale(1.05);
-}
-
-.product-status {
-    position: absolute;
-    top: 10px;
-    left: 10px;
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    z-index: 2;
-}
-
-.status-in-stock {
-    background: #10B981;
-    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
-}
-
-.status-low-stock {
-    background: #F59E0B;
-    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2);
-    animation: pulse 2s ease-in-out infinite;
-}
-
-.status-out-stock {
-    background: #EF4444;
-    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
-}
-
-@keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
-}
-
-.product-category-tag {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    background: rgba(0, 0, 0, 0.7);
-    backdrop-filter: blur(10px);
-    color: white;
-    padding: 0.375rem 0.75rem;
-    border-radius: 50px;
-    font-size: 0.7rem;
-    font-weight: 600;
-    z-index: 2;
-}
-
-.product-content {
-    padding: 1rem;
-}
-
-.product-title {
-    font-size: 0.95rem;
-    font-weight: 600;
-    color: var(--text-primary);
-    margin-bottom: 0.5rem;
-    overflow: hidden;
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    min-height: 2.4em;
-}
-
-.product-description {
-    font-size: 0.8rem;
-    color: var(--text-secondary);
-    margin-bottom: 0.75rem;
-    overflow: hidden;
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-}
-
-.product-meta {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 0.75rem;
-    padding-bottom: 0.75rem;
-    border-bottom: 1px solid var(--border);
-}
-
-.product-price {
-    font-size: 1.25rem;
-    font-weight: 800;
-    color: #ff6a00;
-}
-
-.product-stock {
-    display: flex;
-    align-items: center;
-    gap: 0.375rem;
-    font-size: 0.8rem;
-    color: var(--text-secondary);
-    font-weight: 600;
-}
-
-.stock-number {
-    font-weight: 700;
-}
-
-.stock-ok {
-    color: var(--primary);
-}
-
-.stock-low {
-    color: var(--accent);
-}
-
-.stock-out {
-    color: var(--danger);
-}
-
-.product-actions {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.5rem;
-}
-
-.btn-product {
-    padding: 0.625rem;
-    border-radius: 8px;
-    font-weight: 600;
-    font-size: 0.8rem;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.375rem;
-    text-decoration: none;
-    transition: all 0.2s ease;
-    border: 2px solid var(--border);
-    background: transparent;
-    color: var(--text-primary);
-}
-
-.btn-product:hover {
-    transform: translateY(-1px);
-    text-decoration: none;
-}
-
-.btn-product.edit {
-    border-color: var(--primary);
-    color: var(--primary);
-}
-
-.btn-product.edit:hover {
-    background: var(--primary);
-    color: white;
-}
-
-.btn-product.delete {
-    border-color: var(--danger);
-    color: var(--danger);
-}
-
-.btn-product.delete:hover {
-    background: var(--danger);
-    color: white;
-}
-
-/* Empty state */
-.empty-state {
-    background: var(--card-bg);
-    border-radius: 12px;
-    padding: 3rem 2rem;
-    text-align: center;
-    box-shadow: var(--shadow-sm);
-    border: 1px solid var(--border);
-}
-
-.empty-icon {
-    width: 80px;
-    height: 80px;
-    background: rgba(16, 185, 129, 0.1);
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin: 0 auto 1.5rem;
-    font-size: 2.5rem;
-    color: var(--primary);
-}
-
-.empty-title {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: var(--text-primary);
-    margin-bottom: 0.5rem;
-}
-
-.empty-text {
-    color: var(--text-secondary);
-    font-weight: 500;
-    margin-bottom: 1.5rem;
-}
-
-/* Loading */
-.loading-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.3);
-    backdrop-filter: blur(4px);
-    display: none;
-    align-items: center;
-    justify-content: center;
-    z-index: 9999;
-}
-
-.loading-overlay.active {
-    display: flex;
-}
-
-.spinner {
-    width: 50px;
-    height: 50px;
-    border: 3px solid rgba(255, 255, 255, 0.3);
-    border-top-color: white;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-    to { transform: rotate(360deg); }
-}
-
-/* Stock notification toast */
-.stock-toast {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    background: var(--accent);
-    color: white;
-    padding: 1rem 1.5rem;
-    border-radius: 12px;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
-    display: none;
-    align-items: center;
-    gap: 0.75rem;
-    z-index: 10000;
-    max-width: 350px;
-    animation: slideInUp 0.3s ease;
-}
-
-.stock-toast.show {
-    display: flex;
-}
-
-.stock-toast i {
-    font-size: 1.5rem;
-}
-
-.stock-toast-content {
-    flex: 1;
-}
-
-.stock-toast-title {
-    font-weight: 700;
-    font-size: 0.95rem;
-    margin-bottom: 0.25rem;
-}
-
-.stock-toast-text {
-    font-size: 0.85rem;
-    opacity: 0.95;
-}
-
-@keyframes slideInUp {
-    from {
-        opacity: 0;
-        transform: translateY(20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-/* Sound toggle button */
-.sound-toggle {
-    position: fixed;
-    bottom: 20px;
-    left: 20px;
-    width: 48px;
-    height: 48px;
-    background: var(--primary);
-    color: white;
-    border: none;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
-    transition: all 0.2s ease;
-    z-index: 9999;
-}
-
-.sound-toggle:hover {
-    transform: scale(1.1);
-    box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4);
-}
-
-.sound-toggle.muted {
-    background: var(--text-secondary);
-}
-
-.sound-toggle i {
-    font-size: 1.25rem;
-}
-
-/* Responsive */
-@media (min-width: 480px) {
-    .products-grid {
-        grid-template-columns: repeat(2, 1fr);
-    }
-    
-    .alerts-grid {
-        grid-template-columns: repeat(2, 1fr);
-    }
-}
-
-@media (min-width: 768px) {
-    .dashboard-wrapper {
-        padding: 1.5rem;
-    }
-    
-    .dashboard-header {
-        padding: 2rem;
-    }
-    
-    .header-title {
-        font-size: 2rem;
-    }
-    
-    .title-icon {
-        width: 48px;
-        height: 48px;
-        font-size: 1.5rem;
-    }
-    
-    .products-grid {
-        grid-template-columns: repeat(3, 1fr);
-    }
-    
-    .stats-grid {
-        grid-template-columns: repeat(3, 1fr);
-    }
-}
-
-@media (min-width: 1024px) {
-    .products-grid {
-        grid-template-columns: repeat(4, 1fr);
-    }
-}
-
-@media (min-width: 1280px) {
-    .products-grid {
-        grid-template-columns: repeat(5, 1fr);
-    }
-}
-
-/* Premium polish */
-.dashboard-wrapper {
-    position: relative;
-}
-
-.dashboard-wrapper::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    pointer-events: none;
-    background:
-        radial-gradient(circle at 10% 10%, rgba(16,185,129,0.12) 0, rgba(16,185,129,0) 38%),
-        radial-gradient(circle at 90% 12%, rgba(59,130,246,0.08) 0, rgba(59,130,246,0) 35%);
-    z-index: 0;
-}
-
-.dashboard-container {
-    position: relative;
-    z-index: 1;
-}
-
-.dashboard-header {
-    background:
-        linear-gradient(145deg, rgba(255,255,255,0.96), rgba(255,255,255,0.90)),
-        linear-gradient(120deg, rgba(16,185,129,0.08), rgba(59,130,246,0.05));
-    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
-}
-
-.today-section,
-.stats-grid .stat-card,
-.alerts-grid .alert-card,
-.products-section-title,
-#productsContainer .products-grid .product-card {
-    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
-}
-
-.categories-section {
-    margin-bottom: 1.25rem;
-    border: 1px solid rgba(16,185,129,0.18);
-    border-radius: 16px;
-    background: linear-gradient(150deg, rgba(255,255,255,0.97), rgba(236,253,245,0.93));
-    box-shadow: 0 10px 22px rgba(16,185,129,0.08);
-    padding: 0.9rem;
-}
-
-.categories-head {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 0.5rem;
-    margin-bottom: 0.75rem;
-    flex-wrap: wrap;
-}
-
-.categories-title {
-    font-size: 0.92rem;
-    font-weight: 800;
-    color: var(--text-primary);
-    display: inline-flex;
-    align-items: center;
-    gap: 0.45rem;
-}
-
-.categories-title i {
-    color: var(--primary-dark);
-}
-
-.categories-subtitle {
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: var(--text-secondary);
-}
-
-.categories-scroll {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
-    gap: 0.5rem;
-    overflow-x: hidden;
-    overflow-y: auto;
-    max-height: 220px;
-    padding: 0 0.2rem 0 0;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(148,163,184,0.5) transparent;
-}
-
-@media (max-width: 767px) {
-    .vendor-password-form {
-        grid-template-columns: 1fr;
-    }
-}
-
-.categories-scroll.expanded {
-    max-height: 460px;
-}
-
-.categories-tools {
-    margin-bottom: 0.65rem;
-}
-
-.category-search {
-    position: relative;
-}
-
-.category-search i {
-    position: absolute;
-    left: 0.7rem;
-    top: 50%;
-    transform: translateY(-50%);
-    color: var(--text-secondary);
-    font-size: 0.8rem;
-}
-
-.category-search input {
-    width: 100%;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    background: rgba(255,255,255,0.95);
-    min-height: 40px;
-    padding: 0.5rem 0.65rem 0.5rem 2rem;
-    font-size: 0.82rem;
-    font-weight: 600;
-    color: var(--text-primary);
-    outline: none;
-}
-
-.category-search input:focus {
-    border-color: rgba(16,185,129,0.5);
-    box-shadow: 0 0 0 3px rgba(16,185,129,0.12);
-}
-
-.category-chip {
-    appearance: none;
-    width: 100%;
-    min-height: 44px;
-    border-radius: 12px;
-    border: 1px solid var(--border);
-    background: rgba(255,255,255,0.95);
-    color: var(--text-primary);
-    font-weight: 700;
-    font-size: 0.83rem;
-    padding: 0.6rem 0.72rem;
-    white-space: normal;
-    justify-content: space-between;
-    text-align: left;
-    box-shadow: 0 2px 8px rgba(15,23,42,0.04);
-}
-
-.category-chip:hover {
-    transform: translateY(-1px);
-    border-color: rgba(16,185,129,0.45);
-    color: var(--primary-dark);
-    background: rgba(255,255,255,1);
-}
-
-.category-chip.active {
-    border-color: var(--primary);
-    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-    color: #fff;
-    box-shadow: 0 8px 18px rgba(4,120,87,0.3);
-}
-
-.category-badge {
-    margin-left: auto;
-    background: rgba(16, 185, 129, 0.14);
-}
-
-.category-chip.active .category-badge {
-    background: rgba(255,255,255,0.22);
-}
-
-.category-chip.is-hidden-filter {
-    display: none;
-}
-
-.categories-footer {
-    margin-top: 0.7rem;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.6rem;
-    flex-wrap: wrap;
-}
-
-.categories-meta {
-    font-size: 0.74rem;
-    color: var(--text-secondary);
-    font-weight: 700;
-}
-
-.categories-toggle {
-    appearance: none;
-    border: 1px solid rgba(16,185,129,0.4);
-    background: rgba(16,185,129,0.08);
-    color: var(--primary-dark);
-    border-radius: 999px;
-    min-height: 34px;
-    padding: 0.35rem 0.75rem;
-    font-size: 0.74rem;
-    font-weight: 800;
-    cursor: pointer;
-}
-
-.categories-toggle:hover {
-    background: rgba(16,185,129,0.14);
-}
-
-.action-buttons {
-    gap: 0.75rem;
-}
-
-.btn-action {
-    border-radius: 12px;
-    font-weight: 700;
-    box-shadow: 0 4px 10px rgba(15, 23, 42, 0.06);
-}
-
-.btn-action:hover {
-    transform: translateY(-1px);
-}
-
-@media (max-width: 640px) {
-    .dashboard-wrapper {
-        padding: 0.8rem;
-    }
-
-    .dashboard-header {
-        border-radius: 14px;
-        padding: 1rem;
-    }
-
-    .categories-section {
-        padding: 0.72rem;
-        border-radius: 14px;
-    }
-
-    .categories-scroll {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        max-height: 190px;
-    }
-
-    .category-chip {
-        min-height: 42px;
-        font-size: 0.8rem;
-        padding: 0.52rem 0.62rem;
-    }
-
-    .stats-grid {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 0.55rem;
-    }
-
-    .stat-card {
-        padding: 0.8rem 0.55rem;
-        border-radius: 10px;
-    }
-
-    .stat-value {
-        font-size: 1.45rem;
-    }
-
-    .stat-label {
-        font-size: 0.66rem;
-        letter-spacing: 0.02em;
-        line-height: 1.2;
-    }
-}
-
-/* Dark mode improvements */
-@media (prefers-color-scheme: dark) {
-    body {
-        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-    }
-}
-</style>
+{{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/vendor_dashboard.css', v=app_static_version) }}">
 {% endblock %}
 
 {% block content %}
@@ -1470,104 +13,176 @@ body {
             <div id="vendorDashboardConfig"
                  data-dashboard-url="{{ url_for('vendor.dashboard') }}"
                  data-search-url="{{ url_for('vendor.products_search') }}"
-                 data-stats-url="{{ url_for('vendor.stats_live') }}">
+                 data-stats-url="{{ url_for('vendor.stats_live') }}"
+                 data-orders-live-url="{{ url_for('vendor.dashboard_orders_live') }}"
+                 data-orders-poll-ms="20000"
+                 data-orders-per-page="{{ recent_orders_pagination.per_page if recent_orders_pagination is defined else 8 }}"
+                 data-bookings-per-page="{{ today_bookings_pagination.per_page if today_bookings_pagination is defined else 8 }}"
+                 data-vendor-id="{{ current_user.id }}">
             </div>
             <!-- Header -->
             <div class="dashboard-header">
-                <h1 class="header-title">
-                    <div class="title-icon">
-                        <i class="fas fa-sun"></i>
-                    </div>
-                    <span>Bienvenue sur votre espace vendeur</span>
-                </h1>
-
-                <div class="vendor-notif-bar" aria-label="Notifications vendeur">
-                    <div class="notif-chip pending" id="pendingPill" title="Commandes en attente" aria-live="polite">
-                        <i class="fas fa-bell"></i>
-                        <span>Nouvelles commandes</span>
-                        <span class="notif-count" id="pendingCount">0</span>
-                    </div>
-                    {% if allows_products %}
-                    <div class="notif-chip to-confirm is-hidden" id="toConfirmPill" title="Encaissements  confirmer" aria-live="polite">
-                        <i class="fas fa-exclamation-triangle"></i>
-                        <span>&#9888;</span>
-                        <span><span class="notif-count" id="toConfirmCount">0</span> commandes  confirmer</span>
-                    </div>
-                    {% endif %}
-                </div>
-
-                {% if shop %}
-                <div class="shop-status-bar">
-                    <div class="shop-status-left">
-                        <span class="status-pill {{ 'open' if shop_is_open else 'closed' }}">
-                            {% if shop_is_open %}
-                              <i class="fas fa-door-open"></i> OUVERT
-                            {% else %}
-                              <i class="fas fa-door-closed"></i> fermer
+                <div class="dashboard-welcome">
+                    <div class="dashboard-welcome-main">
+                        <h1 class="header-title">
+                            <span class="title-icon {% if shop and shop.logo %}with-logo{% endif %}" aria-hidden="true">
+                                {% if shop and shop.logo %}
+                                <img src="{{ url_for('static', filename='uploads/' + shop.logo) }}"
+                                     alt="Logo {{ shop.name if shop and shop.name else 'boutique' }}"
+                                     loading="lazy"
+                                     decoding="async">
+                                {% else %}
+                                <i class="fas fa-sun"></i>
+                                {% endif %}
+                            </span>
+                            <span class="welcome-title-full">Espace vendeur</span>
+                            <span class="welcome-title-short">Espace vendeur</span>
+                        </h1>
+                        <p class="dashboard-welcome-copy">Retrouvez ici l'essentiel pour gérer votre activité facilement.</p>
+                        <div class="dashboard-welcome-meta">
+                            <span class="welcome-pill"><i class="fas fa-shield-alt"></i> Espace protege</span>
+                            {% if allows_products %}
+                            <span class="welcome-pill period-pill {{ 'period-pill-open' if open_period else 'period-pill-closed' }}">
+                                <i class="fas fa-calendar-alt"></i>
+                                {% if open_period %}
+                                Periode ouverte : {{ open_period.name }}
+                                {% else %}
+                                Aucune periode ouverte
+                                {% endif %}
+                            </span>
+                            {% if not open_period %}
+                            <a href="{{ url_for('vendor.periods') }}" class="welcome-pill period-pill period-pill-action">
+                                <i class="fas fa-plus-circle"></i>
+                                Creer une periode
+                            </a>
                             {% endif %}
-                        </span>
-                        <span class="status-sub">Mode repos / vacances</span>
-                    </div>
-                    <div class="status-actions">
-                        <form method="post" action="{{ url_for('vendor.set_shop_open_state') }}">
-                            {% include "partials/_csrf.html" %}
-                            {% if shop_is_open %}
-                              <input type="hidden" name="state" value="closed">
-                              <button type="submit" class="status-btn closed" data-coach="vendor_open_closed" data-coach-priority="6" data-coach-text="Astuce : utilisez ce bouton pour fermer temporairement la boutique (repos/vacances), sans dsactiver votre compte.">
-                                  Je suis fermer
-                              </button>
-                            {% else %}
-                              <input type="hidden" name="state" value="open">
-                              <button type="submit" class="status-btn open" data-coach="vendor_open_closed" data-coach-priority="6" data-coach-text="Astuce : utilisez ce bouton pour rouvrir la boutique quand vous tes disponible.">
-                                  Je suis ouvert
-                              </button>
                             {% endif %}
-                        </form>
-                    </div>
-                </div>
-                {% endif %}
-
-                {% if password_change_window_active %}
-                <div class="vendor-password-card">
-                    <div class="vendor-password-title">
-                        <i class="fas fa-key"></i>
-                        <span>Securite compte: changer votre mot de passe</span>
-                    </div>
-                    <form method="post" action="{{ url_for('vendor.change_password') }}" class="vendor-password-form">
-                        {% include "partials/_csrf.html" %}
-                        <input class="vendor-password-input" type="password" name="current_password" placeholder="Mot de passe actuel" required>
-                        <input class="vendor-password-input" type="password" name="new_password" placeholder="Nouveau mot de passe (8+)" required>
-                        <div class="d-grid gap-2">
-                            <input class="vendor-password-input" type="password" name="confirm_password" placeholder="Confirmer nouveau mot de passe" required>
-                            <button type="submit" class="vendor-password-submit">Mettre a jour</button>
                         </div>
-                    </form>
-                    {% if password_change_allowed_until %}
-                    <div class="vendor-password-meta">
-                        Disponible jusqu'au {{ password_change_allowed_until.strftime('%d/%m/%Y %H:%M') }}.
                     </div>
-                    {% endif %}
+                    <div class="dashboard-welcome-orb" aria-hidden="true">
+                        <i class="fas fa-rocket"></i>
+                    </div>
+                </div>
+
+                {% if featured_shop_notice %}
+                <div class="alert-card info" style="margin-bottom: 1rem;">
+                    <div class="alert-title">
+                        <i class="fas fa-star"></i>
+                        <span>Boutique mise en avant</span>
+                    </div>
+                    <div class="alert-meta">
+                        Votre boutique est mise en avant jusqu'au {{ featured_shop_notice.ends_at.strftime('%d/%m/%Y %H:%M') }}.
+                    </div>
                 </div>
                 {% endif %}
 
-                <!-- Recherche -->
-                <div class="search-wrapper">
-                    <i class="fas fa-search search-icon"></i>
-                    <input type="text" 
-                       id="searchInput" 
-                       class="search-input" 
-                       placeholder="{{ catalog_placeholder }}"
-                       autocomplete="off">
-                <div class="search-clear" id="searchClear">
-                    <i class="fas fa-times"></i>
+                <div class="dashboard-header-layout">
+                    <div class="dashboard-header-main">
+                        {% if allows_products %}
+                        <div class="vendor-notif-bar" aria-label="Notifications vendeur">
+                            <div class="notif-chip pending" id="pendingPill" title="Nouvelles commandes ({{ recent_orders_window_hours }}h)" aria-live="polite">
+                                <i class="fas fa-bell"></i>
+                                <span>Nouvelles commandes ({{ recent_orders_window_hours }}h)</span>
+                                <span class="notif-count" id="pendingCount">{{ recent_orders_count }}</span>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        {% if allows_products %}
+                        <div class="today-list" id="recentOrdersList" data-empty-text="Aucune nouvelle commande sur les {{ recent_orders_window_hours }} dernieres heures.">
+                            {% if recent_orders %}
+                                {% for o in recent_orders %}
+                                <div class="today-row">
+                                    <div>
+                                        <div class="today-row-top">
+                                            <div>
+                                                <div class="today-row-title">Commande #{{ o.order_id }}</div>
+                                                <div class="today-row-sub">
+                                                    {{ o.items_qty }} article(s)  {{ "%.2f"|format(o.amount_mad) }} MAD
+                                                    {% if o.created_label %}  {{ o.created_label }}{% endif %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="today-row-actions">
+                                        <a class="today-outline" href="{{ o.details_url }}">
+                                            <i class="fas fa-receipt"></i> Details
+                                        </a>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="today-empty">Aucune nouvelle commande sur les {{ recent_orders_window_hours }} dernieres heures.</div>
+                            {% endif %}
+                        </div>
+                        <div class="today-pager" id="recentOrdersPager" data-page="{{ recent_orders_pagination.page }}" data-pages="{{ recent_orders_pagination.pages }}">
+                            <button type="button" class="today-pager-btn" data-pager="recent" data-direction="prev">Precedent</button>
+                            <span class="today-pager-status">Page {{ recent_orders_pagination.page }} / {{ recent_orders_pagination.pages }}</span>
+                            <button type="button" class="today-pager-btn" data-pager="recent" data-direction="next">Suivant</button>
+                        </div>
+                        {% endif %}
+
+                        {% if shop %}
+                        <div class="shop-status-bar" id="dashboardShopStatusBar">
+                            <div class="shop-status-left">
+                                <span class="status-pill {{ 'open' if shop_is_open else 'closed' }}">
+                                    {% if shop_is_open %}
+                                      <i class="fas fa-door-open"></i> OUVERT
+                                    {% else %}
+                                      <i class="fas fa-door-closed"></i> FERME
+                                    {% endif %}
+                                </span>
+                                <span class="status-sub">Mode repos / vacances</span>
+                            </div>
+                            <div class="status-actions">
+                                <form method="post"
+                                      action="{{ url_for('vendor.set_shop_open_state') }}"
+                                      data-ajax="true"
+                                      data-action="set-shop-open"
+                                      data-refresh-target="#dashboardShopStatusBar">
+                                    {% include "partials/_csrf.html" %}
+                                    {% if shop_is_open %}
+                                      <input type="hidden" name="state" value="closed">
+                                      <button type="submit" class="status-btn closed" data-coach="vendor_open_closed" data-coach-priority="6" data-coach-text="Astuce : utilisez ce bouton pour fermer temporairement la boutique (repos/vacances), sans desactiver votre compte.">
+                                          Mettre la boutique en pause
+                                      </button>
+                                    {% else %}
+                                      <input type="hidden" name="state" value="open">
+                                      <button type="submit" class="status-btn open" data-coach="vendor_open_closed" data-coach-priority="6" data-coach-text="Astuce : utilisez ce bouton pour rouvrir la boutique quand vous etes disponible.">
+                                          Reouvrir la boutique
+                                      </button>
+                                    {% endif %}
+                                </form>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        {% if password_change_window_active %}
+                        <div class="vendor-password-card">
+                            <div class="vendor-password-title">
+                                <i class="fas fa-key"></i>
+                                <span>Securite compte: changer votre mot de passe</span>
+                            </div>
+                            <form method="post" action="{{ url_for('vendor.change_password') }}" class="vendor-password-form">
+                                {% include "partials/_csrf.html" %}
+                                <input class="vendor-password-input" type="password" name="current_password" placeholder="Mot de passe actuel" required>
+                                <input class="vendor-password-input" type="password" name="new_password" placeholder="Nouveau mot de passe (8+)" required>
+                                <div class="d-grid gap-2">
+                                    <input class="vendor-password-input" type="password" name="confirm_password" placeholder="Confirmer nouveau mot de passe" required>
+                                    <button type="submit" class="vendor-password-submit">Mettre a jour</button>
+                                </div>
+                            </form>
+                            {% if password_change_allowed_until %}
+                            <div class="vendor-password-meta">
+                                Disponible jusqu'au {{ password_change_allowed_until.strftime('%d/%m/%Y %H:%M') }}.
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+
                 </div>
             </div>
-
-            <div class="search-stats">
-                <span><i class="fas fa-box"></i> <strong id="productCount">{{ products|length }}</strong> {{ 'services' if allows_services and not allows_products else 'produits' }}</span>
-                <span><i class="fas fa-bolt"></i> Temps reel</span>
-            </div>
-        </div>
 
         <!-- Aujourd'hui -->
         <div class="today-section">
@@ -1590,7 +205,7 @@ body {
                             </div>
                             <div>
                                 <div class="today-label">A preparer</div>
-                                <div class="today-value">{{ today_prepare_count }}</div>
+                                <div class="today-value" id="todayPrepareCount">{{ today_prepare_count }}</div>
                             </div>
                         </div>
                         <div class="today-actions">
@@ -1610,8 +225,8 @@ body {
                                 <i class="fas fa-calendar-check"></i>
                             </div>
                             <div>
-                                <div class="today-label">RDV du jour</div>
-                                <div class="today-value">{{ today_bookings_count }}</div>
+                                <div class="today-label">Rendez-vous du jour</div>
+                                <div class="today-value" id="todayBookingsCount">{{ today_bookings_count }}</div>
                             </div>
                         </div>
                         <div class="today-actions">
@@ -1644,24 +259,24 @@ body {
                 </div>
                 {% endif %}
             </div>
-                    {% if allows_products %}
-            <div class="today-list" id="todayPrepareList">
+            {% if allows_products %}
+            <div class="today-list" id="todayPrepareList" data-empty-text="Aucune commande a preparer aujourd'hui.">
                 {% if today_prepare %}
-                    {% for o in today_prepare[:8] %}
+                    {% for o in today_prepare %}
                     <div class="today-row">
                         <div>
                             <div class="today-row-top">
                                 <div>
                                     <div class="today-row-title">Commande #{{ o.order_id }}</div>
                                     <div class="today-row-sub">
-                                        {{ o.items_qty }} article(s)  {{ (o.amount_cents / 100)|round(2) }} MAD
-                                        {% if o.created_at %}  {{ o.created_at.strftime("%H:%M") }}{% endif %}
+                                        {{ o.items_qty }} article(s)  {{ "%.2f"|format(o.amount_mad) }} MAD
+                                        {% if o.created_label %}  {{ o.created_label }}{% endif %}
                                     </div>
                                 </div>
                             </div>
                         </div>
                         <div class="today-row-actions">
-                            <a class="today-outline" href="{{ url_for('vendor.order_detail', oid=o.order_id) }}">
+                            <a class="today-outline" href="{{ o.details_url }}">
                                 <i class="fas fa-receipt"></i> Details
                             </a>
                         </div>
@@ -1671,19 +286,24 @@ body {
                     <div class="today-empty">Aucune commande a preparer aujourd'hui.</div>
                 {% endif %}
             </div>
+            <div class="today-pager" id="todayPreparePager" data-page="{{ today_prepare_pagination.page }}" data-pages="{{ today_prepare_pagination.pages }}">
+                <button type="button" class="today-pager-btn" data-pager="prepare" data-direction="prev">Precedent</button>
+                <span class="today-pager-status">Page {{ today_prepare_pagination.page }} / {{ today_prepare_pagination.pages }}</span>
+                <button type="button" class="today-pager-btn" data-pager="prepare" data-direction="next">Suivant</button>
+            </div>
             {% endif %}
 
             {% if allows_services %}
-            <div class="today-list" id="todayBookingsList">
+            <div class="today-list" id="todayBookingsList" data-empty-text="Aucun rendez-vous planifie aujourd'hui.">
                 {% if today_bookings %}
-                    {% for b in today_bookings[:8] %}
+                    {% for b in today_bookings %}
                     <div class="today-row">
                         <div>
                             <div class="today-row-top">
                                 <div>
                                     <div class="today-row-title">
-                                        {% if b.scheduled_for %}{{ b.scheduled_for.strftime("%H:%M") }}  {% endif %}
-                                        {{ b.product.name if b.product else "Service" }}
+                                        {% if b.scheduled_label %}{{ b.scheduled_label }}  {% endif %}
+                                        {{ b.product_name if b.product_name else "Service" }}
                                     </div>
                                     <div class="today-row-sub">
                                         {{ b.full_name }}  {{ b.phone }}
@@ -1692,7 +312,7 @@ body {
                             </div>
                         </div>
                         <div class="today-row-actions">
-                            <a class="today-outline" href="tel:{{ b.phone }}">
+                            <a class="today-outline" href="{{ b.call_url if b.call_url else '#' }}">
                                 <i class="fas fa-phone"></i> Appeler
                             </a>
                         </div>
@@ -1702,45 +322,16 @@ body {
                     <div class="today-empty">Aucun rendez-vous planifie aujourd'hui.</div>
                 {% endif %}
             </div>
+            <div class="today-pager" id="todayBookingsPager" data-page="{{ today_bookings_pagination.page }}" data-pages="{{ today_bookings_pagination.pages }}" {% if today_bookings_pagination.pages <= 1 %}hidden{% endif %}>
+                <button type="button" class="today-pager-btn" data-pager="bookings" data-direction="prev" {% if not today_bookings_pagination.has_prev %}disabled{% endif %}>Precedent</button>
+                <span class="today-pager-status">Page {{ today_bookings_pagination.page }} / {{ today_bookings_pagination.pages }}</span>
+                <button type="button" class="today-pager-btn" data-pager="bookings" data-direction="next" {% if not today_bookings_pagination.has_next %}disabled{% endif %}>Suivant</button>
+            </div>
             {% endif %}
         </div>
 
-        {% if allows_catalog %}
-        <!-- Filtres categories -->
-        <div class="categories-section">
-            <div class="categories-head">
-                <div class="categories-title">
-                    <i class="fas fa-layer-group"></i>
-                    <span>Categories</span>
-                </div>
-                <div class="categories-subtitle">Filtre rapide par type de produit</div>
-            </div>
-            <div class="categories-tools">
-                <label class="category-search" for="categorySearchInput">
-                    <i class="fas fa-search"></i>
-                    <input id="categorySearchInput" type="text" inputmode="search" autocomplete="off" placeholder="Rechercher une categorie...">
-                </label>
-            </div>
-            <div class="categories-scroll" id="categoriesFilter">
-                <button type="button" class="category-chip active" data-category="all">
-                    <i class="fas fa-th-large"></i>
-                    <span>Tous</span>
-                    <span class="category-badge">{{ total_products }}</span>
-                </button>
-            </div>
-            <div class="categories-footer">
-                <span class="categories-meta" id="categoriesMeta">1 visible</span>
-                <button type="button" class="categories-toggle" id="categoriesToggleBtn">Voir plus</button>
-            </div>
-        </div>
-        {% endif %}
-
         <!-- Stats -->
         <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-value">{{ total_products }}</div>
-                <div class="stat-label">{{ catalog_title }}</div>
-            </div>
                     {% if allows_products %}
             <div class="stat-card">
                 <div class="stat-value" id="statOrders">{{ total_orders }}</div>
@@ -1754,7 +345,7 @@ body {
             {% elif allows_services %}
             <div class="stat-card">
                 <div class="stat-value">{{ today_bookings_count }}</div>
-                <div class="stat-label">RDV du jour</div>
+                <div class="stat-label">Rendez-vous du jour</div>
             </div>
             {% endif %}
 
@@ -1817,14 +408,14 @@ body {
             {% endif %}
 
             {% if allows_products %}
-            <a href="{{ url_for('vendor.earnings') }}" class="btn-action">
+            <a href="{{ url_for('vendor.earnings') }}" class="btn-action" data-prefetch-critical="vendor-earnings">
                 <i class="fas fa-shopping-cart"></i>
                 <span>Encaissements</span>
             </a>
             {% endif %}
 
             {% if shop %}
-            <a href="{{ url_for('vendor.manage_shop') }}" class="btn-action">
+            <a href="{{ url_for('vendor.manage_shop') }}" class="btn-action" data-prefetch-critical="vendor-manage-shop">
                 <i class="fas fa-store"></i>
                 <span>Ma boutique</span>
             </a>
@@ -1842,12 +433,20 @@ body {
         </div>
 
         {% if allows_catalog %}
-        <div class="products-section-title">
-            <span>{{ catalog_title }}</span>
-        </div>
-
-        <div id="productsContainer">
-            {% include "vendor/partials/_product_grid.html" %}
+        <div id="productsContainer" data-preview-bound="1" class="alert-card info" style="margin-top: 1rem;">
+            <div class="alert-title">
+                <i class="fas fa-layer-group"></i>
+                Catalogue complet
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+                <a href="{{ url_for('vendor.catalog') }}" class="btn-action" style="display: inline-flex; width: auto; min-width: 220px;">
+                    <i class="fas fa-layer-group"></i>
+                    <span>Voir tous les {{ 'elements' if allows_products and allows_services else ('services' if allows_services and not allows_products else 'produits') }}</span>
+                </a>
+                <span class="welcome-pill" style="background: rgba(16, 185, 129, 0.08); color: #065f46;">
+                    <i class="fas fa-box"></i> {{ total_products }} {{ 'elements' if allows_products and allows_services else ('services' if allows_services and not allows_products else 'produits') }}
+                </span>
+            </div>
         </div>
         {% endif %}
     </div>
@@ -1867,428 +466,30 @@ body {
         <div class="stock-toast-text" id="stockToastText"></div>
     </div>
 </div>
+{% endif %}
+
+{% if show_stock_alerts or allows_services %}
+<div class="stock-toast order-toast" id="orderToast">
+    <i class="fas fa-bell"></i>
+    <div class="stock-toast-content">
+        <div class="stock-toast-title" id="orderToastTitle">Nouvelle commande</div>
+        <div class="stock-toast-text" id="orderToastText"></div>
+    </div>
+</div>
 
 <!-- Sound toggle button -->
-<button type="button" class="sound-toggle" id="soundToggle" title="Activer/Dsactiver le son">
+<button type="button" class="sound-toggle" id="soundToggle" title="Activer/desactiver le son">
     <i class="fas fa-volume-up"></i>
 </button>
 {% endif %}
 {% endblock %}
 
 {% block scripts %}
-<script>
-(function() {
-    'use strict';
-
-    const cfgNode = document.getElementById('vendorDashboardConfig');
-    const cfg = {
-        dashboardUrl: (cfgNode && cfgNode.dataset.dashboardUrl) || '/vendor/dashboard',
-        searchUrl: (cfgNode && cfgNode.dataset.searchUrl) || '/vendor/products/search',
-        statsUrl: (cfgNode && cfgNode.dataset.statsUrl) || '/vendor/stats/live',
-        searchDelayMs: 280,
-        refreshStatsMs: 30000,
-        refreshStockMs: 60000
-    };
-
-    const searchInput = document.getElementById('searchInput');
-    const searchClear = document.getElementById('searchClear');
-    const productsContainer = document.getElementById('productsContainer');
-    const productCount = document.getElementById('productCount');
-    const categoriesFilter = document.getElementById('categoriesFilter');
-    const categorySearchInput = document.getElementById('categorySearchInput');
-    const categoriesMeta = document.getElementById('categoriesMeta');
-    const categoriesToggleBtn = document.getElementById('categoriesToggleBtn');
-    const loadingOverlay = document.getElementById('loadingOverlay');
-    const stockToast = document.getElementById('stockToast');
-    const stockToastText = document.getElementById('stockToastText');
-    const soundToggle = document.getElementById('soundToggle');
-
-    if (!productsContainer && !categoriesFilter) {
-        return;
-    }
-
-    let searchTimeout = null;
-    let currentCategory = 'all';
-    let searchRequestSeq = 0;
-    let searchAbortController = null;
-    let soundEnabled = localStorage.getItem('vendorStockSound') !== '0';
-    let lastLowStockProducts = new Set();
-    let audioCtx = null;
-    let audioArmed = false;
-    let categoriesExpanded = false;
-
-    function setLoading(active) {
-        if (!loadingOverlay) return;
-        loadingOverlay.classList.toggle('active', !!active);
-    }
-
-    function armAudioOnce() {
-        if (audioArmed) return;
-        try {
-            const AudioCtx = window.AudioContext || window.webkitAudioContext;
-            if (!AudioCtx) return;
-            audioCtx = new AudioCtx();
-            if (audioCtx.state === 'suspended') {
-                audioCtx.resume().catch(function() {});
-            }
-            audioArmed = true;
-        } catch (e) {
-            audioArmed = false;
-        }
-    }
-
-    ['pointerdown', 'touchstart', 'keydown'].forEach(function(evt) {
-        window.addEventListener(evt, armAudioOnce, { once: true, passive: true });
-    });
-
-    function updateSoundToggle() {
-        if (!soundToggle) return;
-        soundToggle.innerHTML = soundEnabled
-            ? '<i class="fas fa-volume-up"></i>'
-            : '<i class="fas fa-volume-mute"></i>';
-        soundToggle.classList.toggle('muted', !soundEnabled);
-        soundToggle.title = soundEnabled ? 'Desactiver le son' : 'Activer le son';
-    }
-
-    function playStockAlert() {
-        if (!soundEnabled || !audioArmed || !audioCtx) return;
-        try {
-            const now = audioCtx.currentTime;
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.type = 'sine';
-            osc.frequency.value = 880;
-            gain.gain.value = 0.0001;
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            osc.start(now);
-            gain.gain.exponentialRampToValueAtTime(0.16, now + 0.05);
-            gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.24);
-            osc.stop(now + 0.26);
-        } catch (e) {}
-    }
-
-    function showStockToast(message) {
-        if (!stockToast || !stockToastText) return;
-        stockToastText.textContent = message;
-        stockToast.classList.add('show');
-        playStockAlert();
-        window.setTimeout(function() {
-            stockToast.classList.remove('show');
-        }, 3800);
-    }
-
-    function checkLowStock() {
-        const lowStockCards = document.querySelectorAll('.status-low-stock, .status-out-stock');
-        const currentLowStock = new Set();
-        lowStockCards.forEach(function(card) {
-            const productCard = card.closest('.product-card');
-            if (!productCard) return;
-            const productId = String(productCard.dataset.productId || '');
-            if (!productId) return;
-            currentLowStock.add(productId);
-
-            if (!lastLowStockProducts.has(productId)) {
-                const titleEl = productCard.querySelector('.product-title');
-                const stockEl = productCard.querySelector('.stock-number');
-                const productName = titleEl ? titleEl.textContent.trim() : 'Produit';
-                const stockNumber = stockEl ? stockEl.textContent.trim() : '';
-                if (stockNumber) {
-                    showStockToast(productName + ' - Stock: ' + stockNumber);
-                }
-            }
-        });
-        lastLowStockProducts = currentLowStock;
-    }
-
-    function selectCategory(categoryId, chip) {
-        document.querySelectorAll('#categoriesFilter .category-chip').forEach(function(c) {
-            c.classList.remove('active');
-        });
-        if (chip) chip.classList.add('active');
-        currentCategory = String(categoryId || 'all');
-        performSearch();
-    }
-
-    function bindCategoryChip(chip) {
-        if (!chip || chip.dataset.bound === '1') return;
-        chip.dataset.bound = '1';
-        chip.addEventListener('click', function() {
-            selectCategory(chip.dataset.category, chip);
-        });
-    }
-
-    function getCategoryChips() {
-        if (!categoriesFilter) return [];
-        return Array.prototype.slice.call(categoriesFilter.querySelectorAll('.category-chip'));
-    }
-
-    function getFilterableCategoryChips() {
-        return getCategoryChips().filter(function(chip) {
-            return String(chip.dataset.category || '') !== 'all';
-        });
-    }
-
-    function refreshCategoriesMeta() {
-        const total = getFilterableCategoryChips().length;
-        const visible = getFilterableCategoryChips().filter(function(chip) {
-            return !chip.classList.contains('is-hidden-filter');
-        }).length;
-
-        if (categoriesMeta) {
-            categoriesMeta.textContent = visible + ' visibles / ' + total + ' categories';
-        }
-
-        if (categoriesToggleBtn) {
-            const showToggle = total > 10;
-            categoriesToggleBtn.style.display = showToggle ? 'inline-flex' : 'none';
-            categoriesToggleBtn.textContent = categoriesExpanded ? 'Voir moins' : 'Voir plus';
-            categoriesToggleBtn.setAttribute('aria-expanded', categoriesExpanded ? 'true' : 'false');
-        }
-    }
-
-    function applyCategoryTextFilter() {
-        const term = (categorySearchInput ? categorySearchInput.value : '').trim().toLowerCase();
-        getFilterableCategoryChips().forEach(function(chip) {
-            const label = (chip.textContent || '').toLowerCase();
-            const matches = !term || label.indexOf(term) !== -1;
-            chip.classList.toggle('is-hidden-filter', !matches);
-        });
-        refreshCategoriesMeta();
-    }
-
-    function loadCategories() {
-        if (!categoriesFilter) return;
-
-        const url = new URL(cfg.dashboardUrl, window.location.origin);
-        url.searchParams.set('get_categories', '1');
-        url.searchParams.set('_', String(Date.now()));
-
-        fetch(url.toString(), {
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest',
-                'Accept': 'application/json'
-            },
-            cache: 'no-store',
-            credentials: 'same-origin'
-        })
-            .then(function(response) {
-                if (!response.ok) throw new Error('Bad status');
-                const contentType = (response.headers.get('content-type') || '').toLowerCase();
-                if (!contentType.includes('application/json')) throw new Error('Not json');
-                return response.json();
-            })
-            .then(function(data) {
-                const categories = data && Array.isArray(data.categories) ? data.categories : [];
-                if (!categories.length) return;
-
-                categoriesFilter
-                    .querySelectorAll('.category-chip:not([data-category="all"])')
-                    .forEach(function(chip) { chip.remove(); });
-
-                categories.forEach(function(cat) {
-                    const chip = document.createElement('button');
-                    chip.type = 'button';
-                    chip.className = 'category-chip';
-                    chip.dataset.category = String(cat.id);
-                    const icon = document.createElement('i');
-                    icon.className = 'fas fa-tag';
-                    const label = document.createElement('span');
-                    label.textContent = String(cat.name || '');
-                    const badge = document.createElement('span');
-                    badge.className = 'category-badge';
-                    badge.textContent = String(cat.count || 0);
-                    chip.appendChild(icon);
-                    chip.appendChild(label);
-                    chip.appendChild(badge);
-                    categoriesFilter.appendChild(chip);
-                    bindCategoryChip(chip);
-                });
-                applyCategoryTextFilter();
-            })
-            .catch(function() {});
-    }
-
-    function attachDeleteConfirmEvents() {
-        document.querySelectorAll('form[data-confirm]').forEach(function(form) {
-            if (form.dataset.bound === '1') return;
-            form.dataset.bound = '1';
-            form.addEventListener('submit', function(e) {
-                if (!window.confirm(form.dataset.confirm || 'Confirmer ?')) {
-                    e.preventDefault();
-                }
-            });
-        });
-    }
-
-    function updateProductCount() {
-        if (!productsContainer || !productCount) return;
-        const count = productsContainer.querySelectorAll('.product-card').length;
-        productCount.textContent = String(count);
-    }
-
-    function performSearch() {
-        if (!productsContainer) return;
-        const searchTerm = searchInput ? searchInput.value.trim() : '';
-
-        if (searchClear) {
-            searchClear.classList.toggle('visible', searchTerm.length > 0);
-        }
-
-        setLoading(true);
-        const requestId = ++searchRequestSeq;
-        if (searchAbortController) {
-            searchAbortController.abort();
-        }
-        searchAbortController = new AbortController();
-
-        const params = new URLSearchParams();
-        if (searchTerm) params.append('q', searchTerm);
-        if (currentCategory !== 'all') params.append('category', currentCategory);
-        const requestUrl = params.toString()
-            ? (cfg.searchUrl + '?' + params.toString())
-            : cfg.searchUrl;
-
-        fetch(requestUrl, {
-            headers: { 'X-Requested-With': 'XMLHttpRequest' },
-            cache: 'no-store',
-            credentials: 'same-origin',
-            signal: searchAbortController.signal
-        })
-            .then(function(response) {
-                if (!response.ok) throw new Error('Search failed');
-                return response.text();
-            })
-            .then(function(html) {
-                if (requestId !== searchRequestSeq) return;
-                productsContainer.style.opacity = '0.35';
-                window.requestAnimationFrame(function() {
-                    productsContainer.innerHTML = html;
-                    productsContainer.style.opacity = '1';
-                    updateProductCount();
-                    attachDeleteConfirmEvents();
-                    checkLowStock();
-                });
-            })
-            .catch(function(err) {
-                if (err && err.name === 'AbortError') return;
-                if (requestId !== searchRequestSeq) return;
-                productsContainer.innerHTML =
-                    '<div class="empty-state">' +
-                    '<div class="empty-icon"><i class="fas fa-exclamation-triangle"></i></div>' +
-                    '<h2 class="empty-title">Erreur</h2>' +
-                    '<p class="empty-text">Impossible de charger les produits.</p>' +
-                    '</div>';
-            })
-            .finally(function() {
-                if (requestId === searchRequestSeq) {
-                    setLoading(false);
-                }
-            });
-    }
-
-    function refreshStats() {
-        fetch(cfg.statsUrl, {
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest',
-                'Accept': 'application/json'
-            },
-            cache: 'no-store',
-            credentials: 'same-origin'
-        })
-            .then(function(response) {
-                if (!response.ok) return null;
-                const contentType = (response.headers.get('content-type') || '').toLowerCase();
-                if (!contentType.includes('application/json')) return null;
-                return response.json();
-            })
-            .then(function(data) {
-                if (!data || !data.success) return;
-                const ordersEl = document.getElementById('statOrders');
-                const revenueEl = document.getElementById('statRevenue');
-                if (ordersEl && data.total_orders !== undefined) {
-                    ordersEl.textContent = String(data.total_orders);
-                }
-                if (revenueEl && data.total_revenue !== undefined) {
-                    revenueEl.textContent = String(data.total_revenue);
-                }
-            })
-            .catch(function() {});
-    }
-
-    if (soundToggle) {
-        soundToggle.addEventListener('click', function() {
-            armAudioOnce();
-            soundEnabled = !soundEnabled;
-            localStorage.setItem('vendorStockSound', soundEnabled ? '1' : '0');
-            updateSoundToggle();
-            if (soundEnabled) playStockAlert();
-        });
-    }
-    updateSoundToggle();
-
-    if (searchInput) {
-        searchInput.addEventListener('input', function() {
-            clearTimeout(searchTimeout);
-            searchTimeout = window.setTimeout(performSearch, cfg.searchDelayMs);
-        });
-        searchInput.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') {
-                searchInput.value = '';
-                if (searchClear) searchClear.classList.remove('visible');
-                performSearch();
-            }
-        });
-    }
-
-    if (searchClear) {
-        searchClear.addEventListener('click', function() {
-            if (!searchInput) return;
-            searchInput.value = '';
-            searchClear.classList.remove('visible');
-            performSearch();
-            searchInput.focus();
-        });
-    }
-
-    document.addEventListener('keydown', function(e) {
-        if (!searchInput) return;
-        if (e.key !== '/') return;
-        const tag = (document.activeElement && document.activeElement.tagName || '').toLowerCase();
-        if (tag === 'input' || tag === 'textarea') return;
-        if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
-        e.preventDefault();
-        searchInput.focus();
-    });
-
-    if (categorySearchInput) {
-        categorySearchInput.addEventListener('input', function() {
-            applyCategoryTextFilter();
-        });
-    }
-
-    if (categoriesToggleBtn && categoriesFilter) {
-        categoriesToggleBtn.addEventListener('click', function() {
-            categoriesExpanded = !categoriesExpanded;
-            categoriesFilter.classList.toggle('expanded', categoriesExpanded);
-            refreshCategoriesMeta();
-        });
-    }
-
-    if (categoriesFilter) {
-        categoriesFilter.querySelectorAll('.category-chip').forEach(bindCategoryChip);
-        refreshCategoriesMeta();
-    }
-
-    attachDeleteConfirmEvents();
-    checkLowStock();
-    loadCategories();
-    window.setInterval(refreshStats, cfg.refreshStatsMs);
-    window.setInterval(checkLowStock, cfg.refreshStockMs);
-})();
-</script>
-
+{{ super() }}
+<script src="{{ url_for('static', filename='js/pages/vendor/dashboard_page.js', v=app_static_version) }}" defer></script>
 {% endblock %}
+
+
 
 
 

@@ -1,4 +1,4 @@
-{% extends "admin/base.html" %}
+﻿{% extends "admin/base.html" %}
 {% block title %}Paramtres Marketplace | Admin DealNova{% endblock %}
 {% block page_title %}Paramtres Marketplace{% endblock %}
 
@@ -201,6 +201,68 @@
     margin-top: 0.5rem;
   }
 
+  .archives-note {
+    color: #6b7280;
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+  }
+
+  .archives-delete-note {
+    font-size: 0.8rem;
+    color: #92400e;
+    margin-top: 0.25rem;
+  }
+
+  .archives-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .periods-status-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+
+  .periods-status-open {
+    background: #dcfce7;
+    color: #166534;
+  }
+
+  .periods-status-closed {
+    background: #e2e8f0;
+    color: #334155;
+  }
+
+  .periods-hub-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+
+  .periods-hub-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    padding: 0.9rem;
+    background: linear-gradient(180deg, #ffffff, #f8fafc);
+  }
+
+  .periods-hub-card h6 {
+    margin: 0 0 0.35rem;
+    font-weight: 800;
+  }
+
+  .periods-hub-card p {
+    margin: 0 0 0.75rem;
+    color: #64748b;
+    font-size: 0.84rem;
+  }
+
   /* Grille pour les villes */
   .cities-grid {
     display: grid;
@@ -217,6 +279,12 @@
     justify-content: flex-end;
     gap: 1rem;
     flex-wrap: wrap;
+  }
+
+  @media (max-width: 768px) {
+    .periods-hub-grid {
+      grid-template-columns: 1fr;
+    }
   }
 
   .btn-save {
@@ -357,6 +425,14 @@
     <button type="button" class="settings-nav-item" data-section="alerts">
       <i class="bi bi-bell"></i>
       <span>Alertes</span>
+    </button>
+    <button type="button" class="settings-nav-item" data-section="periods">
+      <i class="bi bi-calendar3"></i>
+      <span>{{ 'Periodes' if current_user.role == 'manager' else 'Periodes globales' }}</span>
+    </button>
+    <button type="button" class="settings-nav-item" data-section="archives">
+      <i class="bi bi-archive"></i>
+      <span>Archives commandes</span>
     </button>
   </div>
 
@@ -508,6 +584,272 @@
       </button>
     </div>
   </form>
+
+  <section id="periods-section" class="settings-section hidden">
+    <div class="settings-card">
+      <div class="settings-card-header">
+        <i class="bi bi-calendar3"></i>
+        <h3>{{ 'Periodes' if current_user.role == 'manager' else 'Periodes globales' }}</h3>
+      </div>
+      <div class="settings-card-body">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
+          <div>
+            <h5 class="mb-1">{{ 'Ajouter une periode' if current_user.role == 'manager' else 'Nouvelle periode' }}</h5>
+            <small class="text-muted">{{ 'Une seule periode peut etre ouverte a la fois.' if current_user.role == 'manager' else 'Une seule periode peut etre ouverte a la fois.' }}</small>
+          </div>
+          {% if open_period %}
+            <div class="alert alert-info mb-0 py-2 px-3">
+              {{ 'Periode ouverte en ce moment:' if current_user.role == 'manager' else 'Periode ouverte actuelle:' }}
+              <strong>#{{ open_period.id }} - {{ open_period.name }}</strong>
+            </div>
+          {% endif %}
+        </div>
+
+        <form method="post" action="{{ url_for('admin.order_period_create') }}" class="row g-2 mb-4">
+          {% include "admin/partials/_csrf.html" %}
+          <div class="col-md-6">
+            <label class="form-label mb-1">{{ 'Nom de la periode' if current_user.role == 'manager' else 'Nom de la periode' }}</label>
+            <input type="text" name="name" class="form-control" placeholder="Ex: Semaine 09 - Fevrier 2026">
+          </div>
+          <div class="col-md-2 d-flex align-items-end">
+            <button type="submit" class="btn btn-primary w-100">
+              <i class="bi bi-plus-circle"></i> Creer
+            </button>
+          </div>
+        </form>
+
+        <div class="periods-hub-grid">
+          <div class="periods-hub-card">
+            <h6><i class="bi bi-bag-check"></i> Commandes</h6>
+            <p>{{ 'Voir les commandes de cette periode.' if current_user.role == 'manager' else 'Voir les commandes de la periode ouverte.' }}</p>
+            <a href="{{ url_for('admin.all_orders', period_id=open_period.id if open_period else None) }}" class="btn btn-sm btn-outline-primary">{{ 'Voir les commandes' if current_user.role == 'manager' else 'Ouvrir commandes' }}</a>
+          </div>
+          <div class="periods-hub-card">
+            <h6><i class="bi bi-truck"></i> Livraisons</h6>
+            <p>{{ 'Voir les livraisons de cette periode.' if current_user.role == 'manager' else 'Voir les livraisons de la periode ouverte.' }}</p>
+            <a href="{{ url_for('admin.deliveries', period_id=open_period.id if open_period else None) }}" class="btn btn-sm btn-outline-primary">{{ 'Voir les livraisons' if current_user.role == 'manager' else 'Ouvrir livraisons' }}</a>
+          </div>
+          <div class="periods-hub-card">
+            <h6><i class="bi bi-graph-up-arrow"></i> Finance</h6>
+            <p>{{ 'Voir les paiements de cette periode.' if current_user.role == 'manager' else 'Voir les paiements de la periode ouverte.' }}</p>
+            <a href="{{ url_for('admin.finance', period_id=open_period.id if open_period else None) }}" class="btn btn-sm btn-outline-primary">{{ 'Voir les paiements' if current_user.role == 'manager' else 'Ouvrir finance' }}</a>
+          </div>
+          <div class="periods-hub-card">
+            <h6><i class="bi bi-house-door"></i> Locations</h6>
+            <p>{{ 'Voir les locations de cette periode.' if current_user.role == 'manager' else 'Voir les locations de la periode ouverte.' }}</p>
+            <a href="{{ url_for('rentals.admin_locations', period_id=open_period.id if open_period else None) }}" class="btn btn-sm btn-outline-primary">{{ 'Voir les locations' if current_user.role == 'manager' else 'Ouvrir locations' }}</a>
+          </div>
+        </div>
+
+        {% if periods %}
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Nom</th>
+                  <th>Etat</th>
+                  <th>Ouverte le</th>
+                  <th>Fermee le</th>
+                  <th>Commandes</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for p in periods %}
+                  <tr>
+                    <td>{{ p.id }}</td>
+                    <td>{{ p.name }}</td>
+                    <td>
+                      {% if p.status == 'open' %}
+                        <span class="periods-status-pill periods-status-open">OUVERTE</span>
+                      {% else %}
+                        <span class="periods-status-pill periods-status-closed">FERMEE</span>
+                      {% endif %}
+                    </td>
+                    <td>{{ p.opened_at.strftime('%d/%m/%Y %H:%M') if p.opened_at else '-' }}</td>
+                    <td>{{ p.closed_at.strftime('%d/%m/%Y %H:%M') if p.closed_at else '-' }}</td>
+                    <td>{{ period_counts.get(p.id, 0) }}</td>
+                    <td>
+                      {% if p.status == 'open' %}
+                        <form method="post" action="{{ url_for('admin.order_period_close', period_id=p.id) }}" data-confirm-submit="Fermer cette periode ? Les commandes passeront en archives.">
+                          {% include "admin/partials/_csrf.html" %}
+                          <button type="submit" class="btn btn-sm btn-outline-warning">
+                            <i class="bi bi-lock"></i> Fermer
+                          </button>
+                        </form>
+                      {% else %}
+                        <div class="archives-actions">
+                          <a href="{{ url_for('admin.pricing_settings', section='archives', archive_period_id=p.id) }}" class="btn btn-sm btn-outline-secondary">
+                            <i class="bi bi-eye"></i> Archives
+                          </a>
+                          <a href="{{ url_for('admin.finance', period_id=p.id) }}" class="btn btn-sm btn-outline-secondary">
+                            <i class="bi bi-graph-up-arrow"></i> Finance
+                          </a>
+                        </div>
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="text-center text-muted py-3">Aucune periode pour le moment.</div>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
+  <section id="archives-section" class="settings-section hidden">
+    <div class="settings-card">
+      <div class="settings-card-header">
+        <i class="bi bi-archive"></i>
+        <h3>Archives commandes</h3>
+      </div>
+      <div class="settings-card-body">
+        <p class="archives-note">Les commandes archivees sont maintenant gerees ici. Suppression definitive possible apres {{ retention_days }} jours.</p>
+
+        <form method="get" class="row g-2 align-items-end mb-4">
+          <input type="hidden" name="section" value="archives">
+          <div class="col-md-5">
+            <label class="form-label">Periode archivee</label>
+            <select name="archive_period_id" class="form-select">
+              <option value="">Toutes les archives</option>
+              {% for p in closed_periods %}
+                <option value="{{ p.id }}" {% if archive_period_id == p.id %}selected{% endif %}>
+                  #{{ p.id }} - {{ p.name }} (fermee {{ p.closed_at.strftime('%d/%m/%Y %H:%M') if p.closed_at else 'N/A' }})
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-2">
+            <button class="btn btn-primary w-100" type="submit">Filtrer</button>
+          </div>
+          <div class="col-md-3">
+            <a href="{{ url_for('admin.pricing_settings', section='archives') }}" class="btn btn-outline-secondary w-100">Tout voir</a>
+          </div>
+        </form>
+
+        {% if archive_orders %}
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Client</th>
+                  <th>Total</th>
+                  <th>Statut</th>
+                  <th>Periode</th>
+                  <th>Fermee le</th>
+                  <th>Suppression</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for o in archive_orders %}
+                  {% set guard = archive_delete_guards.get(o.id) %}
+                  {% set archive_next_url = url_for('admin.pricing_settings', section='archives', archive_period_id=archive_period_id or None, archives_page=archives_pagination.page if archives_pagination and archives_pagination.page > 1 else None) %}
+                  <tr>
+                    <td>{{ o.id }}</td>
+                    <td>
+                      <div class="fw-semibold">{{ o.full_name }}</div>
+                      <small class="text-muted">{{ o.phone }}</small>
+                    </td>
+                    <td>{{ "%.2f"|format((o.total or 0) / 100) }} MAD</td>
+                    <td>{{ o.status }}</td>
+                    <td>{{ o.period.name if o.period else 'N/A' }}</td>
+                    <td>{{ o.period.closed_at.strftime('%d/%m/%Y %H:%M') if o.period and o.period.closed_at else 'N/A' }}</td>
+                    <td>
+                      {% if guard and guard.allowed %}
+                        <span class="badge text-bg-success">Possible</span>
+                      {% else %}
+                        <span class="badge text-bg-secondary">Plus tard</span>
+                        {% if guard and guard.message %}
+                          <div class="archives-delete-note">{{ guard.message }}</div>
+                        {% endif %}
+                      {% endif %}
+                    </td>
+                    <td>
+                      <div class="archives-actions">
+                        <a href="{{ url_for('admin.order_detail', oid=o.id, next=archive_next_url) }}" class="btn btn-sm btn-outline-primary">
+                          <i class="bi bi-eye"></i>
+                        </a>
+                        {% if o.period_id %}
+                          <a href="{{ url_for('admin.all_orders', period_id=o.period_id) }}" class="btn btn-sm btn-outline-secondary" title="Voir la periode en consultation">
+                            <i class="bi bi-calendar-range"></i> Ouvrir
+                          </a>
+                        {% endif %}
+                        <form method="post" action="{{ url_for('admin.delete_archived_order', oid=o.id) }}">
+                          {% include "admin/partials/_csrf.html" %}
+                          <input type="hidden" name="next" value="{{ archive_next_url }}">
+                          <button
+                            type="submit"
+                            class="btn btn-sm btn-outline-danger"
+                            {% if not (guard and guard.allowed) %}disabled title="{{ guard.message if guard else 'Suppression refusee' }}"{% endif %}
+                            data-confirm-click="Supprimer definitivement la commande #{{ o.id }} ?"
+                          >
+                            <i class="bi bi-trash3"></i>
+                          </button>
+                        </form>
+                      </div>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+
+          {% if archives_pagination and archives_pagination.pages > 1 %}
+            <div class="mt-3">
+              <nav aria-label="Archives navigation">
+                <ul class="pagination justify-content-center">
+                  {% if archives_pagination.has_prev %}
+                    <li class="page-item">
+                      <a class="page-link" href="{{ url_for('admin.pricing_settings', section='archives', archive_period_id=archive_period_id or None, archives_page=archives_pagination.prev_num) }}">
+                        <i class="bi bi-chevron-left"></i>
+                      </a>
+                    </li>
+                  {% else %}
+                    <li class="page-item disabled">
+                      <span class="page-link"><i class="bi bi-chevron-left"></i></span>
+                    </li>
+                  {% endif %}
+
+                  {% for page_num in archives_pagination.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=1) %}
+                    {% if page_num %}
+                      <li class="page-item {% if page_num == archives_pagination.page %}active{% endif %}">
+                        <a class="page-link" href="{{ url_for('admin.pricing_settings', section='archives', archive_period_id=archive_period_id or None, archives_page=page_num) }}">{{ page_num }}</a>
+                      </li>
+                    {% else %}
+                      <li class="page-item disabled"><span class="page-link">...</span></li>
+                    {% endif %}
+                  {% endfor %}
+
+                  {% if archives_pagination.has_next %}
+                    <li class="page-item">
+                      <a class="page-link" href="{{ url_for('admin.pricing_settings', section='archives', archive_period_id=archive_period_id or None, archives_page=archives_pagination.next_num) }}">
+                        <i class="bi bi-chevron-right"></i>
+                      </a>
+                    </li>
+                  {% else %}
+                    <li class="page-item disabled">
+                      <span class="page-link"><i class="bi bi-chevron-right"></i></span>
+                    </li>
+                  {% endif %}
+                </ul>
+              </nav>
+            </div>
+          {% endif %}
+        {% else %}
+          <div class="text-center text-muted py-4">
+            <i class="bi bi-inbox" style="font-size:2rem;"></i>
+            <div class="mt-2">Aucune commande archivee.</div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </section>
 </div>
 
 <!-- Script pour la navigation uniquement -->
@@ -522,7 +864,9 @@
   const sections = {
     commission: document.getElementById('commission-section'),
     shipping: document.getElementById('shipping-section'),
-    alerts: document.getElementById('alerts-section')
+    alerts: document.getElementById('alerts-section'),
+    periods: document.getElementById('periods-section'),
+    archives: document.getElementById('archives-section')
   };
 
   // Fonction pour changer de section
@@ -564,8 +908,11 @@
   });
 
   // Restaurer la dernire section active
+  const urlSection = new URLSearchParams(window.location.search).get('section');
   const savedSection = localStorage.getItem(STORAGE_KEY);
-  if (savedSection && sections[savedSection]) {
+  if (urlSection && sections[urlSection]) {
+    switchSection(urlSection);
+  } else if (savedSection && sections[savedSection]) {
     switchSection(savedSection);
   }
 
@@ -652,3 +999,4 @@
 })();
 </script>
 {% endblock %}
+

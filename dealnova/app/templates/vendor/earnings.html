@@ -1,1198 +1,40 @@
-{% extends "base.html" %}
-{% block title %}Encaissements | Tableau de bord vendeur{% endblock %}
+﻿{% extends "vendor/base.html" %}
+{% block title %}Paiements recus | Espace vendeur{% endblock %}
 
 {% block head %}
 {{ super() }}
-<style>
-  /* ===== VARIABLES & DESIGN SYSTEM ===== */
-  :root {
-    --earn-bg: #f6fbf9;
-    --earn-text: #0f2e2a;
-    --earn-muted: #5c7a73;
-    --earn-card: #ffffff;
-    --earn-border: #e2efe9;
-    --earn-border-dark: #cbe1d9;
-    --earn-shadow-sm: 0 4px 12px rgba(15, 46, 42, 0.04);
-    --earn-shadow-md: 0 8px 24px rgba(15, 46, 42, 0.06);
-    --earn-shadow-lg: 0 16px 40px rgba(15, 46, 42, 0.1);
-    --earn-brand: #10b981;
-    --earn-brand-dark: #0d9488;
-    --earn-brand-light: #d1fae5;
-    --earn-accent: #0ea5e9;
-    --earn-accent-light: #e0f2fe;
-    --earn-warning: #f59e0b;
-    --earn-warning-light: #fef3c7;
-    --earn-radius: 24px;
-    --earn-radius-sm: 20px;
-    --earn-radius-lg: 32px;
-    --transition-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
-    --transition-smooth: cubic-bezier(0.4, 0, 0.2, 1);
-  }
-
-  /* ===== SKELETON LOADING ANIMATION ===== */
-  @keyframes shimmer {
-    0% { background-position: -1000px 0; }
-    100% { background-position: 1000px 0; }
-  }
-
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.6; }
-  }
-
-  @keyframes slideUp {
-    from {
-      opacity: 0;
-      transform: translateY(30px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  @keyframes slideInRight {
-    from {
-      opacity: 0;
-      transform: translateX(30px);
-    }
-    to {
-      opacity: 1;
-      transform: translateX(0);
-    }
-  }
-
-  @keyframes scaleIn {
-    from {
-      opacity: 0;
-      transform: scale(0.95);
-    }
-    to {
-      opacity: 1;
-      transform: scale(1);
-    }
-  }
-
-  .skeleton {
-    background: linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%);
-    background-size: 1000px 100%;
-    animation: shimmer 2s infinite linear;
-    color: transparent !important;
-    border-radius: 12px;
-  }
-
-  .skeleton-text {
-    height: 1.2rem;
-    width: 100%;
-    margin-bottom: 0.5rem;
-  }
-
-  .skeleton-text-sm { width: 60%; height: 1rem; }
-  .skeleton-text-xs { width: 40%; height: 0.9rem; }
-  .skeleton-pill { width: 80px; height: 32px; border-radius: 999px; }
-
-  /* ===== PAGE PRINCIPALE ===== */
-  .earnings-page {
-    background: radial-gradient(circle at 90% 10%, rgba(16, 185, 129, 0.03) 0%, transparent 50%),
-                radial-gradient(circle at 10% 90%, rgba(14, 165, 233, 0.03) 0%, transparent 50%),
-                var(--earn-bg);
-    min-height: calc(100vh - 84px);
-    padding: 1.5rem 0 3rem;
-    position: relative;
-  }
-
-  .earnings-shell {
-    max-width: 1280px;
-    margin: 0 auto;
-    padding: 0 1.25rem;
-  }
-
-  /* ===== HERO SECTION PREMIUM ===== */
-  .earnings-hero {
-    border-radius: var(--earn-radius-lg);
-    background: linear-gradient(145deg, #0f2e2a, #1a4a40, #0d8c6b);
-    color: white;
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    box-shadow: 0 24px 48px -12px rgba(13, 140, 107, 0.35);
-    padding: 2rem 2rem;
-    position: relative;
-    overflow: hidden;
-    animation: scaleIn 0.6s var(--transition-bounce) forwards;
-  }
-
-  .earnings-hero::before {
-    content: '';
-    position: absolute;
-    top: -50%;
-    right: -20%;
-    width: 80%;
-    height: 200%;
-    background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
-    pointer-events: none;
-  }
-
-  .earnings-hero::after {
-    content: '';
-    position: absolute;
-    bottom: -30%;
-    left: -10%;
-    width: 60%;
-    height: 200%;
-    background: radial-gradient(circle, rgba(16,185,129,0.15) 0%, transparent 70%);
-    pointer-events: none;
-  }
-
-  .earnings-title {
-    margin: 0;
-    font-size: clamp(1.5rem, 3vw, 2.25rem);
-    font-weight: 800;
-    letter-spacing: -0.02em;
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-  }
-
-  .earnings-title i {
-    background: rgba(255,255,255,0.2);
-    padding: 0.75rem;
-    border-radius: 20px;
-    font-size: 1.5rem;
-    backdrop-filter: blur(8px);
-  }
-
-  .earnings-subtitle {
-    margin: 0.75rem 0 0;
-    color: rgba(255,255,255,0.9);
-    font-size: 1rem;
-    max-width: 600px;
-    line-height: 1.6;
-  }
-
-  .earnings-alert {
-    margin-top: 0.9rem;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.55rem;
-    padding: 0.5rem 0.85rem;
-    border-radius: 999px;
-    background: rgba(239, 68, 68, 0.18);
-    border: 1px solid rgba(239, 68, 68, 0.25);
-    color: rgba(255, 255, 255, 0.95);
-    font-weight: 800;
-  }
-
-  .earnings-alert .count {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 30px;
-    height: 24px;
-    padding: 0 10px;
-    border-radius: 999px;
-    background: rgba(0,0,0,0.18);
-    color: #fff;
-    font-weight: 900;
-  }
-
-  /* ===== FILTER PILLS PREMIUM ===== */
-  .filter-section {
-    display: flex;
-    gap: 1rem;
-    align-items: center;
-    flex-wrap: wrap;
-    position: relative;
-    z-index: 2;
-  }
-
-  .filter-pill {
-    background: rgba(255,255,255,0.1);
-    backdrop-filter: blur(12px);
-    border: 1px solid rgba(255,255,255,0.2);
-    border-radius: 999px;
-    padding: 0.5rem 0.75rem;
-    display: flex;
-    gap: 0.6rem;
-    align-items: center;
-    flex-wrap: wrap;
-    transition: all 0.3s ease;
-  }
-
-  .filter-pill:hover {
-    background: rgba(255,255,255,0.15);
-    border-color: rgba(255,255,255,0.3);
-  }
-
-  .filter-pill .form-label {
-    color: white;
-    font-weight: 600;
-    font-size: 0.875rem;
-    margin: 0;
-    white-space: nowrap;
-  }
-
-  .filter-pill .form-control,
-  .filter-pill .form-select {
-    background: rgba(255,255,255,0.9);
-    border: 1px solid rgba(255,255,255,0.3);
-    border-radius: 999px;
-    padding: 0.4rem 1rem;
-    font-size: 0.875rem;
-    font-weight: 500;
-    transition: all 0.2s ease;
-  }
-
-  .filter-pill .form-control:focus,
-  .filter-pill .form-select:focus {
-    background: white;
-    border-color: white;
-    box-shadow: 0 0 0 3px rgba(255,255,255,0.2);
-    outline: none;
-  }
-
-  /* ===== QUICK SEARCH ===== */
-  .search-pill {
-    background: rgba(255,255,255,0.1);
-    backdrop-filter: blur(12px);
-    border: 1px solid rgba(255,255,255,0.2);
-    border-radius: 999px;
-    padding: 0.5rem 0.75rem;
-    display: flex;
-    gap: 0.6rem;
-    align-items: center;
-    flex: 1 1 320px;
-    min-width: 260px;
-    max-width: 560px;
-    transition: all 0.3s ease;
-  }
-
-  .search-pill:hover {
-    background: rgba(255,255,255,0.15);
-    border-color: rgba(255,255,255,0.3);
-  }
-
-  .search-pill i {
-    color: rgba(255,255,255,0.95);
-    font-size: 1rem;
-  }
-
-  .search-input {
-    background: rgba(255,255,255,0.92);
-    border: 1px solid rgba(255,255,255,0.3);
-    border-radius: 999px;
-    padding: 0.45rem 1rem;
-    font-size: 0.875rem;
-    font-weight: 600;
-    color: #0f172a;
-    flex: 1;
-    min-width: 160px;
-  }
-
-  .search-input:focus {
-    background: white;
-    border-color: white;
-    box-shadow: 0 0 0 3px rgba(255,255,255,0.2);
-    outline: none;
-  }
-
-  .search-clear {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 38px;
-    height: 38px;
-    border-radius: 999px;
-    border: 1px solid rgba(255,255,255,0.35);
-    background: rgba(255,255,255,0.12);
-    color: white;
-    transition: all 0.2s var(--transition-bounce);
-    touch-action: manipulation;
-  }
-
-  .search-clear:hover {
-    background: rgba(255,255,255,0.22);
-    transform: translateY(-1px);
-  }
-
-  .btn-filter {
-    background: white;
-    color: var(--earn-brand-dark);
-    border: none;
-    border-radius: 999px;
-    padding: 0.5rem 1.25rem;
-    font-weight: 700;
-    font-size: 0.875rem;
-    transition: all 0.2s var(--transition-bounce);
-  }
-
-  .btn-filter:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 16px rgba(0,0,0,0.1);
-  }
-
-  .btn-history {
-    background: rgba(255,255,255,0.15);
-    color: white;
-    border: 1px solid rgba(255,255,255,0.3);
-    border-radius: 999px;
-    padding: 0.6rem 1.25rem;
-    font-weight: 600;
-    font-size: 0.875rem;
-    backdrop-filter: blur(8px);
-    transition: all 0.2s var(--transition-bounce);
-  }
-
-  .btn-history:hover {
-    background: rgba(255,255,255,0.25);
-    transform: translateY(-2px);
-    color: white;
-  }
-
-  /* ===== STATS GRID PREMIUM ===== */
-  .stats-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 1.25rem;
-    margin-top: 2rem;
-    animation: slideUp 0.5s var(--transition-smooth) forwards;
-    animation-delay: 0.1s;
-    opacity: 0;
-    animation-fill-mode: forwards;
-  }
-
-  .stat-tile {
-    background: var(--earn-card);
-    border: 1px solid var(--earn-border);
-    border-radius: var(--earn-radius-sm);
-    padding: 1.5rem 1.25rem;
-    transition: all 0.3s var(--transition-bounce);
-    position: relative;
-    overflow: hidden;
-    box-shadow: var(--earn-shadow-sm);
-  }
-
-  .stat-tile::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 4px;
-    background: linear-gradient(90deg, var(--earn-brand), var(--earn-accent));
-    transform: scaleX(0);
-    transition: transform 0.3s ease;
-    transform-origin: left;
-  }
-
-  .stat-tile:hover {
-    transform: translateY(-6px);
-    box-shadow: var(--earn-shadow-lg);
-    border-color: var(--earn-brand);
-  }
-
-  .stat-tile:hover::after {
-    transform: scaleX(1);
-  }
-
-  .stat-label {
-    color: var(--earn-muted);
-    font-size: 0.875rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
-  .stat-label i {
-    color: var(--earn-brand);
-    font-size: 1rem;
-  }
-
-  .stat-value {
-    margin-top: 0.5rem;
-    color: var(--earn-text);
-    font-size: clamp(1.5rem, 3vw, 2rem);
-    font-weight: 800;
-    line-height: 1;
-  }
-
-  .stat-unit {
-    font-size: 0.875rem;
-    color: var(--earn-muted);
-    margin-left: 0.25rem;
-    font-weight: 500;
-  }
-
-  /* ===== TABLE CARD PREMIUM ===== */
-  .table-card {
-    margin-top: 2rem;
-    background: var(--earn-card);
-    border: 1px solid var(--earn-border);
-    border-radius: var(--earn-radius);
-    box-shadow: var(--earn-shadow-md);
-    overflow: hidden;
-    transition: all 0.3s ease;
-    animation: slideUp 0.5s var(--transition-smooth) forwards;
-    animation-delay: 0.2s;
-    opacity: 0;
-    animation-fill-mode: forwards;
-  }
-
-  .table-card:hover {
-    box-shadow: var(--earn-shadow-lg);
-    border-color: var(--earn-border-dark);
-  }
-
-  .table-card-header {
-    padding: 1.25rem 1.5rem;
-    background: linear-gradient(180deg, #f9fffd, #f3faf7);
-    border-bottom: 1px solid var(--earn-border);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    flex-wrap: wrap;
-  }
-
-  .table-card-header h5 {
-    margin: 0;
-    font-size: 1.125rem;
-    font-weight: 800;
-    color: var(--earn-text);
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-  }
-
-  .table-card-header h5 i {
-    color: var(--earn-brand);
-    font-size: 1.25rem;
-  }
-
-  .earnings-note {
-    border-radius: 999px;
-    padding: 0.6rem 1.25rem;
-    background: rgba(16, 185, 129, 0.08);
-    border: 1px solid rgba(16, 185, 129, 0.2);
-    color: var(--earn-brand-dark);
-    font-weight: 600;
-    font-size: 0.8125rem;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
-  .earnings-note i {
-    font-size: 1rem;
-  }
-
-  /* ===== TABLE STYLES ===== */
-  .table-responsive {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .table {
-    width: 100%;
-    border-collapse: collapse;
-    margin: 0;
-  }
-
-  .table thead th {
-    background: #f8fdfa;
-    color: var(--earn-muted);
-    font-size: 0.75rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    padding: 1rem 1.25rem;
-    border-bottom: 2px solid var(--earn-border);
-    white-space: nowrap;
-  }
-
-  .table tbody td {
-    padding: 1.25rem;
-    border-bottom: 1px solid var(--earn-border);
-    color: var(--earn-text);
-    font-size: 0.9375rem;
-    vertical-align: middle;
-    transition: background 0.2s ease;
-  }
-
-  .table tbody tr {
-    transition: background 0.2s ease;
-  }
-
-  .table tbody tr:hover {
-    background: rgba(16, 185, 129, 0.02);
-  }
-
-  .table tbody tr:last-child td {
-    border-bottom: none;
-  }
-
-  /* ===== SEARCH EMPTY ROW ===== */
-  .search-empty-row td {
-    text-align: center;
-    color: var(--earn-muted);
-    font-weight: 600;
-  }
-
-  /* ===== PRODUCT PILLS ===== */
-  .product-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-  }
-
-  .product-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-    padding: 0.35rem 0.85rem;
-    border-radius: 999px;
-    background: var(--earn-brand-light);
-    color: var(--earn-brand-dark);
-    font-weight: 700;
-    font-size: 0.8125rem;
-    border: 1px solid rgba(16, 185, 129, 0.3);
-    transition: all 0.2s ease;
-  }
-
-  .product-pill:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(16, 185, 129, 0.2);
-  }
-
-  .product-count {
-    font-size: 0.75rem;
-    color: var(--earn-muted);
-    margin-top: 0.25rem;
-  }
-
-  /* ===== BADGES & STATUS ===== */
-  .pay-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 1.25rem;
-    border-radius: 999px;
-    font-weight: 700;
-    font-size: 0.8125rem;
-    transition: all 0.2s ease;
-    border: 1px solid transparent;
-  }
-
-  .pay-badge.confirmed {
-    background: rgba(16, 185, 129, 0.12);
-    color: #065f46;
-    border-color: rgba(16, 185, 129, 0.3);
-  }
-
-  .pay-badge.pending {
-    background: rgba(245, 158, 11, 0.12);
-    color: #92400e;
-    border-color: rgba(245, 158, 11, 0.3);
-  }
-
-  .pay-badge.to-confirm {
-    background: rgba(245, 158, 11, 0.16);
-    color: #92400e;
-    border-color: rgba(245, 158, 11, 0.38);
-  }
-
-  .pay-form {
-    display: flex;
-    gap: 0.6rem;
-    align-items: center;
-    justify-content: flex-end;
-    flex-wrap: wrap;
-  }
-
-  .pay-input {
-    border-radius: 999px;
-    border: 1px solid var(--earn-border);
-    background: white;
-    padding: 0.55rem 0.95rem;
-    font-size: 0.875rem;
-    font-weight: 650;
-    color: var(--earn-text);
-    min-height: 44px;
-    width: 100%;
-    max-width: 320px;
-    transition: all 0.2s ease;
-  }
-
-  .pay-input:focus {
-    outline: none;
-    border-color: var(--earn-brand);
-    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
-  }
-
-  .pay-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    border-radius: 999px;
-    padding: 0.65rem 1.05rem;
-    min-height: 44px;
-    border: none;
-    background: linear-gradient(135deg, var(--earn-brand), var(--earn-brand-dark));
-    color: white;
-    font-weight: 800;
-    font-size: 0.875rem;
-    box-shadow: 0 12px 22px rgba(16, 185, 129, 0.22);
-    cursor: pointer;
-    transition: all 0.2s var(--transition-bounce);
-    touch-action: manipulation;
-    user-select: none;
-    -webkit-tap-highlight-color: transparent;
-  }
-
-  .pay-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 14px 26px rgba(16, 185, 129, 0.28);
-  }
-
-  .pay-btn:active {
-    transform: scale(0.98);
-  }
-
-  .badge-status {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-    padding: 0.4rem 0.9rem;
-    border-radius: 999px;
-    font-size: 0.75rem;
-    font-weight: 700;
-  }
-
-  .badge-status.paid {
-    background: rgba(16, 185, 129, 0.12);
-    color: #065f46;
-  }
-
-  .badge-status.pending {
-    background: rgba(245, 158, 11, 0.12);
-    color: #92400e;
-  }
-
-  /* ===== EMPTY STATE PREMIUM ===== */
-  .empty-earnings {
-    margin-top: 2rem;
-    border-radius: var(--earn-radius);
-    background: white;
-    border: 1px dashed var(--earn-brand);
-    box-shadow: var(--earn-shadow-md);
-    text-align: center;
-    padding: 3.5rem 1.5rem;
-    animation: scaleIn 0.5s var(--transition-bounce) forwards;
-  }
-
-  .empty-earnings i {
-    font-size: 4rem;
-    color: var(--earn-brand);
-    opacity: 0.4;
-    margin-bottom: 1rem;
-  }
-
-  .empty-earnings h5 {
-    font-size: 1.25rem;
-    font-weight: 800;
-    color: var(--earn-text);
-    margin-bottom: 0.5rem;
-  }
-
-  .empty-earnings p {
-    color: var(--earn-muted);
-    font-size: 0.9375rem;
-    max-width: 300px;
-    margin: 0 auto;
-  }
-
-  /* ===== TOAST NOTIFICATION PREMIUM ===== */
-  .earnings-toast {
-    position: fixed;
-    bottom: 24px;
-    right: 24px;
-    z-index: 1060;
-    background: white;
-    border-radius: 20px;
-    padding: 1rem 1.25rem;
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    box-shadow: var(--earn-shadow-lg);
-    border: 1px solid var(--earn-border);
-    transform: translateX(calc(100% + 24px));
-    transition: transform 0.4s var(--transition-bounce);
-    max-width: 380px;
-    width: 100%;
-  }
-
-  .earnings-toast.show {
-    transform: translateX(0);
-  }
-
-  .toast-icon {
-    width: 48px;
-    height: 48px;
-    border-radius: 16px;
-    background: linear-gradient(135deg, #d1fae5, #ffffff);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--earn-brand);
-    font-size: 1.5rem;
-  }
-
-  .toast-content {
-    flex: 1;
-  }
-
-  .toast-title {
-    font-weight: 800;
-    font-size: 1rem;
-    color: var(--earn-text);
-    margin-bottom: 0.15rem;
-  }
-
-  .toast-message {
-    font-size: 0.875rem;
-    color: var(--earn-muted);
-  }
-
-  .toast-close {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    border: none;
-    background: #f1f5f9;
-    color: var(--earn-muted);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s ease;
-  }
-
-  .toast-close:hover {
-    background: #e2e8f0;
-    color: var(--earn-text);
-    transform: scale(1.1);
-  }
-
-  /* ===== PAGINATION LGANTE ===== */
-  .pagination-premium {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 0.5rem;
-    margin-top: 2rem;
-    padding: 1rem;
-  }
-
-  .pagination-item {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 40px;
-    height: 40px;
-    border-radius: 999px;
-    background: white;
-    border: 1px solid var(--earn-border);
-    color: var(--earn-text);
-    font-weight: 600;
-    text-decoration: none;
-    transition: all 0.2s var(--transition-bounce);
-  }
-
-  .pagination-item:hover {
-    background: var(--earn-brand);
-    color: white;
-    border-color: var(--earn-brand);
-    transform: translateY(-2px);
-    box-shadow: 0 8px 16px rgba(16, 185, 129, 0.2);
-  }
-
-  .pagination-item.active {
-    background: linear-gradient(135deg, var(--earn-brand), var(--earn-brand-dark));
-    color: white;
-    border-color: transparent;
-    box-shadow: 0 8px 16px rgba(16, 185, 129, 0.3);
-  }
-
-  .pagination-item.disabled {
-    opacity: 0.5;
-    pointer-events: none;
-  }
-
-  /* ===== MOBILE OPTIMIZATION (CARD GRID) ===== */
-  @media (max-width: 992px) {
-    .earnings-hero {
-      padding: 1.5rem;
-    }
-
-    .filter-section {
-      width: 100%;
-    }
-
-    .filter-pill {
-      width: 100%;
-      background: rgba(255,255,255,0.15);
-    }
-
-    .stats-grid {
-      grid-template-columns: repeat(2, 1fr);
-    }
-  }
-
-  @media (max-width: 820px) {
-    .earnings-shell {
-      padding: 0 1rem;
-    }
-
-    .filter-section {
-      flex-direction: column;
-      align-items: stretch;
-      gap: 0.75rem;
-    }
-
-    .filter-pill {
-      width: 100%;
-      flex-direction: column;
-      align-items: stretch;
-      border-radius: var(--earn-radius-sm);
-      padding: 0.75rem;
-    }
-
-    .filter-pill .form-control,
-    .filter-pill .form-select {
-      width: 100% !important;
-    }
-
-    .btn-filter {
-      width: 100%;
-      min-height: 44px;
-    }
-
-    .search-pill {
-      width: 100%;
-      max-width: none;
-      border-radius: var(--earn-radius-sm);
-      padding: 0.75rem;
-    }
-
-    .search-input {
-      min-height: 44px;
-    }
-
-    .search-clear {
-      width: 44px;
-      height: 44px;
-    }
-
-    .btn-history {
-      width: 100%;
-      text-align: center;
-      min-height: 44px;
-      touch-action: manipulation;
-    }
-
-    .pay-form {
-      width: 100%;
-      justify-content: stretch;
-    }
-
-    .pay-input {
-      max-width: none;
-    }
-
-    .pay-btn {
-      width: 100%;
-    }
-
-    .stats-grid {
-      grid-template-columns: repeat(2, 1fr);
-      gap: 1rem;
-    }
-
-    .stat-tile {
-      padding: 1.25rem 1rem;
-    }
-
-    /* Mobile Card View pour la table */
-    .table-responsive {
-      border: none;
-    }
-
-    .table thead {
-      display: none;
-    }
-
-    .table tbody tr {
-      display: block;
-      background: white;
-      border: 1px solid var(--earn-border);
-      border-radius: var(--earn-radius-sm);
-      margin-bottom: 1rem;
-      padding: 1.25rem;
-    }
-
-    .table tbody td {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 0.75rem 0;
-      border-bottom: 1px solid var(--earn-border);
-      text-align: right;
-    }
-
-    .table tbody td:last-child {
-      border-bottom: none;
-    }
-
-    .table tbody td::before {
-      content: attr(data-label);
-      color: var(--earn-muted);
-      font-weight: 700;
-      font-size: 0.75rem;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-    }
-
-    .table tbody td[data-label="Note"],
-    .table tbody td[data-label="Statut"] {
-      flex-direction: column;
-      align-items: stretch;
-      justify-content: flex-start;
-      text-align: left;
-      gap: 0.5rem;
-    }
-
-    .table tbody td[data-label="Statut"] {
-      text-align: left !important;
-    }
-
-    .search-empty-row td {
-      display: block;
-      text-align: center;
-      justify-content: center;
-    }
-
-    .search-empty-row td::before {
-      content: none !important;
-    }
-
-    .product-list {
-      justify-content: flex-end;
-    }
-
-    .earnings-note {
-      width: 100%;
-      text-align: center;
-      justify-content: center;
-    }
-
-    .earnings-toast {
-      left: 16px;
-      right: 16px;
-      max-width: none;
-      bottom: 16px;
-    }
-  }
-
-  @media (max-width: 640px) {
-    .stats-grid {
-      grid-template-columns: 1fr;
-    }
-
-    .earnings-title {
-      font-size: 1.35rem;
-    }
-
-    .earnings-title i {
-      padding: 0.5rem;
-      font-size: 1.25rem;
-    }
-
-    .table-card-header {
-      flex-direction: column;
-      align-items: flex-start;
-    }
-
-    .earnings-note {
-      width: 100%;
-    }
-
-    .btn-history {
-      width: 100%;
-      text-align: center;
-    }
-  }
-
-  @media (max-width: 380px) {
-    .filter-pill {
-      flex-direction: column;
-      align-items: stretch;
-    }
-
-    .filter-pill .form-control,
-    .filter-pill .form-select {
-      width: 100%;
-    }
-  }
-
-  /* ===== RTL SUPPORT ===== */
-  html[dir="rtl"] .earnings-toast {
-    right: auto;
-    left: 24px;
-    transform: translateX(calc(-100% - 24px));
-  }
-
-  html[dir="rtl"] .earnings-toast.show {
-    transform: translateX(0);
-  }
-
-  html[dir="rtl"] .table tbody td {
-    text-align: left;
-  }
-
-  html[dir="rtl"] .table tbody td::before {
-    margin-left: auto;
-    margin-right: 0;
-  }
-
-  html[dir="rtl"] .pagination-item i {
-    transform: rotate(180deg);
-  }
-
-  /* ===== PRINT STYLES ===== */
-  @media print {
-    .earnings-page {
-      background: white;
-      padding: 1rem;
-    }
-
-    .earnings-hero {
-      background: #f8f9fa;
-      color: black;
-      border: 1px solid #dee2e6;
-      box-shadow: none;
-    }
-
-    .filter-section,
-    .btn-history,
-    .earnings-note i,
-    .toast-close,
-    .pagination-premium {
-      display: none !important;
-    }
-
-    .table-card {
-      box-shadow: none;
-      border: 1px solid #dee2e6;
-    }
-
-    .table thead th {
-      background: #e9ecef;
-    }
-
-    .stat-tile {
-      border: 1px solid #dee2e6;
-      box-shadow: none;
-    }
-
-    a[href]::after {
-      content: " (" attr(href) ")";
-      font-size: 0.8em;
-      font-weight: normal;
-    }
-  }
-
-  /* ===== FOCUS MANAGEMENT ===== */
-  *:focus-visible {
-    outline: 3px solid var(--earn-brand);
-    outline-offset: 2px;
-  }
-
-  .btn:focus-visible,
-  .filter-pill .form-control:focus-visible,
-  .filter-pill .form-select:focus-visible {
-    outline: 3px solid rgba(16, 185, 129, 0.5);
-    outline-offset: 2px;
-  }
-
-  /* ===== TOUCH OPTIMIZATION ===== */
-  @media (hover: none) and (pointer: coarse) {
-    .btn,
-    .btn-history,
-    .filter-pill,
-    .stat-tile,
-    .product-pill,
-    .pagination-item {
-      cursor: pointer;
-      -webkit-tap-highlight-color: transparent;
-    }
-
-    .btn:active,
-    .btn-history:active,
-    .filter-pill:active,
-    .stat-tile:active,
-    .product-pill:active,
-    .pagination-item:active {
-      transform: scale(0.97);
-    }
-
-    .table tbody tr {
-      transition: none;
-    }
-
-    .earnings-toast {
-      bottom: 20px;
-    }
-  }
-
-  /* ===== REDUCED MOTION ===== */
-  @media (prefers-reduced-motion: reduce) {
-    * {
-      animation-duration: 0.01ms !important;
-      animation-iteration-count: 1 !important;
-      transition-duration: 0.01ms !important;
-    }
-  }
-</style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/vendor_earnings_page.css', v=app_static_version) }}">
 {% endblock %}
 
 {% block content %}
-<section class="earnings-page">
+<section class="earnings-page" data-vendor-earnings-root="true">
   <div class="container earnings-shell">
     <!-- HERO SECTION PREMIUM -->
     <div class="earnings-hero">
       <div style="position: relative; z-index: 2;">
-        <h1 class="earnings-title">
-          <i class="bi bi-wallet2"></i>
-          Livre des encaissements
-        </h1>
-        <p class="earnings-subtitle">
-          Confirmez vos encaissements quand le livreur vous remet le cash.
-        </p>
-        <div id="toConfirmPill" class="earnings-alert is-hidden" role="status" aria-live="polite">
-          <i class="bi bi-exclamation-triangle"></i>
-          <span> <span class="count" id="toConfirmCount">0</span> commandes  confirmer</span>
+        <div class="earnings-hero-top">
+          <h1 class="earnings-title">
+            <i class="bi bi-wallet2"></i>
+            Paiements recus
+          </h1>
+          <a href="{{ url_for('vendor.dashboard') }}" class="btn-back-quick" data-stop-nav>
+            <i class="bi bi-arrow-left"></i>
+            Retour
+          </a>
         </div>
+        <p class="earnings-subtitle">
+          Confirmez ici les paiements recus dans vos periodes de vente.
+        </p>
       </div>
       
       <div class="filter-section" style="margin-top: 1.5rem;">
         <a href="{{ url_for('vendor.periods') }}" class="btn-history">
           <i class="bi bi-calendar3"></i>
-          Grer mes priodes
+          Voir mes periodes de vente
         </a>
         
         <form class="filter-pill" method="get">
-          <span class="form-label mb-0">Priode</span>
+          <span class="form-label mb-0">Periode de vente</span>
           <select class="form-select form-select-sm" name="period" style="width: 210px;">
             {% for p in periods %}
               <option value="{{ p.id }}" {% if selected_period and p.id == selected_period.id %}selected{% endif %}>
@@ -1204,8 +46,8 @@
           <input class="form-control form-control-sm" type="date" name="to" value="{{ date_to }}" style="width: 160px;">
           <select class="form-select form-select-sm" name="show" style="width: 160px;">
             <option value="all" {% if show == 'all' %}selected{% endif %}>Tout</option>
-            <option value="pending" {% if show == 'pending' %}selected{% endif %}>Non confirm</option>
-            <option value="confirmed" {% if show == 'confirmed' %}selected{% endif %}>Confirm</option>
+            <option value="pending" {% if show == 'pending' %}selected{% endif %}>A verifier</option>
+            <option value="confirmed" {% if show == 'confirmed' %}selected{% endif %}>Recu</option>
           </select>
           <button class="btn-filter" type="submit">
             <i class="bi bi-funnel"></i> Filtrer
@@ -1214,7 +56,7 @@
 
         <div class="search-pill" role="search" aria-label="Recherche rapide">
           <i class="bi bi-search"></i>
-          <input id="quickSearch" class="search-input" type="search" placeholder="Recherche rapide (commande, produit)" autocomplete="off" spellcheck="false">
+          <input id="quickSearch" class="search-input" type="search" placeholder="Rechercher une commande ou un produit" autocomplete="off" spellcheck="false">
           <button id="clearSearch" class="search-clear" type="button" aria-label="Effacer la recherche" hidden>
             <i class="bi bi-x-lg"></i>
           </button>
@@ -1226,25 +68,25 @@
     <div class="stats-grid">
       <div class="stat-tile">
         <div class="stat-label">
-          <i class="bi bi-cash-coin"></i> Confirm
+          <i class="bi bi-cash-coin"></i> Recu
         </div>
         <div class="stat-value">{{ '%.2f'|format(total_confirmed / 100) }} <span class="stat-unit">MAD</span></div>
       </div>
       <div class="stat-tile">
         <div class="stat-label">
-          <i class="bi bi-hourglass-split"></i> Non confirm
+          <i class="bi bi-hourglass-split"></i> A verifier
         </div>
         <div class="stat-value">{{ '%.2f'|format(total_pending / 100) }} <span class="stat-unit">MAD</span></div>
       </div>
       <div class="stat-tile">
         <div class="stat-label">
-          <i class="bi bi-calculator"></i> Total priode
+          <i class="bi bi-calculator"></i> Total de la periode de vente
         </div>
         <div class="stat-value">{{ '%.2f'|format((total_confirmed + total_pending) / 100) }} <span class="stat-unit">MAD</span></div>
       </div>
       <div class="stat-tile">
         <div class="stat-label">
-          <i class="bi bi-calendar-check"></i> Priode
+          <i class="bi bi-calendar-check"></i> Periode de vente
         </div>
         <div class="stat-value" style="font-size: 1.05rem; line-height: 1.25;">
           {{ selected_period.name if selected_period else '' }}
@@ -1258,11 +100,11 @@
         <div class="table-card-header">
           <h5>
             <i class="bi bi-receipt"></i>
-            Encaissements par commande
+            Paiements par commande
           </h5>
           <div class="earnings-note">
             <i class="bi bi-info-circle"></i>
-            Cliquez Je suis pay quand vous encaissez.
+            Cliquez sur "Je suis paye" quand vous avez bien recu l'argent.
           </div>
         </div>
         
@@ -1322,31 +164,31 @@
                   {% if receipt %}
                     <span class="text-muted">{{ receipt.note if receipt.note else '-' }}</span>
                   {% else %}
-                    <input class="pay-input" form="receipt-form-{{ order.id }}" name="note" placeholder="Description (optionnel)" maxlength="255">
+                    <input class="pay-input" form="receipt-form-{{ order.id }}" name="note" placeholder="Note (optionnel)" maxlength="255">
                   {% endif %}
                 </td>
                 <td data-label="Statut" class="text-end">
                   {% if receipt %}
                     <span class="pay-badge confirmed">
-                      <i class="bi bi-check2-circle"></i> Confirm
+                      <i class="bi bi-check2-circle"></i> Recu
                     </span>
                   {% else %}
                     <div class="d-flex flex-column align-items-end gap-2">
                       {% if order.status in ('shipped', 'delivered') %}
                         <span class="pay-badge to-confirm">
-                          <i class="bi bi-exclamation-circle"></i>  confirmer
+                          <i class="bi bi-exclamation-circle"></i> A verifier
                         </span>
                       {% endif %}
                       <form id="receipt-form-{{ order.id }}" method="post" action="{{ url_for('vendor.confirm_receipt', oid=order.id) }}" class="pay-form">
                         {% include "partials/_csrf.html" %}
                         {% if not coach_receipt.done %}
                           {% set coach_receipt.done = True %}
-                          <button class="pay-btn" type="submit" data-coach="vendor_receipt" data-coach-priority="10" data-coach-text="Astuce : cliquez sur Je suis pay uniquement quand le livreur vous remet le cash.">
-                            <i class="bi bi-check-circle"></i> Je suis pay
+                          <button class="pay-btn" type="submit" data-coach="vendor_receipt" data-coach-priority="10" data-coach-text="Astuce : cliquez sur Je suis paye seulement quand vous avez bien recu le paiement.">
+                            <i class="bi bi-check-circle"></i> Je suis paye
                           </button>
                         {% else %}
                           <button class="pay-btn" type="submit">
-                            <i class="bi bi-check-circle"></i> Je suis pay
+                            <i class="bi bi-check-circle"></i> Je suis paye
                           </button>
                         {% endif %}
                       </form>
@@ -1357,7 +199,7 @@
               {% endfor %}
               <tr id="noSearchResults" class="search-empty-row" hidden>
                 <td colspan="6" class="text-center text-muted py-4">
-                  <i class="bi bi-search me-2"></i> Aucun rsultat pour cette recherche.
+                  <i class="bi bi-search me-2"></i> Aucun resultat pour cette recherche.
                 </td>
               </tr>
             </tbody>
@@ -1395,17 +237,21 @@
       <!-- EMPTY STATE PREMIUM -->
       <div class="empty-earnings">
         <i class="bi bi-wallet2"></i>
-        <h5>Aucune commande sur cette priode</h5>
-        <p>Les commandes apparaissent ici, puis vous confirmez quand vous encaissez.</p>
+        <h5>Aucune commande pour cette periode</h5>
+        <p>Les commandes s'afficheront ici quand vous aurez des paiements a verifier.</p>
         <div style="margin-top: 1.5rem;">
           <a href="{{ url_for('vendor.dashboard') }}" class="btn-history" style="background: var(--earn-brand); color: white; border: none; display: inline-flex; align-items: center; gap: 0.5rem;">
             <i class="bi bi-arrow-left-circle"></i>
-            Retour au tableau de bord
+            Retour au dashboard
           </a>
         </div>
       </div>
     {% endif %}
   </div>
+  <button id="earningsBackTop" class="earnings-back-top" type="button" aria-label="Retour en haut">
+    <i class="bi bi-arrow-up"></i>
+    Haut
+  </button>
 </section>
 
 <!-- TOAST NOTIFICATION ANIME -->
@@ -1414,8 +260,8 @@
     <i class="bi bi-check2-circle"></i>
   </div>
   <div class="toast-content">
-    <div class="toast-title">Encaissement confirm</div>
-    <div class="toast-message" id="toastMessage">Votre encaissement a t enregistr</div>
+    <div class="toast-title">Paiement enregistre</div>
+    <div class="toast-message" id="toastMessage">Le paiement a bien ete enregistre</div>
   </div>
   <button class="toast-close" type="button" aria-label="Fermer" data-close-target=".earnings-toast" data-stop-nav>
     <i class="bi bi-x"></i>
@@ -1425,146 +271,13 @@
 
 {% block scripts %}
 {{ super() }}
-<script>
-  (function() {
-    'use strict';
-
-    // ===== TOAST NOTIFICATION MANAGEMENT =====
-    function showToast(message, type = 'success') {
-      const toast = document.getElementById('earningsToast');
-      const toastMessage = document.getElementById('toastMessage');
-      const toastIcon = toast.querySelector('.toast-icon i');
-      
-      if (!toast) return;
-      
-      toastMessage.textContent = message;
-      
-      if (type === 'success') {
-        toastIcon.className = 'bi bi-check2-circle';
-        toast.style.background = 'linear-gradient(145deg, #ffffff, #f0fdf4)';
-      } else if (type === 'info') {
-        toastIcon.className = 'bi bi-info-circle';
-        toast.style.background = 'linear-gradient(145deg, #ffffff, #eff6ff)';
-      }
-      
-      toast.classList.add('show');
-      
-      setTimeout(() => {
-        toast.classList.remove('show');
-      }, 5000);
-    }
-
-    // ===== AUTO-REFRESH AVEC FEEDBACK =====
-    let refreshCount = 0;
-    const refreshInterval = setInterval(() => {
-      refreshCount++;
-      
-      // Afficher un toast toutes les 3 actualisations
-      if (refreshCount % 3 === 0) {
-        showToast('Mise  jour automatique des donnes', 'info');
-      }
-      
-      // Rechargement effectif toutes les 60s
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
-    }, 60000);
-
-    // ===== TOUCH OPTIMIZATION =====
-    if ('ontouchstart' in window) {
-      document.querySelectorAll('.stat-tile, .product-pill, .pagination-item').forEach(el => {
-        el.addEventListener('touchstart', function() {
-          this.style.transform = 'scale(0.98)';
-        }, { passive: true });
-        
-        el.addEventListener('touchend', function() {
-          this.style.transform = '';
-        }, { passive: true });
-      });
-    }
-
-    // ===== FILTER PILL MOBILE ENHANCEMENT =====
-    const filterPill = document.querySelector('.filter-pill');
-    if (filterPill && window.innerWidth < 640) {
-      const filterInputs = filterPill.querySelectorAll('.form-control, .form-select');
-      filterInputs.forEach(input => {
-        input.style.width = '100%';
-      });
-    }
-
-    // ===== QUICK SEARCH (REAL-TIME) =====
-    const searchInput = document.getElementById('quickSearch');
-    const clearSearchBtn = document.getElementById('clearSearch');
-    const noResultsRow = document.getElementById('noSearchResults');
-    const orderRows = Array.from(document.querySelectorAll('tbody tr.order-row'));
-
-    function normalizeText(value) {
-      return (value || '')
-        .toString()
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '');
-    }
-
-    if (searchInput && orderRows.length) {
-      const rowIndex = new Map(orderRows.map(r => [r, normalizeText(r.textContent)]));
-
-      const applySearch = () => {
-        const q = normalizeText(searchInput.value.trim());
-        let visible = 0;
-
-        orderRows.forEach(row => {
-          const match = !q || (rowIndex.get(row) || '').includes(q);
-          row.hidden = !match;
-          if (match) visible++;
-        });
-
-        if (noResultsRow) {
-          noResultsRow.hidden = visible !== 0;
-        }
-
-        if (clearSearchBtn) {
-          clearSearchBtn.hidden = !searchInput.value;
-        }
-      };
-
-      searchInput.addEventListener('input', applySearch, { passive: true });
-      if (clearSearchBtn) {
-        clearSearchBtn.addEventListener('click', () => {
-          searchInput.value = '';
-          applySearch();
-          searchInput.focus();
-        });
-      }
-
-      applySearch();
-    }
-
-    // ===== SAVE SCROLL POSITION =====
-    window.addEventListener('beforeunload', function() {
-      sessionStorage.setItem('earningsScrollPosition', window.scrollY);
-    });
-
-    window.addEventListener('load', function() {
-      const savedPosition = sessionStorage.getItem('earningsScrollPosition');
-      if (savedPosition) {
-        window.scrollTo(0, parseInt(savedPosition));
-        sessionStorage.removeItem('earningsScrollPosition');
-      }
-    });
-
-    // ===== EXPOSE TOAST GLOBALEMENT =====
-    window.showEarningsToast = showToast;
-
-    // ===== CLEANUP =====
-    window.addEventListener('beforeunload', function() {
-      clearInterval(refreshInterval);
-    });
-
-    // ===== ANIMATION ON LOAD =====
-    document.querySelectorAll('.stat-tile, .table-card, .empty-earnings').forEach((el, index) => {
-      el.style.animationDelay = `${0.1 * (index + 1)}s`;
-    });
-  })();
-</script>
+<script type="application/json" id="vendorEarningsPageConfig">{{ {
+  "refreshIntervalMs": 60000,
+  "reloadDelayMs": 1000,
+  "scrollStorageKey": "earningsScrollPosition",
+  "autoRefreshInfoEvery": 3
+} | tojson }}</script>
+<script src="{{ url_for('static', filename='js/pages/vendor/earnings_page.js', v=app_static_version) }}" defer></script>
 {% endblock %}
+
+

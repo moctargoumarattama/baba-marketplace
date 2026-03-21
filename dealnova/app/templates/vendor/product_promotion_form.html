@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}Promotion produit | {{ config.SITE_NAME }}{% endblock %}
+{% block body_attrs %}data-back-target="{{ url_for('vendor.dashboard') }}"{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+  <div class="mx-auto" style="max-width: 900px;">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+      <div>
+        <h1 class="h3 fw-bold mb-1">Promotion produit</h1>
+        <p class="text-muted mb-0">{{ product.name }}</p>
+      </div>
+      <a href="{{ url_for('vendor.dashboard') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i> Retour catalogue
+      </a>
+    </div>
+
+    <div class="row g-4">
+      <div class="col-lg-7">
+        <div class="card border-0 shadow-sm rounded-4">
+          <div class="card-body p-4">
+            <h2 class="h5 fw-bold mb-3">Configurer la promotion</h2>
+            <form method="post" action="{{ url_for('vendor.product_promotion', pid=product.id) }}" class="row g-3">
+              {% include "partials/_csrf.html" %}
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">Type</label>
+                <select name="promo_type" class="form-select" required>
+                  <option value="percentage" {{ 'selected' if promo and promo.type == 'percentage' else '' }}>Pourcentage</option>
+                  <option value="fixed" {{ 'selected' if promo and promo.type == 'fixed' else '' }}>Montant fixe</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">Valeur</label>
+                <input type="number" step="0.01" min="0.01" name="promo_value" class="form-control" value="{{ promo.value if promo else '' }}" required>
+              </div>
+              <div class="col-md-7">
+                <label class="form-label fw-semibold">Fin de promo</label>
+                <input type="datetime-local" name="end_date" class="form-control" value="{{ promo.end_date.strftime('%Y-%m-%dT%H:%M') if promo and promo.end_date else '' }}">
+                <div class="form-text">Si vide, la promo se termine automatiquement dans 7 jours.</div>
+              </div>
+              <div class="col-md-5 d-flex align-items-end">
+                <button type="submit" class="btn btn-success w-100">
+                  <i class="bi bi-tags me-1"></i> {{ 'Mettre a jour' if promo else 'Creer la promo' }}
+                </button>
+              </div>
+            </form>
+
+            {% if active_promo %}
+            <hr class="my-4">
+            <form method="post" action="{{ url_for('vendor.product_promotion_disable', pid=product.id) }}">
+              {% include "partials/_csrf.html" %}
+              <button type="submit" class="btn btn-outline-danger">
+                <i class="bi bi-pause-circle me-1"></i> Desactiver la promo
+              </button>
+            </form>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-5">
+        <div class="card border-0 shadow-sm rounded-4">
+          <div class="card-body p-4">
+            <h2 class="h5 fw-bold mb-3">Apercu</h2>
+            <div class="small text-muted mb-2">Prix original</div>
+            <div class="fs-4 fw-bold mb-3">{{ '%.2f'|format((product.price or 0)|float) }} MAD</div>
+            {% if active_promo %}
+            <div class="small text-muted mb-2">Prix promo actif</div>
+            <div class="d-flex align-items-center gap-2 flex-wrap mb-2">
+              <span class="badge bg-danger">Promo</span>
+              <span class="fs-3 fw-bold text-success">{{ '%.2f'|format(final_price|float) }} MAD</span>
+            </div>
+            <div class="text-muted text-decoration-line-through">{{ '%.2f'|format((product.price or 0)|float) }} MAD</div>
+            <div class="small text-success mt-2">Active jusqu'au {{ promo.end_date.strftime('%d/%m/%Y %H:%M') }}</div>
+            {% else %}
+            <div class="alert alert-light border mb-0">
+              Aucune promotion active. La promotion demarre des qu'elle est enregistree.
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

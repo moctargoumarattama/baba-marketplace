@@ -1,0 +1,177 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Mise en avant | Admin{% endblock %}
+
+{% block head %}
+{{ super() }}
+<style>
+  .hi-card { border-radius: 1.1rem; }
+  .hi-summary-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    min-height: 40px;
+    padding: 0.55rem 0.95rem;
+    border-radius: 999px;
+    font-weight: 800;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+  }
+  .hi-summary-badge-total {
+    background: #0f172a;
+    color: #fff;
+  }
+  .hi-summary-badge-active {
+    background: linear-gradient(135deg, #047857, #10b981);
+    color: #fff;
+  }
+  .hi-summary-badge-history {
+    background: linear-gradient(135deg, #475569, #64748b);
+    color: #fff;
+  }
+  .hi-filter-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 40px;
+    padding: 0.45rem 0.9rem;
+    border-radius: 999px;
+    border: 1px solid #dbe5ef;
+    background: #fff;
+    color: #334155;
+    text-decoration: none;
+    font-weight: 700;
+  }
+  .hi-filter-pill.active {
+    background: linear-gradient(135deg, #0f766e, #10b981);
+    color: #fff;
+    border-color: transparent;
+  }
+  .hi-search-table td { vertical-align: middle; }
+  .hi-shop-name { font-weight: 800; color: #0f172a; }
+  .hi-shop-meta { font-size: 0.83rem; color: #64748b; }
+  .hi-active-card { border: 1px solid #e5edf5; border-radius: 1rem; padding: 1rem; background: linear-gradient(180deg, #fff, #f8fbfd); }
+  .hi-active-actions { display: flex; gap: 0.55rem; flex-wrap: wrap; margin-top: 0.85rem; }
+  .hi-active-actions form { margin: 0; }
+  .hi-mini-btn { min-height: 34px; border-radius: 999px; font-weight: 700; }
+  .hi-state-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 34px;
+    padding: 0.45rem 0.85rem;
+    border-radius: 999px;
+    background: rgba(16, 185, 129, 0.14);
+    color: #047857;
+    border: 1px solid rgba(16, 185, 129, 0.24);
+    font-weight: 800;
+    white-space: nowrap;
+  }
+  .hi-section-title { display:flex; align-items:center; gap:0.6rem; margin-bottom: 1rem; }
+  .hi-section-title i { color:#0f766e; }
+  @media (max-width: 768px) {
+    .hi-active-actions { flex-direction: column; }
+    .hi-active-actions form, .hi-active-actions .btn { width: 100%; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+  <div id="highlightsPageRoot" data-fetch-url="{{ url_for('admin.featured_items') }}">
+    {% include "admin/partials/_highlights_content.html" %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+  (function () {
+    var root = document.getElementById("highlightsPageRoot");
+    if (!root) return;
+    var fetchUrl = root.getAttribute("data-fetch-url") || "";
+    if (!fetchUrl) return;
+    var activeController = null;
+
+    function showMessage(message, type) {
+      var old = document.getElementById("highlightsAjaxMessage");
+      if (old) old.remove();
+      if (!message) return;
+      var node = document.createElement("div");
+      node.id = "highlightsAjaxMessage";
+      node.className = "alert alert-" + (type || "success") + " border-0 shadow-sm rounded-4 mb-3";
+      node.textContent = message;
+      root.parentNode.insertBefore(node, root);
+      window.setTimeout(function () {
+        if (node && node.parentNode) node.remove();
+      }, 2800);
+    }
+
+    function setLoading(isLoading) {
+      root.style.opacity = isLoading ? "0.55" : "1";
+      root.style.pointerEvents = isLoading ? "none" : "auto";
+      root.style.transition = "opacity .18s ease";
+    }
+
+    async function fetchAndSwap(url, options) {
+      if (activeController) {
+        try { activeController.abort(); } catch (_error) {}
+      }
+      activeController = new AbortController();
+      setLoading(true);
+      try {
+        var response = await fetch(url, Object.assign({
+          headers: {
+            "X-Requested-With": "fetch",
+            "X-Highlights-Partial": "1",
+            "Accept": "application/json"
+          },
+          credentials: "same-origin",
+          signal: activeController.signal
+        }, options || {}));
+        var data = await response.json();
+        if (!response.ok || !data || data.success === false) {
+          throw new Error((data && data.message) || "request_failed");
+        }
+        if (typeof data.html === "string") {
+          root.innerHTML = data.html;
+        }
+        if (data.url) {
+          window.history.replaceState({}, "", data.url);
+        }
+        if (data.message) {
+          showMessage(data.message, data.message_type || "success");
+        }
+      } catch (error) {
+        if (error && error.name === "AbortError") return;
+        showMessage("Impossible de mettre a jour cette page.", "danger");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    document.addEventListener("submit", function (event) {
+      var form = event.target;
+      if (!(form instanceof HTMLFormElement) || !form.hasAttribute("data-highlights-form")) return;
+      event.preventDefault();
+      var method = (form.getAttribute("method") || "get").toUpperCase();
+      if (method === "GET") {
+        var params = new URLSearchParams(new FormData(form));
+        fetchAndSwap(fetchUrl + "?" + params.toString(), { method: "GET" });
+        return;
+      }
+      fetchAndSwap(form.action, {
+        method: method,
+        body: new FormData(form)
+      });
+    }, true);
+
+    document.addEventListener("click", function (event) {
+      var link = event.target.closest("[data-highlights-link]");
+      if (!link) return;
+      event.preventDefault();
+      fetchAndSwap(link.href, { method: "GET" });
+    });
+  })();
+</script>
+{% endblock %}

@@ -1,0 +1,17 @@
+dealnova/app/static/uploads/
+dealnova/app/static/uploads/rentals/
+
+__pycache__/
+*.pyc
+
+*.db
+*.db-shm
+*.db-wal
+
+.env
+dealnova/.env
+
+venv/
+.venv/
+env/
+ENV/

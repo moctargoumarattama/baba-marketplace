@@ -1,13 +1,76 @@
 ﻿{% extends "base.html" %}
-{% block title %}BABA Market - Produits Frais & Livraison Rapide{% endblock %}
+{% block title %}BabaMarket | Livraison, services, locations et repas à Rabat, Salé, Kénitra et Témara{% endblock %}
 
 {% block head %}
+{% set seo_title = "BabaMarket | Livraison, services, locations et repas à Rabat, Salé, Kénitra et Témara" %}
+{% set seo_description = "BabaMarket est une marketplace locale pour Rabat, Salé, Kénitra et Témara. Commandez repas, produits, services et locations avec livraison rapide et paiement à la livraison." %}
+{% set seo_og_description = "Marketplace locale pour commander repas, produits, services et locations avec livraison rapide." %}
+{% set seo_twitter_description = "Marketplace locale avec livraison rapide pour repas, produits, services et locations." %}
+{% set canonical_url = "https://www.babamarket.ma/" %}
+{% set og_image_url = "https://www.babamarket.ma" ~ url_for('static', filename='images/produit.jpeg') %}
+{% set logo_path = config.get('SITE_LOGO') or 'logo.png' %}
+{% set logo_url = logo_path if logo_path.startswith('http') else ("https://www.babamarket.ma" ~ url_for('static', filename=logo_path)) %}
+{% set facebook_url = "https://www.facebook.com/share/v/1Aokzj7kPg/" %}
+<meta name="description" content="{{ seo_description }}">
+<meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
+<link rel="canonical" href="{{ canonical_url }}">
+<meta property="og:locale" content="fr_MA">
+<meta property="og:site_name" content="BabaMarket">
+<meta property="og:title" content="{{ seo_title }}">
+<meta property="og:description" content="{{ seo_og_description }}">
+<meta property="og:type" content="website">
+<meta property="og:url" content="{{ canonical_url }}">
+<meta property="og:image" content="{{ og_image_url }}">
+<meta property="og:image:alt" content="BabaMarket marketplace locale au Maroc">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{ seo_title }}">
+<meta name="twitter:description" content="{{ seo_twitter_description }}">
+<meta name="twitter:image" content="{{ og_image_url }}">
+<script type="application/ld+json">
+  {{
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": canonical_url ~ "#organization",
+          "name": "BabaMarket",
+          "url": canonical_url,
+          "logo": logo_url,
+          "sameAs": [facebook_url],
+          "areaServed": [
+            "Rabat",
+            "Salé",
+            "Kénitra",
+            "Témara"
+          ]
+        },
+        {
+          "@type": "LocalBusiness",
+          "@id": canonical_url ~ "#localbusiness",
+          "name": "BabaMarket",
+          "url": canonical_url,
+          "image": og_image_url,
+          "logo": logo_url,
+          "description": seo_description,
+          "areaServed": [
+            "Rabat",
+            "Salé",
+            "Kénitra",
+            "Témara"
+          ]
+        }
+      ]
+    }|tojson
+  }}
+</script>
 <link rel="preload" as="image" href="{{ url_for('static', filename='logo.png') }}">
 <link rel="preload" as="image" href="{{ url_for('static', filename='images/produit.jpeg') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/home_shell.css', v=app_static_version) }}">
 {% endblock %}
 
 {% block content %}
+<div class="home-page-shell">
 <!-- HERO SECTION WITH BACKGROUND IMAGE -->
 <section class="hero-background glow-line">
   <div class="hero-content">
@@ -44,7 +107,10 @@
            alt="Offres marketplace"
            class="hero-card-image"
            loading="eager"
-           fetchpriority="high">
+           decoding="async"
+           fetchpriority="high"
+           width="900"
+           height="600">
       <div class="hero-card-bottom">
         <span class="hero-card-delivery"><i class="bi bi-grid-3x3-gap"></i> 3 univers actifs</span>
         <span class="hero-card-rating"><i class="bi bi-star-fill"></i> 4.9</span>
@@ -99,22 +165,35 @@
   {% if data %}
   <div class="products-header reveal" style="--i: 0">
     <div>
-      <h2 class="products-title underline-animated">Produits, services et locations du moment</h2>
-      <p class="products-subtitle">Sélection mixte pour achat rapide, réservation et visite.</p>
+      <h2 class="products-title underline-animated"></h2>
+      <p class="products-subtitle"></p>
     </div>
+    <a href="{{ url_for('shop.promotions') }}" class="products-more-btn premium-hover">
+      <span>Promotions du moment</span>
+      <i class="bi bi-arrow-right"></i>
+    </a>
   </div>
   <div class="products-grid">
     {% for item in data %}
     {% set product = item[0] %}
     {% set final_price = item[1] %}
     {% set discount = item[2] if item|length > 2 else None %}
+    {% set has_promo = product.promo_active if product.promo_active is defined else (product.price and product.price > final_price) %}
     
     {% set product_images = product.image_file.split('|') if product.image_file and '|' in product.image_file else [product.image_file] if product.image_file else [] %}
     {% set first_image = product_images[0] if product_images|length > 0 else '' %}
     
-    <div class="product-card premium-hover reveal" style="--i: {{ loop.index0 }}">
+    <div class="product-card premium-hover reveal"
+         style="--i: {{ loop.index0 }}"
+         data-item-type="{{ product.item_type|default('service' if product.kind == 'service' else ('location' if product.kind == 'location' else 'product')) }}">
       <!-- Product Badges -->
       <div class="product-badges">
+        {% if has_promo and product.kind != 'location' %}
+        <div class="badge badge-promo">
+          <i class="bi bi-stars"></i>
+          <span>Promo</span>
+        </div>
+        {% endif %}
         {% if discount and discount > 0 %}
         <div class="badge badge-discount">
           <i class="bi bi-percent"></i>
@@ -154,25 +233,45 @@
 
       <!-- Product Image -->
       <div class="product-image-container">
-        {% if first_image %}
+        {% set cover_video = product.cover_video_file if product.kind == 'location' and product.cover_video_file is defined else '' %}
+        {% set cover_video_poster = product.cover_video_poster_file if product.kind == 'location' and product.cover_video_poster_file is defined else '' %}
+        {% if product.kind == 'location' and cover_video %}
+          <div class="product-video-frame">
+            <video class="product-image" preload="auto" autoplay loop muted playsinline{% if cover_video_poster %} poster="{{ url_for('static', filename=cover_video_poster) }}"{% endif %}>
+              <source src="{{ url_for('static', filename=cover_video) }}">
+            </video>
+            <span class="product-video-badge"><i class="bi bi-play-fill"></i> Video</span>
+          </div>
+        {% elif first_image %}
           {% if product.kind == 'location' %}
-          <img src="{{ url_for('static', filename=first_image) }}"
-               alt="{{ product.name }}"
-               class="product-image"
-               loading="lazy"
-               decoding="async"
-               width="300"
-               height="300"
-               data-fallback-src="https://images.unsplash.com/photo-1560518883-ce09059eeffaauto=format&fit=crop&w=400&q=80">
+            {% set location_variant_source = first_image[8:] if first_image.startswith('uploads/') else first_image %}
+            {% set location_thumb = image_variant(location_variant_source, 'thumb') %}
+            {% set location_large = image_variant(location_variant_source, 'large') %}
+            <img src="{{ url_for('static', filename=first_image) }}"
+                 {% if first_image.startswith('uploads/') %}
+                 srcset="{{ url_for('static', filename='uploads/' ~ location_thumb) }} 300w,
+                         {{ url_for('static', filename='uploads/' ~ location_large) }} 900w"
+                 sizes="(max-width: 576px) 50vw, (max-width: 1024px) 33vw, 220px"
+                 {% endif %}
+                 alt="{{ product.name }}"
+                 class="product-image"
+                 loading="lazy"
+                 decoding="async"
+                 width="300"
+                 height="300"
+                 data-fallback-src="https://images.unsplash.com/photo-1560518883-ce09059eeffaauto=format&fit=crop&w=400&q=80">
           {% else %}
-          <img src="{{ url_for('static', filename='uploads/' ~ image_variant(first_image, 'thumb')) }}"
-               alt="{{ product.name }}"
-               class="product-image"
-               loading="lazy"
-               decoding="async"
-               width="300"
-               height="300"
-               data-fallback-src="https://images.unsplash.com/photo-1556909114-f6e7ad7d3136auto=format&fit=crop&w=400&q=80">
+            <img src="{{ url_for('static', filename='uploads/' ~ image_variant(first_image, 'thumb')) }}"
+                 srcset="{{ url_for('static', filename='uploads/' ~ image_variant(first_image, 'thumb')) }} 300w,
+                         {{ url_for('static', filename='uploads/' ~ image_variant(first_image, 'large')) }} 900w"
+                 sizes="(max-width: 576px) 50vw, (max-width: 1024px) 33vw, 220px"
+                 alt="{{ product.name }}"
+                 class="product-image"
+                 loading="lazy"
+                 decoding="async"
+                 width="300"
+                 height="300"
+                 data-fallback-src="https://images.unsplash.com/photo-1556909114-f6e7ad7d3136auto=format&fit=crop&w=400&q=80">
           {% endif %}
         {% else %}
           <div class="image-placeholder">
@@ -196,14 +295,16 @@
         </h3>
         
         <div class="product-price-container">
-          <div class="current-price">{{ "%.2f"|format(final_price) }} DH</div>
+          <div class="current-price {{ 'is-promo-price' if has_promo and product.kind != 'location' else '' }}">{{ "%.2f"|format(final_price) }} DH</div>
           
           {% if product.kind == 'location' %}
           <div class="discount-text">{{ 'Mensuel' if product.listing_type == 'monthly' else 'Journalier' }}</div>
-          {% elif product.price and product.price > final_price %}
+          {% elif has_promo and product.price and product.price > final_price %}
           <div class="old-price">{{ "%.2f"|format(product.price) }} DH</div>
           {% if discount and discount > 0 %}
           <div class="discount-text">Économisez {{ discount }}%</div>
+          {% else %}
+          <div class="discount-text discount-text-promo">Prix promotionnel</div>
           {% endif %}
           {% endif %}
         </div>
@@ -232,7 +333,12 @@
             <span>Demander visite</span>
           </a>
           {% elif product.stock is not defined or product.stock > 0 %}
-          <form method="post" action="{{ url_for('cart.add', pid=product.id) }}" class="d-inline add-to-cart-form">
+          <form method="post"
+                action="{{ url_for('cart.add', pid=product.id) }}"
+                class="d-inline add-to-cart-form"
+                data-ajax="true"
+                data-action="add-to-cart"
+                data-success-message="Produit ajoute au panier">
             {% include "partials/_csrf.html" %}
             <button type="submit"
                     class="btn-cart add-to-cart premium-hover"
@@ -381,6 +487,7 @@
   <button type="button" id="toast-close" style="background: none; border: none; color: white; cursor: pointer; margin-left: auto;">
     <i class="bi bi-x"></i>
   </button>
+</div>
 </div>
 {% endblock %}
 

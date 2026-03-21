@@ -1,9 +1,14 @@
 ﻿from __future__ import annotations
 
 from datetime import date, datetime, timedelta
+from functools import lru_cache
+from flask import current_app
 
 from ..extensions import db
 from ..models.financial import FinancialEntry, FinancialPeriod
+from ..services.order_periods import CLOSED_STATUS as ORDER_PERIOD_CLOSED
+from ..services.order_periods import OPEN_STATUS as ORDER_PERIOD_OPEN
+from ..services.order_periods import get_open_order_period
 
 ENTRY_TYPE_DELIVERY_FEE = "delivery_fee"
 ENTRY_TYPE_SUBSCRIPTION = "subscription"
@@ -12,6 +17,7 @@ ENTRY_TYPE_RENTAL_COMMISSION = "rental_commission"
 FINANCIAL_PERIOD_OPEN = "open"
 FINANCIAL_PERIOD_CLOSED = "closed"
 FINANCIAL_PERIOD_DELETE_RETENTION_DAYS = 365
+MAX_REASONABLE_AMOUNT = 1_000_000_00  # 1 million MAD
 
 
 def get_open_financial_period() -> FinancialPeriod | None:
@@ -26,6 +32,70 @@ def get_open_financial_period() -> FinancialPeriod | None:
     )
 
 
+@lru_cache(maxsize=1)
+def get_open_financial_period_cached() -> FinancialPeriod | None:
+    """Version cachée de la période ouverte (invalider à la fermeture)."""
+    return get_open_financial_period()
+
+
+def invalidate_period_cache():
+    """Invalide le cache de la période ouverte."""
+    get_open_financial_period_cached.cache_clear()
+
+
+def _global_financial_period_name(order_period) -> str:
+    period_name = (getattr(order_period, "name", "") or "").strip()
+    return f"Global admin #{getattr(order_period, 'id', 0)} - {period_name or 'Periode'}"
+
+
+def ensure_financial_period_for_order_period(order_period, *, create_if_missing: bool = True) -> FinancialPeriod | None:
+    if order_period is None or getattr(order_period, "id", None) is None:
+        return None
+
+    normalized_name = _global_financial_period_name(order_period)
+    period = (
+        FinancialPeriod.query
+        .filter(
+            FinancialPeriod.deleted_at.is_(None),
+            FinancialPeriod.name == normalized_name,
+        )
+        .order_by(FinancialPeriod.id.desc())
+        .first()
+    )
+    if period is None and not create_if_missing:
+        return None
+
+    start_date = (getattr(order_period, "opened_at", None) or datetime.utcnow()).date()
+    end_source = getattr(order_period, "closed_at", None) or datetime.utcnow()
+    end_date = end_source.date()
+    status = (
+        FINANCIAL_PERIOD_CLOSED
+        if getattr(order_period, "status", "") == ORDER_PERIOD_CLOSED
+        else FINANCIAL_PERIOD_OPEN
+    )
+
+    if period is None:
+        period = FinancialPeriod(
+            name=normalized_name,
+            start_date=start_date,
+            end_date=end_date,
+            status=status,
+            closed_at=getattr(order_period, "closed_at", None),
+        )
+        db.session.add(period)
+        db.session.flush()
+        invalidate_period_cache()
+        return period
+
+    period.start_date = start_date
+    period.end_date = end_date
+    period.status = status
+    period.closed_at = getattr(order_period, "closed_at", None)
+    db.session.flush()
+    invalidate_period_cache()
+    return period
+
+
 def create_financial_period(
     *,
     name: str | None,
@@ -37,7 +107,7 @@ def create_financial_period(
     if end_date < start_date:
         raise ValueError("La date de fin doit etre superieure ou egale a la date de debut.")
 
-    existing_open = get_open_financial_period()
+    existing_open = get_open_financial_period_cached()
     if existing_open is not None:
         raise ValueError(f"Une periode financiere est deja ouverte (#{existing_open.id}).")
 
@@ -126,6 +196,10 @@ def close_financial_period(period: FinancialPeriod, *, closed_at: datetime | Non
     period.total_cents = totals["total_cents"]
 
     db.session.flush()
+    
+    # Invalider le cache
+    invalidate_period_cache()
+    
     return period
 
 
@@ -163,9 +237,19 @@ def financial_period_delete_guard(
     return True, "", available_at
 
 
-def _resolve_entry_period_id() -> int | None:
-    open_period = get_open_financial_period()
-    return open_period.id if open_period is not None else None
+def _resolve_entry_period_id(create_if_missing: bool = False) -> int:
+    """Résout l'ID de période en suivant la période globale admin ouverte."""
+    open_order_period = get_open_order_period()
+    if open_order_period is None:
+        raise ValueError("Aucune periode admin ouverte disponible")
+
+    period = ensure_financial_period_for_order_period(
+        open_order_period,
+        create_if_missing=create_if_missing,
+    )
+    if period is None:
+        raise ValueError("Aucune periode financiere synchronisee disponible")
+    return period.id
 
 
 def record_delivery_fee_entry(order, *, note: str | None = None) -> FinancialEntry | None:
@@ -175,6 +259,10 @@ def record_delivery_fee_entry(order, *, note: str | None = None) -> FinancialEnt
     amount_cents = int(getattr(order, "delivery_platform_fee_cents", 0) or 0)
     if amount_cents <= 0:
         return None
+    
+    # Alerte pour montants suspects
+    if amount_cents > MAX_REASONABLE_AMOUNT:
+        current_app.logger.warning(f"Montant anormal: {amount_cents} pour order {order.id}")
 
     existing = (
         FinancialEntry.query
@@ -187,8 +275,14 @@ def record_delivery_fee_entry(order, *, note: str | None = None) -> FinancialEnt
     if existing is not None:
         return existing
 
+    try:
+        period_id = _resolve_entry_period_id(create_if_missing=False)
+    except ValueError:
+        current_app.logger.error(f"Pas de periode ouverte pour order {order.id}")
+        return None
+
     entry = FinancialEntry(
-        period_id=_resolve_entry_period_id(),
+        period_id=period_id,
         entry_type=ENTRY_TYPE_DELIVERY_FEE,
         amount_cents=amount_cents,
         created_at=getattr(order, "delivered_at", None) or datetime.utcnow(),
@@ -214,6 +308,9 @@ def record_rental_commission_entry(rental_archive, *, note: str | None = None) -
     amount_cents = int(getattr(rental_archive, "platform_commission_amount_cents", 0) or 0)
     if amount_cents <= 0:
         return None
+    
+    if amount_cents > MAX_REASONABLE_AMOUNT:
+        current_app.logger.warning(f"Montant anormal: {amount_cents} pour rental {rental_archive.id}")
 
     existing = (
         FinancialEntry.query
@@ -226,8 +323,14 @@ def record_rental_commission_entry(rental_archive, *, note: str | None = None) -
     if existing is not None:
         return existing
 
+    try:
+        period_id = _resolve_entry_period_id(create_if_missing=False)
+    except ValueError:
+        current_app.logger.error(f"Pas de periode ouverte pour rental {rental_archive.id}")
+        return None
+
     entry = FinancialEntry(
-        period_id=_resolve_entry_period_id(),
+        period_id=period_id,
         entry_type=ENTRY_TYPE_RENTAL_COMMISSION,
         amount_cents=amount_cents,
         created_at=getattr(rental_archive, "closed_at", None) or datetime.utcnow(),
@@ -246,6 +349,10 @@ def record_subscription_entry(subscription_payment, *, note: str | None = None) 
     amount_cents = int(getattr(subscription_payment, "amount_cents", 0) or 0)
     if amount_cents <= 0:
         return None
+    
+    if amount_cents > MAX_REASONABLE_AMOUNT:
+        current_app.logger.warning(f"Montant anormal: {amount_cents} pour payment {subscription_payment.id}")
+    
     if getattr(subscription_payment, "id", None) is None:
         db.session.flush()
     if getattr(subscription_payment, "id", None) is None:
@@ -262,8 +369,14 @@ def record_subscription_entry(subscription_payment, *, note: str | None = None) 
     if existing is not None:
         return existing
 
+    try:
+        period_id = _resolve_entry_period_id(create_if_missing=False)
+    except ValueError:
+        current_app.logger.error(f"Pas de periode ouverte pour payment {subscription_payment.id}")
+        return None
+
     entry = FinancialEntry(
-        period_id=_resolve_entry_period_id(),
+        period_id=period_id,
         entry_type=ENTRY_TYPE_SUBSCRIPTION,
         amount_cents=amount_cents,
         created_at=(
@@ -277,4 +390,3 @@ def record_subscription_entry(subscription_payment, *, note: str | None = None) 
     db.session.add(entry)
     db.session.flush()
     return entry
-

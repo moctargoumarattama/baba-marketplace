@@ -1,100 +1,285 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 {% block title %}Réserver | {{ config.SITE_NAME }}{% endblock %}
 
 {% block content %}
-<section class="py-4 py-lg-5" style="background:#f7f8fb;">
-  <div class="container">
-    <div class="row justify-content-center">
-      <div class="col-lg-7 col-xl-6">
-        <div class="card shadow-sm border-0 rounded-4 overflow-hidden">
-          <div class="card-header text-white text-center py-4"
-               style="background:linear-gradient(135deg,#2563eb,#1d4ed8)">
-            <h3 class="mb-0 fw-bold">
-              <i class="bi bi-calendar-check me-2"></i>Réservation
-            </h3>
-            <div class="opacity-75 fw-semibold mt-1">
-              Service <b>sur rendez-vous</b>
-            </div>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
+
+  :root {
+    --green:   #10b981;
+    --green-d: #059669;
+    --blue:    #2563eb;
+    --blue-d:  #1d4ed8;
+    --ink:     #0f172a;
+    --muted:   #64748b;
+    --surface: #f1f5f9;
+    --card:    #ffffff;
+    --border:  rgba(15,23,42,.09);
+  }
+
+  * { box-sizing: border-box; }
+
+  .bk-page {
+    min-height: 100vh;
+    background: var(--surface);
+    display: flex; align-items: flex-start; justify-content: center;
+    padding: 1rem;
+    font-family: 'DM Sans', sans-serif;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: clip;
+  }
+
+  .bk-shell {
+    width: 100%; max-width: 520px;
+    min-width: 0;
+    background: var(--card);
+    border-radius: 18px;
+    box-shadow: 0 8px 40px rgba(15,23,42,.10);
+    overflow: hidden;
+    animation: fadeUp .4s cubic-bezier(.22,1,.36,1) both;
+  }
+  @keyframes fadeUp {
+    from { opacity:0; transform:translateY(16px); }
+    to   { opacity:1; transform:translateY(0); }
+  }
+
+  /* ── Slim header ── */
+  .bk-top {
+    background: linear-gradient(135deg, var(--blue) 0%, #1e40af 100%);
+    padding: .9rem 1.2rem;
+    display: flex; align-items: center; gap: .75rem;
+    position: relative; overflow: hidden;
+  }
+  .bk-top::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23fff' fill-opacity='0.04'%3E%3Cpath d='M20 20h20v20H20zM0 0h20v20H0z'/%3E%3C/g%3E%3C/svg%3E");
+    pointer-events: none;
+  }
+  .bk-top-icon {
+    width: 36px; height: 36px; flex-shrink: 0;
+    background: rgba(255,255,255,.18);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .bk-top-icon i { color: #fff; font-size: 1rem; }
+  .bk-top-text { flex: 1; min-width: 0; }
+  .bk-top-text strong {
+    display: block; color: #fff;
+    font-size: .95rem; font-weight: 700; line-height: 1.2;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .bk-top-text span {
+    font-size: .75rem; color: rgba(255,255,255,.65);
+  }
+  .bk-top-price {
+    background: rgba(255,255,255,.18);
+    border-radius: 20px;
+    padding: .2rem .7rem;
+    font-size: .85rem; font-weight: 700; color: #fff;
+    white-space: nowrap; flex-shrink: 0;
+  }
+
+  /* ── Shop badge ── */
+  .bk-shop {
+    background: rgba(37,99,235,.05);
+    border-bottom: 1px solid var(--border);
+    padding: .45rem 1.2rem;
+    font-size: .75rem; color: var(--muted);
+    display: flex; align-items: center; gap: .3rem;
+  }
+
+  /* ── Form body ── */
+  .bk-body { padding: 1rem 1.2rem 1.2rem; min-width: 0; }
+
+  /* Inline row */
+  .f-row { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; min-width: 0; }
+
+  /* Field */
+  .f-wrap { margin-bottom: .6rem; min-width: 0; }
+  .f-wrap label {
+    display: block;
+    font-size: .72rem; font-weight: 600;
+    color: var(--muted); text-transform: uppercase;
+    letter-spacing: .5px; margin-bottom: .25rem;
+  }
+  .f-wrap label em { font-style: normal; font-weight: 400; text-transform: none; letter-spacing: 0; }
+  .f-input {
+    width: 100%; display: block;
+    padding: .55rem .8rem;
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 9px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: .88rem; color: var(--ink);
+    transition: border-color .18s, box-shadow .18s;
+    outline: none;
+    -webkit-appearance: none; appearance: none;
+    max-width: 100%;
+    min-width: 0;
+  }
+  .f-input:focus {
+    border-color: var(--blue);
+    box-shadow: 0 0 0 3px rgba(37,99,235,.10);
+    background: #fff;
+  }
+  .f-input::placeholder { color: #94a3b8; font-size: .82rem; }
+  textarea.f-input { resize: none; height: 64px; }
+
+  .f-hint {
+    font-size: .7rem; color: var(--muted);
+    margin-top: .2rem;
+    display: flex; align-items: center; gap: .25rem;
+  }
+
+  /* ── Buttons ── */
+  .btn-stack { display: flex; flex-direction: column; gap: .5rem; margin-top: .9rem; }
+
+  .btn-wa {
+    display: flex; align-items: center; justify-content: center; gap: .5rem;
+    width: 100%; padding: .72rem 1rem;
+    background: linear-gradient(135deg, #22c55e, var(--green-d));
+    border: none; border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: .92rem; font-weight: 600; color: #fff;
+    cursor: pointer;
+    box-shadow: 0 3px 14px rgba(16,185,129,.28);
+    transition: transform .14s, box-shadow .14s;
+    position: relative; overflow: hidden;
+  }
+  .btn-wa::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(rgba(255,255,255,.10), transparent);
+  }
+  .btn-wa:hover  { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(16,185,129,.36); }
+  .btn-wa:active { transform: none; box-shadow: 0 2px 8px rgba(16,185,129,.2); }
+  .btn-wa:disabled { opacity: .7; cursor: not-allowed; transform: none; }
+
+  .btn-back {
+    display: flex; align-items: center; justify-content: center; gap: .4rem;
+    width: 100%; padding: .6rem 1rem;
+    background: transparent;
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: .82rem; font-weight: 500;
+    color: var(--muted); text-decoration: none;
+    transition: border-color .18s, color .18s;
+  }
+  .btn-back:hover { border-color: var(--ink); color: var(--ink); }
+
+  .spinner-border-sm { width: .9em; height: .9em; }
+
+  @media (max-width: 575.98px) {
+    .bk-page {
+      padding: .75rem;
+    }
+
+    .bk-body,
+    .bk-top,
+    .bk-shop {
+      padding-inline: .9rem;
+    }
+
+    .bk-top {
+      flex-wrap: wrap;
+    }
+
+    .bk-top-price {
+      width: 100%;
+      text-align: center;
+    }
+
+    .f-row {
+      grid-template-columns: 1fr;
+    }
+
+    .f-input {
+      font-size: 16px;
+    }
+  }
+</style>
+
+<div class="bk-page">
+  <div class="bk-shell">
+
+    <!-- Compact header with service info -->
+    <div class="bk-top">
+      <div class="bk-top-icon"><i class="bi bi-scissors"></i></div>
+      <div class="bk-top-text">
+        <strong>{{ product.name }}</strong>
+        <span>Réservation sur rendez-vous</span>
+      </div>
+      <div class="bk-top-price">{{ "%.2f"|format(prix_final(product)) }} MAD</div>
+    </div>
+
+    {% if shop %}
+    <div class="bk-shop">
+      <i class="bi bi-geo-alt-fill" style="color:var(--blue);"></i>
+      {{ shop.name }}{% if shop.address %} — {{ shop.address }}{% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Form -->
+    <div class="bk-body">
+      <form method="POST" action="{{ url_for('booking.book', pid=product.id) }}">
+        {% include "partials/_csrf.html" %}
+
+        <div class="f-row">
+          <div class="f-wrap">
+            <label for="bk_name">Nom complet</label>
+            <input id="bk_name" type="text" class="f-input" name="full_name"
+                   placeholder="Moxxxxxxxx" required autocomplete="name">
           </div>
-
-          <div class="card-body p-4 p-lg-5">
-            <div class="alert alert-info rounded-4 border-0" style="background:rgba(59,130,246,.08); color:#0f172a;">
-              <div class="d-flex gap-3">
-                <i class="bi bi-scissors fs-4"></i>
-                <div class="w-100">
-                  <div class="fw-bold">{{ product.name }}</div>
-                  <div class="text-muted small mb-2">{{ product.description or "" }}</div>
-                  <div class="d-flex justify-content-between">
-                    <span class="fw-semibold">Prix</span>
-                    <span class="fw-bold">{{ "%.2f"|format(prix_final(product)) }} MAD</span>
-                  </div>
-                  {% if shop %}
-                  <div class="small text-muted mt-2">
-                    <i class="bi bi-shop me-1"></i>{{ shop.name }}
-                    {% if shop.address %} — {{ shop.address }}{% endif %}
-                  </div>
-                  {% endif %}
-                </div>
-              </div>
-            </div>
-
-            <form method="POST" action="{{ url_for('booking.book', pid=product.id) }}">
-              {% include "partials/_csrf.html" %}
-
-              <h5 class="mb-3 fw-bold">
-                <i class="bi bi-person-lines-fill me-2"></i>Vos informations
-              </h5>
-
-              <div class="row g-3 mb-4">
-                <div class="col-md-6">
-                  <label class="form-label fw-semibold">Nom complet</label>
-                  <input type="text" class="form-control form-control-lg rounded-3"
-                         name="full_name" required>
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label fw-semibold">Téléphone</label>
-                  <input type="tel" class="form-control form-control-lg rounded-3"
-                         name="phone" value="{{ remembered_phone }}" required>
-                </div>
-                <div class="col-12">
-                  <label class="form-label fw-semibold">Date & heure souhaitées (optionnel)</label>
-                  <input type="datetime-local" class="form-control form-control-lg rounded-3"
-                         name="scheduled_for">
-                  <div class="form-text">Vous pouvez laisser vide si vous voulez confirmer sur WhatsApp.</div>
-                </div>
-                <div class="col-12">
-                  <label class="form-label fw-semibold">Note (optionnel)</label>
-                  <textarea class="form-control rounded-3" name="note" rows="3"
-                            placeholder="Ex: je préfère à domicile / merci de confirmer avant..."></textarea>
-                </div>
-              </div>
-
-              <div class="d-grid gap-2">
-                <button type="submit" class="btn btn-lg rounded-3 fw-bold text-white" id="bookingSubmitBtn"
-                        style="background:linear-gradient(135deg,#10b981,#059669); border:none;">
-                  <i class="bi bi-whatsapp me-2"></i>Envoyer ma réservation sur WhatsApp
-                </button>
-                <a href="{{ url_for('shop.product_detail', pid=product.id) }}" class="btn btn-outline-secondary btn-lg rounded-3">
-                  Retour au service
-                </a>
-              </div>
-            </form>
+          <div class="f-wrap">
+            <label for="bk_phone">Téléphone</label>
+            <input id="bk_phone" type="tel" class="f-input" name="phone"
+                   value="{{ remembered_phone }}" placeholder="+212 6xx xxx xxx"
+                   required autocomplete="tel">
           </div>
         </div>
-      </div>
+
+        <div class="f-wrap">
+          <label for="bk_date">Date &amp; heure <em>(optionnel)</em></label>
+          <input id="bk_date" type="datetime-local" class="f-input" name="scheduled_for">
+          <div class="f-hint"><i class="bi bi-info-circle"></i> Laissez vide pour confirmer sur WhatsApp.</div>
+        </div>
+
+        <div class="f-wrap">
+          <label for="bk_note">Note <em>(optionnel)</em></label>
+          <textarea id="bk_note" class="f-input" name="note"
+                    placeholder="Ex : à domicile / confirmer avant midi…"></textarea>
+        </div>
+
+        <div class="btn-stack">
+          <button type="submit" class="btn-wa" id="bookingSubmitBtn">
+            <i class="bi bi-whatsapp" style="font-size:1.05rem;"></i>
+            Envoyer sur WhatsApp
+          </button>
+          <a href="{{ url_for('shop.product_detail', pid=product.id) }}" class="btn-back">
+            <i class="bi bi-arrow-left"></i> Retour au service
+          </a>
+        </div>
+      </form>
     </div>
+
   </div>
-</section>
+</div>
 
 <script>
-  document.addEventListener('DOMContentLoaded', function() {
-    const form = document.querySelector('form[action*="/booking/"]');
-    const btn = document.getElementById('bookingSubmitBtn');
+  (function () {
+    const form = document.querySelector('form');
+    const btn  = document.getElementById('bookingSubmitBtn');
     if (!form || !btn) return;
-    form.addEventListener('submit', function() {
+    form.addEventListener('submit', function () {
       btn.disabled = true;
-      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Ouverture WhatsApp…';
+      btn.innerHTML =
+        '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>' +
+        'Ouverture WhatsApp…';
     });
-  });
+  })();
 </script>
 {% endblock %}

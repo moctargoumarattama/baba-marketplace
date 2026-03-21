@@ -1,4 +1,4 @@
-<div id="shopsListing" data-ajax-listing data-ajax-scroll="preserve">
+﻿<div id="shopsListing" data-ajax-listing data-ajax-scroll="preserve">
   {% if shops %}
   <div class="shops-grid">
     {% for shop in shops %}
@@ -8,14 +8,14 @@
           <img src="{{ url_for('static', filename='uploads/' + shop.banner) }}"
                alt="{{ shop.name }}"
                class="shop-banner-image"
-               loading="lazy"
-               data-img-fallback="remove">
+                loading="lazy"
+                data-img-fallback="remove">
         {% elif shop.logo %}
           <img src="{{ url_for('static', filename='uploads/' + shop.logo) }}"
                alt="{{ shop.name }}"
-               class="shop-banner-image"
-               loading="lazy"
-               data-img-fallback="remove">
+               class="shop-banner-image is-logo-banner"
+                loading="lazy"
+                data-img-fallback="remove">
         {% else %}
           <div class="shop-banner-initials">
             {{ shop.name[:2] }}
@@ -41,6 +41,13 @@
           Verifie
         </div>
         {% endif %}
+
+        {% if shop.has_promo %}
+        <div class="promo-badge">
+          <i class="bi bi-stars"></i>
+          Promo
+        </div>
+        {% endif %}
       </div>
 
       <div class="shop-card-content">
@@ -57,6 +64,12 @@
         {% set mixed_types = not (products_only or services_only or location_only) %}
 
         <div class="shop-type-badges">
+          {% if shop.has_promo %}
+            <span class="type-badge badge-promo-shop">
+              <i class="bi bi-tags-fill"></i>
+              {{ shop.promo_count }} promo{{ 's' if shop.promo_count > 1 else '' }}
+            </span>
+          {% endif %}
           {% if 'products' in allowed_types %}
             <span class="type-badge badge-physical">
               <i class="bi bi-truck"></i>
@@ -138,7 +151,6 @@
             href="{{ shop.service_map_url }}"
             target="_blank"
             rel="noopener">
-          <i class="bi bi-geo-alt-fill"></i>
           Ouvrir localisation
         </a>
         {% if shop.service_location_note %}
@@ -179,9 +191,10 @@
   {% endif %}
 </div>
 
-<div id="shopsPagination" data-ajax-pagination>
+<div id="shopsPagination" data-ajax-pagination{% if shops and pagination.pages > 1 %} data-page="{{ pagination.page }}" data-pages="{{ pagination.pages }}"{% endif %}>
   {% if shops and pagination.pages > 1 %}
   <div class="pagination-shops">
+    <div class="pagination-slot pagination-prev-slot">
     {% if pagination.has_prev %}
     <a href="{{ url_for('shops.list_shops', page=pagination.prev_num, q=q, kind=kind) }}"
        class="page-link-shops prev-link">
@@ -192,7 +205,9 @@
       <i class="bi bi-chevron-left"></i> Precedent
     </span>
     {% endif %}
+    </div>
 
+    <div class="pagination-pages">
     {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=1) %}
       {% if p %}
         {% if p == pagination.page %}
@@ -205,7 +220,9 @@
         <span class="page-link-shops disabled">...</span>
       {% endif %}
     {% endfor %}
+    </div>
 
+    <div class="pagination-slot pagination-next-slot">
     {% if pagination.has_next %}
     <a href="{{ url_for('shops.list_shops', page=pagination.next_num, q=q, kind=kind) }}"
        class="page-link-shops next-link">
@@ -216,6 +233,8 @@
       Suivant <i class="bi bi-chevron-right"></i>
     </span>
     {% endif %}
+    </div>
   </div>
   {% endif %}
 </div>
+

@@ -1,4 +1,4 @@
-{% extends "admin/base.html" %}
+﻿{% extends "admin/base.html" %}
 
 {% block title %}Dashboard Admin | DealNova{% endblock %}
 {% block page_title %}Dashboard{% endblock %}
@@ -96,6 +96,21 @@
     margin: 0.35rem 0 0;
     color: #4B5563;
     font-weight: 500;
+  }
+
+  .dash-hero-period {
+    margin-top: 0.75rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.45rem 0.8rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.78);
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    color: #0f172a;
+    font-size: 0.88rem;
+    font-weight: 700;
+    box-shadow: 0 10px 18px rgba(15, 23, 42, 0.08);
   }
 
   .dash-hero-actions {
@@ -339,6 +354,136 @@
     gap: 1.2rem;
   }
 
+  .activity-grid .dash-panel.is-wide {
+    grid-column: 1 / -1;
+  }
+
+  .activity-hub {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.95fr);
+    gap: 1rem;
+  }
+
+  .activity-hub-card {
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    border-radius: 18px;
+    padding: 1rem;
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.08), rgba(59, 130, 246, 0.08));
+  }
+
+  .activity-hub-title {
+    margin: 0 0 0.45rem;
+    font-size: 1.08rem;
+    font-weight: 800;
+    color: #0f172a;
+  }
+
+  .activity-hub-text {
+    margin: 0 0 1rem;
+    color: #475569;
+    line-height: 1.55;
+  }
+
+  .activity-hub-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.65rem;
+  }
+
+  .activity-hub-kpis {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+
+  .activity-hub-kpi {
+    border: 1px solid #EEF2F7;
+    border-radius: 16px;
+    padding: 0.9rem;
+    background: #fff;
+  }
+
+  .activity-hub-kpi .label {
+    display: block;
+    margin-bottom: 0.25rem;
+    color: #64748B;
+    font-size: 0.76rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .activity-hub-kpi .value {
+    display: block;
+    color: #0f172a;
+    font-size: 1.35rem;
+    font-weight: 800;
+  }
+
+  .activity-insights {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
+  }
+
+  .activity-insight-card {
+    border: 1px solid #EEF2F7;
+    border-radius: 18px;
+    background: #fff;
+    overflow: hidden;
+  }
+
+  .activity-insight-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.95rem 1rem;
+    border-bottom: 1px solid #EEF2F7;
+  }
+
+  .activity-insight-head h6 {
+    margin: 0;
+    font-weight: 800;
+    color: #0f172a;
+  }
+
+  .activity-mini-list {
+    display: grid;
+    gap: 0;
+  }
+
+  .activity-mini-item {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.8rem;
+    padding: 0.9rem 1rem;
+    border-top: 1px solid #F1F5F9;
+  }
+
+  .activity-mini-item:first-child {
+    border-top: 0;
+  }
+
+  .activity-mini-title {
+    font-weight: 700;
+    color: #0f172a;
+  }
+
+  .activity-mini-meta {
+    color: #64748B;
+    font-size: 0.82rem;
+    margin-top: 0.15rem;
+  }
+
+  .activity-mini-side {
+    color: #64748B;
+    font-size: 0.8rem;
+    white-space: nowrap;
+    text-align: right;
+  }
+
   .list-stack {
     display: grid;
     padding: 0.35rem;
@@ -490,6 +635,10 @@
       flex: 1 1 auto;
       justify-content: center;
     }
+
+    .activity-hub {
+      grid-template-columns: 1fr;
+    }
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -545,12 +694,24 @@
       <div>
         <h2 class="dash-hero-title">
           <i class="bi bi-speedometer2"></i>
-          Dashboard Admin
+          {{ 'Vue d ensemble' if current_user.role == 'manager' else 'Dashboard Admin' }}
         </h2>
         <p class="dash-hero-subtitle">
+          {% if current_user.role == 'manager' %}
+          Suivi simple des comptes, boutiques et commandes.
+          {% else %}
           Vue globale, actions rapides et activite recente.
-          <span class="badge text-bg-secondary ms-1">🌍 Global</span>
+          <span class="badge text-bg-secondary ms-1">Global</span>
+          {% endif %}
         </p>
+        <div class="dash-hero-period">
+          <i class="bi bi-calendar3"></i>
+          {% if selected_period %}
+            Periode ouverte : #{{ selected_period.id }} - {{ selected_period.name }}
+          {% else %}
+            Aucune periode ouverte
+          {% endif %}
+        </div>
       </div>
       <div class="dash-hero-actions">
         <a href="{{ url_for('admin_users.create_user') }}" class="btn btn-primary">
@@ -572,7 +733,7 @@
         </div>
         <div class="stat-icon"><i class="bi bi-people"></i></div>
       </div>
-      <div class="stat-meta">{{ total_vendors }} vendeurs sur {{ total_users }} comptes actifs</div>
+      <div class="stat-meta">{% if current_user.role == 'manager' %}{{ total_vendors }} vendeurs dans la liste{% else %}{{ total_vendors }} vendeurs sur {{ total_users }} comptes actifs{% endif %}</div>
     </article>
     <article class="stat-tile is-success" style="--i:1">
       <div class="stat-top">
@@ -582,7 +743,7 @@
         </div>
         <div class="stat-icon"><i class="bi bi-shop"></i></div>
       </div>
-      <div class="stat-meta">{{ vendors_without_shop }} vendeurs sans boutique</div>
+      <div class="stat-meta">{% if current_user.role == 'manager' %}{{ vendors_without_shop }} vendeurs sans boutique{% else %}{{ vendors_without_shop }} vendeurs sans boutique{% endif %}</div>
     </article>
     <article class="stat-tile is-warning" style="--i:2">
       <div class="stat-top">
@@ -592,7 +753,7 @@
         </div>
         <div class="stat-icon"><i class="bi bi-box"></i></div>
       </div>
-      <div class="stat-meta">En vente sur la plateforme</div>
+      <div class="stat-meta">{{ 'Produits en ligne' if current_user.role == 'manager' else 'En vente sur la plateforme' }}</div>
     </article>
     <article class="stat-tile is-danger" style="--i:3">
       <div class="stat-top">
@@ -602,10 +763,17 @@
         </div>
         <div class="stat-icon"><i class="bi bi-cart-check"></i></div>
       </div>
-      <div class="stat-meta">Total des transactions</div>
+      <div class="stat-meta">
+        {% if selected_period %}
+          {{ 'Dans la periode ouverte' if current_user.role == 'manager' else 'Dans la periode en cours' }}
+        {% else %}
+          {{ 'Aucune periode ouverte' if current_user.role == 'manager' else 'Aucune periode ouverte' }}
+        {% endif %}
+      </div>
     </article>
   </section>
 
+  {% if current_user.role == 'admin' %}
   <section class="dash-panel" style="--i:1">
     <div class="panel-head">
       <h5><i class="bi bi-broadcast-pin"></i> Trafic live</h5>
@@ -630,34 +798,45 @@
       </article>
     </div>
   </section>
+  {% endif %}
 
   <section class="dash-panel" style="--i:1">
     <div class="panel-head">
-      <h5><i class="bi bi-lightning"></i> Actions rapides</h5>
-      <span class="text-muted small">Raccourcis prioritaires</span>
+      <h5><i class="bi bi-lightning"></i> {{ 'Actions utiles' if current_user.role == 'manager' else 'Actions rapides' }}</h5>
+      <span class="text-muted small">{{ 'Les liens les plus utilises' if current_user.role == 'manager' else 'Raccourcis prioritaires' }}</span>
     </div>
     <div class="action-grid">
       <a href="{{ url_for('admin_users.create_user') }}" class="action-card" style="--i:0">
         <span class="action-icon"><i class="bi bi-person-plus"></i></span>
         <span class="action-text">
-          <span>Creer un utilisateur</span>
-          <small>Compte vendeur, livreur ou admin</small>
+          <span>{{ 'Ajouter un compte' if current_user.role == 'manager' else 'Creer un utilisateur' }}</span>
+          <small>{% if current_user.role == 'admin' %}Compte vendeur, livreur, gestionnaire ou admin{% else %}Compte vendeur ou livreur{% endif %}</small>
         </span>
       </a>
       <a href="{{ url_for('admin_users.create_shop') }}" class="action-card" style="--i:1">
         <span class="action-icon"><i class="bi bi-shop"></i></span>
         <span class="action-text">
-          <span>Creer une boutique</span>
-          <small>Associer un vendeur</small>
+          <span>{{ 'Ajouter une boutique' if current_user.role == 'manager' else 'Creer une boutique' }}</span>
+          <small>{{ 'Lier a un vendeur' if current_user.role == 'manager' else 'Associer un vendeur' }}</small>
         </span>
       </a>
+      {% if current_user.role == 'admin' %}
+      <a href="{{ url_for('admin_users.audience_dashboard') }}" class="action-card" style="--i:2">
+        <span class="action-icon"><i class="bi bi-broadcast-pin"></i></span>
+        <span class="action-text">
+          <span>Audience & trafic</span>
+          <small>Visiteurs, sources, conversions et PWA</small>
+        </span>
+      </a>
+      {% endif %}
       <a href="{{ url_for('admin.pricing_settings') }}" class="action-card" style="--i:2">
         <span class="action-icon"><i class="bi bi-gear"></i></span>
         <span class="action-text">
-          <span>Parametres</span>
-          <small>Livraison et part Baba</small>
+          <span>{{ 'Reglages' if current_user.role == 'manager' else 'Parametres' }}</span>
+          <small>{{ 'Livraison et montants' if current_user.role == 'manager' else 'Livraison et part Baba' }}</small>
         </span>
       </a>
+      {% if current_user.role == 'admin' %}
       <a href="{{ url_for('admin_users.view_logs') }}" class="action-card" style="--i:3">
         <span class="action-icon"><i class="bi bi-clock-history"></i></span>
         <span class="action-text">
@@ -665,65 +844,146 @@
           <small>Historique admin</small>
         </span>
       </a>
+      {% endif %}
     </div>
   </section>
 
   <section class="activity-grid">
-    <div class="dash-panel" style="--i:2">
+    <div class="dash-panel is-wide" style="--i:2">
       <div class="panel-head">
-        <h5><i class="bi bi-people"></i> Derniers utilisateurs</h5>
-        <a href="{{ url_for('admin_users.manage_users') }}" class="btn btn-sm btn-outline-primary">Voir tous</a>
+        <h5><i class="bi bi-activity"></i> Activite marketplace</h5>
+        <span class="text-muted small">
+          {% if selected_period %}
+            Basee sur la periode ouverte
+          {% else %}
+            En attente d une periode ouverte
+          {% endif %}
+        </span>
       </div>
-      <div class="list-stack">
-        {% for user in recent_users %}
-        <a href="{{ url_for('admin_users.user_detail', user_id=user.id) }}" class="list-item">
-          <div class="list-left">
-            <div class="list-avatar">
-              {% if user.profile_image %}
-                <img src="{{ url_for('static', filename='uploads/profiles/' + user.profile_image) }}" alt="{{ user.username }}">
-              {% else %}
-                <i class="bi bi-person"></i>
-              {% endif %}
-            </div>
-            <div>
-              <div class="list-title">{{ user.username }}</div>
-              <div class="list-meta">{{ user.role }}</div>
-            </div>
+      <div class="activity-hub">
+        <div class="activity-hub-card">
+          <div class="activity-hub-title">Ce qui demande votre attention</div>
+          <p class="activity-hub-text">
+            Ces chiffres suivent la periode ouverte. Si la periode se ferme, ils suivent la suivante. Quand une nouvelle periode commence, les compteurs repartent de zero.
+          </p>
+          <div class="activity-hub-actions">
+            <a href="{{ url_for('admin.all_orders') }}" class="btn btn-outline-secondary btn-sm">
+              <i class="bi bi-bag-check me-1"></i> Commandes
+            </a>
+            <a href="{{ url_for('admin_users.manage_shops') }}" class="btn btn-outline-secondary btn-sm">
+              <i class="bi bi-shop me-1"></i> Boutiques
+            </a>
+            <a href="{{ url_for('admin_users.manage_users', role='vendor') }}" class="btn btn-outline-secondary btn-sm">
+              <i class="bi bi-people me-1"></i> Vendeurs
+            </a>
           </div>
-          <div class="list-right">{{ user.created_at.strftime('%d/%m/%Y') }}</div>
-        </a>
-        {% else %}
-          <div class="empty-state">Aucun utilisateur recent.</div>
-        {% endfor %}
+        </div>
+        <div class="activity-hub-kpis">
+          <div class="activity-hub-kpi">
+            <span class="label">7 derniers jours</span>
+            <span class="value">{{ orders_count }}</span>
+          </div>
+          <div class="activity-hub-kpi">
+            <span class="label">Livrees sur 7 jours</span>
+            <span class="value">{{ delivered_count }}</span>
+          </div>
+          <div class="activity-hub-kpi">
+            <span class="label">En attente maintenant</span>
+            <span class="value">{{ pending_count }}</span>
+          </div>
+          <div class="activity-hub-kpi">
+            <span class="label">Montant livre sur 7 jours</span>
+            <span class="value">{{ '%.2f'|format((revenue_period or 0) / 100) }}</span>
+          </div>
+        </div>
+      </div>
+      <div class="activity-insights">
+        <div class="activity-insight-card">
+          <div class="activity-insight-head">
+            <h6>Commandes en attente</h6>
+            <span class="text-muted small">{{ pending_old_orders|length }}</span>
+          </div>
+          <div class="activity-mini-list">
+            {% for order in pending_old_orders %}
+            <div class="activity-mini-item">
+              <div>
+                <div class="activity-mini-title">#{{ order.id }} · {{ order.full_name }}</div>
+                <div class="activity-mini-meta">{{ order.created_at.strftime('%d/%m/%Y %H:%M') if order.created_at else '' }}</div>
+              </div>
+              <div class="activity-mini-side">{{ '%.2f'|format((order.total or 0) / 100) }} MAD</div>
+            </div>
+            {% else %}
+            <div class="empty-state">Aucune commande en retard.</div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="activity-insight-card">
+          <div class="activity-insight-head">
+            <h6>Vendeurs sans boutique</h6>
+            <span class="text-muted small">{{ vendors_without_shop_list|length }}</span>
+          </div>
+          <div class="activity-mini-list">
+            {% for vendor in vendors_without_shop_list %}
+            <div class="activity-mini-item">
+              <div>
+                <div class="activity-mini-title">
+                  <a href="{{ url_for('admin_users.user_detail', user_id=vendor.id) }}" class="text-decoration-none">
+                    {{ vendor.username }}
+                  </a>
+                </div>
+                <div class="activity-mini-meta">{{ vendor.email }}</div>
+              </div>
+              <div class="activity-mini-side">{{ vendor.created_at.strftime('%d/%m/%Y') if vendor.created_at else '' }}</div>
+            </div>
+            {% else %}
+            <div class="empty-state">Tous les vendeurs ont une boutique.</div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="activity-insight-card">
+          <div class="activity-insight-head">
+            <h6>Produits les plus vendus</h6>
+            <span class="text-muted small">{{ top_products|length }}</span>
+          </div>
+          <div class="activity-mini-list">
+            {% for product, qty in top_products %}
+            <div class="activity-mini-item">
+              <div>
+                <div class="activity-mini-title">{{ product.name }}</div>
+                <div class="activity-mini-meta">{{ product.shop.name if product.shop else '' }}</div>
+              </div>
+              <div class="activity-mini-side">{{ qty or 0 }}</div>
+            </div>
+            {% else %}
+            <div class="empty-state">Aucune vente recente.</div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="activity-insight-card">
+          <div class="activity-insight-head">
+            <h6>Produits a recharger</h6>
+            <span class="text-muted small">{{ low_stock_products|length }}</span>
+          </div>
+          <div class="activity-mini-list">
+            {% for product in low_stock_products %}
+            <div class="activity-mini-item">
+              <div>
+                <div class="activity-mini-title">{{ product.name }}</div>
+                <div class="activity-mini-meta">{{ product.shop.name if product.shop else '' }}</div>
+              </div>
+              <div class="activity-mini-side">{{ product.stock }}</div>
+            </div>
+            {% else %}
+            <div class="empty-state">Aucun produit a faible stock.</div>
+            {% endfor %}
+          </div>
+        </div>
       </div>
     </div>
-
-    <div class="dash-panel" style="--i:3">
-      <div class="panel-head">
-        <h5><i class="bi bi-shop"></i> Dernieres boutiques</h5>
-        <a href="{{ url_for('admin_users.manage_shops') }}" class="btn btn-sm btn-outline-primary">Voir toutes</a>
-      </div>
-      <div class="list-stack">
-        {% for shop in recent_shops %}
-        <a href="{{ url_for('admin_users.shop_detail', shop_id=shop.id) }}" class="list-item">
-          <div class="list-left">
-            <div class="list-avatar">
-              <i class="bi bi-shop"></i>
-            </div>
-            <div>
-              <div class="list-title">{{ shop.name }}</div>
-              <div class="list-meta">{{ shop.vendor.username }}</div>
-            </div>
-          </div>
-          <div class="list-right">{{ shop.created_at.strftime('%d/%m/%Y') }}</div>
-        </a>
-        {% else %}
-          <div class="empty-state">Aucune boutique recente.</div>
-        {% endfor %}
-      </div>
-    </div>
-
-   
   </section>
 </div>
 {% endblock %}
+

@@ -1,0 +1,372 @@
+{% extends "base.html" %}
+
+{% block title %}Toutes les promotions | BABA Market{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/shop_home_page.css', v=app_static_version) }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/shop_promotions_page.css', v=app_static_version) }}">
+{% endblock %}
+
+{% block body_attrs %}data-page="shop_promotions" class="promo-market-page" data-back-target="{{ url_for('shop.home') }}"{% endblock %}
+
+{% block content %}
+<div class="shop-container promo-shop-container">
+  <section class="promo-hero">
+    <div class="promo-hero-copy">
+      <h1 class="promo-title">Les bons plans du moment</h1>
+      <p class="promo-subtitle">Toutes les promotions en un clin d'oeil</p>
+    </div>
+    <div class="promo-hero-note">
+      <span class="promo-note-icon"><i class="bi bi-stars"></i></span>
+      <div>
+        <div class="promo-note-title">Ne ratez aucune offre !</div>
+      </div>
+    </div>
+  </section>
+
+  <div class="shop-header">
+    <h1 class="shop-title">Les bons plans du moment</h1>
+    <p class="shop-subtitle">Toutes les promotions en un clin d'œil</p>
+  </div>
+
+  <div class="alert promo-alert border-0 shadow-sm rounded-4 mb-4">
+    <i class="bi bi-stars me-2"></i>
+    Ne ratez aucune offre !
+  </div>
+
+  <div class="search-container">
+    <form method="get" action="{{ url_for('shop.promotions') }}">
+      <div class="search-wrapper">
+        <input type="text"
+               name="q"
+               value="{{ q }}"
+               placeholder="Rechercher un bon plan..."
+               class="search-input"
+               autocomplete="off">
+        {% if sort %}
+        <input type="hidden" name="sort" value="{{ sort }}">
+        {% endif %}
+        <button type="submit" class="search-btn" aria-label="Rechercher">
+          <i class="bi bi-search"></i>
+          <span class="btn-text">Rechercher</span>
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <div class="toolbar">
+    <div class="results-info">
+      <span class="results-count">{{ pagination.total if pagination else 0 }}</span> offres disponibles
+    </div>
+
+    <div class="toolbar-actions">
+      <a href="{{ url_for('shop.home') }}" class="btn-boutiques promo-page-back" data-fallback="{{ url_for('shop.home') }}">
+        <i class="bi bi-arrow-left"></i>
+        <span>Retour au catalogue</span>
+      </a>
+
+      <form method="get" action="{{ url_for('shop.promotions') }}" class="d-flex align-items-center gap-2">
+        {% if q %}
+        <input type="hidden" name="q" value="{{ q }}">
+        {% endif %}
+        <div class="sort-container">
+          <span class="sort-label">Trier :</span>
+          <select class="sort-select" name="sort" onchange="this.form.submit()">
+            <option value="" {% if not sort %}selected{% endif %}>Choisissez</option>
+            <option value="new" {% if sort == 'new' %}selected{% endif %}>Nouveautes</option>
+            <option value="low" {% if sort == 'low' %}selected{% endif %}>Prix croissant</option>
+            <option value="high" {% if sort == 'high' %}selected{% endif %}>Prix decroissant</option>
+          </select>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {% if data %}
+  <div class="products-grid" id="productsGrid">
+    {% for item in data %}
+    {% set product = item[0] %}
+    {% set final_price = item[1] %}
+    {% set discount = item[2] if item|length > 2 else None %}
+    {% set has_promo = product.promo_active if product.promo_active is defined else (product.price and product.price > final_price) %}
+    {% set product_images = product.image_file.split('|') if product.image_file and '|' in product.image_file else [product.image_file] if product.image_file else [] %}
+    {% set product_images_clean = product_images|select|list %}
+    {% set first_image = product_images_clean[0] if product_images_clean|length > 0 else '' %}
+
+    <div class="product-card-compact fade-in"
+         data-item-type="{{ 'service' if product.kind == 'service' else 'product' }}">
+      <div class="product-badges-compact">
+        {% if discount and discount > 0 %}
+        <div class="badge-compact badge-discount-compact">
+          <i class="bi bi-percent"></i>
+          <span>-{{ discount }}%</span>
+        </div>
+        {% endif %}
+        {% if has_promo %}
+        <div class="badge-compact badge-discount-compact">
+          <i class="bi bi-tag-fill"></i>
+          <span>Promo</span>
+        </div>
+        {% endif %}
+        {% if product.kind == 'service' %}
+        <div class="badge-compact badge-service-compact">
+          <i class="bi bi-calendar-check"></i>
+          <span>Service</span>
+        </div>
+        {% elif product.stock is defined and product.stock > 0 %}
+        <div class="badge-compact badge-stock-compact">
+          <i class="bi bi-check-circle"></i>
+          <span>En stock</span>
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="product-image-container-compact"
+           data-slider-images='[{% for img in product_images_clean %}{{ url_for("static", filename="uploads/" ~ image_variant(img, "thumb"))|tojson }}{% if not loop.last %}, {% endif %}{% endfor %}]'
+           data-slider-index="0">
+        {% if first_image %}
+        <img src="{{ url_for('static', filename='uploads/' ~ image_variant(first_image, 'thumb')) }}"
+             srcset="{{ url_for('static', filename='uploads/' ~ image_variant(first_image, 'thumb')) }} 300w,
+                     {{ url_for('static', filename='uploads/' ~ image_variant(first_image, 'large')) }} 900w"
+             sizes="(max-width: 576px) 50vw, (max-width: 992px) 33vw, (max-width: 1400px) 20vw, 220px"
+             alt="{{ product.name }}"
+             class="product-image-compact js-product-slide-image"
+             loading="lazy"
+             decoding="async"
+             width="300"
+             height="300"
+             data-fallback-src="{{ url_for('static', filename='img/placeholders/product.svg') }}">
+        {% else %}
+        <div class="image-placeholder-compact">
+          <i class="bi bi-bag"></i>
+        </div>
+        {% endif %}
+        {% if product_images_clean|length > 1 %}
+        <button type="button" class="product-slide-control prev js-slide-prev" aria-label="Image precedente" data-stop-nav>
+          <i class="bi bi-chevron-left"></i>
+        </button>
+        <button type="button" class="product-slide-control next js-slide-next" aria-label="Image suivante" data-stop-nav>
+          <i class="bi bi-chevron-right"></i>
+        </button>
+        {% endif %}
+      </div>
+
+      <div class="product-content-compact">
+        <h3 class="product-name-compact">
+          <a href="{{ url_for('shop.product_detail', pid=product.id) }}" data-stop-nav>
+            {{ product.name }}
+          </a>
+        </h3>
+
+        <div class="product-price-container-compact">
+          <div class="current-price-compact">{{ "%.2f"|format(final_price) }} DH</div>
+          {% if has_promo and product.price and product.price > final_price %}
+          <div class="old-price-compact">{{ "%.2f"|format(product.price) }} DH</div>
+          {% if discount and discount > 0 %}
+          <div style="font-size: 0.75rem; color: var(--danger-color); font-weight: 700;">
+            Economisez {{ discount }}%
+          </div>
+          {% else %}
+          <div style="font-size: 0.75rem; color: var(--danger-color); font-weight: 700;">
+            Promo active
+          </div>
+          {% endif %}
+          {% endif %}
+        </div>
+
+        <div class="product-actions-compact">
+          <a href="{{ url_for('shop.product_detail', pid=product.id) }}" class="btn-detail-compact" data-stop-nav>
+            <i class="bi bi-eye"></i>
+            <span>Voir</span>
+          </a>
+
+          {% if product.kind == 'service' %}
+          <a href="{{ url_for('booking.book', pid=product.id) }}" class="btn-book-compact" data-stop-nav>
+            <i class="bi bi-calendar-check"></i>
+            <span>Reserver</span>
+          </a>
+          {% elif product.stock is not defined or product.stock > 0 %}
+          <form method="post"
+                action="{{ url_for('cart.add', pid=product.id) }}"
+                class="d-inline add-to-cart-form"
+                data-ajax="true"
+                data-action="add-to-cart"
+                data-success-message="Produit ajoute au panier"
+                data-api-url="{{ url_for('cart.add_ajax', pid=product.id) }}"
+                data-stop-nav>
+            {% include "partials/_csrf.html" %}
+            <button type="submit"
+                    class="btn-cart-compact add-to-cart"
+                    data-name="{{ product.name|e }}"
+                    data-pid="{{ product.id }}"
+                    data-stop-nav>
+              <i class="bi bi-cart-plus"></i>
+              <span>Panier</span>
+            </button>
+          </form>
+          {% else %}
+          <button type="button" class="btn-cart-compact" disabled data-stop-nav>
+            <i class="bi bi-x-circle"></i>
+            <span>Indisponible</span>
+          </button>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if pagination and pagination.pages > 1 %}
+  <div class="pagination-compact">
+    {% if pagination.has_prev %}
+    <a href="{{ url_for('shop.promotions', page=pagination.prev_num, q=q, sort=sort, min_price=min_price, max_price=max_price) }}" class="page-link-compact prev-link">
+      <i class="bi bi-chevron-left"></i> Precedent
+    </a>
+    {% else %}
+    <span class="page-link-compact prev-link disabled">
+      <i class="bi bi-chevron-left"></i> Precedent
+    </span>
+    {% endif %}
+
+    {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=1) %}
+      {% if p %}
+        {% if p == pagination.page %}
+        <span class="page-link-compact active">{{ p }}</span>
+        {% else %}
+        <a href="{{ url_for('shop.promotions', page=p, q=q, sort=sort, min_price=min_price, max_price=max_price) }}" class="page-link-compact">{{ p }}</a>
+        {% endif %}
+      {% else %}
+      <span class="page-link-compact disabled">…</span>
+      {% endif %}
+    {% endfor %}
+
+    {% if pagination.has_next %}
+    <a href="{{ url_for('shop.promotions', page=pagination.next_num, q=q, sort=sort, min_price=min_price, max_price=max_price) }}" class="page-link-compact next-link">
+      Suivant <i class="bi bi-chevron-right"></i>
+    </a>
+    {% else %}
+    <span class="page-link-compact next-link disabled">
+      Suivant <i class="bi bi-chevron-right"></i>
+    </span>
+    {% endif %}
+  </div>
+  {% endif %}
+  {% else %}
+  <div class="empty-state">
+    <div class="empty-icon">
+      <i class="bi bi-stars"></i>
+    </div>
+    <h3 class="empty-title">Aucune offre en ce moment</h3>
+    <p class="empty-text">Revenez un peu plus tard pour decouvrir les prochaines promotions.</p>
+    <a href="{{ url_for('shop.home') }}" class="btn-boutiques">
+      <i class="bi bi-arrow-left"></i>
+      Retour au catalogue
+    </a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  /* ── Back button logic ── */
+  (function () {
+    var backLink = document.querySelector('.promo-page-back');
+    if (!backLink) return;
+
+    function normalizeUrl(rawUrl) {
+      if (!rawUrl) return null;
+      try { return new URL(String(rawUrl), window.location.origin); }
+      catch (_) { return null; }
+    }
+
+    function isUsefulShopReferrer(url) {
+      if (!url || url.origin !== window.location.origin) return false;
+      if (url.pathname === window.location.pathname && url.search === window.location.search) return false;
+      return url.pathname.indexOf('/shop') === 0;
+    }
+
+    backLink.addEventListener('click', function (e) {
+      var ref = normalizeUrl(document.referrer || '');
+      if (window.history.length > 1 && isUsefulShopReferrer(ref)) {
+        e.preventDefault();
+        window.history.back();
+        return;
+      }
+      var fallback = backLink.getAttribute('data-fallback');
+      if (fallback) backLink.setAttribute('href', fallback);
+    });
+  })();
+
+  /* ── Real-time search + sort sync ── */
+  (function () {
+    var searchInput  = document.querySelector('.search-input');
+    var sortSelect   = document.querySelector('.sort-select');
+    var sortForm     = sortSelect ? sortSelect.closest('form') : null;
+    var grid         = document.getElementById('productsGrid');
+    var resultsCount = document.querySelector('.results-count');
+    if (!searchInput || !grid) return;
+
+    var allCards   = Array.from(grid.querySelectorAll('.product-card-compact'));
+    var totalCount = allCards.length;
+    var debounceTimer;
+
+    /* ── Filter cards by name ── */
+    function filterCards(query) {
+      var q = query.trim().toLowerCase();
+      var visible = 0;
+      allCards.forEach(function (card) {
+        var nameEl = card.querySelector('.product-name-compact');
+        var name   = nameEl ? nameEl.textContent.toLowerCase() : '';
+        var match  = !q || name.indexOf(q) !== -1;
+        card.style.display = match ? '' : 'none';
+        if (match) visible++;
+      });
+      if (resultsCount) resultsCount.textContent = q ? visible : totalCount;
+    }
+
+    /* ── Sync search value into sort form before it submits ── */
+    function syncQToSortForm() {
+      if (!sortForm) return;
+      var hidden = sortForm.querySelector('input[name="q"]');
+      var val    = searchInput.value.trim();
+      if (val) {
+        if (!hidden) {
+          hidden = document.createElement('input');
+          hidden.type = 'hidden';
+          hidden.name = 'q';
+          sortForm.appendChild(hidden);
+        }
+        hidden.value = val;
+      } else if (hidden) {
+        hidden.parentNode.removeChild(hidden);
+      }
+    }
+
+    /* Live search on input */
+    searchInput.addEventListener('input', function () {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(function () {
+        filterCards(searchInput.value);
+      }, 180);
+    });
+
+    /* Sort select: sync q then let the native onchange submit fire normally */
+    if (sortSelect) {
+      sortSelect.addEventListener('change', function () {
+        syncQToSortForm();
+        /* native onchange="this.form.submit()" will fire right after */
+      });
+    }
+
+    /* Search form Enter key: filter client-side only */
+    var searchForm = searchInput.closest('form');
+    if (searchForm) {
+      searchForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        filterCards(searchInput.value);
+      });
+    }
+  })();
+</script>
+{% endblock %}

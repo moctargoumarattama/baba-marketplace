@@ -1,6 +1,6 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 
-{% block title %}DealNova — Panier{% endblock %}
+{% block title %}DealNova - Panier{% endblock %}
 
 {% block content %}
 <div class="container py-4 py-lg-5 cart-page">
@@ -126,11 +126,6 @@
             </span>
           </div>
           
-          <div class="d-flex justify-content-between mb-3">
-            <span class="text-muted">Taxes</span>
-            <span>Incluses</span>
-          </div>
-          
           <div class="border-top pt-3">
             <div class="d-flex justify-content-between align-items-center mb-3">
               <span class="fw-bold">Total estimé</span>
@@ -203,6 +198,32 @@
                 radial-gradient(circle at 90% 20%, rgba(245,158,11,0.12), transparent 40%),
                 #f7f8fb;
     border-radius: 16px;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: clip;
+  }
+
+  .cart-page .row,
+  .cart-page [class*="col-"],
+  .cart-page .card,
+  .cart-page .card-body,
+  .cart-page .alert,
+  .cart-page .d-flex,
+  #cartItems,
+  .cart-item,
+  .summary-card {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  #cartCounter {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .summary-card,
+  .cart-panel {
+    overflow: hidden;
   }
 
   .cart-hero h1 {
@@ -262,6 +283,7 @@
   .qty-input {
     appearance: textfield;
     -moz-appearance: textfield;
+    min-width: 0;
   }
   
   .qty-input::-webkit-outer-spin-button,
@@ -283,12 +305,30 @@
   }
   
   @media (max-width: 768px) {
+    #cartCounter {
+      align-items: flex-start !important;
+    }
+
+    #cartCounter > div,
+    #cartCounter > button {
+      width: 100%;
+      max-width: 100%;
+    }
+
     .cart-item .row > div {
       margin-bottom: 10px;
+    }
+
+    .cart-item .d-flex.align-items-center {
+      flex-wrap: nowrap;
+      min-width: 0;
     }
     
     .qty-input {
       width: 40px !important;
+      font-size: 16px;
+      padding-left: 0.2rem;
+      padding-right: 0.2rem;
     }
   }
 
@@ -300,266 +340,10 @@
   }
 </style>
 
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-  const toastElement = document.getElementById('cartToast');
-  const cartToast =
-    (toastElement && window.bootstrap && window.bootstrap.Toast)
-      ? new bootstrap.Toast(toastElement)
-      : null;
-  
-  // Fonction pour afficher les notifications
-  function showToast(message, type = 'success') {
-    const toast = document.getElementById('cartToast');
-    const toastMessage = document.getElementById('toastMessage');
-    if (!toast || !toastMessage) return;
-    
-    toast.className = `toast align-items-center text-white border-0`;
-    toast.classList.add(`bg-${type === 'error' ? 'danger' : 'success'}`);
-    toastMessage.textContent = message;
-    
-    if (cartToast && typeof cartToast.show === 'function') {
-      cartToast.show();
-    }
-  }
-  
-  // Fonction pour mettre à jour les totaux
-  function updateCartTotals(data) {
-    if (data.cart_count !== undefined) {
-      const cartCountEl = document.getElementById('cartCount');
-      if (cartCountEl) {
-        cartCountEl.textContent = data.cart_count;
-      }
-    }
-    
-    if (data.total !== undefined) {
-      const subtotalEl = document.getElementById('subtotalAmount');
-      const totalEl = document.getElementById('totalAmount');
-      if (subtotalEl && totalEl) {
-        subtotalEl.textContent = data.total.toFixed(2) + ' MAD';
-        totalEl.textContent = data.total.toFixed(2) + ' MAD';
-
-        // Si on a les details de shipping
-        if (data.shipping !== undefined) {
-          const shippingEl = document.getElementById('shippingAmount');
-          if (shippingEl) {
-            shippingEl.textContent = data.shipping.toFixed(2) + ' MAD';
-            shippingEl.className = '';
-
-            if (data.shipping > 0) {
-              shippingEl.classList.add('text-info');
-            } else {
-              shippingEl.classList.add('text-success');
-              shippingEl.innerHTML = '<i class="bi bi-check-circle me-1"></i>Gratuite';
-            }
-          }
-
-          // Mettre a jour le total avec shipping
-          totalEl.textContent = (data.total + data.shipping).toFixed(2) + ' MAD';
-        }
-      }
-    }
-    
-    // Mettre à jour le compteur dans le header si existant
-    const headerCartCount = document.querySelector('.cart-count-badge');
-    if (headerCartCount && data.cart_count !== undefined) {
-      headerCartCount.textContent = data.cart_count;
-      headerCartCount.classList.remove('d-none');
-    }
-  }
-  
-  // Augmenter la quantité
-  document.querySelectorAll('.qty-increase').forEach(btn => {
-    btn.addEventListener('click', function() {
-      const item = this.closest('.cart-item');
-      if (!item) return;
-      const pid = item.dataset.pid;
-      const input = item.querySelector('.qty-input');
-      if (!input) return;
-      const currentValue = parseInt(input.value);
-      const max = parseInt(input.max);
-      
-      if (currentValue < max) {
-        updateQuantity(pid, currentValue + 1);
-      } else {
-        showToast(`Quantité maximale: ${max}`, 'error');
-      }
-    });
-  });
-  
-  // Diminuer la quantité
-  document.querySelectorAll('.qty-decrease').forEach(btn => {
-    btn.addEventListener('click', function() {
-      const item = this.closest('.cart-item');
-      if (!item) return;
-      const pid = item.dataset.pid;
-      const input = item.querySelector('.qty-input');
-      if (!input) return;
-      const currentValue = parseInt(input.value);
-      
-      if (currentValue > 1) {
-        updateQuantity(pid, currentValue - 1);
-      } else {
-        removeFromCart(pid);
-      }
-    });
-  });
-  
-  // Changement manuel de quantité
-  document.querySelectorAll('.qty-input').forEach(input => {
-    input.addEventListener('change', function() {
-      const item = this.closest('.cart-item');
-      if (!item) return;
-      const pid = item.dataset.pid;
-      const newQty = parseInt(this.value);
-      const max = parseInt(this.max);
-      
-      if (newQty > 0 && newQty <= max) {
-        updateQuantity(pid, newQty);
-      } else if (newQty > max) {
-        this.value = max;
-        showToast(`Quantité maximale: ${max}`, 'error');
-      }
-    });
-  });
-  
-  // Supprimer un produit
-  document.querySelectorAll('.remove-item-btn').forEach(btn => {
-    btn.addEventListener('click', function() {
-      const item = this.closest('.cart-item');
-      if (!item) return;
-      const pid = item.dataset.pid;
-      removeFromCart(pid);
-    });
-  });
-  
-  // Vider tout le panier
-  const clearCartBtn = document.getElementById('clearCartBtn');
-  if (clearCartBtn) {
-    clearCartBtn.addEventListener('click', function() {
-      if (confirm('Voulez-vous vraiment vider tout votre panier ')) {
-        clearCart();
-      }
-    });
-  }
-  
-  // Fonction AJAX pour mettre à jour la quantité
-  async function updateQuantity(pid, newQty) {
-    try {
-      const response = await fetch(`/cart/api/update/${pid}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRFToken': window.csrfToken
-        },
-        body: JSON.stringify({ quantity: newQty })
-      });
-      
-      const data = await response.json();
-      
-      if (data.success) {
-        // Mettre à jour l'interface
-        const item = document.querySelector(`.cart-item[data-pid="${pid}"]`);
-        if (item) {
-          const input = item.querySelector('.qty-input');
-          const subtotalEl = item.querySelector('.product-subtotal');
-          const priceEl = item.querySelector('.product-price');
-          
-          input.value = data.product_qty;
-          
-          if (data.product_total !== undefined) {
-            subtotalEl.textContent = data.product_total.toFixed(2) + ' MAD';
-          }
-          
-          // Si quantité = 0, supprimer l'élément
-          if (data.product_qty === 0) {
-            item.remove();
-          }
-        }
-        
-        updateCartTotals(data);
-        showToast(data.message);
-      } else {
-        showToast(data.message, 'error');
-      }
-    } catch (error) {
-      console.error('Error:', error);
-      showToast('Erreur de connexion', 'error');
-    }
-  }
-  
-  // Fonction AJAX pour supprimer un produit
-  async function removeFromCart(pid) {
-    try {
-      const response = await fetch(`/cart/api/remove/${pid}`, {
-        method: 'POST',
-        headers: {
-          'X-CSRFToken': window.csrfToken
-        },
-        credentials: 'same-origin'
-      });
-      const data = await response.json();
-      
-      if (data.success) {
-        const item = document.querySelector(`.cart-item[data-pid="${pid}"]`);
-        if (item) {
-          item.remove();
-        }
-        
-        updateCartTotals(data);
-        showToast(data.message);
-        
-        // Si panier vide, rediriger
-        if (data.cart_count === 0) {
-          setTimeout(() => location.reload(), 1000);
-        }
-      }
-    } catch (error) {
-      console.error('Error:', error);
-      showToast('Erreur de connexion', 'error');
-    }
-  }
-  
-  // Fonction AJAX pour vider le panier
-  async function clearCart() {
-    try {
-      const response = await fetch('/cart/api/clear', {
-        method: 'POST',
-        headers: {
-          'X-CSRFToken': window.csrfToken
-        },
-        credentials: 'same-origin'
-      });
-      const data = await response.json();
-      
-      if (data.success) {
-        const cartItemsEl = document.getElementById('cartItems');
-        if (cartItemsEl) {
-          cartItemsEl.innerHTML = '';
-        }
-        updateCartTotals(data);
-        showToast(data.message);
-        
-        // Rediriger après un délai
-        setTimeout(() => location.reload(), 1500);
-      }
-    } catch (error) {
-      console.error('Error:', error);
-      showToast('Erreur de connexion', 'error');
-    }
-  }
-  
-  // Animation d'entrée des articles
-  document.querySelectorAll('.cart-item').forEach((item, index) => {
-    item.style.opacity = '0';
-    item.style.transform = 'translateY(10px)';
-    
-    setTimeout(() => {
-      item.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
-      item.style.opacity = '1';
-      item.style.transform = 'translateY(0)';
-    }, index * 50);
-  });
-});
-</script>
 {% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="{{ url_for('static', filename='js/pages/cart_page.js', v=app_static_version) }}" defer></script>
+{% endblock %}
+

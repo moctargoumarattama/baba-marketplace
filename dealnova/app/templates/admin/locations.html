@@ -1,11 +1,12 @@
-{% extends "admin/base.html" %}
+﻿{% extends "admin/base.html" %}
 
 {% block title %}Locations | Admin{% endblock %}
 {% block page_title %}Locations{% endblock %}
+{% block body_attrs %}data-adm-page="admin_locations" data-ajax-owner="admin"{% endblock %}
 
 {% block head %}
 <style>
-/* ── kill base 3D ── */
+  /* kill base 3D */
 .admin-card,.card{transform:none!important;transition:none!important;animation:none!important;}
 
 :root{
@@ -93,7 +94,7 @@
 .com-body{display:flex;flex-wrap:wrap;gap:.5rem 1.5rem;align-items:flex-start;}
 .com-links{display:flex;gap:.4rem;flex-wrap:wrap;margin-left:auto;}
 
-/* ── MOBILE ── */
+  /* MOBILE */
 @media(max-width:640px){
   .st-row{grid-template-columns:repeat(3,1fr);}
   .st-box .val{font-size:1.1rem;}
@@ -104,7 +105,7 @@
   .btn-f,.btn-r{flex:1;justify-content:center;}
   .com-links{margin-left:0;width:100%;}
   .com-links .btn-r{flex:1;justify-content:center;}
-  /* no horizontal scroll — table stacks */
+  /* no horizontal scroll ? table stacks */
   .lt-mobile-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;}
 }
 @media(max-width:400px){
@@ -125,6 +126,22 @@
     <div class="st-box"><div class="lbl">Archives</div><div class="val">{{ archives_count }}</div></div>
   </div>
 
+  <div class="lc">
+    <div class="lc-hd">
+      <h6><i class="bi bi-calendar3"></i> Organisation generale</h6>
+      <span class="sub">Les periodes se gerent depuis une seule page.</span>
+    </div>
+    <div class="lc-body" style="display:flex;gap:.5rem;flex-wrap:wrap">
+      <div class="cn" style="width:100%">
+        Les annonces suivent automatiquement les reglages de la page Periodes.
+      </div>
+      <a class="btn-r" href="{{ url_for('admin.pricing_settings', section='periods') }}"><i class="bi bi-calendar3"></i> Voir les periodes</a>
+      <a class="btn-r" href="{{ url_for('admin.all_orders', period_id=selected_period_id) if selected_period_id else url_for('admin.all_orders') }}"><i class="bi bi-bag-check"></i> Commandes</a>
+      <a class="btn-r" href="{{ url_for('admin.deliveries', period_id=selected_period_id) if selected_period_id else url_for('admin.deliveries') }}"><i class="bi bi-truck"></i> Livraisons</a>
+      <a class="btn-r" href="{{ url_for('admin.finance', period_id=selected_period_id) if selected_period_id else url_for('admin.finance') }}"><i class="bi bi-graph-up-arrow"></i> Paiements</a>
+    </div>
+  </div>
+
   <!-- FILTER -->
   <div class="lc">
     <div class="lc-hd">
@@ -135,10 +152,10 @@
       </div>
     </div>
     <div class="lc-body">
-      <div class="fbar" id="fbar">
+        <div class="fbar" id="fbar">
         <div class="fg">
           <label>Recherche</label>
-          <input class="fc" type="text" id="fq" value="{{ q }}" placeholder="Titre, ville…" autocomplete="off">
+          <input class="fc" type="text" id="fq" value="{{ q }}" placeholder="Titre, ville..." autocomplete="off">
         </div>
         <div class="fg">
           <label>Statut</label>
@@ -167,16 +184,15 @@
 
   <!-- COMMISSION -->
   <div class="lc">
-    <div class="lc-hd"><h6><i class="bi bi-percent"></i> Commission location</h6></div>
-    <div class="lc-body">
-      <div class="com-body">
-        <div>
-          <p class="cn" style="margin:0">Règle active : pas d'abonnement location. L'admin fixe une commission globale en pourcentage sur Pricing.</p>
+      <div class="lc-hd"><h6><i class="bi bi-percent"></i> Commission location</h6></div>
+      <div class="lc-body">
+        <div class="com-body">
+          <div>
+          <p class="cn" style="margin:0">La commission location se regle depuis la page des tarifs.</p>
           <p class="cn" style="margin:.28rem 0 0">Taux global actuel : <strong>{{ bps_to_percent(settings.rental_success_commission_bps) }}%</strong></p>
         </div>
         <div class="com-links">
-          <a class="btn-r" href="{{ url_for('admin.pricing_settings') }}"><i class="bi bi-sliders"></i> Pricing</a>
-          <a class="btn-r" href="{{ url_for('admin.maintenance') }}"><i class="bi bi-tools"></i> Maintenance</a>
+          <a class="btn-r" href="{{ url_for('admin.pricing_settings') }}"><i class="bi bi-sliders"></i> Tarifs</a>
         </div>
       </div>
     </div>
@@ -216,7 +232,7 @@
                   <div style="font-weight:700;font-size:.8rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ listing.title|truncate(40) }}</div>
                   <div style="font-size:.71rem;color:var(--muted)">{{ listing.city }}{% if listing.area %}, {{ listing.area }}{% endif %}</div>
                 </td>
-                <td class="hide-sm">{{ listing.owner.username if listing.owner else '—' }}</td>
+                <td class="hide-sm">{{ listing.owner.username if listing.owner else '?' }}</td>
                 <td class="hide-sm" style="font-weight:700;white-space:nowrap">{{ cents_to_dh(listing.rent_cents) }}</td>
                 <td class="hide-sm">
                   {% set ac = commission_amount_from_owner_fee(listing.owner_fee_cents, settings.rental_success_commission_bps) %}
@@ -229,7 +245,7 @@
                 <td>
                   <div style="display:flex;gap:.28rem;">
                     <a class="btn btn-sm btn-outline-primary" href="{{ url_for('rentals.location_detail', slug=listing.slug) }}" target="_blank"><i class="bi bi-eye"></i></a>
-                    <form method="post" action="{{ url_for('rentals.admin_location_delete', listing_id=listing.id) }}" data-confirm-submit="Supprimer ?">
+                    <form method="post" action="{{ url_for('rentals.admin_location_delete', listing_id=listing.id) }}" data-confirm-submit="Supprimer ">
                       {% include "admin/partials/_csrf.html" %}
                       <button class="btn btn-sm btn-outline-danger" type="submit"><i class="bi bi-trash"></i></button>
                     </form>
@@ -251,7 +267,7 @@
           {% else %}<span class="dis"><i class="bi bi-chevron-left"></i></span>{% endif %}
           {% for p in listings_pg.iter_pages(left_edge=1,right_edge=1,left_current=2,right_current=2) %}
             {% if p %}<a class="{{ 'cur' if p==listings_pg.page }}" data-lpage="{{ p }}">{{ p }}</a>
-            {% else %}<span class="dis">…</span>{% endif %}
+            {% else %}<span class="dis">...</span>{% endif %}
           {% endfor %}
           <span class="pinfo">{{ listings_pg.page }}/{{ listings_pg.pages }} · {{ listings_pg.total }}</span>
           {% if listings_pg.has_next %}
@@ -266,7 +282,7 @@
   <div class="lc" id="archivesCard">
     <div class="lc-hd">
       <h6><i class="bi bi-archive"></i> Archives</h6>
-      <span class="sub" id="archivesSub">{{ archives_pg.total }} archives · page {{ archives_pg.page }}/{{ [archives_pg.pages,1]|max }}</span>
+      <span class="sub" id="archivesSub">{{ archives_pg.total }} archives · page {{ archives_pg.page }}/{{ [archives_pg.pages,1]|max }}{% if selected_period %} · periode #{{ selected_period.id }}{% endif %}</span>
     </div>
     <div class="tbl-wrap">
       <div class="tbl-mask" id="archivesMask"><div class="spinner"></div></div>
@@ -291,7 +307,7 @@
               <tr>
                 <td style="color:var(--muted);font-size:.73rem">#{{ archive.id }}</td>
                 <td style="font-size:.79rem;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ archive.title|truncate(42) }}</td>
-                <td class="hide-sm">{{ archive.owner.username if archive.owner else '—' }}</td>
+                <td class="hide-sm">{{ archive.owner.username if archive.owner else '?' }}</td>
                 <td class="hide-sm" style="font-weight:700;white-space:nowrap">{{ cents_to_dh(archive.rent_cents) }}</td>
                 <td class="hide-sm">
                   {% if archive.closed_reason == 'taken' %}
@@ -320,7 +336,7 @@
           {% else %}<span class="dis"><i class="bi bi-chevron-left"></i></span>{% endif %}
           {% for p in archives_pg.iter_pages(left_edge=1,right_edge=1,left_current=2,right_current=2) %}
             {% if p %}<a class="{{ 'cur' if p==archives_pg.page }}" data-apage="{{ p }}">{{ p }}</a>
-            {% else %}<span class="dis">…</span>{% endif %}
+            {% else %}<span class="dis">...</span>{% endif %}
           {% endfor %}
           <span class="pinfo">{{ archives_pg.page }}/{{ archives_pg.pages }} · {{ archives_pg.total }}</span>
           {% if archives_pg.has_next %}
@@ -333,229 +349,24 @@
 
 </div><!-- /lw -->
 
-<!-- Jinja vars → JSON (no syntax errors in JS) -->
+  <!-- Jinja vars -> JSON (no syntax errors in JS) -->
 <script id="pv" type="application/json">
 {
   "q":        {{ q|tojson }},
   "status":   {{ status|tojson }},
   "owner_id": {{ (owner_id or '')|tojson }},
+  "period_id": {{ (selected_period_id or '')|tojson }},
   "lpage":    {{ listings_pg.page }},
   "apage":    {{ archives_pg.page }},
   "base_url": {{ url_for('rentals.admin_locations')|tojson }}
 }
 </script>
 
-<script>
-(function(){
-'use strict';
-
-var PV       = JSON.parse(document.getElementById('pv').textContent);
-var BASE     = PV.base_url;
-
-/* ── current state ── */
-var state = {
-  q:      PV.q,
-  status: PV.status,
-  owner:  PV.owner_id,
-  lpage:  PV.lpage,
-  apage:  PV.apage
-};
-
-/* ── UI refs ── */
-var fq       = document.getElementById('fq');
-var fstatus  = document.getElementById('fstatus');
-var fowner   = document.getElementById('fowner');
-var btnReset = document.getElementById('btnReset');
-var searchInd= document.getElementById('searchInd');
-
-var listingsMask = document.getElementById('listingsMask');
-var archivesMask = document.getElementById('archivesMask');
-var listingsTbody= document.getElementById('listingsTbody');
-var archivesTbody= document.getElementById('archivesTbody');
-var listingsPg   = document.getElementById('listingsPg');
-var archivesPg   = document.getElementById('archivesPg');
-var listingsSub  = document.getElementById('listingsSub');
-var archivesSub  = document.getElementById('archivesSub');
-
-/* ── build URL ── */
-function buildURL(lp, ap) {
-  var p = new URLSearchParams();
-  if (state.q)      p.set('q', state.q);
-  if (state.status) p.set('status', state.status);
-  if (state.owner)  p.set('owner_id', state.owner);
-  p.set('page',  lp || state.lpage);
-  p.set('apage', ap || state.apage);
-  return BASE + '?' + p.toString();
-}
-
-/* ── fetch + inject just the changed section ── */
-function loadSection(lp, ap, targetMask, targetTbody, targetPg, targetSub, subId) {
-  var scrollY = window.scrollY;
-  targetMask.classList.add('on');
-
-  fetch(buildURL(lp, ap), { headers: {'X-Requested-With': 'XMLHttpRequest'} })
-    .then(function(r){ return r.text(); })
-    .then(function(html){
-      var doc = new DOMParser().parseFromString(html, 'text/html');
-
-      var newTbody = doc.getElementById(targetTbody.id);
-      if (newTbody) {
-        targetTbody.innerHTML = newTbody.innerHTML;
-        targetTbody.classList.add('fade-in');
-        setTimeout(function(){ targetTbody.classList.remove('fade-in'); }, 200);
-      }
-
-      var newPg = doc.getElementById(targetPg.id);
-      if (newPg) {
-        targetPg.innerHTML = newPg.innerHTML;
-        bindPagination();
-      }
-
-      var newSub = doc.getElementById(subId);
-      if (newSub) targetSub.textContent = newSub.textContent;
-
-      window.history.replaceState(null, '', buildURL(lp, ap));
-      targetMask.classList.remove('on');
-
-      /* restore scroll — no jump! */
-      window.scrollTo({ top: scrollY, behavior: 'instant' });
-    })
-    .catch(function(){
-      targetMask.classList.remove('on');
-      window.location.href = buildURL(lp, ap);
-    });
-}
-
-function loadListings(lp) {
-  state.lpage = lp;
-  loadSection(lp, state.apage, listingsMask, listingsTbody, listingsPg, listingsSub, 'listingsSub');
-}
-
-function loadArchives(ap) {
-  state.apage = ap;
-  loadSection(state.lpage, ap, archivesMask, archivesTbody, archivesPg, archivesSub, 'archivesSub');
-}
-
-function loadBoth(lp, ap) {
-  state.lpage = lp;
-  state.apage = ap;
-  var scrollY = window.scrollY;
-  listingsMask.classList.add('on');
-  archivesMask.classList.add('on');
-  fetch(buildURL(lp, ap), { headers: {'X-Requested-With': 'XMLHttpRequest'} })
-    .then(function(r){ return r.text(); })
-    .then(function(html){
-      var doc = new DOMParser().parseFromString(html, 'text/html');
-
-      [
-        [listingsTbody, 'listingsTbody'],
-        [archivesTbody, 'archivesTbody']
-      ].forEach(function(pair){
-        var el = doc.getElementById(pair[1]);
-        if (el) {
-          pair[0].innerHTML = el.innerHTML;
-          pair[0].classList.add('fade-in');
-          setTimeout(function(){ pair[0].classList.remove('fade-in'); }, 200);
-        }
-      });
-
-      var nlp = doc.getElementById('listingsPg');
-      if (nlp) { listingsPg.innerHTML = nlp.innerHTML; }
-      var nap = doc.getElementById('archivesPg');
-      if (nap) { archivesPg.innerHTML = nap.innerHTML; }
-
-      var ns = doc.getElementById('listingsSub');
-      if (ns) listingsSub.textContent = ns.textContent;
-      var na = doc.getElementById('archivesSub');
-      if (na) archivesSub.textContent = na.textContent;
-
-      bindPagination();
-      window.history.replaceState(null, '', buildURL(lp, ap));
-      listingsMask.classList.remove('on');
-      archivesMask.classList.remove('on');
-      window.scrollTo({ top: scrollY, behavior: 'instant' });
-    })
-    .catch(function(){
-      listingsMask.classList.remove('on');
-      archivesMask.classList.remove('on');
-      window.location.href = buildURL(lp, ap);
-    });
-}
-
-/* ── bind pagination clicks ── */
-function bindPagination() {
-  document.querySelectorAll('[data-lpage]').forEach(function(el){
-    el.addEventListener('click', function(e){
-      e.preventDefault();
-      loadListings(parseInt(el.dataset.lpage));
-    });
-  });
-  document.querySelectorAll('[data-apage]').forEach(function(el){
-    el.addEventListener('click', function(e){
-      e.preventDefault();
-      loadArchives(parseInt(el.dataset.apage));
-    });
-  });
-}
-bindPagination();
-
-/* ── filter inputs — smart debounce ── */
-var debTimer = null;
-
-function applyFilters() {
-  state.q      = fq ? fq.value.trim() : '';
-  state.status = fstatus ? fstatus.value : '';
-  state.owner  = fowner  ? fowner.value  : '';
-  state.lpage  = 1;
-  state.apage  = 1;
-  searchInd.classList.remove('on');
-  loadBoth(1, 1);
-}
-
-if (fq) {
-  fq.addEventListener('input', function(){
-    searchInd.classList.add('on');
-    clearTimeout(debTimer);
-    /* wait until user pauses typing for 700ms */
-    debTimer = setTimeout(function(){
-      applyFilters();
-    }, 700);
-  });
-  /* also submit on Enter immediately */
-  fq.addEventListener('keydown', function(e){
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      clearTimeout(debTimer);
-      applyFilters();
-    }
-  });
-}
-
-if (fstatus) {
-  fstatus.addEventListener('change', function(){
-    clearTimeout(debTimer);
-    applyFilters();
-  });
-}
-
-if (fowner) {
-  fowner.addEventListener('change', function(){
-    clearTimeout(debTimer);
-    applyFilters();
-  });
-}
-
-/* reset */
-if (btnReset) {
-  btnReset.addEventListener('click', function(){
-    if (fq) fq.value = '';
-    if (fstatus) fstatus.value = '';
-    if (fowner)  fowner.value  = '';
-    clearTimeout(debTimer);
-    applyFilters();
-  });
-}
-
-})();
-</script>
 {% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="{{ url_for('static', filename='js/pages/admin_locations_page.js', v=app_static_version) }}" defer></script>
+{% endblock %}
+
+

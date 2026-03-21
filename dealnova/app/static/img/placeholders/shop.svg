@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 480" role="img" aria-label="Shop placeholder">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#eff6ff"/>
+      <stop offset="100%" stop-color="#dbeafe"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="480" fill="url(#g)"/>
+  <g fill="none" stroke="#2563eb" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" opacity="0.9">
+    <path d="M142 216h356v176H142z"/>
+    <path d="M118 214l34-74h336l34 74"/>
+    <path d="M212 392V286h112v106"/>
+  </g>
+  <text x="320" y="422" text-anchor="middle" font-size="28" font-family="Arial, sans-serif" fill="#1d4ed8">Boutique</text>
+</svg>

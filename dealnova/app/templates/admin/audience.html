@@ -1,0 +1,834 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Audience & Trafic{% endblock %}
+
+{% block head %}
+{{ super() }}
+<style>
+  .aud-page {
+    display: grid;
+    gap: 1rem;
+  }
+  .aud-hero {
+    position: relative;
+    overflow: hidden;
+    padding: 1.35rem;
+    border-radius: 26px;
+    background:
+      radial-gradient(circle at top right, rgba(255,255,255,.18), transparent 34%),
+      linear-gradient(135deg, #0f172a, #155e75 48%, #0f766e);
+    color: #fff;
+    box-shadow: 0 22px 46px rgba(15, 23, 42, 0.16);
+  }
+  .aud-hero h1 {
+    margin: 0 0 .35rem;
+    font-size: 1.9rem;
+    font-weight: 900;
+  }
+  .aud-hero p {
+    margin: 0;
+    max-width: 860px;
+    color: rgba(255,255,255,.86);
+    font-size: .98rem;
+  }
+  .aud-hero-meta,
+  .aud-filters,
+  .aud-badges,
+  .aud-section-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .65rem;
+  }
+  .aud-hero-meta {
+    margin-top: 1rem;
+  }
+  .aud-pill,
+  .aud-filter-btn,
+  .aud-badge,
+  .aud-nav-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: .45rem;
+    border-radius: 999px;
+    font-weight: 800;
+  }
+  .aud-pill {
+    padding: .46rem .8rem;
+    background: rgba(255,255,255,.14);
+    color: #fff;
+    font-size: .88rem;
+    backdrop-filter: blur(8px);
+  }
+  .aud-pill.is-live-ok {
+    background: rgba(34, 197, 94, .18);
+    color: #dcfce7;
+  }
+  .aud-pill.is-live-down {
+    background: rgba(239, 68, 68, .18);
+    color: #fee2e2;
+  }
+  .aud-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    background: currentColor;
+    box-shadow: 0 0 0 4px rgba(255,255,255,.12);
+    flex: 0 0 10px;
+  }
+  .aud-nav-chip {
+    padding: .58rem .9rem;
+    background: #fff;
+    color: #0f172a;
+    border: 1px solid rgba(15, 23, 42, .08);
+    box-shadow: 0 10px 22px rgba(15, 23, 42, .05);
+    text-decoration: none;
+  }
+  .aud-grid,
+  .aud-grid-small,
+  .aud-grid-panels,
+  .aud-detail-grid {
+    display: grid;
+    gap: .9rem;
+  }
+  .aud-grid {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  }
+  .aud-grid-small {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  }
+  .aud-grid-panels,
+  .aud-detail-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .aud-panel,
+  .aud-card,
+  .aud-detail {
+    background: #fff;
+    border: 1px solid rgba(15, 23, 42, .08);
+    border-radius: 22px;
+    box-shadow: 0 14px 30px rgba(15, 23, 42, .06);
+  }
+  .aud-panel {
+    padding: 1rem;
+  }
+  .aud-card {
+    padding: .95rem 1rem;
+    background: linear-gradient(180deg, #ffffff, #f8fafc);
+  }
+  .aud-card.is-priority {
+    border-color: rgba(13, 148, 136, .16);
+  }
+  .aud-shell {
+    display: grid;
+    grid-template-columns: minmax(0, 1.55fr) minmax(320px, .85fr);
+    gap: 1rem;
+    align-items: start;
+  }
+  .aud-sticky-panel {
+    position: sticky;
+    top: 1rem;
+  }
+  .aud-scroll-panel {
+    max-height: 520px;
+    overflow: auto;
+    padding-right: .15rem;
+  }
+  .aud-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .8rem;
+    margin-bottom: .85rem;
+  }
+  .aud-panel-head h2 {
+    margin: 0;
+    font-size: 1.02rem;
+    font-weight: 900;
+    color: #0f172a;
+  }
+  .aud-panel-note {
+    color: #64748b;
+    font-size: .88rem;
+  }
+  .aud-label {
+    color: #64748b;
+    font-weight: 700;
+    font-size: .78rem;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+  }
+  .aud-value {
+    margin-top: .42rem;
+    font-size: 1.8rem;
+    line-height: 1;
+    font-weight: 900;
+    color: #0f172a;
+  }
+  .aud-help {
+    margin-top: .35rem;
+    color: #475569;
+    font-size: .9rem;
+  }
+  .aud-list {
+    display: grid;
+    gap: .7rem;
+  }
+  .aud-item {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: .85rem;
+    padding: .8rem .9rem;
+    border-radius: 18px;
+    background: linear-gradient(180deg, #f8fafc, #f1f5f9);
+  }
+  .aud-item-title {
+    font-weight: 900;
+    color: #0f172a;
+  }
+  .aud-item-meta {
+    margin-top: .22rem;
+    color: #64748b;
+    font-size: .87rem;
+  }
+  .aud-item-side {
+    text-align: right;
+    white-space: nowrap;
+    font-weight: 900;
+    color: #0f766e;
+  }
+  .aud-item-side small {
+    display: block;
+    margin-top: .2rem;
+    color: #64748b;
+    font-weight: 700;
+  }
+  .aud-empty {
+    padding: .95rem 1rem;
+    border-radius: 18px;
+    background: #f8fafc;
+    color: #64748b;
+  }
+  .aud-filter-btn {
+    border: 1px solid rgba(15, 23, 42, .08);
+    background: #fff;
+    color: #0f172a;
+    padding: .68rem .95rem;
+    box-shadow: 0 10px 22px rgba(15, 23, 42, .05);
+    transition: background .18s ease, color .18s ease, border-color .18s ease, transform .18s ease;
+  }
+  .aud-filter-btn:hover {
+    transform: translateY(-1px);
+    border-color: rgba(13, 148, 136, .28);
+  }
+  .aud-filter-btn.active {
+    background: linear-gradient(135deg, #0f766e, #14b8a6);
+    color: #fff;
+    border-color: #0f766e;
+  }
+  .aud-connected-card {
+    display: grid;
+    gap: .28rem;
+  }
+  .aud-badge {
+    padding: .26rem .54rem;
+    background: #e2e8f0;
+    color: #334155;
+    font-size: .77rem;
+  }
+  .aud-badge.is-client {
+    background: #dcfce7;
+    color: #166534;
+  }
+  .aud-badge.is-internal {
+    background: #dbeafe;
+    color: #1d4ed8;
+  }
+  .aud-subtle {
+    color: #64748b;
+    font-size: .83rem;
+    font-weight: 700;
+  }
+  .aud-intro-strip {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: .8rem;
+    margin-top: .95rem;
+  }
+  .aud-intro-note {
+    padding: .82rem .9rem;
+    border-radius: 18px;
+    background: linear-gradient(135deg, #ecfeff, #f8fafc);
+    border: 1px solid rgba(15, 23, 42, .07);
+    color: #475569;
+    font-size: .9rem;
+  }
+  .aud-intro-note strong {
+    display: block;
+    margin-bottom: .2rem;
+    color: #0f172a;
+  }
+  .aud-code {
+    margin-top: .2rem;
+    padding: .22rem .48rem;
+    border-radius: 10px;
+    background: #e2e8f0;
+    color: #0f172a;
+    font-size: .8rem;
+    font-weight: 800;
+    word-break: break-all;
+  }
+  .aud-detail {
+    overflow: hidden;
+  }
+  .aud-detail summary {
+    list-style: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem 1.05rem;
+    font-weight: 900;
+    color: #0f172a;
+  }
+  .aud-detail summary::-webkit-details-marker {
+    display: none;
+  }
+  .aud-detail summary span {
+    display: block;
+    margin-top: .15rem;
+    color: #64748b;
+    font-size: .88rem;
+    font-weight: 700;
+  }
+  .aud-detail-body {
+    padding: 0 1rem 1rem;
+  }
+  .aud-heatmap {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: .55rem;
+  }
+  .aud-heat {
+    padding: .75rem .5rem;
+    text-align: center;
+    border-radius: 18px;
+    background: linear-gradient(180deg, #f8fafc, #e2e8f0);
+  }
+  .aud-heat-hour {
+    font-size: .76rem;
+    font-weight: 700;
+    color: #64748b;
+  }
+  .aud-heat-value {
+    margin-top: .2rem;
+    font-size: 1rem;
+    font-weight: 900;
+    color: #0f172a;
+  }
+  @media (max-width: 1100px) {
+    .aud-shell,
+    .aud-grid-panels,
+    .aud-detail-grid,
+    .aud-intro-strip {
+      grid-template-columns: 1fr;
+    }
+    .aud-sticky-panel {
+      position: static;
+    }
+  }
+  @media (max-width: 768px) {
+    .aud-grid,
+    .aud-grid-small,
+    .aud-heatmap {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .aud-hero h1 {
+      font-size: 1.55rem;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="aud-page" id="audiencePage" data-live-url="{{ url_for('admin_users.audience_dashboard_live') }}">
+  <section class="aud-hero">
+    <h1><i class="bi bi-broadcast-pin me-2"></i>Audience et trafic en direct</h1>
+    <p>
+      Cette page te montre, en français simple, qui est actif maintenant, combien de clients sont là,
+      combien de personnes internes utilisent le site, d'où vient le trafic et ce qui convertit le mieux.
+    </p>
+    <div class="aud-hero-meta">
+      <span class="aud-pill"><i class="bi bi-arrow-repeat"></i> Mise à jour auto toutes les 15 s</span>
+      <span class="aud-pill"><i class="bi bi-clock-history"></i> <span id="audUpdatedAt">Chargement...</span></span>
+      <span class="aud-pill is-live-ok" id="audLiveStatus"><span class="aud-dot"></span><span id="audLiveStatusText">Live connecté</span></span>
+      <span class="aud-pill"><i class="bi bi-phone"></i> PWA incluse</span>
+    </div>
+  </section>
+
+  <nav class="aud-section-nav">
+    <a class="aud-nav-chip" href="#audResume"><i class="bi bi-speedometer2"></i> Résumé live</a>
+    <a class="aud-nav-chip" href="#audConversions"><i class="bi bi-graph-up-arrow"></i> Conversions</a>
+    <a class="aud-nav-chip" href="#audDetails"><i class="bi bi-sliders"></i> Détails</a>
+  </nav>
+
+  <section class="aud-panel">
+    <div class="aud-panel-head">
+      <div>
+        <h2>Lecture rapide</h2>
+        <div class="aud-panel-note">Change l'angle de lecture en un clic</div>
+      </div>
+    </div>
+    <div class="aud-filters" id="audFilters">
+      <button type="button" class="aud-filter-btn active" data-scope="all">Tout voir</button>
+      <button type="button" class="aud-filter-btn" data-scope="clients">Clients seulement</button>
+      <button type="button" class="aud-filter-btn" data-scope="internal">Interne seulement</button>
+    </div>
+  </section>
+
+  <section class="aud-shell" id="audResume">
+    <article class="aud-panel">
+      <div class="aud-panel-head">
+        <div>
+          <h2>Résumé live</h2>
+          <div class="aud-panel-note">Les chiffres utiles en haut, sans trop de défilement</div>
+        </div>
+      </div>
+      <div class="aud-grid" id="audMainCards"></div>
+      <div class="aud-intro-strip">
+        <div class="aud-intro-note">
+          <strong>Lecture immediate</strong>
+          Le trafic live, les invités, les comptes connectés et le pic du jour.
+        </div>
+        <div class="aud-intro-note">
+          <strong>Lecture metier</strong>
+          Le filtre client / interne separe le business du trafic equipe.
+        </div>
+        <div class="aud-intro-note">
+          <strong>Lecture humaine</strong>
+          La colonne de droite montre clairement qui est actif maintenant.
+        </div>
+      </div>
+    </article>
+
+    <article class="aud-panel aud-sticky-panel">
+      <div class="aud-panel-head">
+        <div>
+          <h2>Personnes connectées maintenant</h2>
+          <div class="aud-panel-note">Toujours visible pendant le scroll</div>
+        </div>
+      </div>
+      <div class="aud-list aud-scroll-panel" id="audConnectedList"></div>
+    </article>
+  </section>
+
+  <section class="aud-grid-panels" id="audConversions">
+    <article class="aud-panel">
+      <div class="aud-panel-head">
+        <div>
+          <h2>Conversions du jour</h2>
+          <div class="aud-panel-note">Visites, panier, commandes et ouvertures WhatsApp</div>
+        </div>
+      </div>
+      <div class="aud-grid-small" id="audConversionCards"></div>
+    </article>
+
+    <article class="aud-panel">
+      <div class="aud-panel-head">
+        <div>
+          <h2>Pages les plus vues aujourd’hui</h2>
+          <div class="aud-panel-note">Les zones du site qui attirent le plus de monde</div>
+        </div>
+      </div>
+      <div class="aud-list" id="audTopPages"></div>
+    </article>
+
+    <article class="aud-panel">
+      <div class="aud-panel-head">
+        <div>
+          <h2>Sources d’entrée</h2>
+          <div class="aud-panel-note">Le referer montre d’où arrivent les visiteurs</div>
+        </div>
+      </div>
+      <div class="aud-list" id="audTopSources"></div>
+    </article>
+  </section>
+
+  <section class="aud-page" id="audDetails">
+    <details class="aud-detail" open>
+      <summary>
+        <div>
+          Heatmap horaire
+          <span>Vue rapide des heures les plus actives aujourd’hui</span>
+        </div>
+        <i class="bi bi-chevron-down"></i>
+      </summary>
+      <div class="aud-detail-body">
+        <div class="aud-heatmap" id="audHeatmap"></div>
+      </div>
+    </details>
+
+    <details class="aud-detail">
+      <summary>
+        <div>
+          Diagnostic et repartition
+          <span>Ouvre seulement quand tu veux voir les details techniques</span>
+        </div>
+        <i class="bi bi-chevron-down"></i>
+      </summary>
+      <div class="aud-detail-body">
+        <div class="aud-detail-grid">
+          <article class="aud-panel">
+            <div class="aud-panel-head">
+              <div>
+                <h2>Repartition par appareil</h2>
+                <div class="aud-panel-note">Mobile, desktop ou tablette</div>
+              </div>
+            </div>
+            <div class="aud-list" id="audDevices"></div>
+          </article>
+
+          <article class="aud-panel">
+            <div class="aud-panel-head">
+              <div>
+                <h2>Sessions par role</h2>
+                <div class="aud-panel-note">Utile pour separer clients et trafic interne</div>
+              </div>
+            </div>
+            <div class="aud-list" id="audRoles"></div>
+          </article>
+
+          <article class="aud-panel">
+            <div class="aud-panel-head">
+              <div>
+                <h2>Villes detectees</h2>
+                <div class="aud-panel-note">Visible si le proxy ou CDN envoie la ville</div>
+              </div>
+            </div>
+            <div class="aud-list" id="audCities"></div>
+          </article>
+
+          <article class="aud-panel">
+            <div class="aud-panel-head">
+              <div>
+                <h2>Headers detectes</h2>
+                <div class="aud-panel-note">Diagnostic live pour verifier si Cloudflare transmet bien les infos jusqu'a Flask</div>
+              </div>
+            </div>
+            <div class="aud-list aud-scroll-panel" id="audHeaderDebug"></div>
+          </article>
+        </div>
+      </div>
+    </details>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script type="application/json" id="audienceInitialData">{{ live_traffic|tojson }}</script>
+<script>
+  (function () {
+    const root = document.getElementById("audiencePage");
+    if (!root) return;
+
+    const liveUrl = root.dataset.liveUrl || "";
+    const initialNode = document.getElementById("audienceInitialData");
+    let pollTimer = null;
+    let fetchInFlight = false;
+    let currentScope = "all";
+    let latestData = null;
+
+    function readInitialData() {
+      if (!initialNode) return {};
+      try {
+        return JSON.parse(initialNode.textContent || "{}") || {};
+      } catch (_error) {
+        return {};
+      }
+    }
+
+    function number(value) {
+      const n = Number(value || 0);
+      return Number.isFinite(n) ? n : 0;
+    }
+
+    function empty(text) {
+      return '<div class="aud-empty">' + text + '</div>';
+    }
+
+    function itemRow(title, meta, side, sideSmall) {
+      return (
+        '<div class="aud-item">' +
+          '<div>' +
+            '<div class="aud-item-title">' + title + '</div>' +
+            (meta ? '<div class="aud-item-meta">' + meta + '</div>' : '') +
+          '</div>' +
+          '<div class="aud-item-side">' + side + (sideSmall ? '<small>' + sideSmall + '</small>' : '') + '</div>' +
+        '</div>'
+      );
+    }
+
+    function setHtml(id, html) {
+      const node = document.getElementById(id);
+      if (node) node.innerHTML = html;
+    }
+
+    function isInternalRole(role) {
+      const value = String(role || "").toLowerCase();
+      return ["admin", "manager", "vendor", "vendeur", "courier", "livreur"].includes(value);
+    }
+
+    function renderLiveStatus(isOk) {
+      const node = document.getElementById("audLiveStatus");
+      const textNode = document.getElementById("audLiveStatusText");
+      if (!node || !textNode) return;
+      node.classList.remove("is-live-ok", "is-live-down");
+      node.classList.add(isOk ? "is-live-ok" : "is-live-down");
+      textNode.textContent = isOk ? "Live connecté" : "Live coupé";
+    }
+
+    function scopeData(data) {
+      const allRoles = Array.isArray(data.sessions_by_role) ? data.sessions_by_role : [];
+      if (currentScope === "clients") {
+        return {
+          activeNow: number(data.active_clients_5m),
+          uniqueToday: number(data.unique_visitors_today),
+          roles: allRoles.filter(function (item) { return !isInternalRole(item.label); }),
+        };
+      }
+      if (currentScope === "internal") {
+        return {
+          activeNow: number(data.active_internal_5m),
+          uniqueToday: number(data.sessions_internal_today),
+          roles: allRoles.filter(function (item) { return isInternalRole(item.label); }),
+        };
+      }
+      return {
+        activeNow: number(data.active_visitors_5m),
+        uniqueToday: number(data.unique_visitors_today),
+        roles: allRoles,
+      };
+    }
+
+    function renderCards(data) {
+      const scoped = scopeData(data);
+      const loginRate = Number(data.login_rate_active_pct || 0).toFixed(1);
+      const cards = [
+        ["Actifs maintenant", scoped.activeNow, currentScope === "clients" ? "Clients actifs sur les 5 dernières minutes" : currentScope === "internal" ? "Trafic interne actif sur les 5 dernières minutes" : "Personnes actives sur les 5 dernières minutes", true],
+        ["Connectés", number(data.active_authenticated_5m), "Comptes avec connexion actuellement actifs", true],
+        ["Invités", number(data.active_guests_5m), "Visiteurs sans connexion actuellement actifs", true],
+        ["Pic du jour", number(data.peak_active_today), "Le plus grand nombre observé aujourd’hui", true],
+        ["RPM", number(data.rpm), "Requetes par minute en ce moment", true],
+        ["Pages vues", number(data.page_views_today), "Toutes les pages chargées aujourd’hui", false],
+        ["Visiteurs uniques", scoped.uniqueToday, currentScope === "internal" ? "Sessions internes vues aujourd’hui" : "Nombre de visiteurs différents aujourd’hui", false],
+        ["Taux de connexion", loginRate + "%", "Part des connectés parmi les actifs", false],
+        ["Clients actifs", number(data.active_clients_5m), "Trafic client actif maintenant", false],
+        ["Interne actif", number(data.active_internal_5m), "Equipe active maintenant", false],
+        ["PWA aujourd’hui", number(data.pwa_installs_today), "Installations détectées aujourd’hui", false],
+        ["PWA total", number(data.pwa_installs_total), "Compteur garde durablement", false],
+        ["Nouveaux", number(data.new_visitors_today), "Premières visites du jour", false],
+        ["Revenants", number(data.returning_visitors_today), "Visiteurs déjà vus qui reviennent", false]
+      ];
+      const html = cards.map(function (entry) {
+        return (
+          '<article class="aud-card' + (entry[3] ? ' is-priority' : '') + '">' +
+            '<div class="aud-label">' + entry[0] + '</div>' +
+            '<div class="aud-value">' + entry[1] + '</div>' +
+            '<div class="aud-help">' + entry[2] + '</div>' +
+          '</article>'
+        );
+      }).join("");
+      setHtml("audMainCards", html);
+    }
+
+    function renderConversions(data) {
+      const conversions = data.conversions || {};
+      const html = [
+        ["Visiteurs", number(conversions.visitors), "Base de calcul du jour"],
+        ["Ajouts panier", number(conversions.add_to_cart), (Number(conversions.add_to_cart_rate_pct || 0)).toFixed(1) + "% des visiteurs"],
+        ["Commandes", number(conversions.orders), (Number(conversions.order_rate_pct || 0)).toFixed(1) + "% des visiteurs"],
+        ["Ouvertures WhatsApp", number(conversions.whatsapp), (Number(conversions.whatsapp_rate_pct || 0)).toFixed(1) + "% des visiteurs"]
+      ].map(function (entry) {
+        return (
+          '<article class="aud-card">' +
+            '<div class="aud-label">' + entry[0] + '</div>' +
+            '<div class="aud-value">' + entry[1] + '</div>' +
+            '<div class="aud-help">' + entry[2] + '</div>' +
+          '</article>'
+        );
+      }).join("");
+      setHtml("audConversionCards", html);
+    }
+
+    function renderList(targetId, items, emptyText, metaBuilder) {
+      if (!Array.isArray(items) || !items.length) {
+        setHtml(targetId, empty(emptyText));
+        return;
+      }
+      const html = items.map(function (item) {
+        const title = String(item.label || item.hour || "-");
+        const count = number(item.count);
+        const meta = typeof metaBuilder === "function" ? metaBuilder(item) : "";
+        return itemRow(title, meta, String(count), "");
+      }).join("");
+      setHtml(targetId, html);
+    }
+
+    function renderConnectedUsers(data) {
+      const allItems = Array.isArray(data.active_authenticated_users) ? data.active_authenticated_users : [];
+      const items = allItems.filter(function (item) {
+        if (currentScope === "clients") return item.audience_scope === "client";
+        if (currentScope === "internal") return item.audience_scope === "interne";
+        return true;
+      });
+      if (!items.length) {
+        setHtml("audConnectedList", empty(currentScope === "clients" ? "Aucun client connecté actif sur les 5 dernières minutes." : currentScope === "internal" ? "Aucune personne interne active sur les 5 dernières minutes." : "Aucune personne connectée active sur les 5 dernières minutes."));
+        return;
+      }
+
+      const html = items.map(function (item) {
+        const scopeBadge = item.audience_scope === "interne"
+          ? '<span class="aud-badge is-internal"><i class="bi bi-shield-check"></i> Interne</span>'
+          : '<span class="aud-badge is-client"><i class="bi bi-person"></i> Client</span>';
+        const roleBadge = item.role ? '<span class="aud-badge"><i class="bi bi-person-badge"></i> ' + String(item.role) + '</span>' : "";
+        const deviceBadge = item.device ? '<span class="aud-badge"><i class="bi bi-phone"></i> ' + String(item.device) + '</span>' : "";
+        const cityBadge = item.city ? '<span class="aud-badge"><i class="bi bi-geo-alt"></i> ' + String(item.city) + '</span>' : "";
+        const pathText = item.path ? "Page active : " + String(item.path) : "Page active non détectée";
+        return (
+          '<div class="aud-item">' +
+            '<div class="aud-connected-card">' +
+              '<div class="aud-item-title">' + String(item.label || "Compte") + '</div>' +
+              '<div class="aud-badges">' + scopeBadge + roleBadge + deviceBadge + cityBadge + '</div>' +
+              '<div class="aud-subtle">' + pathText + '</div>' +
+            '</div>' +
+            '<div class="aud-item-side">' + String(number(item.last_seen_seconds_ago)) + 's<small>Dernière activité</small></div>' +
+          '</div>'
+        );
+      }).join("");
+      setHtml("audConnectedList", html);
+    }
+
+    function renderHeatmap(data) {
+      const items = Array.isArray(data.hourly_heatmap) ? data.hourly_heatmap : [];
+      const html = items.map(function (item) {
+        return (
+          '<div class="aud-heat">' +
+            '<div class="aud-heat-hour">' + String(item.hour || "--") + '</div>' +
+            '<div class="aud-heat-value">' + number(item.count) + '</div>' +
+          '</div>'
+        );
+      }).join("");
+      setHtml("audHeatmap", html || empty("Aucune donnée horaire."));
+    }
+
+    function renderHeaderDebug(data) {
+      const items = Array.isArray(data.geo_debug_headers) ? data.geo_debug_headers : [];
+      if (!items.length) {
+        setHtml("audHeaderDebug", empty("Aucun header utile detecte sur cette requete."));
+        return;
+      }
+      const detectedCity = String(data.detected_city_header || "").trim();
+      const html = items.map(function (item) {
+        const value = String(item.value || "").trim();
+        const status = item.present ? "Oui" : "Non";
+        const meta = value
+          ? 'Valeur reçue<div class="aud-code">' + value + '</div>'
+          : "Header absent sur cette requête";
+        const sideSmall = detectedCity && value && detectedCity.toLowerCase() === value.toLowerCase()
+          ? "Utilise pour la ville"
+          : "";
+        return itemRow(String(item.label || "Header"), meta, status, sideSmall);
+      }).join("");
+      setHtml("audHeaderDebug", html);
+    }
+
+    function renderUpdatedAt() {
+      const node = document.getElementById("audUpdatedAt");
+      if (!node) return;
+      const now = new Date();
+      node.textContent = "Mis à jour à " + now.toLocaleTimeString("fr-FR");
+    }
+
+    function render(data) {
+      latestData = data || {};
+      renderCards(latestData);
+      renderConversions(latestData);
+      renderConnectedUsers(latestData);
+      renderList("audTopPages", latestData.top_pages, "Aucune page dominante pour le moment.", function () {
+        return "Pages les plus consultées aujourd’hui";
+      });
+      renderList("audTopSources", latestData.top_sources, "Aucune source détectée pour le moment.", function () {
+        return "Entrées observées aujourd’hui";
+      });
+      renderList("audDevices", latestData.device_breakdown, "Pas encore de répartition par appareil.", function () {
+        return "Répartition des sessions observées";
+      });
+      renderList("audRoles", scopeData(latestData).roles, "Pas encore de sessions catégorisées.", function () {
+        return "Pour distinguer trafic client et trafic interne";
+      });
+      renderList("audCities", latestData.city_breakdown, "Aucune ville disponible. Configure un header de ville cote proxy ou CDN, par exemple CF-IPCity, CloudFront-Viewer-City ou X-City.", function () {
+        return "Ville transmise par le proxy ou le CDN";
+      });
+      renderHeaderDebug(latestData);
+      renderHeatmap(latestData);
+      renderUpdatedAt();
+    }
+
+    async function refreshLive() {
+      if (!liveUrl || fetchInFlight) return;
+      fetchInFlight = true;
+      try {
+        const response = await fetch(liveUrl, {
+          headers: { "X-Requested-With": "fetch", "Accept": "application/json" },
+          credentials: "same-origin",
+          cache: "no-store"
+        });
+        if (!response.ok) {
+          renderLiveStatus(false);
+          return;
+        }
+        const payload = await response.json();
+        if (!payload || payload.ok !== true || !payload.live_traffic) {
+          renderLiveStatus(false);
+          return;
+        }
+        render(payload.live_traffic);
+        renderLiveStatus(true);
+      } catch (_error) {
+        renderLiveStatus(false);
+      } finally {
+        fetchInFlight = false;
+      }
+    }
+
+    function startPolling() {
+      if (pollTimer) window.clearInterval(pollTimer);
+      pollTimer = window.setInterval(refreshLive, 15000);
+    }
+
+    const filtersRoot = document.getElementById("audFilters");
+    if (filtersRoot) {
+      filtersRoot.addEventListener("click", function (event) {
+        const button = event.target.closest("[data-scope]");
+        if (!button) return;
+        currentScope = button.getAttribute("data-scope") || "all";
+        Array.prototype.forEach.call(filtersRoot.querySelectorAll("[data-scope]"), function (node) {
+          node.classList.toggle("active", node === button);
+        });
+        render(latestData || readInitialData());
+      });
+    }
+
+    render(readInitialData());
+    renderLiveStatus(true);
+    startPolling();
+
+    document.addEventListener("visibilitychange", function () {
+      if (document.hidden) return;
+      refreshLive();
+    });
+  })();
+</script>
+{% endblock %}

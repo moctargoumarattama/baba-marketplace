@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+﻿{% extends "vendor/base.html" %}
 {% set available_kinds = available_kinds if available_kinds is defined and available_kinds else ['physical', 'service'] %}
 {% set single_kind = available_kinds|length == 1 %}
 {% set effective_kind = (product.kind if product and product.kind else (default_kind or available_kinds[0])) %}
@@ -25,7 +25,7 @@
         </div>
         <div class="title-text">
           <h1>{% if product %}Modifier le {{ base_label }}{% else %}Nouveau {{ base_label }}{% endif %}</h1>
-          <p class="subtitle">{% if product %}Mettez  jour les informations de votre {{ base_label }}{% else %}Crez un nouveau {{ base_label }} pour votre boutique{% endif %}</p>
+          <p class="subtitle">{% if product %}Mettez a jour les informations de votre {{ base_label }}{% else %}Creez un nouveau {{ base_label }} pour votre boutique{% endif %}</p>
         </div>
       </div>
       <a class="btn-back" href="{{ url_for('vendor.dashboard') }}">
@@ -42,14 +42,28 @@
   <div class="form-card">
     <form method="POST" enctype="multipart/form-data" id="productForm" class="product-form">
       {% include "partials/_csrf.html" %}
+      {% if product and not product.is_active and catalog_block_reasons %}
+      <div class="catalog-warning">
+        <div class="catalog-warning-icon">!</div>
+        <div>
+          <strong>Produit masque par l'admin</strong>
+          <p>Pour le reactiver, completez les elements suivants :</p>
+          <ul>
+            {% for reason in catalog_block_reasons %}
+            <li>{{ reason }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+      {% endif %}
       
       <!-- Section: Informations de base -->
       <div class="form-section">
         <div class="section-header">
           <div class="section-number">01</div>
           <div class="section-title">
-            <h3>Informations gnrales</h3>
-            <p>Les dtails essentiels de votre produit</p>
+            <h3>Informations generales</h3>
+            <p>Les details essentiels de votre {{ base_label }}</p>
           </div>
         </div>
         
@@ -66,10 +80,10 @@
 
           <div class="form-group full-width">
             <label class="form-label" for="description">
-              <span>Description dtaille</span>
+              <span>Description detaillee</span>
             </label>
             <textarea id="description" class="form-textarea" name="description" rows="4" 
-                      placeholder="Dcrivez votre produit, ses caractristiques principales...">{{ product.description if product else '' }}</textarea>
+                      placeholder="Decrivez votre {{ base_label }}, ses caracteristiques principales...">{{ product.description if product else '' }}</textarea>
             <span class="input-hint">Une bonne description augmente les chances de vente</span>
           </div>
         </div>
@@ -80,8 +94,8 @@
         <div class="section-header">
           <div class="section-number">02</div>
           <div class="section-title">
-            <h3>Prix & disponibilit</h3>
-            <p>Paramtres de vente</p>
+            <h3>Prix et disponibilite</h3>
+            <p>Parametres de vente</p>
           </div>
         </div>
         
@@ -108,56 +122,56 @@
             <input type="hidden" name="kind" value="{{ current_kind }}">
             <div class="kind-locked">
               <span class="kind-pill {{ 'kind-pill-service' if current_kind == 'service' else 'kind-pill-product' }}">
-                {{ 'Service (rserv)' if current_kind == 'service' else 'Produit physique (livr)' }}
+                {{ 'Service (reserve)' if current_kind == 'service' else 'Produit physique (livrable)' }}
               </span>
-              <span class="kind-locked-note">Type verrouill selon votre boutique.</span>
+              <span class="kind-locked-note">Type verrouille selon votre boutique.</span>
             </div>
             {% else %}
             <div class="select-wrapper">
               <select id="kind" class="form-select" name="kind" required>
                 {% if 'physical' in available_kinds %}
-                <option value="physical" {% if current_kind == 'physical' %}selected{% endif %}>Produit physique (livr)</option>
+                <option value="physical" {% if current_kind == 'physical' %}selected{% endif %}>Produit physique (livrable)</option>
                 {% endif %}
                 {% if 'service' in available_kinds %}
-                <option value="service" {% if current_kind == 'service' %}selected{% endif %}>Service (rserv)</option>
+                <option value="service" {% if current_kind == 'service' %}selected{% endif %}>Service (reserve)</option>
                 {% endif %}
               </select>
               <svg class="select-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polyline points="6 9 12 15 18 9"></polyline>
               </svg>
             </div>
-            <span class="input-hint">Un service n'est pas livr : il se rserve.</span>
+            <span class="input-hint">Un service n'est pas livrable: il se reserve.</span>
             {% endif %}
           </div>
 
           <div class="form-group full-width" id="stockGroup" {% if current_kind == 'service' %}style="display:none;"{% endif %}>
             <label class="form-label" for="stock">
-              <span>Quantit en stock (produit physique)</span>
+              <span>Quantite en stock (produit physique)</span>
               <span class="required" id="stockRequired">*</span>
             </label>
             <div class="input-with-icon">
               <input type="number" id="stock" min="0" class="form-input" name="stock"
                      value="{{ product.stock if product else 0 }}" {% if current_kind != 'service' %}required{% endif %}>
-              <span class="input-icon">units</span>
+              <span class="input-icon">unites</span>
             </div>
-            <span class="input-hint">Pour un service, le stock est automatiquement ignor.</span>
+            <span class="input-hint">Pour un service, le stock est automatiquement ignore.</span>
           </div>
         </div>
       </div>
 
-      <!-- Section: Catgorie -->
+      <!-- Section: Categorie -->
       <div class="form-section">
         <div class="section-header">
           <div class="section-number">03</div>
           <div class="section-title">
-            <h3>Catgorisation</h3>
+            <h3>Categorisation</h3>
             <p>Classement du {{ base_label }}</p>
           </div>
         </div>
         
         <div class="form-group">
           <label class="form-label" for="category">
-            <span>Catgorie</span>
+            <span>Categorie</span>
             <span class="required">*</span>
           </label>
           <div class="select-wrapper">
@@ -167,18 +181,18 @@
                     name="category_id"
                     data-selected-category="{{ selected_category_id }}"
                     required>
-              <option value="">Slectionnez une catgorie...</option>
+              <option value="">Selectionnez une categorie...</option>
               {% for c in categories %}
                 <option value="{{ c.id }}" {% if selected_category_id and selected_category_id == c.id %}selected{% endif %}>
                   {{ c.name }}
                 </option>
               {% endfor %}
             </select>
-            <svg class="select-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="6 9 12 15 18 9"></polyline>
-            </svg>
-          </div>
-          <span class="input-hint">Choisissez la catgorie la plus adapte pour une meilleure visibilit</span>
+              <svg class="select-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </div>
+          <span class="input-hint">Choisissez la categorie la plus adaptee pour une meilleure visibilite</span>
         </div>
       </div>
 
@@ -205,7 +219,7 @@
             </div>
             <div class="upload-text">
               <p class="upload-title">Glissez vos images ici ou cliquez pour parcourir</p>
-              <p class="upload-subtitle">PNG, JPG, JPEG, WEBP  max 4 photos  15MB total</p>
+              <p class="upload-subtitle">PNG, JPG, JPEG, WEBP - max 4 photos - 15 MB total</p>
             </div>
             <button type="button" class="btn-upload">Choisir des fichiers</button>
           </div>
@@ -237,15 +251,79 @@
             <div class="preview-grid existing">
               {% for img in imgs if img %}
                 <div class="image-card existing js-existing-image-card" data-filename="{{ img }}">
-                  <img src="{{ url_for('static', filename='uploads/' + img) }}" alt="Image produit">
+                  <a href="{{ url_for('static', filename='uploads/' + img) }}" target="_blank" rel="noopener" class="media-preview-link" title="Ouvrir l'image">
+                    <img src="{{ url_for('static', filename='uploads/' + img) }}" alt="Image produit">
+                  </a>
                   <div class="image-overlay">
-                    <span class="existing-badge">Enregistre</span>
+                    <span class="existing-badge">Cliquer pour voir</span>
                   </div>
                   <button type="button" class="remove-btn js-remove-existing" title="Retirer cette image"></button>
                 </div>
               {% endfor %}
             </div>
           </div>
+        {% endif %}
+      </div>
+
+      <div class="form-section">
+        <div class="section-header">
+          <div class="section-number">05</div>
+          <div class="section-title">
+            <h3>Video</h3>
+            <p>Une video optionnelle pour presenter votre {{ base_label }}</p>
+          </div>
+        </div>
+
+        <div class="upload-zone upload-zone-video" id="videoDropZone">
+          <input type="file" id="videoInput" name="video" accept="video/*" class="file-input-hidden">
+
+          <div class="upload-content" id="videoUploadTrigger">
+            <div class="upload-icon">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <polygon points="23 7 16 12 23 17 23 7"></polygon>
+                <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+              </svg>
+            </div>
+            <div class="upload-text">
+              <p class="upload-title">Ajoutez une video</p>
+              <p class="upload-subtitle">1 video max - {{ max_video_mb or 30 }} MB max</p>
+            </div>
+            <button type="button" class="btn-upload">Choisir une video</button>
+          </div>
+        </div>
+
+        <div class="preview-section" id="videoPreviewContainer" style="display: none;">
+          <div class="preview-header">
+            <h4>Nouvelle video <span class="badge-count" id="newVideoCount">0</span></h4>
+            <button type="button" class="btn-text-danger" id="clearVideoBtn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              </svg>
+              Retirer la video
+            </button>
+          </div>
+          <div id="videoPreviewGrid" class="preview-grid video-preview-grid"></div>
+        </div>
+
+        {% if product and product.video_file %}
+        <div class="existing-images-section">
+          <div class="preview-header">
+            <h4>Video actuelle <span class="badge-count">1</span></h4>
+          </div>
+          <input type="hidden" name="remove_video" id="removeVideoInput" value="">
+          <div class="preview-grid existing video-preview-grid">
+            <div class="image-card existing js-existing-video-card" data-filename="{{ product.video_file }}">
+              <video controls preload="metadata" class="existing-video">
+                <source src="{{ url_for('static', filename=product.video_file) }}">
+              </video>
+              <div class="image-overlay">
+                <span class="existing-badge">Video</span>
+              </div>
+              <button type="button" class="remove-btn js-remove-existing-video" title="Retirer cette video"></button>
+            </div>
+          </div>
+        </div>
         {% endif %}
       </div>
 
@@ -258,15 +336,23 @@
             <polyline points="17 21 17 13 7 13 7 21"></polyline>
             <polyline points="7 3 7 8 15 8"></polyline>
           </svg>
-          {% if product %}Sauvegarder les modifications{% else %}Crer le {{ base_label }}{% endif %}
+          {% if product %}Sauvegarder les modifications{% else %}Creez le {{ base_label }}{% endif %}
         </button>
       </div>
     </form>
   </div>
 </div>
 
+<div class="media-lightbox" id="mediaLightbox" hidden>
+  <button type="button" class="media-lightbox-backdrop" id="mediaLightboxBackdrop" aria-label="Fermer l'aperçu"></button>
+  <div class="media-lightbox-dialog" role="dialog" aria-modal="true" aria-label="Apercu de l'image">
+    <button type="button" class="media-lightbox-close" id="mediaLightboxClose" aria-label="Fermer">x</button>
+    <img src="" alt="Apercu" class="media-lightbox-image" id="mediaLightboxImage">
+  </div>
+</div>
+
 <style>
-  /* Variables et Reset */
+  /* ===== TES STYLES EXISTANTS (INCHANGÉS) ===== */
   :root {
     --primary: #6366f1;
     --primary-dark: #4f46e5;
@@ -281,8 +367,8 @@
     --text-light: #64748b;
     --border: #e2e8f0;
     --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-    --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+    --shadow: 0 8px 20px -14px rgb(15 23 42 / 0.35);
+    --shadow-lg: 0 22px 42px -28px rgb(15 23 42 / 0.45);
     --radius: 12px;
     --radius-lg: 16px;
   }
@@ -290,14 +376,13 @@
   .product-editor-container {
     max-width: 900px;
     margin: 0 auto;
-    padding: 2rem 1rem;
+    padding: 1.5rem 1rem;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     color: var(--text);
   }
 
-  /* Header */
   .editor-header {
-    margin-bottom: 2rem;
+    margin-bottom: 1.25rem;
   }
 
   .header-content {
@@ -327,7 +412,7 @@
   }
 
   .title-text h1 {
-    font-size: 1.5rem;
+    font-size: clamp(1.25rem, 2.6vw, 1.5rem);
     font-weight: 700;
     margin: 0 0 0.25rem 0;
     color: var(--text);
@@ -343,7 +428,7 @@
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.6rem 1rem;
+    padding: 0.55rem 0.9rem;
     background: var(--card-bg);
     border: 1px solid var(--border);
     border-radius: var(--radius);
@@ -362,22 +447,55 @@
     box-shadow: var(--shadow);
   }
 
-  /* Card */
   .form-card {
     background: var(--card-bg);
     border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-lg);
+    box-shadow: var(--shadow-lg), 0 1px 0 rgba(255, 255, 255, 0.6) inset;
     overflow: hidden;
+    border: 1px solid rgba(148, 163, 184, 0.18);
   }
 
   .product-form {
-    padding: 2rem;
+    padding: 1.5rem;
   }
 
-  /* Sections */
+  .catalog-warning {
+    display: flex;
+    gap: 0.85rem;
+    align-items: flex-start;
+    background: #fff7ed;
+    border: 1px solid #fdba74;
+    border-radius: 14px;
+    padding: 1rem 1.1rem;
+    margin-bottom: 1.25rem;
+    color: #9a3412;
+  }
+
+  .catalog-warning-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    background: #ea580c;
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    flex-shrink: 0;
+  }
+
+  .catalog-warning p,
+  .catalog-warning ul {
+    margin: 0.25rem 0 0;
+  }
+
+  .catalog-warning ul {
+    padding-left: 1.1rem;
+  }
+
   .form-section {
-    margin-bottom: 2.5rem;
-    padding-bottom: 2.5rem;
+    margin-bottom: 1.75rem;
+    padding-bottom: 1.75rem;
     border-bottom: 1px solid var(--border);
   }
 
@@ -390,7 +508,7 @@
     display: flex;
     align-items: center;
     gap: 1rem;
-    margin-bottom: 1.5rem;
+    margin-bottom: 1rem;
   }
 
   .section-number {
@@ -419,10 +537,9 @@
     font-size: 0.85rem;
   }
 
-  /* Form Grid */
   .form-grid {
     display: grid;
-    gap: 1.25rem;
+    gap: 1rem;
   }
 
   .form-grid.two-columns {
@@ -453,11 +570,11 @@
   }
 
   .form-input, .form-textarea, .form-select {
-    padding: 0.75rem 1rem;
-    border: 2px solid var(--border);
+    padding: 0.7rem 0.95rem;
+    border: 1px solid var(--border);
     border-radius: var(--radius);
     font-size: 0.95rem;
-    transition: all 0.2s;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
     background: var(--card-bg);
     width: 100%;
     box-sizing: border-box;
@@ -466,7 +583,7 @@
   .form-input:focus, .form-textarea:focus, .form-select:focus {
     outline: none;
     border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.12);
   }
 
   .form-textarea {
@@ -500,7 +617,6 @@
     pointer-events: none;
   }
 
-  /* Select Custom */
   .select-wrapper {
     position: relative;
   }
@@ -520,7 +636,7 @@
   }
 
   .kind-locked {
-    border: 2px solid var(--border);
+    border: 1px solid var(--border);
     border-radius: var(--radius);
     padding: 0.8rem 0.9rem;
     background: #f8fafc;
@@ -559,12 +675,11 @@
     font-weight: 600;
   }
 
-  /* Upload Zone */
   .upload-zone {
-    border: 2px dashed var(--border);
+    border: 1px dashed var(--border);
     border-radius: var(--radius-lg);
     background: var(--bg);
-    transition: all 0.2s;
+    transition: border-color 0.2s ease, background 0.2s ease;
     cursor: pointer;
     position: relative;
     overflow: hidden;
@@ -584,7 +699,7 @@
   }
 
   .upload-content {
-    padding: 2.5rem;
+    padding: 2rem;
     text-align: center;
     pointer-events: none;
   }
@@ -609,9 +724,9 @@
 
   .btn-upload {
     pointer-events: auto;
-    padding: 0.6rem 1.5rem;
+    padding: 0.55rem 1.25rem;
     background: white;
-    border: 2px solid var(--primary);
+    border: 1px solid var(--primary);
     color: var(--primary);
     border-radius: var(--radius);
     font-weight: 600;
@@ -622,11 +737,9 @@
   .btn-upload:hover {
     background: var(--primary);
     color: white;
-    transform: translateY(-2px);
-    box-shadow: var(--shadow);
+    box-shadow: 0 6px 16px -12px rgba(79, 70, 229, 0.7);
   }
 
-  /* Preview Sections */
   .preview-section, .existing-images-section {
     margin-top: 1.5rem;
   }
@@ -685,19 +798,83 @@
     overflow: hidden;
     position: relative;
     background: var(--bg);
-    border: 2px solid transparent;
-    transition: all 0.2s;
+    border: 1px solid transparent;
+    transition: border-color 0.2s ease, opacity 0.2s ease;
   }
 
   .image-card:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow);
+    border-color: rgba(99, 102, 241, 0.35);
   }
 
   .image-card img {
     width: 100%;
     height: 100%;
     object-fit: cover;
+  }
+
+  .media-preview-link {
+    display: block;
+    width: 100%;
+    height: 100%;
+    cursor: zoom-in;
+  }
+
+  .media-lightbox[hidden] {
+    display: none;
+  }
+
+  .media-lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 100000;
+  }
+
+  .media-lightbox-backdrop {
+    position: absolute;
+    inset: 0;
+    border: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(15, 23, 42, 0.82);
+    backdrop-filter: blur(4px);
+    cursor: zoom-out;
+  }
+
+  .media-lightbox-dialog {
+    position: relative;
+    z-index: 1;
+    width: min(92vw, 980px);
+    max-height: 88vh;
+    margin: 4vh auto;
+    padding: 0.9rem;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    box-shadow: 0 24px 60px rgba(15, 23, 42, 0.35);
+  }
+
+  .media-lightbox-image {
+    display: block;
+    width: 100%;
+    max-height: calc(88vh - 1.8rem);
+    object-fit: contain;
+    border-radius: 12px;
+    background: #fff;
+  }
+
+  .media-lightbox-close {
+    position: absolute;
+    top: 0.35rem;
+    right: 0.35rem;
+    width: 36px;
+    height: 36px;
+    border: 0;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.82);
+    color: #fff;
+    cursor: pointer;
+    font-size: 1rem;
+    z-index: 2;
   }
 
   .image-card.existing {
@@ -720,6 +897,7 @@
     padding: 0.5rem;
     opacity: 0;
     transition: opacity 0.2s;
+    pointer-events: none;
   }
 
   .image-card:hover .image-overlay {
@@ -755,7 +933,7 @@
     justify-content: center;
     font-size: 1.2rem;
     line-height: 1;
-    transition: all 0.2s;
+    transition: transform 0.2s ease, background 0.2s ease;
     z-index: 3;
   }
 
@@ -764,18 +942,36 @@
     transform: scale(1.1);
   }
 
-  /* Actions */
+  .video-preview-grid {
+    grid-template-columns: minmax(220px, 320px);
+    justify-content: start;
+  }
+
+  .video-preview-grid .image-card {
+    aspect-ratio: auto;
+    min-height: 190px;
+  }
+
+  .video-preview-grid video {
+    width: 100%;
+    height: 100%;
+    min-height: 190px;
+    object-fit: cover;
+    display: block;
+    background: #111827;
+  }
+
   .form-actions {
     display: flex;
     justify-content: flex-end;
     gap: 1rem;
-    padding-top: 1.5rem;
+    padding-top: 1.25rem;
     border-top: 1px solid var(--border);
-    margin-top: 1rem;
+    margin-top: 0.5rem;
   }
 
   .btn-cancel {
-    padding: 0.75rem 1.5rem;
+    padding: 0.72rem 1.35rem;
     background: var(--bg);
     color: var(--text-light);
     border: 1px solid var(--border);
@@ -791,7 +987,7 @@
   }
 
   .btn-submit {
-    padding: 0.75rem 1.5rem;
+    padding: 0.72rem 1.35rem;
     background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
     color: white;
     border: none;
@@ -801,27 +997,26 @@
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
-    transition: all 0.2s;
-    box-shadow: 0 4px 6px -1px rgba(99, 102, 241, 0.3);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    box-shadow: 0 10px 18px -14px rgba(79, 70, 229, 0.85);
   }
 
   .btn-submit:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 10px 20px -5px rgba(99, 102, 241, 0.4);
+    transform: translateY(-1px);
+    box-shadow: 0 14px 24px -16px rgba(79, 70, 229, 0.95);
   }
 
   .btn-submit:active {
     transform: translateY(0);
   }
 
-  /* Responsive */
   @media (max-width: 768px) {
     .product-editor-container {
-      padding: 1rem;
+      padding: 1rem 0.75rem;
     }
 
     .product-form {
-      padding: 1.5rem;
+      padding: 1.15rem;
     }
 
     .form-grid.two-columns {
@@ -863,355 +1058,121 @@
     }
 
     .upload-content {
-      padding: 1.5rem;
+      padding: 1.2rem;
     }
   }
 
-  /* Animations */
-  @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-  .image-card {
-    animation: fadeIn 0.3s ease-out;
-  }
-
-  /* Drag and Drop States */
   .upload-zone.dragover {
     border-color: var(--primary);
     background: rgba(99, 102, 241, 0.1);
-    transform: scale(1.02);
+  }
+
+  /* ===== NOUVEAUX STYLES (PRÉFIXÉS r- POUR ÉVITER COLLISIONS) ===== */
+  .r-upload-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255,255,255,0.95);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 99999;
+    backdrop-filter: blur(4px);
+  }
+
+  .r-upload-modal {
+    background: white;
+    padding: 2rem;
+    border-radius: 24px;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+    text-align: center;
+    max-width: 400px;
+    width: 90%;
+  }
+
+  .r-upload-spinner {
+    width: 60px;
+    height: 60px;
+    border: 5px solid #e2e8f0;
+    border-top: 5px solid #10b981;
+    border-radius: 50%;
+    animation: r-spin 0.8s linear infinite;
+    margin: 1.5rem auto;
+  }
+
+  @keyframes r-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
+  .r-progress-bar-container {
+    width: 100%;
+    height: 12px;
+    background: #e2e8f0;
+    border-radius: 999px;
+    overflow: hidden;
+    margin: 1rem 0;
+  }
+
+  .r-progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #10b981, #0f766e);
+    width: 0%;
+    transition: width 0.3s ease;
+    border-radius: 999px;
+  }
+
+  .r-upload-status {
+    font-size: 1rem;
+    color: #334155;
+    margin: 0.5rem 0;
+  }
+
+  .r-btn-loading {
+    position: relative;
+    pointer-events: none;
+    opacity: 0.8;
+  }
+
+  .r-btn-loading .r-spinner {
+    display: inline-block;
+    width: 1rem;
+    height: 1rem;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-radius: 50%;
+    border-top-color: #fff;
+    animation: r-spin 0.6s linear infinite;
+    margin-right: 0.5rem;
+    vertical-align: middle;
   }
 </style>
-
-<script>
-  // Type (produit vs service) => stock visible seulement pour produit physique
-  const kindSelect = document.getElementById('kind');
-  const kindHiddenInput = document.querySelector('input[name="kind"]');
-  const stockGroup = document.getElementById('stockGroup');
-  const stockInput = document.getElementById('stock');
-  const stockRequired = document.getElementById('stockRequired');
-  const categorySelect = document.getElementById('category');
-  const categoriesByKind = {
-    physical: [
-      {% for cat_item in (categories_by_kind.physical if categories_by_kind is defined else []) %}
-      { id: {{ cat_item.id }}, name: {{ cat_item.name|tojson }} }{% if not loop.last %},{% endif %}
-      {% endfor %}
-    ],
-    service: [
-      {% for cat_item in (categories_by_kind.service if categories_by_kind is defined else []) %}
-      { id: {{ cat_item.id }}, name: {{ cat_item.name|tojson }} }{% if not loop.last %},{% endif %}
-      {% endfor %}
-    ],
-  };
-  const selectedCategoryByKind = { physical: '', service: '' };
-
-  function selectedKind() {
-    if (kindSelect) return kindSelect.value === 'service'  'service' : 'physical';
-    if (kindHiddenInput) return kindHiddenInput.value === 'service'  'service' : 'physical';
-    return 'physical';
-  }
-
-  function renderCategoryOptions(kind, keepSelected = true) {
-    if (!categorySelect) return;
-    const safeKind = kind === 'service'  'service' : 'physical';
-    const options = categoriesByKind[safeKind] || [];
-    const previousSelected =
-      selectedCategoryByKind[safeKind] ||
-      (keepSelected  (categorySelect.value || categorySelect.dataset.selectedCategory || '') : '');
-
-    categorySelect.innerHTML = '';
-    const placeholder = document.createElement('option');
-    placeholder.value = '';
-    placeholder.textContent = options.length
-       'Slectionnez une catgorie...'
-      : 'Aucune catgorie disponible pour ce type';
-    categorySelect.appendChild(placeholder);
-
-    let matched = false;
-    options.forEach((entry) => {
-      const option = document.createElement('option');
-      option.value = String(entry.id);
-      option.textContent = entry.name;
-      if (previousSelected && option.value === String(previousSelected)) {
-        option.selected = true;
-        matched = true;
-      }
-      categorySelect.appendChild(option);
-    });
-
-    if (!matched) {
-      categorySelect.value = '';
-    }
-    categorySelect.disabled = options.length === 0;
-  }
-
-  function syncKindUI() {
-    const isService = selectedKind() === 'service';
-    if (stockGroup) stockGroup.style.display = isService  'none' : '';
-    if (stockRequired) stockRequired.style.display = isService  'none' : '';
-    if (stockInput) {
-      stockInput.required = !isService;
-      if (isService) stockInput.value = 0;
-    }
-    renderCategoryOptions(isService  'service' : 'physical');
-  }
-
-  if (kindSelect) {
-    kindSelect.addEventListener('change', syncKindUI);
-  }
-
-  if (categorySelect) {
-    const initialKind = selectedKind();
-    const initialSelectedCategory = categorySelect.dataset.selectedCategory || '';
-    if (initialSelectedCategory) {
-      selectedCategoryByKind[initialKind] = String(initialSelectedCategory);
-    }
-    categorySelect.addEventListener('change', () => {
-      selectedCategoryByKind[selectedKind()] = categorySelect.value || '';
-    });
-  }
-
-  syncKindUI();
-
-  // Gestionnaire de fichiers avec DataTransfer
-  const MAX_IMAGES = 4;
-  const MAX_TOTAL_BYTES = 15 * 1024 * 1024;
-  const input = document.getElementById('imagesInput');
-  const previewGrid = document.getElementById('previewGrid');
-  const previewContainer = document.getElementById('previewContainer');
-  const clearBtn = document.getElementById('clearBtn');
-  const newCount = document.getElementById('newCount');
-  const dropZone = document.getElementById('dropZone');
-  const uploadTrigger = document.getElementById('uploadTrigger');
-  const removeImagesInput = document.getElementById('removeImagesInput');
-  const existingCount = document.getElementById('existingCount');
-  const existingCards = Array.from(document.querySelectorAll('.js-existing-image-card'));
-  const dt = new DataTransfer();
-  const removedExisting = new Set();
-
-  function formatBytes(value) {
-    return `${(value / (1024 * 1024)).toFixed(1)} MB`;
-  }
-
-  function getCurrentExistingCount() {
-    return existingCards.length - removedExisting.size;
-  }
-
-  function getNewFilesBytes() {
-    return [...dt.files].reduce((sum, file) => sum + (file.size || 0), 0);
-  }
-
-  function syncExistingRemovalUI() {
-    if (removeImagesInput) {
-      removeImagesInput.value = [...removedExisting].join(',');
-    }
-    if (existingCount) {
-      existingCount.textContent = String(getCurrentExistingCount());
-    }
-    existingCards.forEach((card) => {
-      const filename = card.dataset.filename;
-      card.classList.toggle('marked-remove', removedExisting.has(filename));
-    });
-  }
-
-  function showUploadLimitMessage(message) {
-    if (window.toast.show) {
-      window.toast.show(message, 'warning');
-      return;
-    }
-    alert(message);
-  }
-
-  // Empecher la navigation par defaut pour le drag & drop
-  ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-    dropZone.addEventListener(eventName, preventDefaults, false);
-    document.body.addEventListener(eventName, preventDefaults, false);
-  });
-
-  function preventDefaults(e) {
-    e.preventDefault();
-    e.stopPropagation();
-  }
-
-  // Ajouter les classes visuelles pour le drag & drop
-  ['dragenter', 'dragover'].forEach(eventName => {
-    dropZone.addEventListener(eventName, () => dropZone.classList.add('dragover'), false);
-  });
-
-  ['dragleave', 'drop'].forEach(eventName => {
-    dropZone.addEventListener(eventName, () => dropZone.classList.remove('dragover'), false);
-  });
-
-  // Gerer le drop de fichiers
-  dropZone.addEventListener('drop', handleDrop, false);
-
-  function handleDrop(e) {
-    const files = e.dataTransfer.files;
-    handleFiles(files);
-  }
-
-  function handleFiles(files) {
-    if (!files || !files.length) return;
-
-    let nextCount = getCurrentExistingCount() + dt.files.length;
-    let nextBytes = getNewFilesBytes();
-
-    for (const file of files) {
-      if (!file || !file.type.startsWith('image/')) {
-        showUploadLimitMessage('Format non support. Utilisez une image (png, jpg, jpeg, webp).');
-        continue;
-      }
-      if (nextCount >= MAX_IMAGES) {
-        showUploadLimitMessage(`Maximum ${MAX_IMAGES} photos au total.`);
-        break;
-      }
-      if ((nextBytes + (file.size || 0)) > MAX_TOTAL_BYTES) {
-        showUploadLimitMessage(`Taille totale dpasse (${formatBytes(MAX_TOTAL_BYTES)} max).`);
-        break;
-      }
-      dt.items.add(file);
-      nextCount += 1;
-      nextBytes += (file.size || 0);
-    }
-    updateInput();
-  }
-
-  function updateInput() {
-    input.files = dt.files;
-    renderPreview();
-  }
-
-  function renderPreview() {
-    previewGrid.innerHTML = "";
-    
-    if (dt.files.length === 0) {
-      previewContainer.style.display = 'none';
-      return;
-    }
-
-    previewContainer.style.display = 'block';
-    newCount.textContent = dt.files.length;
-
-    [...dt.files].forEach((file, index) => {
-      const card = document.createElement("div");
-      card.className = "image-card";
-
-      const img = document.createElement("img");
-      img.alt = file.name;
-
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "remove-btn";
-      btn.innerHTML = "x";
-      btn.title = "Retirer cette image";
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        removeFile(index);
-      });
-
-      card.appendChild(img);
-      card.appendChild(btn);
-      previewGrid.appendChild(card);
-
-      const reader = new FileReader();
-      reader.onload = (e) => img.src = e.target.result;
-      reader.readAsDataURL(file);
-    });
-  }
-
-  function removeFile(index) {
-    const newDT = new DataTransfer();
-    [...dt.files].forEach((f, i) => {
-      if (i !== index) newDT.items.add(f);
-    });
-    while (dt.items.length) dt.items.remove(0);
-    [...newDT.files].forEach(f => dt.items.add(f));
-    updateInput();
-  }
-
-  // Input change
-  input.addEventListener("change", () => {
-    handleFiles(input.files);
-  });
-
-  // Clear all
-  clearBtn.addEventListener("click", () => {
-    while (dt.items.length) dt.items.remove(0);
-    input.value = "";
-    updateInput();
-  });
-
-  document.querySelectorAll('.js-remove-existing').forEach((btn) => {
-    btn.addEventListener('click', (event) => {
-      event.preventDefault();
-      const card = btn.closest('.js-existing-image-card');
-      if (!card) return;
-      const filename = card.dataset.filename;
-      if (!filename) return;
-      if (removedExisting.has(filename)) {
-        removedExisting.delete(filename);
-      } else {
-        removedExisting.add(filename);
-      }
-      syncExistingRemovalUI();
-    });
-  });
-
-  syncExistingRemovalUI();
-
-  // Click sur la zone d'upload
-  uploadTrigger.addEventListener('click', (e) => {
-    if (e.target.closest('.btn-upload')) {
-      input.click();
-    }
-  });
-
-  // Validation du formulaire
-  document.getElementById('productForm').addEventListener('submit', function(e) {
-    const categorySelect = document.getElementById('category');
-    const nameInput = document.getElementById('name');
-    const priceInput = document.getElementById('price');
-    const totalImages = getCurrentExistingCount() + dt.files.length;
-    const totalBytes = getNewFilesBytes();
-
-    if (!categorySelect.value) {
-      e.preventDefault();
-      categorySelect.focus();
-      categorySelect.style.borderColor = 'var(--danger)';
-      setTimeout(() => categorySelect.style.borderColor = '', 2000);
-      return false;
-    }
-
-    if (!nameInput.value.trim()) {
-      e.preventDefault();
-      nameInput.focus();
-      nameInput.style.borderColor = 'var(--danger)';
-      setTimeout(() => nameInput.style.borderColor = '', 2000);
-      return false;
-    }
-
-    if (!priceInput.value || parseFloat(priceInput.value) <= 0) {
-      e.preventDefault();
-      priceInput.focus();
-      priceInput.style.borderColor = 'var(--danger)';
-      setTimeout(() => priceInput.style.borderColor = '', 2000);
-      return false;
-    }
-
-    if (totalImages > MAX_IMAGES) {
-      e.preventDefault();
-      showUploadLimitMessage(`Maximum ${MAX_IMAGES} photos au total.`);
-      return false;
-    }
-
-    if (totalBytes > MAX_TOTAL_BYTES) {
-      e.preventDefault();
-      showUploadLimitMessage(`Taille totale dpasse (${formatBytes(MAX_TOTAL_BYTES)} max).`);
-      return false;
-    }
-  });
-</script>
 {% endblock %}
 
+{% block scripts %}
+{{ super() }}
+<script type="application/json" id="vendorProductFormPageConfig">
+{
+  "maxImages": 4,
+  "maxTotalBytes": 15728640,
+  "maxVideoBytes": {{ (max_video_mb|default(30) * 1024 * 1024)|int }},
+  "categoriesByKind": {
+    "physical": [
+      {% for cat_item in (categories_by_kind.physical if categories_by_kind is defined else []) %}
+      {"id": {{ cat_item.id|tojson }}, "name": {{ cat_item.name|tojson }}}{% if not loop.last %},{% endif %}
+      {% endfor %}
+    ],
+    "service": [
+      {% for cat_item in (categories_by_kind.service if categories_by_kind is defined else []) %}
+      {"id": {{ cat_item.id|tojson }}, "name": {{ cat_item.name|tojson }}}{% if not loop.last %},{% endif %}
+      {% endfor %}
+    ]
+  }
+}
+</script>
+<script src="{{ url_for('static', filename='js/pages/vendor/product_form_page.js', v=app_static_version) }}" defer></script>
+
+<!-- ===== NOUVEAU JS POUR UPLOAD (PRÉFIXÉ r-) ===== -->
+<script src="{{ url_for('static', filename='js/pages/vendor/product_form_upload.js') }}?v={{ app_static_version }}" defer></script>
+{% endblock %}

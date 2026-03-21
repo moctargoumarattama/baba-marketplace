@@ -74,6 +74,16 @@ def close_order_period(period: OrderPeriod, closed_at: datetime | None = None) -
     return period
 
 
+def period_bounds(period: OrderPeriod | None, *, now: datetime | None = None) -> tuple[datetime | None, datetime | None]:
+    if period is None:
+        return None, None
+    start_at = getattr(period, "opened_at", None)
+    end_at = getattr(period, "closed_at", None)
+    if end_at is None and getattr(period, "status", "") == OPEN_STATUS:
+        end_at = now or datetime.utcnow()
+    return start_at, end_at
+
+
 def delete_available_at_for_period(period: OrderPeriod | None) -> datetime | None:
     if period is None:
         return None

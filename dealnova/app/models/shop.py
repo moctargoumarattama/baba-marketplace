@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Iterable
 from urllib.parse import quote_plus
 
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 
 from ..extensions import db
 
@@ -185,4 +185,42 @@ class Shop(db.Model):
         if not query:
             return ""
         return f"https://www.google.com/maps/search/?api=1&query={quote_plus(query)}"
+
+    @classmethod
+    def sql_is_incomplete_clause(cls):
+        return or_(
+            cls.description.is_(None),
+            func.length(func.trim(cls.description)) == 0,
+            cls.contact_email.is_(None),
+            func.length(func.trim(cls.contact_email)) == 0,
+            cls.contact_phone.is_(None),
+            func.length(func.trim(cls.contact_phone)) == 0,
+            cls.address.is_(None),
+            func.length(func.trim(cls.address)) == 0,
+            cls.primary_type.is_(None),
+            func.length(func.trim(cls.primary_type)) == 0,
+            cls.allowed_types_json.is_(None),
+            func.length(func.trim(cls.allowed_types_json)) == 0,
+        )
+
+    @property
+    def missing_profile_fields(self) -> list[str]:
+        missing: list[str] = []
+        if not (self.description or "").strip():
+            missing.append("description")
+        if not (self.contact_email or "").strip():
+            missing.append("email de contact")
+        if not (self.contact_phone or "").strip():
+            missing.append("telephone")
+        if not (self.address or "").strip():
+            missing.append("adresse")
+        if not normalize_shop_type(self.primary_type):
+            missing.append("type principal")
+        if not self.get_allowed_types():
+            missing.append("activites proposees")
+        return missing
+
+    @property
+    def is_profile_complete(self) -> bool:
+        return len(self.missing_profile_fields) == 0
 

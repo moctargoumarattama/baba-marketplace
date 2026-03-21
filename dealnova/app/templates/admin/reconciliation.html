@@ -1,7 +1,8 @@
-{% extends 'admin/base.html' %}
+﻿{% extends 'admin/base.html' %}
 
-{% block title %}Abonnements vendeurs | DealNova{% endblock %}
-{% block page_title %}Abonnements vendeurs{% endblock %}
+{% block title %}{{ 'Paiements vendeurs' if current_user.role == 'manager' else 'Abonnements vendeurs' }} | DealNova{% endblock %}
+{% block page_title %}{{ 'Paiements vendeurs' if current_user.role == 'manager' else 'Abonnements vendeurs' }}{% endblock %}
+{% block body_attrs %}data-adm-page="reconciliation"{% endblock %}
 
 {% block head %}
 <style>
@@ -358,30 +359,23 @@
         <i class="bi bi-arrow-up"></i>
     </button>
 
-    <section class="subs-card">
-        <div class="p-3 d-flex align-items-center gap-2 flex-wrap">
-            <span class="badge-soft badge-block"><i class="bi bi-globe2"></i> 🌍 Global</span>
-            <span class="text-muted small">Cette page est hors periode commandes/livraisons.</span>
-        </div>
-    </section>
-
     <!-- Statistiques -->
     <section class="subs-stats">
         <div class="subs-stat">
             <div>
-                <h6>Total vendeurs</h6>
-                <div class="stat-value">{{ total_vendors }}</div>
-                <div class="text-muted small">Tous les comptes vendeurs</div>
+                <h6>{{ 'Paiements enregistres' if current_user.role == 'manager' else 'Abonnements periode' }}</h6>
+                <div class="stat-value">{{ '%.2f'|format((period_subscription_total_cents or 0) / 100) }} MAD</div>
+                <div class="text-muted small">{{ period_subscription_count }} {{ 'paiement(s) comptes ici' if current_user.role == 'manager' else 'paiement(s) dans la periode' }}</div>
             </div>
             <div class="stat-icon primary"><i class="bi bi-people"></i></div>
         </div>
         <div class="subs-stat">
             <div>
-                <h6>Abonnements actifs</h6>
+                <h6>{{ 'Comptes a jour' if current_user.role == 'manager' else 'Abonnements actifs' }}</h6>
                 <div class="stat-value">{{ active_subs }}</div>
                 <div class="text-muted small">
                     {% if global_free_active %}
-                        <span class="badge-soft badge-ok">Free global</span>
+                        <span class="badge-soft badge-ok">{{ 'Gratuite pour tous' if current_user.role == 'manager' else 'Free global' }}</span>
                     {% else %}
                         À jour
                     {% endif %}
@@ -407,16 +401,16 @@
         </div>
     </section>
 
-    <!-- Paramètres abonnements -->
-    <section class="subs-card" id="subsListCard">
+    <!-- Parametres abonnements -->
+    <section class="subs-card adm-listing" id="subsListCard" data-adm-listing="reconciliation">
         <div class="subs-card-header">
             <div>
-                <h5 class="m-0">Paramètres abonnements</h5>
-                <small class="text-muted">Montant mensuel fixe + mode free global</small>
+                <h5 class="m-0">{{ 'Reglages des paiements' if current_user.role == 'manager' else 'Paramètres abonnements' }}</h5>
+                <small class="text-muted">{{ 'Montant mensuel et gratuite pour tous si besoin.' if current_user.role == 'manager' else 'Montant mensuel fixe + mode free global' }}</small>
             </div>
         </div>
         <div class="p-3">
-            <form method="post" action="{{ url_for('admin_users.subscription_settings') }}" class="row g-3 align-items-end">
+            <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.subscription_settings') }}" class="row g-3 align-items-end">
                 {% include "admin/partials/_csrf.html" %}
                 <div class="col-md-4">
                     <label class="form-label">Montant mensuel (MAD)</label>
@@ -424,14 +418,14 @@
                            value="{{ '%.2f'|format((settings.vendor_subscription_monthly_cents or 0) / 100) }}">
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label">Mode free global (jours)</label>
+                    <label class="form-label">{{ 'Gratuite pour tous (jours)' if current_user.role == 'manager' else 'Mode free global (jours)' }}</label>
                     <input type="number" min="0" max="365" class="form-control" name="free_days_all"
-                           placeholder="0 = désactiver">
+                           placeholder="{{ '0 = arreter' if current_user.role == 'manager' else '0 = désactiver' }}">
                     <div class="form-text">
                         {% if global_free_until %}
-                            <i class="bi bi-calendar-check"></i> Actif jusqu'au {{ global_free_until.strftime('%d/%m/%Y') }}
+                            <i class="bi bi-calendar-check"></i> {{ 'Actif jusqu au' if current_user.role == 'manager' else "Actif jusqu'au" }} {{ global_free_until.strftime('%d/%m/%Y') }}
                         {% else %}
-                            <i class="bi bi-calendar-x"></i> Aucun mode free global
+                            <i class="bi bi-calendar-x"></i> {{ 'Aucune gratuite pour tous' if current_user.role == 'manager' else 'Aucun mode free global' }}
                         {% endif %}
                     </div>
                 </div>
@@ -448,27 +442,31 @@
     <section class="subs-card">
         <div class="subs-card-header">
             <div>
-                <h5 class="m-0">Gestion abonnements vendeurs</h5>
+                <h5 class="m-0">{{ 'Suivi des paiements vendeurs' if current_user.role == 'manager' else 'Gestion abonnements vendeurs' }}</h5>
                 <small class="text-muted">
                     <i class="bi bi-layout-text-window"></i> 
                     Page {{ pagination.page }} / {{ pagination.pages }} ({{ pagination.total }} vendeurs)
                 </small>
             </div>
-            <div class="filter-links">
+            <div class="filter-links adm-filters">
                 <a class="btn btn-outline-secondary {% if not status %}active{% endif %}" 
-                   href="{{ url_for('admin_users.reconciliation') }}">
+                   data-adm-filter-link="1"
+                   href="{{ url_for('admin_users.reconciliation', period_id=selected_period_id or None) }}">
                     <i class="bi bi-list"></i> Tous
                 </a>
                 <a class="btn btn-outline-success {% if status == 'active' %}active{% endif %}" 
-                   href="{{ url_for('admin_users.reconciliation', status='active') }}">
+                   data-adm-filter-link="1"
+                   href="{{ url_for('admin_users.reconciliation', status='active', period_id=selected_period_id or None) }}">
                     <i class="bi bi-check-circle"></i> Actifs
                 </a>
                 <a class="btn btn-outline-warning {% if status == 'overdue' %}active{% endif %}" 
-                   href="{{ url_for('admin_users.reconciliation', status='overdue') }}">
+                   data-adm-filter-link="1"
+                   href="{{ url_for('admin_users.reconciliation', status='overdue', period_id=selected_period_id or None) }}">
                     <i class="bi bi-exclamation-triangle"></i> En retard
                 </a>
                 <a class="btn btn-outline-dark {% if status == 'blocked' %}active{% endif %}" 
-                   href="{{ url_for('admin_users.reconciliation', status='blocked') }}">
+                   data-adm-filter-link="1"
+                   href="{{ url_for('admin_users.reconciliation', status='blocked', period_id=selected_period_id or None) }}">
                     <i class="bi bi-shield-lock"></i> Bloqués
                 </a>
             </div>
@@ -508,9 +506,9 @@
                             {% if not vendor.is_active %}
                                 <span class="badge-soft badge-block"><i class="bi bi-lock"></i> Bloqué</span>
                             {% elif global_free_active %}
-                                <span class="badge-soft badge-ok"><i class="bi bi-gift"></i> Free global</span>
+                        <span class="badge-soft badge-ok"><i class="bi bi-gift"></i> {{ 'Gratuite pour tous' if current_user.role == 'manager' else 'Free global' }}</span>
                             {% elif free_until and free_days_left is not none and free_days_left >= 0 %}
-                                <span class="badge-soft badge-ok"><i class="bi bi-gift"></i> Free vendeur</span>
+                                <span class="badge-soft badge-ok"><i class="bi bi-gift"></i> {{ 'Gratuite vendeur' if current_user.role == 'manager' else 'Free vendeur' }}</span>
                             {% elif expires and days_left is not none and days_left >= 0 %}
                                 <span class="badge-soft badge-ok"><i class="bi bi-check-circle"></i> Actif</span>
                             {% elif expires %}
@@ -552,7 +550,7 @@
                         <td data-label="Actions">
                             <div class="d-flex flex-column gap-2">
                                 <!-- Paiement -->
-                                <form method="post" action="{{ url_for('admin_users.mark_subscription_paid', user_id=vendor.id) }}" 
+                                <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.mark_subscription_paid', user_id=vendor.id) }}" 
                                       class="d-flex gap-2 align-items-center flex-wrap">
                                     {% include "admin/partials/_csrf.html" %}
                                     <input class="form-control form-control-sm months-input" type="number" name="months" 
@@ -565,7 +563,7 @@
                                 </form>
                                 
                                 <!-- Mode free -->
-                                <form method="post" action="{{ url_for('admin_users.subscription_free_vendor', user_id=vendor.id) }}" 
+                                <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.subscription_free_vendor', user_id=vendor.id) }}" 
                                       class="d-flex gap-2 align-items-center flex-wrap">
                                     {% include "admin/partials/_csrf.html" %}
                                     <input class="form-control form-control-sm months-input" type="number" name="days" 
@@ -577,14 +575,14 @@
                                 
                                 <!-- Bloquer/Débloquer -->
                                 {% if vendor.is_active %}
-                                <form method="post" action="{{ url_for('admin_users.subscription_block_vendor', user_id=vendor.id) }}">
+                                <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.subscription_block_vendor', user_id=vendor.id) }}">
                                     {% include "admin/partials/_csrf.html" %}
                                     <button class="btn btn-outline-danger btn-sm" type="submit">
                                         <i class="bi bi-lock"></i> Bloquer
                                     </button>
                                 </form>
                                 {% else %}
-                                <form method="post" action="{{ url_for('admin_users.subscription_unblock_vendor', user_id=vendor.id) }}">
+                                <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.subscription_unblock_vendor', user_id=vendor.id) }}">
                                     {% include "admin/partials/_csrf.html" %}
                                     <button class="btn btn-outline-success btn-sm" type="submit">
                                         <i class="bi bi-unlock"></i> Débloquer
@@ -609,9 +607,9 @@
         </div>
         
         {% if pagination.pages > 1 %}
-        <div class="card-footer">
+        <div class="card-footer adm-pager" data-adm-pager="reconciliation">
             {% set endpoint = 'admin_users.reconciliation' %}
-            {% set params = {'status': status} %}
+            {% set params = {'status': status, 'period_id': selected_period_id} %}
             {% set iter_args = {'left_edge': 2, 'left_current': 2, 'right_current': 3, 'right_edge': 2} %}
             {% include "admin/partials/_pagination.html" %}
         </div>
@@ -619,183 +617,5 @@
     </section>
 </div>
 
-<!-- Script pour la persistance de la position et fonctionnalités dynamiques -->
-<script>
-(function() {
-    const USE_LOCAL_SCROLL = !window.__adminGlobalScrollLock;
-    // Configuration
-    const STORAGE_KEY = 'subscriptions_page_position';
-    const backToTopBtn = document.getElementById('backToTop');
-    
-    // Sauvegarde de la position
-    function savePosition() {
-        if (!USE_LOCAL_SCROLL) return;
-        const scrollY = window.scrollY;
-        const viewportHeight = window.innerHeight;
-        const documentHeight = document.documentElement.scrollHeight;
-        const scrollPercentage = (scrollY / (documentHeight - viewportHeight)) * 100;
-        
-        const urlParams = new URLSearchParams(window.location.search);
-        const currentPage = urlParams.get('page') || '1';
-        const currentStatus = urlParams.get('status') || '';
-        
-        const positionData = {
-            scrollPercentage: scrollPercentage,
-            scrollY: scrollY,
-            page: currentPage,
-            status: currentStatus,
-            timestamp: Date.now()
-        };
-        
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(positionData));
-    }
-    
-    // Restauration de la position
-    function restorePosition() {
-        if (!USE_LOCAL_SCROLL) return;
-        const savedData = localStorage.getItem(STORAGE_KEY);
-        if (!savedData) return;
-        
-        try {
-            const positionData = JSON.parse(savedData);
-            const isRecent = (Date.now() - positionData.timestamp) < 5 * 60 * 1000;
-            
-            if (!isRecent) {
-                localStorage.removeItem(STORAGE_KEY);
-                return;
-            }
-            
-            const urlParams = new URLSearchParams(window.location.search);
-            const currentPage = urlParams.get('page') || '1';
-            const currentStatus = urlParams.get('status') || '';
-            
-            if (positionData.page !== currentPage || positionData.status !== currentStatus) {
-                localStorage.removeItem(STORAGE_KEY);
-                return;
-            }
-            
-            setTimeout(() => {
-                const documentHeight = document.documentElement.scrollHeight;
-                const viewportHeight = window.innerHeight;
-                const targetScrollY = (positionData.scrollPercentage / 100) * (documentHeight - viewportHeight);
-                
-                window.scrollTo({
-                    top: targetScrollY,
-                    behavior: 'smooth'
-                });
-                
-                localStorage.removeItem(STORAGE_KEY);
-            }, 100);
-            
-        } catch (e) {
-            console.error('Erreur de restauration:', e);
-            localStorage.removeItem(STORAGE_KEY);
-        }
-    }
-    
-    // Gestion du bouton retour en haut
-    function toggleBackToTop() {
-        if (window.scrollY > 300) {
-            backToTopBtn.classList.add('show');
-        } else {
-            backToTopBtn.classList.remove('show');
-        }
-    }
-    
-    // Initialisation
-    window.addEventListener('beforeunload', savePosition);
-    
-    window.addEventListener('scroll', () => {
-        clearTimeout(window.scrollTimeout);
-        window.scrollTimeout = setTimeout(savePosition, 200);
-        toggleBackToTop();
-    });
-    
-    backToTopBtn.addEventListener('click', () => {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    });
-    
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', restorePosition);
-    } else {
-        restorePosition();
-    }
-    
-    // Sauvegarde avant changement de page
-    document.querySelectorAll('.page-link, .filter-links a').forEach(link => {
-        link.addEventListener('click', savePosition);
-    });
-    
-    // Effet de hover sur les lignes du tableau
-    document.querySelectorAll('.subs-table tbody tr').forEach(row => {
-        row.addEventListener('mouseenter', () => {
-            row.style.backgroundColor = '#F9FAFB';
-        });
-        row.addEventListener('mouseleave', () => {
-            row.style.backgroundColor = '';
-        });
-    });
-    
-    // Animation lors du clic sur les filtres
-    document.querySelectorAll('.filter-links .btn').forEach(btn => {
-        btn.addEventListener('click', function(e) {
-            if (!this.classList.contains('active')) {
-                this.style.transform = 'scale(0.95)';
-                setTimeout(() => {
-                    this.style.transform = '';
-                }, 150);
-            }
-        });
-    });
-
-    function restoreInstant(y) {
-        const target = Math.max(Number(y || 0), 0);
-        requestAnimationFrame(() => {
-            try {
-                window.scrollTo({ top: target, left: 0, behavior: 'instant' });
-            } catch (e) {
-                window.scrollTo(0, target);
-            }
-        });
-    }
-
-    function bindAjaxListNavigation() {
-        const listSelector = '#subsListCard';
-        const selectors = `${listSelector} .page-link, ${listSelector} .filter-links a`;
-        document.querySelectorAll(selectors).forEach(link => {
-            if (link.dataset.ajaxBound === '1') return;
-            link.dataset.ajaxBound = '1';
-            link.addEventListener('click', (e) => {
-                const href = link.getAttribute('href');
-                const parent = link.closest('.page-item');
-                if (!href || (parent && parent.classList.contains('disabled'))) return;
-                e.preventDefault();
-
-                const keepY = window.scrollY;
-                fetch(href, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-                    .then(response => response.text())
-                    .then(html => {
-                        const doc = new DOMParser().parseFromString(html, 'text/html');
-                        const newList = doc.querySelector(listSelector);
-                        const currentList = document.querySelector(listSelector);
-                        if (!newList || !currentList) {
-                            window.location.href = href;
-                            return;
-                        }
-                        currentList.innerHTML = newList.innerHTML;
-                        window.history.replaceState({}, '', href);
-                        bindAjaxListNavigation();
-                        restoreInstant(keepY);
-                    })
-                    .catch(() => {
-                        window.location.href = href;
-                    });
-            });
-        });
-    }
-
-    bindAjaxListNavigation();
-    
-})();
-</script>
 {% endblock %}
+

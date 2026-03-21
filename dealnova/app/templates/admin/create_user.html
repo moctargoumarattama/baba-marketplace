@@ -1,8 +1,8 @@
-{% extends "admin/base.html" %}
+﻿{% extends "admin/base.html" %}
 
 {% block title %}Créer un Utilisateur | DealNova Admin{% endblock %}
 
-{% block page_title %}Créer un Utilisateur{% endblock %}
+{% block page_title %}{{ 'Ajouter un compte' if current_user.role == 'manager' else 'Créer un Utilisateur' }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
@@ -11,7 +11,7 @@
             <div class="card admin-card">
                 <div class="card-header">
                     <h5 class="mb-0">
-                        <i class="bi bi-person-plus"></i> Créer un nouvel utilisateur
+                        <i class="bi bi-person-plus"></i> {{ 'Ajouter un nouveau compte' if current_user.role == 'manager' else 'Créer un nouvel utilisateur' }}
                     </h5>
                 </div>
                 <div class="card-body">
@@ -20,11 +20,11 @@
                         <div class="row g-3">
                             <!-- Informations de base -->
                             <div class="col-md-6">
-                                <label for="username" class="form-label">Nom d'utilisateur *</label>
+                                <label for="username" class="form-label">Nom du compte *</label>
                                 <input type="text" class="form-control" id="username" name="username" 
                                        required pattern="[a-zA-Z0-9_]+" minlength="3" maxlength="50">
                                 <div class="form-text">
-                                    Lettres, chiffres et underscores uniquement. 3-50 caractères.
+                                    Utilisez entre 3 et 50 caracteres.
                                 </div>
                             </div>
                             
@@ -41,20 +41,21 @@
                             </div>
                             
                             <div class="col-md-6">
-                                <label for="role" class="form-label">Rôle *</label>
+                                <label for="role" class="form-label">{{ 'Type de compte' if current_user.role == 'manager' else 'Rôle' }} *</label>
                                 <select class="form-select" id="role" name="role" required>
-                                    <option value="">Sélectionner un rôle</option>
+                                    <option value="">{{ 'Choisir un type de compte' if current_user.role == 'manager' else 'Sélectionner un rôle' }}</option>
                                     <option value="vendor">Vendeur</option>
                                     <option value="courier">Livreur</option>
+                                    {% if 'manager' in manageable_roles %}
+                                    <option value="manager">Gestionnaire</option>
+                                    {% endif %}
+                                    {% if 'admin' in manageable_roles %}
                                     <option value="admin">Administrateur</option>
+                                    {% endif %}
                                 </select>
                             </div>
                             
                             <!-- Informations personnelles -->
-                            <div class="col-md-6">
-                                <label for="full_name" class="form-label">Nom complet</label>
-                                <input type="text" class="form-control" id="full_name" name="full_name">
-                            </div>
                             
                             <div class="col-md-6">
                                 <label for="phone" class="form-label">Téléphone</label>
@@ -65,38 +66,14 @@
                                 <label for="address" class="form-label">Adresse</label>
                                 <textarea class="form-control" id="address" name="address" rows="2"></textarea>
                             </div>
-                            
-                            <!-- Section boutique (si vendeur) -->
-                            <div id="vendor-section" class="col-12" style="display: none;">
-                                <hr>
-                                <h6 class="mb-3">
-                                    <i class="bi bi-shop"></i> Création automatique de boutique
-                                </h6>
-                                
-                                <div class="row g-3">
-                                    <div class="col-md-6">
-                                        <label for="shop_name" class="form-label">Nom de la boutique</label>
-                                        <input type="text" class="form-control" id="shop_name" name="shop_name">
-                                        <div class="form-text">
-                                            Si vide: "Boutique de [nom d'utilisateur]"
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="col-md-6">
-                                        <label for="shop_description" class="form-label">Description</label>
-                                        <textarea class="form-control" id="shop_description" name="shop_description" rows="2"></textarea>
-                                    </div>
-                                </div>
-                            </div>
-                            
                             <!-- Boutons -->
                             <div class="col-12 mt-4">
                                 <div class="d-flex justify-content-between">
                                     <a href="{{ url_for('admin_users.manage_users') }}" class="btn btn-outline-secondary">
-                                        <i class="bi bi-arrow-left"></i> Annuler
+                                        <i class="bi bi-arrow-left"></i> Retour
                                     </a>
                                     <button type="submit" class="btn btn-primary">
-                                        <i class="bi bi-check-circle"></i> Créer l'utilisateur
+                                        <i class="bi bi-check-circle"></i> {{ 'Enregistrer le compte' if current_user.role == 'manager' else "Créer l'utilisateur" }}
                                     </button>
                                 </div>
                             </div>
@@ -105,15 +82,13 @@
                 </div>
             </div>
             
-            <!-- Info génération automatique -->
+            <!-- Info simple -->
             <div class="card admin-card mt-4">
                 <div class="card-body">
-                    <h6><i class="bi bi-info-circle"></i> Informations</h6>
+                    <h6><i class="bi bi-info-circle"></i> {{ 'A savoir' if current_user.role == 'manager' else 'Informations' }}</h6>
                     <ul class="mb-0">
-                        <li>L'utilisateur sera créé immédiatement et pourra se connecter</li>
-                        <li>Pour les vendeurs, une boutique sera automatiquement créée</li>
+                        <li>{{ "Le compte sera cree tout de suite et pourra se connecter" if current_user.role == 'manager' else "L'utilisateur sera créé immédiatement et pourra se connecter" }}</li>
                         <li>Vous pourrez modifier toutes les informations plus tard</li>
-                        <li>Un email de bienvenue pourra être envoyé manuellement</li>
                     </ul>
                 </div>
             </div>
@@ -121,31 +96,6 @@
     </div>
 </div>
 
-<script>
-// Afficher/masquer la section boutique selon le rôle
-document.getElementById('role').addEventListener('change', function() {
-    const vendorSection = document.getElementById('vendor-section');
-    if (this.value === 'vendor') {
-        vendorSection.style.display = 'block';
-        
-        // Auto-remplir le nom de la boutique
-        const username = document.getElementById('username').value;
-        if (username && !document.getElementById('shop_name').value) {
-            document.getElementById('shop_name').value = `Boutique de ${username}`;
-        }
-    } else {
-        vendorSection.style.display = 'none';
-    }
-});
-
-// Auto-remplir le nom de la boutique quand le username change
-document.getElementById('username').addEventListener('input', function() {
-    if (document.getElementById('role').value === 'vendor') {
-        const shopNameInput = document.getElementById('shop_name');
-        if (!shopNameInput.value || shopNameInput.value.startsWith('Boutique de ')) {
-            shopNameInput.value = `Boutique de ${this.value}`;
-        }
-    }
-});
-</script>
 {% endblock %}
+
+

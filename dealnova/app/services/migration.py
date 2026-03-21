@@ -242,6 +242,27 @@ def ensure_product_kind_column():
         print(f"? Erreur lors de l'ajout de la colonne product.kind : {e}")
 
 
+def ensure_product_video_column():
+    """Ajoute la colonne product.video_file si elle n'existe pas."""
+    print("?? Verification de la colonne product.video_file...")
+    try:
+        inspector = inspect(db.engine)
+        if "product" not in inspector.get_table_names():
+            print("?? Table 'product' non trouvee, verification ignoree")
+            return
+
+        columns = [col["name"] for col in inspector.get_columns("product")]
+        if "video_file" in columns:
+            print("?? Colonne product.video_file deja presente")
+            return
+
+        with db.engine.begin() as conn:
+            conn.execute(text('ALTER TABLE "product" ADD COLUMN video_file VARCHAR(255)'))
+        print("? Colonne product.video_file ajoutee")
+    except Exception as e:
+        print(f"? Erreur lors de l'ajout de la colonne product.video_file : {e}")
+
+
 def ensure_category_type_column():
     """Ajoute et normalise la colonne category.category_type (products|services)."""
     print("?? Verification de la colonne category.category_type...")
@@ -464,6 +485,17 @@ def ensure_vendor_fulfillment_table():
         print("? Table vendor_fulfillment verifiee")
     except Exception as e:
         print(f"? Erreur vendor_fulfillment: {e}")
+
+
+def ensure_featured_items_table():
+    """Cree la table featured_item si absente."""
+    print("?? Verification de la table featured_item...")
+    try:
+        from ..models.featured_item import FeaturedItem
+        FeaturedItem.__table__.create(db.engine, checkfirst=True)
+        print("? Table featured_item verifiee")
+    except Exception as e:
+        print(f"? Erreur featured_item: {e}")
 
 
 def ensure_rental_tables():

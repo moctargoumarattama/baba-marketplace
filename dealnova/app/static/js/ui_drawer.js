@@ -1,4 +1,4 @@
-(function () {
+﻿(function () {
   function onReady(fn) {
     if (document.readyState === "loading") {
       document.addEventListener("DOMContentLoaded", fn, { once: true });
@@ -12,6 +12,11 @@
     var toggler = document.querySelector('.navbar-toggler[data-bs-target="#mainNavbar"]');
     var overlay = document.getElementById("drawerOverlay");
     var closeBtn = document.getElementById("drawerCloseBtn");
+    var perfFlags = window.BM_PERF_FLAGS || {};
+    var interactionFeedbackEnabled = perfFlags.interactionFeedback !== false;
+    var prefetchApi = window.BMIntentPrefetch || null;
+    var pressedNode = null;
+    var pendingNode = null;
 
     if (!drawer || !toggler || !overlay) return;
     if (!window.bootstrap || !window.bootstrap.Collapse) return;
@@ -25,6 +30,8 @@
     function hardResetDrawerUI() {
       document.body.classList.remove("menu-open");
       document.body.classList.remove("drawer-open");
+      document.body.classList.remove("drawer-is-navigating");
+      drawer.classList.remove("is-nav-leaving");
       toggler.setAttribute("aria-expanded", "false");
       overlay.setAttribute("aria-hidden", "true");
       if (typeof window.hardResetUI === "function") {
@@ -37,14 +44,114 @@
       }
     }
 
-    function closeDrawer() {
+    function clearPressedState() {
+      if (!pressedNode || !pressedNode.classList) {
+        pressedNode = null;
+        return;
+      }
+      pressedNode.classList.remove("is-pressed");
+      pressedNode = null;
+    }
+
+    function markPressedState(node) {
+      if (!interactionFeedbackEnabled || !node || !node.classList) return;
+      if (pressedNode && pressedNode !== node) {
+        clearPressedState();
+      }
+      pressedNode = node;
+      node.classList.add("is-pressed");
+    }
+
+    function clearPendingState() {
+      if (pendingNode && pendingNode.removeAttribute) {
+        pendingNode.removeAttribute("data-bm-pending");
+      }
+      pendingNode = null;
+      clearPressedState();
+      document.body.classList.remove("drawer-is-navigating");
+      drawer.classList.remove("is-nav-leaving");
+    }
+
+    function markPendingState(node) {
+      if (!interactionFeedbackEnabled || !node) return;
+      clearPendingState();
+      pendingNode = node;
+      markPressedState(node);
+      if (node.setAttribute) {
+        node.setAttribute("data-bm-pending", "1");
+      }
+      document.body.classList.add("drawer-is-navigating");
+      drawer.classList.add("is-nav-leaving");
+    }
+
+    function isPrefetchableLink(node) {
+      if (!node || !node.matches || !node.matches("a[href]")) return false;
+      if (node.hasAttribute("data-lang-switch")) return false;
+      var href = String(node.getAttribute("href") || "").trim();
+      if (!href) return false;
+      if (
+        href.indexOf("#") === 0 ||
+        href.indexOf("javascript:") === 0 ||
+        href.indexOf("mailto:") === 0 ||
+        href.indexOf("tel:") === 0
+      ) {
+        return false;
+      }
+      try {
+        return new URL(href, window.location.href).origin === window.location.origin;
+      } catch (_error) {
+        return false;
+      }
+    }
+
+    function prefetchLink(node) {
+      if (!prefetchApi || typeof prefetchApi.prefetchUrl !== "function") return;
+      if (!isPrefetchableLink(node)) return;
+      prefetchApi.prefetchUrl(node.href, {
+        headers: { Accept: "text/html" }
+      });
+    }
+
+    function bindDrawerPrefetch() {
+      if (!prefetchApi || typeof prefetchApi.prefetchOnIntent !== "function") return;
+      prefetchApi.prefetchOnIntent(
+        drawer,
+        '.mobile-menu a[href]:not([data-lang-switch]):not([href^="#"]):not([href^="javascript:"]):not([href^="mailto:"]):not([href^="tel:"])',
+        { headers: { Accept: "text/html" } }
+      );
+    }
+
+    function warmDrawerPrefetch() {
+      if (!prefetchApi || typeof prefetchApi.prefetchIdle !== "function") return;
+      var seen = Object.create(null);
+      var urls = [];
+      drawer.querySelectorAll(".mobile-menu a[href]").forEach(function (node) {
+        if (!isPrefetchableLink(node)) return;
+        var href = String(node.getAttribute("href") || "").trim();
+        if (!href || seen[href]) return;
+        seen[href] = true;
+        urls.push(href);
+      });
+      if (!urls.length) return;
+      prefetchApi.prefetchIdle(urls.slice(0, 6), {
+        headers: { Accept: "text/html" },
+        timeoutMs: 900
+      });
+    }
+
+    function closeDrawer(options) {
       if (!isMobileDrawer()) return;
+      var opts = options || {};
+      if (opts.fastExit) {
+        document.body.classList.add("drawer-is-navigating");
+        drawer.classList.add("is-nav-leaving");
+      }
       collapse.hide();
       window.setTimeout(function () {
         if (drawer.classList.contains("show")) {
           hardResetDrawerUI();
         }
-      }, 420);
+      }, opts.fastExit ? 120 : 420);
     }
 
     if (closeBtn) {
@@ -72,11 +179,45 @@
       closeDrawer();
     }, { passive: true });
 
+    drawer.addEventListener(
+      "pointerdown",
+      function (e) {
+        var trigger = e.target && e.target.closest ? e.target.closest(".mobile-menu a, .mobile-menu button[type='submit']") : null;
+        if (!trigger) return;
+        markPressedState(trigger);
+        prefetchLink(trigger);
+      },
+      { passive: true }
+    );
+
+    drawer.addEventListener(
+      "pointerup",
+      function () {
+        if (!pendingNode) {
+          clearPressedState();
+        }
+      },
+      { passive: true }
+    );
+
+    drawer.addEventListener(
+      "pointercancel",
+      function () {
+        if (!pendingNode) {
+          clearPressedState();
+        }
+      },
+      { passive: true }
+    );
+
     drawer.addEventListener("click", function (e) {
       e.stopPropagation();
       var link = e.target && e.target.closest ? e.target.closest(".mobile-menu a, .mobile-menu button[type='submit']") : null;
       if (!link) return;
-      closeDrawer();
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      if (link.matches && link.matches("a[href]") && link.target === "_blank") return;
+      markPendingState(link);
+      closeDrawer({ fastExit: true });
     });
 
     var startX = 0;
@@ -120,6 +261,8 @@
       document.body.classList.add("drawer-open");
       toggler.setAttribute("aria-expanded", "true");
       overlay.setAttribute("aria-hidden", "false");
+      bindDrawerPrefetch();
+      warmDrawerPrefetch();
       if (typeof window.lockScroll === "function") {
         window.lockScroll("drawer");
       }
@@ -131,6 +274,7 @@
     });
 
     drawer.addEventListener("hidden.bs.collapse", function () {
+      clearPendingState();
       hardResetDrawerUI();
     });
 
@@ -146,5 +290,24 @@
       if (!drawer.classList.contains("show")) return;
       closeDrawer();
     });
+
+    function reconcileDrawerAfterNavigation() {
+      clearPendingState();
+      if (!drawer.classList.contains("show")) {
+        hardResetDrawerUI();
+      }
+      if (typeof window.ensureScrollLockConsistency === "function") {
+        window.ensureScrollLockConsistency();
+      }
+    }
+
+    window.addEventListener("pageshow", reconcileDrawerAfterNavigation);
+    window.addEventListener("load", reconcileDrawerAfterNavigation, { once: true });
+
+    document.addEventListener("visibilitychange", function () {
+      if (document.visibilityState !== "visible") return;
+      reconcileDrawerAfterNavigation();
+    });
   });
 })();
+

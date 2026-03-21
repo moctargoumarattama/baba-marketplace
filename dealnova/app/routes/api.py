@@ -1,8 +1,10 @@
 from datetime import datetime
+import time
 
-from flask import Blueprint, jsonify, request, url_for
-from sqlalchemy import or_
+from flask import Blueprint, jsonify, request, url_for, current_app
+from sqlalchemy import or_, case, func
 from sqlalchemy.orm import selectinload
+
 from ..models.product import Product
 from ..models.shop import Shop
 from ..models.category import Category
@@ -10,13 +12,23 @@ from ..models.promo import Promo
 from ..models.rental import RentalListing
 from ..services.pricing import prix_final, compute_shipping_by_city, list_delivery_cities
 from ..services.pagination import limit_from_args
+from ..services.traffic_stats import track_custom_event
 from .cart import get_cart, set_cart
 from ..extensions import db
 
 bp = Blueprint("api", __name__, url_prefix="/api")
 
+# =====================================================
+# HELPERS
+# =====================================================
+
+def _clean_str(value, max_length=100):
+    """Nettoie et tronque une chaîne."""
+    return (value or "").strip()[:max_length]
+
 
 def _active_promo_map(product_ids: list[int], now: datetime | None = None) -> dict[int, Promo]:
+    """Charge les promotions actives en une seule requête."""
     if not product_ids:
         return {}
     now_utc = now or datetime.utcnow()
@@ -36,6 +48,7 @@ def _active_promo_map(product_ids: list[int], now: datetime | None = None) -> di
 
 
 def _cart_total(cart):
+    """Calcule le total du panier (optimisé)."""
     if not isinstance(cart, dict) or not cart:
         return 0
 
@@ -68,8 +81,9 @@ def _cart_total(cart):
 
 
 def _delivery_price_payload(city_raw: str | None, source_raw: str | None):
-    city = (city_raw or "").strip()
-    source = (source_raw or "marketplace").strip().lower()
+    """Calcule le prix de livraison avec messages d'erreur cohérents."""
+    city = _clean_str(city_raw)
+    source = _clean_str(source_raw).lower()
     if source not in {"marketplace", "special"}:
         source = "marketplace"
 
@@ -94,7 +108,7 @@ def _delivery_price_payload(city_raw: str | None, source_raw: str | None):
             "source": source,
             "price_cents": None,
             "price_display": "N/A",
-            "message": "Ville non supportee.",
+            "message": "Ville non supportée.",
             "cities": list_delivery_cities(),
         }, 400
 
@@ -109,8 +123,13 @@ def _delivery_price_payload(city_raw: str | None, source_raw: str | None):
     }, 200
 
 
+# =====================================================
+# PRIX LIVRAISON
+# =====================================================
+
 @bp.route("/pricing/delivery")
 def pricing_delivery():
+    """Endpoint public pour le prix de livraison."""
     payload, status = _delivery_price_payload(
         request.args.get("city"),
         request.args.get("source"),
@@ -120,6 +139,7 @@ def pricing_delivery():
 
 @bp.route("/delivery/price")
 def delivery_price():
+    """Alias pour compatibilité."""
     payload, status = _delivery_price_payload(
         request.args.get("city"),
         request.args.get("source"),
@@ -127,14 +147,21 @@ def delivery_price():
     return jsonify(payload), status
 
 
-# --- Produits ---
+# =====================================================
+# RECHERCHE PRODUITS
+# =====================================================
+
 @bp.route("/search/products")
 def search_products():
-    q = request.args.get("q", "").strip()
-    limit = limit_from_args(request.args, default=10)
+    """Recherche de produits (suggestions)."""
+    q = _clean_str(request.args.get("q"))
+    limit = min(limit_from_args(request.args, default=10), 50)  # ← Borne à 50 max
+
     if not q:
         return jsonify({"products": []})
 
+    start = time.time()
+    
     products = (
         Product.query
         .options(
@@ -179,14 +206,24 @@ def search_products():
             "booking_url": f"/booking/{p.id}" if is_service else None,
             "default_quantity": 1,
         })
+    
+    duration = time.time() - start
+    if duration > 0.3:  # Log si lent (>300ms)
+        current_app.logger.info(f"Slow search/products: {duration:.2f}s for q='{q}'")
+    
     return jsonify({"products": results})
 
 
-# --- Boutiques ---
+# =====================================================
+# RECHERCHE BOUTIQUES (OPTIMISÉE)
+# =====================================================
+
 @bp.route("/search/shops")
 def search_shops():
-    q = request.args.get("q", "").strip()
-    limit = limit_from_args(request.args, default=10)
+    """Recherche de boutiques avec compteurs (optimisé)."""
+    q = _clean_str(request.args.get("q"))
+    limit = min(limit_from_args(request.args, default=10), 50)
+
     if not q:
         return jsonify({"shops": []})
 
@@ -196,32 +233,36 @@ def search_shops():
     ).limit(limit).all()
 
     shop_ids = [shop.id for shop in shops]
+    
     physical_counts = {}
     service_counts = {}
     location_counts = {}
+    
     if shop_ids:
-        physical_counts = dict(
-            db.session.query(Product.shop_id, db.func.count(Product.id))
-            .filter(
-                Product.shop_id.in_(shop_ids),
-                Product.is_active == True,
-                Product.kind == "physical",
-            )
-            .group_by(Product.shop_id)
-            .all()
-        )
-        service_counts = dict(
-            db.session.query(Product.shop_id, db.func.count(Product.id))
-            .filter(
-                Product.shop_id.in_(shop_ids),
-                Product.is_active == True,
-                Product.kind == "service",
-            )
-            .group_by(Product.shop_id)
-            .all()
-        )
+        # OPTIMISATION : Une seule requête pour les comptages produits
+        # 🔧 CORRECTION ICI : je remplace le dict() problématique
+        product_data = db.session.query(
+            Product.shop_id,
+            func.sum(case((Product.kind == "physical", 1), else_=0)).label('physical'),
+            func.sum(case((Product.kind == "service", 1), else_=0)).label('service')
+        ).filter(
+            Product.shop_id.in_(shop_ids),
+            Product.is_active == True
+        ).group_by(Product.shop_id).all()
+        
+        # 🔧 CORRECTION ICI : construction manuelle du dictionnaire
+        product_stats = {}
+        for shop_id, phys, serv in product_data:
+            product_stats[shop_id] = (phys or 0, serv or 0)
+        
+        for shop_id in shop_ids:
+            phys, serv = product_stats.get(shop_id, (0, 0))
+            physical_counts[shop_id] = int(phys)
+            service_counts[shop_id] = int(serv)
+        
+        # Locations (inchangé - celui-ci fonctionne déjà car c'est une paire)
         location_counts = dict(
-            db.session.query(RentalListing.shop_id, db.func.count(RentalListing.id))
+            db.session.query(RentalListing.shop_id, func.count(RentalListing.id))
             .filter(
                 RentalListing.shop_id.in_(shop_ids),
                 RentalListing.is_active == True,
@@ -234,8 +275,8 @@ def search_shops():
 
     results = []
     for s in shops:
-        physical_count = int(physical_counts.get(s.id, 0) or 0)
-        service_count = int(service_counts.get(s.id, 0) or 0)
+        physical_count = physical_counts.get(s.id, 0)
+        service_count = service_counts.get(s.id, 0)
         location_count = int(location_counts.get(s.id, 0) or 0)
         results.append({
             "id": s.id,
@@ -246,16 +287,20 @@ def search_shops():
             "service_count": service_count,
             "location_count": location_count,
             "product_count": physical_count + service_count,
-            "url": f"/shop/{s.slug}",
+            "url": f"/{s.slug}",
             "logo": s.logo or "",
         })
     return jsonify({"shops": results})
-
+# =====================================================
+# RECHERCHE LOCATIONS
+# =====================================================
 
 @bp.route("/search/locations")
 def search_locations():
-    q = request.args.get("q", "").strip()
-    limit = limit_from_args(request.args, default=8)
+    """Recherche d'annonces de location."""
+    q = _clean_str(request.args.get("q"))
+    limit = min(limit_from_args(request.args, default=8), 30)
+
     if not q:
         return jsonify({"locations": []})
 
@@ -316,11 +361,16 @@ def search_locations():
     return jsonify({"locations": results})
 
 
-# --- Categories ---
+# =====================================================
+# RECHERCHE CATÉGORIES
+# =====================================================
+
 @bp.route("/search/categories")
 def search_categories():
-    q = request.args.get("q", "").strip()
-    limit = limit_from_args(request.args, default=10)
+    """Recherche de catégories."""
+    q = _clean_str(request.args.get("q"))
+    limit = min(limit_from_args(request.args, default=10), 30)
+
     if not q:
         return jsonify({"categories": []})
 
@@ -338,9 +388,13 @@ def search_categories():
     return jsonify({"categories": results})
 
 
-# --- Ajout panier AJAX ---
+# =====================================================
+# PANIER AJAX
+# =====================================================
+
 @bp.route("/cart/add/<int:pid>", methods=["POST"])
 def add_to_cart(pid):
+    """Ajoute un produit au panier (AJAX)."""
     product = Product.query.get_or_404(pid)
     if (getattr(product, "kind", None) or "physical") == "service":
         return jsonify({
@@ -356,6 +410,10 @@ def add_to_cart(pid):
 
     cart[str(pid)] = qty + 1
     set_cart(cart)
+    try:
+        track_custom_event("add_to_cart")
+    except Exception:
+        pass
 
     return jsonify({
         "success": True,
@@ -365,8 +423,29 @@ def add_to_cart(pid):
     })
 
 
-# --- Resume panier AJAX ---
+@bp.route("/analytics/event", methods=["POST"])
+def analytics_event():
+    payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        payload = {}
+
+    event_name = _clean_str(payload.get("event"), max_length=40).lower()
+    if not event_name:
+        return jsonify({"ok": False, "error": "missing_event"}), 400
+
+    try:
+        track_custom_event(event_name)
+    except Exception:
+        return jsonify({"ok": False, "error": "track_failed"}), 500
+
+    return jsonify({"ok": True})
+
+
 @bp.route("/cart/summary")
 def cart_summary():
+    """Résumé du panier (AJAX)."""
     cart = get_cart()
-    return jsonify({"cart_count": sum(cart.values()), "total": _cart_total(cart)})
+    return jsonify({
+        "cart_count": sum(cart.values()),
+        "total": _cart_total(cart)
+    })

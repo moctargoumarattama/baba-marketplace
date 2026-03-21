@@ -1,4 +1,4 @@
-(function () {
+﻿(function () {
   function onReady(fn) {
     if (document.readyState === "loading") {
       document.addEventListener("DOMContentLoaded", fn, { once: true });
@@ -20,7 +20,7 @@
     const tabs = document.querySelector("[data-home-bottom-tabs]");
     if (!tabs) return;
 
-    const links = Array.prototype.slice.call(tabs.querySelectorAll(".home-tab[href]"));
+    const links = Array.prototype.slice.call(tabs.querySelectorAll(".home-tab[href], .bm-home-tab[href]"));
     if (!links.length) return;
 
     const currentPath = normalizePath(window.location.pathname);
@@ -39,3 +39,4 @@
     });
   });
 })();
+

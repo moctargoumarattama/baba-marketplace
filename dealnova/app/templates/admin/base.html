@@ -5,9 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{% block title %}Admin Panel | BABA MARKET{% endblock %}</title>
-    <link href="{{ url_for('static', filename='vendor/bootstrap/5.1.3/css/bootstrap.min.css') }}" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons/1.8.1/font/bootstrap-icons.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='fonts/admin.css') }}">
+    <link href="{{ url_for('static', filename='vendor/bootstrap/5.1.3/css/bootstrap.min.css', v=app_static_version) }}" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons/1.8.1/font/bootstrap-icons.css', v=app_static_version) }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='fonts/admin.css', v=app_static_version) }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin/admin_tokens.css', v=app_static_version) }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin/admin_components.css', v=app_static_version) }}">
     <script>
         (function () {
             try {
@@ -477,154 +479,7 @@
             margin-top: 1.5rem; 
         }
 
-        /* CARDS */
-        .admin-card, .content-card, .stat-card {
-            background: var(--glass);
-            border: 1px solid rgba(226, 232, 240, 0.88);
-            border-radius: 1rem;
-            box-shadow: 0 0.75rem 1.625rem rgba(15, 23, 42, 0.08);
-            backdrop-filter: blur(0.5rem);
-            overflow: hidden;
-            transition: all 0.24s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        .admin-card:hover, .content-card:hover, .stat-card:hover {
-            transform: translateY(-0.125rem);
-            box-shadow: 0 1.125rem 2.125rem rgba(15, 23, 42, 0.13);
-        }
-
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
-            gap: 1rem;
-            margin-bottom: 1.5rem;
-        }
-
-        /* TABLES */
-        .table-custom { 
-            width: 100%; 
-            border-collapse: collapse; 
-        }
-
-        .table-custom thead th {
-            background: #f8fafc;
-            padding: 0.875rem 1rem;
-            text-align: left;
-            font-size: 0.75rem;
-            font-weight: 700;
-            color: #64748b;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            border-bottom: 1px solid #e2e8f0;
-            white-space: nowrap;
-        }
-
-        .table-custom tbody td {
-            padding: 0.875rem 1rem;
-            border-bottom: 1px solid #edf2f8;
-            font-size: 0.875rem;
-        }
-
-        .table-custom tbody tr:hover { 
-            background: rgba(241, 245, 249, 0.8); 
-        }
-
-        /* ALERTS */
-        .alert-custom {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            margin-bottom: 1rem;
-            padding: 0.875rem 1rem;
-            border-left: 0.25rem solid;
-            border-radius: 0.75rem;
-            box-shadow: 0 0.5rem 1rem rgba(15, 23, 42, 0.06);
-            animation: slideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        @keyframes slideIn {
-            from {
-                opacity: 0;
-                transform: translateY(-0.5rem);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .alert-success { 
-            background: #ecfdf5; 
-            border-color: #10b981; 
-            color: #065f46; 
-        }
-
-        .alert-danger { 
-            background: #fef2f2; 
-            border-color: #ef4444; 
-            color: #991b1b; 
-        }
-
-        .alert-warning { 
-            background: #fffbeb; 
-            border-color: #f59e0b; 
-            color: #92400e; 
-        }
-
-        .alert-info { 
-            background: #eff6ff; 
-            border-color: #3b82f6; 
-            color: #1e40af; 
-        }
-
-        /* TOAST */
-        .admin-order-toast {
-            position: fixed;
-            top: 6.375rem;
-            right: 1.25rem;
-            z-index: 1200;
-            opacity: 0;
-            pointer-events: none;
-            transform: translateX(120%);
-            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            padding: 0.75rem 1rem;
-            border-radius: 0.875rem;
-            color: #fff;
-            background: linear-gradient(135deg, #22c55e, #16a34a);
-            border: 1px solid rgba(255, 255, 255, 0.24);
-            box-shadow: 0 0.875rem 1.75rem rgba(15, 23, 42, 0.24);
-        }
-
-        .admin-order-toast.show { 
-            opacity: 1; 
-            pointer-events: auto; 
-            transform: translateX(0); 
-        }
-
-        .admin-order-toast .toast-icon {
-            width: 2.5rem;
-            height: 2.5rem;
-            border-radius: 0.6875rem;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            background: rgba(255, 255, 255, 0.22);
-            font-size: 1.125rem;
-            flex-shrink: 0;
-        }
-
-        .admin-order-toast .toast-title { 
-            font-weight: 800; 
-            margin-bottom: 0.125rem; 
-        }
-
-        .admin-order-toast .toast-text { 
-            font-size: 0.8125rem; 
-            opacity: 0.95; 
-        }
+        /* Shared admin UI primitives moved to css/admin/admin_components.css */
 
         /* MENU TOGGLE */
         .menu-toggle {
@@ -654,22 +509,35 @@
             display: inline-flex;
             align-items: center;
             gap: 0.5rem;
-            padding: 0.625rem 0.875rem;
+            padding: 0.7rem 0.95rem;
             border-radius: 62.4375rem;
             border: 1px solid rgba(226, 232, 240, 0.95);
             color: var(--primary);
             font-size: 0.875rem;
             font-weight: 800;
-            background: rgba(255, 255, 255, 0.93);
-            box-shadow: 0 0.75rem 1.5rem rgba(15, 23, 42, 0.16);
-            backdrop-filter: blur(0.5rem);
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.94));
+            box-shadow: 0 1rem 2rem rgba(15, 23, 42, 0.16);
+            backdrop-filter: blur(0.625rem);
+            -webkit-backdrop-filter: blur(0.625rem);
+            transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1), color 0.2s ease;
             text-decoration: none;
         }
 
+        .back-fab i {
+            width: 1.6rem;
+            height: 1.6rem;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 107, 53, 0.12);
+            box-shadow: inset 0 0 0 1px rgba(255, 107, 53, 0.08);
+            font-size: 0.92rem;
+        }
+
         .back-fab:hover { 
-            transform: translateY(-0.125rem); 
-            box-shadow: 0 1rem 1.75rem rgba(15, 23, 42, 0.2); 
+            transform: translateY(-0.125rem) scale(1.01); 
+            box-shadow: 0 1.125rem 2rem rgba(15, 23, 42, 0.2); 
             color: #e85a2a; 
         }
 
@@ -764,28 +632,14 @@
             background: rgba(15, 23, 42, 0.86);
             color: #cbd5e1;
         }
-        html[data-admin-theme="noc"] .admin-card,
-        html[data-admin-theme="noc"] .content-card,
-        html[data-admin-theme="noc"] .stat-card {
-            border-color: rgba(71, 85, 105, 0.7);
-            box-shadow: 0 0.75rem 1.625rem rgba(2, 6, 23, 0.28);
-        }
-        html[data-admin-theme="noc"] .table-custom thead th {
-            background: #1e293b;
-            color: #94a3b8;
-            border-bottom-color: #334155;
-        }
-        html[data-admin-theme="noc"] .table-custom tbody td {
-            border-bottom-color: #273548;
-            color: #cbd5e1;
-        }
-        html[data-admin-theme="noc"] .table-custom tbody tr:hover {
-            background: rgba(51, 65, 85, 0.28);
-        }
         html[data-admin-theme="noc"] .back-fab {
             border-color: #334155;
             background: rgba(15, 23, 42, 0.9);
             color: #22d3ee;
+        }
+        html[data-admin-theme="noc"] .back-fab i {
+            background: rgba(34, 211, 238, 0.12);
+            box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.08);
         }
         html[data-admin-theme="noc"] .back-fab:hover {
             color: #67e8f9;
@@ -812,6 +666,12 @@
         }
 
         @media (max-width: 768px) {
+            body::before,
+            body::after,
+            .pointer-glow {
+                display: none;
+            }
+
             .sidebar { 
                 transform: translateX(-100%); 
             }
@@ -835,9 +695,21 @@
             }
 
             .top-bar { 
-                top: 0.5rem; 
+                position: relative;
+                top: 0;
                 margin-bottom: 1rem; 
-                padding: 0.625rem 0.75rem; 
+                padding: 0.625rem 0.75rem;
+                backdrop-filter: none;
+            }
+
+            .sidebar-footer,
+            .back-fab {
+                backdrop-filter: none;
+            }
+
+            .page-title {
+                animation: none;
+                background-size: 100% 100%;
             }
 
             .actions { 
@@ -860,7 +732,7 @@
             .back-fab { 
                 left: 0.75rem; 
                 bottom: 0.75rem; 
-                padding: 0.5625rem 0.75rem; 
+                padding: 0.62rem 0.82rem; 
                 font-size: 0.8125rem; 
             }
 
@@ -881,6 +753,10 @@
         @media (max-width: 480px) {
             html {
                 font-size: 14px;
+            }
+
+            body {
+                background: #f8fafc;
             }
 
             .btn-custom {
@@ -924,12 +800,30 @@
             }
         }
     </style>
-    <script src="{{ url_for('static', filename='js/live.js') }}?v=20260217_2" defer></script>
+    <script src="{{ url_for('static', filename='js/core/core_dom.js', v=app_static_version) }}" defer></script>
+    <script src="{{ url_for('static', filename='js/core/core_ui.js', v=app_static_version) }}" defer></script>
+    <script src="{{ url_for('static', filename='js/ajax/core/bm_csrf.js', v=app_static_version) }}" defer></script>
+    <script src="{{ url_for('static', filename='js/ajax/core/bm_guard.js', v=app_static_version) }}" defer></script>
+    <script src="{{ url_for('static', filename='js/ajax/core/bm_fetch.js', v=app_static_version) }}" defer></script>
+    <script src="{{ url_for('static', filename='js/ajax/core/bm_swap.js', v=app_static_version) }}" defer></script>
+    <script src="{{ url_for('static', filename='js/core/back_fab.js', v=app_static_version) }}" defer></script>
+    <script src="{{ url_for('static', filename='js/core/page_loader.js', v=app_static_version) }}" defer></script>
     {% block head %}{% endblock %}
 </head>
-<body data-notify-url="{{ notify_url if notify_url is not none else url_for('admin.orders_notifications') }}" data-notify-interval="5000" {% block body_attrs %}{% endblock %}>
+<body data-admin="1"
+      data-user-role="{{ current_user.role if current_user.is_authenticated else 'guest' }}"
+      data-page="{{ request.endpoint or '' }}"
+      data-static-version="{{ app_static_version }}"
+      data-static-root="{{ url_for('static', filename='') }}"
+      data-notify-url="{{ notify_url if notify_url is not none else url_for('admin.orders_notifications') }}"
+      data-notify-interval="5000"
+      data-notify-pages="admin.all_orders,admin.deliveries,admin.deliveries_live,admin_users.fraud_monitor,courier.panel_orders,courier.panel_deliveries"
+      {% block body_attrs %}{% endblock %}>
     {% set ep = request.endpoint or '' %}
     {% set is_courier = current_user.is_authenticated and current_user.role == 'courier' %}
+    {% set admin_back_scope = 'courier' if is_courier else 'admin' %}
+    {% set admin_back_fallback = url_for('courier.panel_deliveries') if is_courier else url_for('admin_users.admin_dashboard') %}
+    {% set admin_back_is_root = ep in ['courier.panel_deliveries', 'courier.panel_orders'] if is_courier else ep == 'admin_users.admin_dashboard' %}
     <div class="pointer-glow" aria-hidden="true"></div>
 
     <nav class="sidebar" id="sidebar" role="navigation" aria-label="Menu principal">
@@ -938,7 +832,7 @@
                 <span class="logo-mark" aria-hidden="true"><i class="bi bi-grid-1x2-fill"></i></span>
                 <div>
                     <p class="logo">BABA MARKET</p>
-                    <div class="logo-subtitle">Centre de commande</div>
+                    <div class="logo-subtitle">{{ 'Espace de gestion' if current_user.role == 'manager' else 'Centre de commande' }}</div>
                 </div>
             </div>
         </div>
@@ -946,18 +840,15 @@
         <ul class="nav-menu">
             {% if is_courier %}
             <li class="nav-item">
-                <a class="nav-link {% if ep == 'courier.panel_orders' %}active{% endif %}" href="{{ url_for('courier.panel_orders') }}">
-                    <i class="bi bi-bag-check-fill"></i><span>Commandes</span><span class="nav-badge is-hidden" id="sidebarPendingBadge">0</span>
+                <a class="nav-link {% if ep == 'courier.panel_orders' or ep == 'courier.panel_deliveries' %}active{% endif %}" href="{{ url_for('courier.panel_deliveries') }}">
+                    <i class="bi bi-truck"></i><span>Livraisons</span><span class="nav-badge is-hidden" id="sidebarPendingBadge">0</span>
                 </a>
             </li>
-            <li class="nav-item">
-                <a class="nav-link {% if ep == 'courier.panel_deliveries' %}active{% endif %}" href="{{ url_for('courier.panel_deliveries') }}">
-                    <i class="bi bi-truck"></i><span>Livraisons</span>
-                </a>
-            </li>
-            <li class="nav-item nav-item-site"><a class="nav-link" href="{{ url_for('shop.home') }}"><i class="bi bi-box-arrow-left"></i><span>Retour au site</span></a></li>
             {% else %}
             <li class="nav-item"><a class="nav-link {% if ep == 'admin_users.admin_dashboard' %}active{% endif %}" href="{{ url_for('admin_users.admin_dashboard') }}"><i class="bi bi-grid-fill"></i><span>Dashboard</span></a></li>
+            {% if current_user.role == 'admin' %}
+            <li class="nav-item"><a class="nav-link {% if ep == 'admin_users.audience_dashboard' %}active{% endif %}" href="{{ url_for('admin_users.audience_dashboard') }}"><i class="bi bi-broadcast-pin"></i><span>Audience</span></a></li>
+            {% endif %}
             <li class="nav-item"><a class="nav-link {% if 'user' in ep %}active{% endif %}" href="{{ url_for('admin_users.manage_users') }}"><i class="bi bi-people-fill"></i><span>Utilisateurs</span></a></li>
             <li class="nav-item"><a class="nav-link {% if 'shop' in ep %}active{% endif %}" href="{{ url_for('admin_users.manage_shops') }}"><i class="bi bi-shop"></i><span>Boutiques</span></a></li>
             <li class="nav-item"><a class="nav-link {% if 'rentals.admin_locations' in ep or 'admin/locations' in request.path %}active{% endif %}" href="{{ url_for('rentals.admin_locations') }}"><i class="bi bi-house-door"></i><span>Locations</span></a></li>
@@ -966,27 +857,21 @@
                     <i class="bi bi-bag-check-fill"></i><span>Commandes</span><span class="nav-badge is-hidden" id="sidebarPendingBadge">0</span>
                 </a>
             </li>
-            <li class="nav-item">
-                <a class="nav-link {% if ep == 'admin.order_archives' %}active{% endif %}" href="{{ url_for('admin.order_archives') }}">
-                    <i class="bi bi-archive-fill"></i><span>Archives commandes</span>
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link {% if ep == 'admin.order_periods' %}active{% endif %}" href="{{ url_for('admin.order_periods') }}">
-                    <i class="bi bi-calendar3"></i><span>Periodes commandes</span>
-                </a>
-            </li>
             <li class="nav-item"><a class="nav-link {% if ep.startswith('admin.finance') %}active{% endif %}" href="{{ url_for('admin.finance') }}"><i class="bi bi-graph-up-arrow"></i><span>Finance</span></a></li>
             <li class="nav-item"><a class="nav-link {% if 'reconciliation' in ep %}active{% endif %}" href="{{ url_for('admin_users.reconciliation') }}"><i class="bi bi-cash-stack"></i><span>Abonnements</span></a></li>
+            {% if current_user.role == 'admin' %}
             <li class="nav-item"><a class="nav-link {% if 'fraud' in ep %}active{% endif %}" href="{{ url_for('admin_users.fraud_monitor') }}"><i class="bi bi-shield-exclamation"></i><span>Fraude</span></a></li>
+            {% endif %}
             <li class="nav-item"><a class="nav-link {% if 'catalog_quality' in ep %}active{% endif %}" href="{{ url_for('admin_users.catalog_quality') }}"><i class="bi bi-box-seam"></i><span>Catalogue</span></a></li>
+            <li class="nav-item"><a class="nav-link {% if ep == 'admin.featured_items' %}active{% endif %}" href="{{ url_for('admin.featured_items') }}"><i class="bi bi-stars"></i><span>Mise en avant</span></a></li>
+            {% if current_user.role == 'admin' %}
             <li class="nav-item"><a class="nav-link {% if 'log' in ep %}active{% endif %}" href="{{ url_for('admin_users.view_logs') }}"><i class="bi bi-clock-history"></i><span>Logs</span></a></li>
-            <li class="nav-item"><a class="nav-link {% if 'activity' in ep %}active{% endif %}" href="{{ url_for('admin_users.activity_log') }}"><i class="bi bi-activity"></i><span>Activite</span></a></li>
-            <li class="nav-item"><a class="nav-link {% if 'audit' in ep %}active{% endif %}" href="{{ url_for('admin_users.audit_logs') }}"><i class="bi bi-shield-check"></i><span>Audit</span></a></li>
+            {% endif %}
             <li class="nav-item"><a class="nav-link {% if ep == 'admin.deliveries' or ep == 'admin.deliveries_live' %}active{% endif %}" href="{{ url_for('admin.deliveries') }}"><i class="bi bi-truck"></i><span>Livraisons</span></a></li>
-            <li class="nav-item"><a class="nav-link {% if ep == 'admin.deliveries_archives' %}active{% endif %}" href="{{ url_for('admin.deliveries_archives') }}"><i class="bi bi-archive"></i><span>Archives livraisons</span></a></li>
-            <li class="nav-item"><a class="nav-link {% if 'pricing' in ep or 'settings' in ep %}active{% endif %}" href="{{ url_for('admin.pricing_settings') }}"><i class="bi bi-sliders"></i><span>Parametres</span></a></li>
-            <li class="nav-item"><a class="nav-link {% if 'admin.maintenance' in ep or 'run_maintenance' in ep or 'maintenance_reset_data' in ep %}active{% endif %}" href="{{ url_for('admin.maintenance') }}"><i class="bi bi-tools"></i><span>Maintenance</span></a></li>
+            <li class="nav-item"><a class="nav-link {% if 'pricing' in ep or 'settings' in ep or ep == 'admin.order_archives' or ep == 'admin.order_periods' %}active{% endif %}" href="{{ url_for('admin.pricing_settings') }}"><i class="bi bi-sliders"></i><span>Parametres</span></a></li>
+            {% if current_user.role == 'admin' %}
+            <li class="nav-item"><a class="nav-link {% if 'admin.maintenance' in ep or 'run_maintenance' in ep or 'maintenance_reset_data' in ep %}active{% endif %}" href="{{ url_for('admin.maintenance') }}"><i class="bi bi-tools"></i><span>Maintenance systeme</span></a></li>
+            {% endif %}
             <li class="nav-item"><a class="nav-link {% if 'admin_categories' in ep %}active{% endif %}" href="{{ url_for('admin_categories.index') }}"><i class="bi bi-tags-fill"></i><span>Categories</span></a></li>
             <li class="nav-item nav-item-site"><a class="nav-link" href="{{ url_for('shop.home') }}"><i class="bi bi-box-arrow-left"></i><span>Retour au site</span></a></li>
             {% endif %}
@@ -997,7 +882,7 @@
                 <div class="user-avatar">{{ current_user.username[0].upper() }}</div>
                 <div class="user-meta">
                     <div class="user-name">{{ current_user.username }}</div>
-                    <div class="user-role">{{ 'Livreur' if is_courier else 'Administrateur' }}</div>
+                    <div class="user-role">{{ 'Livreur' if is_courier else ('Gestionnaire' if current_user.role == 'manager' else 'Administrateur') }}</div>
                 </div>
             </div>
         </div>
@@ -1006,7 +891,7 @@
     <div class="sidebar-backdrop" id="sidebarBackdrop" aria-hidden="true"></div>
     <div id="offlineBanner" class="offline-banner" role="status" aria-live="polite">Connexion faible ou hors ligne</div>
 
-    <button class="back-fab" type="button" data-fallback="{{ url_for('courier.panel_deliveries') if is_courier else url_for('admin_users.admin_dashboard') }}" aria-label="Retour">
+    <button class="back-fab" type="button" data-fallback="{{ admin_back_fallback }}" data-back-scope="{{ admin_back_scope }}" data-back-root="{{ '1' if admin_back_is_root else '0' }}" aria-label="Retour">
         <i class="bi bi-arrow-left"></i><span>Retour</span>
     </button>
 
@@ -1019,6 +904,17 @@
                 <h1 class="page-title">{% block page_title %}Dashboard{% endblock %}</h1>
             </div>
             <div class="actions">
+                {% if not is_courier %}
+                <a href="{{ url_for('admin.all_orders') }}" class="btn-custom btn-outline-custom" aria-label="Commandes">
+                    <i class="bi bi-bag-check-fill"></i><span>Commandes</span>
+                </a>
+                <a href="{{ url_for('admin.deliveries') }}" class="btn-custom btn-outline-custom" aria-label="Livraisons">
+                    <i class="bi bi-truck"></i><span>Livraisons</span>
+                </a>
+                <a href="{{ url_for('admin_users.reconciliation') }}" class="btn-custom btn-outline-custom" aria-label="Abonnements">
+                    <i class="bi bi-cash-stack"></i><span>Abonnements</span>
+                </a>
+                {% endif %}
                 <button class="btn-custom btn-outline-custom btn-theme-toggle" type="button" id="adminThemeToggle" aria-label="Theme admin"></button>
                 <button class="btn-custom btn-outline-custom btn-sound" type="button" id="soundToggle" aria-label="Activer/Désactiver le son"></button>
                 <a href="{{ url_for('courier.panel_deliveries') if is_courier else url_for('admin_users.admin_dashboard') }}" class="btn-custom btn-outline-custom" aria-label="Accueil"><i class="bi bi-house-fill"></i></a>
@@ -1052,450 +948,10 @@
         </div>
     </div>
 
-    <script src="{{ url_for('static', filename='vendor/bootstrap/5.1.3/js/bootstrap.bundle.min.js') }}"></script>
-    <script>
-        // Stop accidental navigation from interactive controls inside clickable cards/rows.
-        document.addEventListener('click', (event) => {
-            const stopEl = event.target && event.target.closest ? event.target.closest('[data-stop-nav]') : null;
-            if (!stopEl) return;
-
-            const parentAnchor = stopEl.closest('a[href]');
-            if (parentAnchor && parentAnchor !== stopEl) {
-                event.preventDefault();
-            }
-
-            event.stopPropagation();
-            // "hard" mode for edge cases that must block bubbling.
-            if (stopEl.getAttribute('data-stop-nav') === 'hard') {
-                event.stopImmediatePropagation();
-            }
-        });
-
-        document.addEventListener('submit', (event) => {
-            const form = event.target && event.target.matches ? event.target : null;
-            if (!form) return;
-            const message = form.getAttribute('data-confirm-submit') || form.getAttribute('data-confirm');
-            if (!message) return;
-            if (!window.confirm(message)) {
-                event.preventDefault();
-                event.stopPropagation();
-            }
-        }, true);
-
-        document.addEventListener('click', (event) => {
-            const confirmEl = event.target && event.target.closest ? event.target.closest('[data-confirm-click]') : null;
-            if (confirmEl) {
-                const message = confirmEl.getAttribute('data-confirm-click') || confirmEl.getAttribute('data-confirm');
-                if (message && !window.confirm(message)) {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    return;
-                }
-            }
-
-            const reloadEl = event.target && event.target.closest ? event.target.closest('[data-action="reload-page"]') : null;
-            if (reloadEl) {
-                event.preventDefault();
-                window.location.reload();
-                return;
-            }
-
-            const closeEl = event.target && event.target.closest ? event.target.closest('[data-close-target]') : null;
-            if (closeEl) {
-                event.preventDefault();
-                const selector = closeEl.getAttribute('data-close-target');
-                if (!selector) return;
-                const target = closeEl.closest(selector) || document.querySelector(selector);
-                if (target) target.classList.remove('show');
-            }
-        }, true);
-
-        document.addEventListener('change', (event) => {
-            const autoSubmit = event.target && event.target.closest ? event.target.closest('.js-auto-submit') : null;
-            if (!autoSubmit || !autoSubmit.form) return;
-            autoSubmit.form.submit();
-        }, true);
-
-        document.addEventListener('error', (event) => {
-            const img = event.target;
-            if (!img || img.tagName !== 'IMG') return;
-            const fallbackSrc = img.getAttribute('data-fallback-src');
-            if (fallbackSrc && img.getAttribute('src') !== fallbackSrc) {
-                img.setAttribute('src', fallbackSrc);
-                return;
-            }
-            if (img.getAttribute('data-img-fallback') === 'remove') {
-                img.remove();
-            }
-        }, true);
-
-        // Optional click debug: localStorage.clickDebug = '1'
-        if (localStorage.getItem('clickDebug') === '1') {
-            document.addEventListener('click', (event) => {
-                const link = event.target && event.target.closest ? event.target.closest('a[href]') : null;
-                if (!link) return;
-                console.log('[CLICK]', link.href, link);
-            }, true);
-        }
-
-        // Configuration
-        const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        const csrfToken = "{{ csrf_token() }}";
-        window.csrfToken = csrfToken;
-        const ADMIN_THEME_KEY = 'admin-theme-mode';
-
-        // Global admin theme toggle (default <-> noc)
-        (function initAdminThemeToggle() {
-            const themeBtn = document.getElementById('adminThemeToggle');
-
-            function currentTheme() {
-                const t = document.documentElement.getAttribute('data-admin-theme');
-                return (t === 'noc') ? 'noc' : 'default';
-            }
-
-            function applyTheme(theme) {
-                const mode = theme === 'noc' ? 'noc' : 'default';
-                document.documentElement.setAttribute('data-admin-theme', mode);
-                try { localStorage.setItem(ADMIN_THEME_KEY, mode); } catch (e) {}
-                if (!themeBtn) return;
-                if (mode === 'noc') {
-                    themeBtn.innerHTML = '<i class="bi bi-sun"></i> Clair';
-                } else {
-                    themeBtn.innerHTML = '<i class="bi bi-moon-stars"></i> NOC';
-                }
-            }
-
-            applyTheme(currentTheme());
-
-            if (themeBtn) {
-                themeBtn.addEventListener('click', () => {
-                    applyTheme(currentTheme() === 'noc' ? 'default' : 'noc');
-                });
-            }
-        })();
-
-        // Global admin scroll lock: keep exact Y position across page navigations.
-        (function preserveAdminScroll() {
-            window.__adminGlobalScrollLock = true;
-            const yKey = "admin:scroll:lastY";
-            const pendingKey = "admin:scroll:pending";
-
-            function saveScroll() {
-                try {
-                    const y = Math.max(window.scrollY || 0, 0);
-                    sessionStorage.setItem(yKey, String(y));
-                    sessionStorage.setItem(pendingKey, "1");
-                } catch (e) {}
-            }
-
-            function restoreScroll() {
-                try {
-                    if (sessionStorage.getItem(pendingKey) !== "1") return;
-                    const raw = sessionStorage.getItem(yKey);
-                    if (raw == null) return;
-                    const y = parseInt(raw, 10);
-                    if (Number.isNaN(y)) return;
-                    requestAnimationFrame(() => {
-                        try {
-                            window.scrollTo({ top: y, left: 0, behavior: "instant" });
-                        } catch (e) {
-                            window.scrollTo(0, y);
-                        }
-                    });
-                    sessionStorage.removeItem(pendingKey);
-                } catch (e) {}
-            }
-
-            if ("scrollRestoration" in history) {
-                history.scrollRestoration = "manual";
-            }
-
-            window.addEventListener("beforeunload", saveScroll, { capture: true });
-            document.addEventListener("submit", saveScroll, true);
-            document.addEventListener("click", (event) => {
-                const link = event.target && event.target.closest ? event.target.closest("a[href]") : null;
-                if (!link) return;
-                if (link.target === "_blank" || link.hasAttribute("download")) return;
-                const href = link.getAttribute("href") || "";
-                if (!href || href.startsWith("#") || href.startsWith("javascript:")) return;
-                saveScroll();
-            }, true);
-
-            window.addEventListener("pageshow", restoreScroll);
-            if (document.readyState === "loading") {
-                document.addEventListener("DOMContentLoaded", restoreScroll, { once: true });
-            } else {
-                restoreScroll();
-            }
-        })();
-
-        // Pointer glow effect (optimized for desktop only)
-        if (!reduceMotion && window.matchMedia('(pointer:fine) and (min-width: 1024px)').matches) {
-            let rafId = null;
-            document.addEventListener('pointermove', (e) => {
-                if (rafId) return;
-                rafId = requestAnimationFrame(() => {
-                    const x = (e.clientX / window.innerWidth) * 100;
-                    const y = (e.clientY / window.innerHeight) * 100;
-                    document.documentElement.style.setProperty('--mx', `${x.toFixed(2)}%`);
-                    document.documentElement.style.setProperty('--my', `${y.toFixed(2)}%`);
-                    rafId = null;
-                });
-            });
-        }
-
-        // Sidebar management
-        const menuToggle = document.getElementById('menuToggle');
-        const sidebar = document.getElementById('sidebar');
-        const sidebarBackdrop = document.getElementById('sidebarBackdrop');
-        const SIDEBAR_SCROLL_KEY = 'admin:sidebar:scroll';
-        const sidebarMenu = sidebar ? sidebar.querySelector('.nav-menu') : null;
-        const sidebarScrollEl = sidebarMenu || sidebar;
-
-        function saveSidebarScroll() {
-            if (!sidebarScrollEl) return;
-            try {
-                sessionStorage.setItem(SIDEBAR_SCROLL_KEY, String(Math.max(sidebarScrollEl.scrollTop || 0, 0)));
-            } catch (e) {}
-        }
-
-        function restoreSidebarScroll() {
-            if (!sidebarScrollEl) return;
-            try {
-                const raw = sessionStorage.getItem(SIDEBAR_SCROLL_KEY);
-                if (raw !== null) {
-                    const value = parseInt(raw, 10);
-                    if (!Number.isNaN(value)) {
-                        sidebarScrollEl.scrollTop = value;
-                        return;
-                    }
-                }
-            } catch (e) {}
-
-            // Do not auto-scroll to active item: keep menu visually stable.
-        }
-
-        function openSidebar() {
-            if (!sidebar) return;
-            sidebar.classList.add('show');
-            if (sidebarBackdrop) sidebarBackdrop.classList.add('show');
-            if (menuToggle) menuToggle.setAttribute('aria-expanded', 'true');
-            document.body.style.overflow = 'hidden';
-        }
-
-        function closeSidebar() {
-            if (!sidebar) return;
-            sidebar.classList.remove('show');
-            if (sidebarBackdrop) sidebarBackdrop.classList.remove('show');
-            if (menuToggle) menuToggle.setAttribute('aria-expanded', 'false');
-            document.body.style.overflow = '';
-        }
-
-        if (menuToggle && sidebar) {
-            menuToggle.addEventListener('click', () => sidebar.classList.contains('show') ? closeSidebar() : openSidebar());
-        }
-
-        if (sidebarBackdrop) sidebarBackdrop.addEventListener('click', closeSidebar);
-        
-        document.addEventListener('keydown', (e) => { 
-            if (e.key === 'Escape') closeSidebar(); 
-        });
-
-        window.addEventListener('resize', () => { 
-            if (window.innerWidth > 768) closeSidebar(); 
-        });
-
-        if (sidebarScrollEl) {
-            window.addEventListener('beforeunload', saveSidebarScroll, { capture: true });
-            sidebarScrollEl.addEventListener('scroll', () => {
-                if (sidebarScrollEl.dataset.scrollTicking === '1') return;
-                sidebarScrollEl.dataset.scrollTicking = '1';
-                requestAnimationFrame(() => {
-                    saveSidebarScroll();
-                    sidebarScrollEl.dataset.scrollTicking = '0';
-                });
-            }, { passive: true });
-
-            document.addEventListener('click', (event) => {
-                const navLink = event.target && event.target.closest ? event.target.closest('.sidebar .nav-link') : null;
-                if (navLink) saveSidebarScroll();
-            }, true);
-
-            window.addEventListener('pageshow', () => requestAnimationFrame(restoreSidebarScroll));
-            if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', () => requestAnimationFrame(restoreSidebarScroll), { once: true });
-            } else {
-                requestAnimationFrame(restoreSidebarScroll);
-            }
-        }
-
-        // Nav ripple effect
-        if (!reduceMotion) {
-            document.querySelectorAll('.nav-link').forEach((link) => {
-                link.addEventListener('click', (e) => {
-                    const rect = link.getBoundingClientRect();
-                    const ripple = document.createElement('span');
-                    ripple.className = 'nav-ripple';
-                    ripple.style.left = `${e.clientX - rect.left}px`;
-                    ripple.style.top = `${e.clientY - rect.top}px`;
-                    link.appendChild(ripple);
-                    setTimeout(() => ripple.remove(), 520);
-                });
-            });
-        }
-
-        // Auto-dismiss alerts
-        setTimeout(() => {
-            document.querySelectorAll('.alert-custom[data-autodismiss="true"]').forEach((alert) => {
-                alert.style.opacity = '0';
-                alert.style.transform = 'translateY(-0.5rem)';
-                setTimeout(() => alert.remove(), 300);
-            });
-        }, 5000);
-
-        // Back button
-        const backBtn = document.querySelector('.back-fab');
-        if (backBtn) {
-            backBtn.addEventListener('click', function (e) {
-                e.preventDefault();
-                const fallback = this.getAttribute('data-fallback') || '/';
-                if (window.history.length > 1 && document.referrer) {
-                    window.history.back();
-                } else {
-                    window.location.href = fallback;
-                }
-            });
-        }
-
-        // Utility functions
-        function confirmAction(message = 'Etes-vous sur de vouloir effectuer cette action ?') {
-            return confirm(message);
-        }
-
-        async function adminPost(url, confirmMessage) {
-            if (confirmMessage && !confirmAction(confirmMessage)) return false;
-            try {
-                const res = await fetch(url, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': csrfToken
-                    }
-                });
-                if (res.ok) {
-                    window.location.reload();
-                    return true;
-                }
-            } catch (e) {
-                console.error('Error:', e);
-            }
-            alert('Erreur lors de la modification');
-            return false;
-        }
-        window.adminPost = adminPost;
-
-        async function copyToClipboard(text, triggerEl) {
-            const raw = String(text || '').trim();
-            if (!raw) return false;
-            let ok = false;
-            try {
-                if (navigator.clipboard && navigator.clipboard.writeText) {
-                    await navigator.clipboard.writeText(raw);
-                    ok = true;
-                }
-            } catch (e) {}
-            if (!ok) {
-                const area = document.createElement('textarea');
-                area.value = raw;
-                area.setAttribute('readonly', '');
-                area.style.position = 'absolute';
-                area.style.left = '-9999px';
-                document.body.appendChild(area);
-                area.select();
-                try {
-                    ok = document.execCommand('copy');
-                } catch (e) {
-                    ok = false;
-                }
-                document.body.removeChild(area);
-            }
-            if (triggerEl) {
-                const original = triggerEl.dataset.copyOriginalLabel || triggerEl.textContent.trim();
-                triggerEl.dataset.copyOriginalLabel = original;
-                triggerEl.textContent = ok ? 'Copie ✅' : 'Echec';
-                setTimeout(() => {
-                    triggerEl.textContent = original;
-                }, 1200);
-            }
-            return ok;
-        }
-        window.copyToClipboard = copyToClipboard;
-
-        function restoreInstantScroll(y) {
-            const target = Math.max(Number(y || 0), 0);
-            requestAnimationFrame(() => {
-                try {
-                    window.scrollTo({ top: target, left: 0, behavior: 'instant' });
-                } catch (e) {
-                    window.scrollTo(0, target);
-                }
-            });
-        }
-        window.restoreInstantScroll = restoreInstantScroll;
-
-        document.addEventListener('click', (event) => {
-            const btn = event.target && event.target.closest ? event.target.closest('[data-copy-text]') : null;
-            if (!btn) return;
-            event.preventDefault();
-            if (btn.disabled) return;
-            copyToClipboard(btn.getAttribute('data-copy-text') || '', btn);
-        });
-
-        // Content initialization
-        function initAdminContent(root) {
-            const scope = root || document;
-            
-            // Auto-dismiss alerts in scope
-            const alerts = scope.querySelectorAll('.alert-custom[data-autodismiss="true"]');
-            if (alerts.length) {
-                setTimeout(() => {
-                    alerts.forEach((alert) => {
-                        alert.style.opacity = '0';
-                        alert.style.transform = 'translateY(-0.5rem)';
-                        setTimeout(() => alert.remove(), 300);
-                    });
-                }, 5000);
-            }
-        }
-        window.initAdminContent = initAdminContent;
-        initAdminContent(document);
-
-        // 3D tilt effect on cards (desktop only, if not reduced motion)
-        if (!reduceMotion && window.matchMedia('(hover:hover) and (pointer:fine) and (min-width: 1024px)').matches) {
-            const tiltTargets = document.querySelectorAll('.stat-card, .admin-card, .content-card, .dash-panel, .stat-tile, .action-card');
-            tiltTargets.forEach((el) => {
-                el.addEventListener('mousemove', (e) => {
-                    const rect = el.getBoundingClientRect();
-                    const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-                    const y = ((e.clientY - rect.top) / rect.height) * 2 - 1;
-                    el.style.transform = `perspective(56.25rem) rotateX(${(-y * 3.2).toFixed(2)}deg) rotateY(${(x * 3.2).toFixed(2)}deg) translateY(-0.125rem)`;
-                });
-                el.addEventListener('mouseleave', () => { 
-                    el.style.transform = ''; 
-                });
-            });
-        }
-
-        // Offline banner
-        const offlineBanner = document.getElementById('offlineBanner');
-        function updateOfflineBanner() {
-            if (!offlineBanner) return;
-            offlineBanner.classList.toggle('show', !navigator.onLine);
-        }
-        window.addEventListener('online', updateOfflineBanner);
-        window.addEventListener('offline', updateOfflineBanner);
-        updateOfflineBanner();
-    </script>
-    {% block scripts %}{% endblock %}
+    <script src="{{ url_for('static', filename='vendor/bootstrap/5.1.3/js/bootstrap.bundle.min.js', v=app_static_version) }}"></script>
+    <script src="{{ url_for('static', filename='js/admin/admin_helpers.js', v=app_static_version) }}"></script>
+{% block scripts %}{% endblock %}
 </body>
 </html>
+
+

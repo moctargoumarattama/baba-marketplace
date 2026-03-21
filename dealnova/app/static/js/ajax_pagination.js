@@ -1,5 +1,21 @@
-(function () {
+﻿(function () {
+  const owner = (document.body && document.body.dataset
+    ? String(document.body.dataset.ajaxOwner || "").trim().toLowerCase()
+    : "");
+  if (owner === "page" || owner === "off" || owner === "admin") {
+    window.__BM_AJAX_PAGINATION_DISABLED__ = true;
+    return;
+  }
+
+  if (window.__BM_AJAX_PAGINATION_INIT__) {
+    return;
+  }
+  window.__BM_AJAX_PAGINATION_INIT__ = true;
+
+  const perfFlags = window.BM_PERF_FLAGS || {};
+  const interactionFeedbackEnabled = perfFlags.interactionFeedback !== false;
   const SCROLL_KEY_PREFIX = "__ajax_scroll__:";
+  let pendingTrigger = null;
 
   function qs(sel, root) {
     return (root || document).querySelector(sel);
@@ -57,16 +73,46 @@
     container.classList.remove("is-loading");
   }
 
+  function clearPendingTrigger() {
+    if (!pendingTrigger) return;
+    if (pendingTrigger.removeAttribute) {
+      pendingTrigger.removeAttribute("data-bm-pending");
+    }
+    pendingTrigger = null;
+  }
+
+  function setPendingTrigger(node) {
+    if (!interactionFeedbackEnabled || !node) return;
+    clearPendingTrigger();
+    pendingTrigger = node;
+    if (node.setAttribute) {
+      node.setAttribute("data-bm-pending", "1");
+    }
+  }
+
   async function fetchHtml(url, signal) {
-    const res = await fetch(url, {
+    if (!window.BMAjaxFetch || typeof window.BMAjaxFetch.requestText !== "function") {
+      // Removed fallback because ajax core is guaranteed in base/admin/vendor templates.
+      throw new Error("missing_ajax_core");
+    }
+
+    const result = await window.BMAjaxFetch.requestText(url, {
       method: "GET",
       headers: { "X-Requested-With": "XMLHttpRequest" },
       credentials: "same-origin",
       cache: "no-store",
       signal: signal || null,
+      
     });
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    return await res.text();
+    if (result && result.aborted) {
+      const abortedError = new Error("AbortError");
+      abortedError.name = "AbortError";
+      throw abortedError;
+    }
+    if (!result || !result.ok || typeof result.data !== "string") {
+      throw new Error((result && result.error) || ("HTTP " + ((result && result.status) || 0)));
+    }
+    return result.data;
   }
 
   function replaceListing(html) {
@@ -82,7 +128,18 @@
       throw new Error("Missing listing/pagination containers in response");
     }
 
-    curListing.replaceWith(newListing);
+    if (!window.BMAjaxSwap || typeof window.BMAjaxSwap.swapHTML !== "function") {
+      // Removed fallback because ajax core is guaranteed in base/admin/vendor templates.
+      throw new Error("missing_ajax_swap");
+    }
+    const swapResult = window.BMAjaxSwap.swapHTML({
+      targetEl: curListing,
+      html: newListing.outerHTML,
+      mode: "replace",
+    });
+    if (!swapResult || swapResult.ok === false) {
+      throw new Error("Listing swap failed");
+    }
     curPager.replaceWith(newPager);
   }
 
@@ -120,12 +177,29 @@
   }
 
   let inflightController = null;
+  const requestSeq = (
+    window.BMAjaxGuard &&
+    typeof window.BMAjaxGuard.makeRequestSeq === "function"
+  ) ? window.BMAjaxGuard.makeRequestSeq() : (function () {
+    // KEEP_FALLBACK: preserves ordering guard if ajax core guard is missing.
+    let latest = 0;
+    return {
+      next: function () {
+        latest += 1;
+        return latest;
+      },
+      isLatest: function (id) {
+        return Number(id) === latest;
+      },
+    };
+  })();
 
   async function navigate(url, opts) {
     const options = opts || {};
     const push = options.push !== false;
     const startY = window.scrollY || 0;
     const scrollMode = options.scrollMode || resolveScrollMode();
+    const requestId = requestSeq.next();
 
     if (!sameOrigin(url)) {
       saveScrollForNextNavigation(url, startY);
@@ -140,6 +214,9 @@
     }
 
     const listing = qs("[data-ajax-listing]");
+    if (options.triggerEl) {
+      setPendingTrigger(options.triggerEl);
+    }
     showLoading(listing);
 
     try {
@@ -147,7 +224,13 @@
       inflightController = new AbortController();
 
       const html = await fetchHtml(url, inflightController.signal);
+      if (!requestSeq.isLatest(requestId)) return false;
+      if (typeof html !== "string" || !html.trim()) {
+        throw new Error("Invalid HTML response");
+      }
+
       replaceListing(html);
+      if (!requestSeq.isLatest(requestId)) return false;
       if (push) history.pushState({ url: url }, "", url);
       if (scrollMode === "top") {
         scrollToListingTop();
@@ -163,7 +246,10 @@
       window.location.href = url;
       return false;
     } finally {
-      hideLoading(qs("[data-ajax-listing]"));
+      if (requestSeq.isLatest(requestId)) {
+        hideLoading(qs("[data-ajax-listing]"));
+        clearPendingTrigger();
+      }
     }
   }
 
@@ -181,7 +267,7 @@
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || a.target === "_blank") return;
 
     e.preventDefault();
-    navigate(a.href, { push: true });
+    navigate(a.href, { push: true, triggerEl: a });
   });
 
   window.addEventListener("popstate", function (e) {
@@ -202,4 +288,7 @@
   } else {
     restoreSavedScrollForCurrentPage();
   }
+
+  window.addEventListener("pageshow", clearPendingTrigger);
 })();
+

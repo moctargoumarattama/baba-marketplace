@@ -2,7 +2,7 @@
 
 {% block title %}Utilisateur: {{ user.username }} | DealNova Admin{% endblock %}
 
-{% block page_title %}DÃ©tail de l'utilisateur{% endblock %}
+{% block page_title %}{{ 'Fiche du compte' if current_user.role == 'manager' else "Détail de l'utilisateur" }}{% endblock %}
 
 {% block head %}
 <style>
@@ -52,7 +52,7 @@
 
 {% block content %}
 <div class="container-fluid">
-    <!-- En-tÃªte utilisateur -->
+    <!-- En-tête utilisateur -->
     <div class="row mb-4">
         <div class="col">
             <div class="card admin-card">
@@ -76,7 +76,7 @@
                             <p class="text-muted mb-0">{{ user.email }}</p>
                             <div class="mt-2">
                                 <span class="badge badge-{{ user.role }} badge-role fs-6">
-                                    {{ user.role|title }}
+                                    {{ 'Gestionnaire' if user.role == 'manager' else user.role|title }}
                                 </span>
                                 <span class="badge bg-{{ 'success' if user.is_active else 'secondary' }} fs-6"
                                       data-user-status="{{ user.id }}"
@@ -99,18 +99,18 @@
                                       class="d-inline"
                                       data-ajax="true"
                                       data-action="toggle-user"
-                                      data-confirm="Voulez-vous activer/dÃ©sactiver cet utilisateur ?">
+                                      data-confirm="Voulez-vous activer/désactiver cet utilisateur ">
                                     {% include "admin/partials/_csrf.html" %}
                                     <button type="submit"
                                             class="btn btn-outline-{{ 'danger' if user.is_active else 'success' }}"
-                                            data-active-text="DÃ©sactiver"
+                                            data-active-text="Désactiver"
                                             data-inactive-text="Activer"
                                             data-active-icon="bi bi-person-x"
                                             data-inactive-icon="bi bi-person-check"
                                             data-active-class="btn-outline-danger"
                                             data-inactive-class="btn-outline-success">
                                         <i class="bi bi-person-{{ 'x' if user.is_active else 'check' }}"></i>
-                                        {{ 'DÃ©sactiver' if user.is_active else 'Activer' }}
+                                        {{ 'Désactiver' if user.is_active else 'Activer' }}
                                     </button>
                                 </form>
                             </div>
@@ -121,7 +121,7 @@
         </div>
     </div>
     
-    <!-- Informations dÃ©taillÃ©es -->
+    <!-- Informations détaillées -->
     <div class="row g-4">
         <!-- Informations personnelles -->
         <div class="col-md-6">
@@ -129,29 +129,29 @@
                 <div class="card admin-card">
                     <div class="card-header">
                         <h5 class="mb-0">
-                            <i class="bi bi-info-circle"></i> Informations personnelles
+                            <i class="bi bi-info-circle"></i> {{ 'Informations du compte' if current_user.role == 'manager' else 'Informations personnelles' }}
                         </h5>
                     </div>
                     <div class="card-body">
                         <dl class="row">
                             <dt class="col-sm-4">Nom complet</dt>
-                            <dd class="col-sm-8">{{ user.full_name or 'Non renseignÃ©' }}</dd>
+                            <dd class="col-sm-8">{{ user.full_name or 'Non renseigné' }}</dd>
 
-                            <dt class="col-sm-4">TÃ©lÃ©phone</dt>
-                            <dd class="col-sm-8">{{ user.phone or 'Non renseignÃ©' }}</dd>
+                            <dt class="col-sm-4">Téléphone</dt>
+                            <dd class="col-sm-8">{{ user.phone or 'Non renseigné' }}</dd>
 
                             <dt class="col-sm-4">Adresse</dt>
-                            <dd class="col-sm-8">{{ user.address or 'Non renseignÃ©e' }}</dd>
+                            <dd class="col-sm-8">{{ user.address or 'Non renseignée' }}</dd>
 
-                            <dt class="col-sm-4">Date d'inscription</dt>
-                            <dd class="col-sm-8">{{ user.created_at.strftime('%d/%m/%Y Ã  %H:%M') }}</dd>
+                            <dt class="col-sm-4">{{ "Date d'ajout" if current_user.role == 'manager' else "Date d'inscription" }}</dt>
+                            <dd class="col-sm-8">{{ user.created_at.strftime('%d/%m/%Y ? %H:%M') }}</dd>
 
-                            <dt class="col-sm-4">DerniÃ¨re connexion</dt>
+                            <dt class="col-sm-4">{{ 'Derniere connexion' if current_user.role == 'manager' else 'Dernière connexion' }}</dt>
                             <dd class="col-sm-8">
                                 {% if user.last_login %}
-                                    {{ user.last_login.strftime('%d/%m/%Y Ã  %H:%M') }}
+                                    {{ user.last_login.strftime('%d/%m/%Y ? %H:%M') }}
                                 {% else %}
-                                    Jamais connectÃ©
+                                    {{ 'Pas encore connecte' if current_user.role == 'manager' else 'Jamais connecté' }}
                                 {% endif %}
                             </dd>
                         </dl>
@@ -234,7 +234,7 @@
                                   id="resetPasswordForm">
                                 {% include "admin/partials/_csrf.html" %}
                                 <button type="submit" class="btn btn-warning btn-sm" id="resetPasswordBtn">
-                                    <i class="bi bi-key"></i> RÃ©initialiser mot de passe
+                                    <i class="bi bi-key"></i> Réinitialiser mot de passe
                                 </button>
                             </form>
 
@@ -264,9 +264,9 @@
                                         <i class="bi bi-shop"></i> Voir la boutique
                                     </a>
                                 {% else %}
-                                    <a href="{{ url_for('admin_users.create_shop') }}?vendor_id={{ user.id }}"
+                                    <a href="{{ url_for('admin_users.create_shop') }}vendor_id={{ user.id }}"
                                        class="btn btn-success btn-sm btn-attention">
-                                        <i class="bi bi-shop"></i> CrÃ©er une boutique
+                                        <i class="bi bi-shop"></i> Créer une boutique
                                     </a>
                                 {% endif %}
                             {% endif %}
@@ -274,7 +274,7 @@
                             <form method="post"
                                   action="{{ url_for('admin_users.delete_user', user_id=user.id) }}"
                                   class="d-inline"
-                                  data-confirm-submit="Etes-vous sur de vouloir supprimer cet utilisateur ? Cette action est irreversible.">
+                                  data-confirm-submit="Etes-vous sur de vouloir supprimer cet utilisateur  Cette action est irreversible.">
                                 {% include "admin/partials/_csrf.html" %}
                                 <button type="submit" class="btn btn-danger btn-sm">
                                     <i class="bi bi-trash"></i> Supprimer
@@ -282,10 +282,10 @@
                             </form>
                         </div>
                         <div class="small text-muted mt-2">
-                            AprÃ¨s rÃ©initialisation, le mot de passe temporaire reste visible 30 minutes sur cette page.
+                            Après réinitialisation, le mot de passe temporaire reste visible 30 minutes sur cette page.
                         </div>
 
-                        <!-- ðŸ”¥ PANEL MOT DE PASSE TEMPORAIRE -->
+                        <!-- PANEL MOT DE PASSE TEMPORAIRE -->
                         {% if user.role in ['vendor', 'courier'] %}
                         <div class="small mt-1 {{ 'text-success' if password_change_window_active else 'text-muted' }}">
                             {% if password_change_window_active and password_change_allowed_until %}
@@ -299,11 +299,11 @@
                             <div class="d-flex align-items-center gap-3">
                                 <i class="bi bi-key-fill" style="font-size: 2rem; color: #856404;"></i>
                                 <div style="flex: 1;">
-                                    <div class="fw-bold mb-2">ðŸ” Mot de passe temporaire</div>
+                                    <div class="fw-bold mb-2">Mot de passe temporaire</div>
                                     
-                                    <!-- âœ… LE MOT DE PASSE S'AFFICHE ICI -->
+                                    <!-- LE MOT DE PASSE S'AFFICHE ICI -->
                                     <div class="password-value mb-3" id="adminTempPasswordValue">
-                                        {{ temp_password or 'â€”' }}
+                                        {{ temp_password or '---' }}
                                     </div>
                                     
                                     <div class="d-flex align-items-center gap-2 flex-wrap">
@@ -319,7 +319,7 @@
                             </div>
                         </div>
 
-                        <!-- âœ… DONNÃ‰ES POUR JAVASCRIPT -->
+                        <!-- DONNÉES POUR JAVASCRIPT -->
                         <div id="passwordData" 
                              data-user-id="{{ user.id }}"
                              data-temp-password="{{ temp_password or '' }}"
@@ -362,11 +362,11 @@
                             <dt class="col-sm-4">Email boutique</dt>
                             <dd class="col-sm-8">{{ shop.contact_email }}</dd>
                             
-                            <dt class="col-sm-4">TÃ©lÃ©phone boutique</dt>
-                            <dd class="col-sm-8">{{ shop.contact_phone or 'Non renseignÃ©' }}</dd>
+                            <dt class="col-sm-4">Téléphone boutique</dt>
+                            <dd class="col-sm-8">{{ shop.contact_phone or 'Non renseigné' }}</dd>
                             
                             <dt class="col-sm-4">Adresse boutique</dt>
-                            <dd class="col-sm-8">{{ shop.address or 'Non renseignÃ©e' }}</dd>
+                            <dd class="col-sm-8">{{ shop.address or 'Non renseignée' }}</dd>
                             
                             <dt class="col-sm-4">Produits</dt>
                             <dd class="col-sm-8">{{ product_count }} produits</dd>
@@ -375,10 +375,10 @@
                         <div class="text-center py-4">
                             <i class="bi bi-shop display-4 text-muted mb-3"></i>
                             <h5>Pas encore de boutique</h5>
-                            <p class="text-muted">Cet utilisateur n'a pas encore crÃ©Ã© de boutique.</p>
-                            <a href="{{ url_for('admin_users.create_shop') }}?vendor_id={{ user.id }}" 
+                            <p class="text-muted">Cet utilisateur n'a pas encore créé de boutique.</p>
+                            <a href="{{ url_for('admin_users.create_shop') }}vendor_id={{ user.id }}" 
                                class="btn btn-success">
-                                <i class="bi bi-plus-circle"></i> CrÃ©er une boutique
+                                <i class="bi bi-plus-circle"></i> Créer une boutique
                             </a>
                         </div>
                     {% endif %}
@@ -389,7 +389,7 @@
     </div>
 </div>
 
-<!-- Modal d'Ã©dition -->
+<!-- Modal d'édition -->
 <div class="modal fade" id="editUserModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
@@ -403,7 +403,16 @@
                     <div class="row g-3">
                         <div class="col-md-6">
                             <label for="username" class="form-label">Nom d'utilisateur</label>
-                            <input type="text" class="form-control" id="username" value="{{ user.username }}" disabled>
+                            <input
+                                type="text"
+                                class="form-control"
+                                id="username"
+                                name="username"
+                                value="{{ user.username }}"
+                                required
+                                pattern="[a-zA-Z0-9_]+"
+                                minlength="3"
+                                maxlength="50">
                         </div>
                         <div class="col-md-6">
                             <label for="email" class="form-label">Email</label>
@@ -415,7 +424,7 @@
                             <input type="text" class="form-control" id="full_name" name="full_name" value="{{ user.full_name or '' }}">
                         </div>
                         <div class="col-md-6">
-                            <label for="phone" class="form-label">TÃ©lÃ©phone</label>
+                            <label for="phone" class="form-label">Téléphone</label>
                             <input type="text" class="form-control" id="phone" name="phone" value="{{ user.phone or '' }}">
                         </div>
                         
@@ -425,11 +434,14 @@
                         </div>
                         
                         <div class="col-md-6">
-                            <label for="role" class="form-label">RÃ´le</label>
+                            <label for="role" class="form-label">Rôle</label>
                             <select class="form-select" id="role" name="role">
                                 <option value="vendor" {% if user.role == 'vendor' %}selected{% endif %}>Vendeur</option>
                                 <option value="courier" {% if user.role == 'courier' %}selected{% endif %}>Livreur</option>
+                                {% if current_user.role == 'admin' %}
+                                <option value="manager" {% if user.role == 'manager' %}selected{% endif %}>Gestionnaire</option>
                                 <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Administrateur</option>
+                                {% endif %}
                             </select>
                         </div>
                     </div>
@@ -471,7 +483,7 @@
     function isPlaceholder(value) {
       const text = String(value || '').trim().toLowerCase();
       if (!text) return true;
-      return text === placeholder.toLowerCase() || text === '?' || text === '-';
+      return text === placeholder.toLowerCase() || text === '' || text === '-';
     }
 
     function savePassword(password) {
@@ -618,7 +630,7 @@
 
     if (clearBtn) {
       clearBtn.addEventListener('click', function() {
-        if (!window.confirm('Effacer le mot de passe temporaire ?')) return;
+        if (!window.confirm('Effacer le mot de passe temporaire ')) return;
         clearStoredPassword();
         hidePanel();
       });
@@ -632,4 +644,6 @@
   })();
 </script>
 {% endblock %}
+
+
 

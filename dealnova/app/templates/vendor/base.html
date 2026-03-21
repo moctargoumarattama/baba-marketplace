@@ -1,0 +1,13 @@
+﻿{% extends "base.html" %}
+
+{% block head %}
+{{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/vendor_shell.css', v=app_static_version) }}">
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="{{ url_for('static', filename='js/vendor/vendor_shell.js', v=app_static_version) }}"></script>
+{% endblock %}
+
+

@@ -1,8 +1,10 @@
-<!-- templates/shop/_products_partial.html -->
+﻿<!-- templates/shop/_products_partial.html -->
 {% for product in products %}
 {% set product_images = product.image_file.split('|') if product.image_file and '|' in product.image_file else [product.image_file] if product.image_file else [] %}
 {% set product_images_clean = product_images|select|list %}
 {% set first_image = product_images_clean[0] if product_images_clean|length > 0 else '' %}
+{% set promo = promo_map.get(product.id) if promo_map is defined else None %}
+{% set final_price = calculate_promo_price(product, promo) if calculate_promo_price is defined and promo else (product.price or 0) %}
 
 <div class="col mb-3">
     <div class="card h-100 border-0 shadow-sm hover-lift product-card" style="--i: {{ loop.index0 }}">
@@ -38,18 +40,38 @@
             <div class="position-absolute top-0 end-0 m-2">
                 <span class="badge bg-primary">Service</span>
             </div>
+            {% if promo %}
+            <div class="position-absolute top-0 start-0 m-2">
+                <span class="badge bg-danger">Promo</span>
+            </div>
+            {% endif %}
             {% elif product.stock <= 0 %}
             <div class="position-absolute top-0 end-0 m-2">
                 <span class="badge bg-danger">Rupture</span>
             </div>
+            {% if promo %}
+            <div class="position-absolute top-0 start-0 m-2">
+                <span class="badge bg-danger">Promo</span>
+            </div>
+            {% endif %}
             {% elif product.stock < 10 %}
             <div class="position-absolute top-0 end-0 m-2">
                 <span class="badge bg-warning">Bientôt épuisé</span>
             </div>
+            {% if promo %}
+            <div class="position-absolute top-0 start-0 m-2">
+                <span class="badge bg-danger">Promo</span>
+            </div>
+            {% endif %}
             {% else %}
             <div class="position-absolute top-0 end-0 m-2">
                 <span class="badge bg-success">En stock</span>
             </div>
+            {% if promo %}
+            <div class="position-absolute top-0 start-0 m-2">
+                <span class="badge bg-danger">Promo</span>
+            </div>
+            {% endif %}
             {% endif %}
         </div>
 
@@ -69,7 +91,10 @@
 
             <!-- Price -->
             <div class="mb-2">
-                <span class="fw-bold text-primary fs-5">{{ "%.2f"|format(product.price) }} MAD</span>
+                <span class="fw-bold text-primary fs-5">{{ "%.2f"|format(final_price|float) }} MAD</span>
+                {% if promo and (product.price or 0) > final_price %}
+                <div class="small text-muted text-decoration-line-through">{{ "%.2f"|format(product.price) }} MAD</div>
+                {% endif %}
             </div>
 
             <!-- Action Button -->
@@ -81,3 +106,5 @@
     </div>
 </div>
 {% endfor %}
+
+

@@ -1,51 +1,161 @@
-# app/routes/shops.py - NOUVEAU FICHIER
+# app/routes/shops.py - VERSION RENFORCÉE
 from datetime import datetime
+import hashlib
 
-from flask import Blueprint, render_template, request, jsonify
-from sqlalchemy.orm import selectinload
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for
+from sqlalchemy.orm import selectinload, load_only
+from sqlalchemy import case, func
+from flask import current_app
 from ..extensions import db
 from ..models.shop import Shop
 from ..models.product import Product
+from ..models.promo import Promo
+from ..services.pricing import calculate_promo_price, get_active_promos_for_products
 from ..models.category import Category
 from ..models.rental import RentalListing
 from ..services.cache import get_catalog_cache
 from ..services.pagination import SimplePagination, page_from_args
+
 bp = Blueprint("shops", __name__)
+
+RESERVED_ROOT_SHOP_SLUGS = {
+    "admin",
+    "admin-access",
+    "api",
+    "booking",
+    "cart",
+    "delivery",
+    "health",
+    "lang",
+    "locations",
+    "location",
+    "login",
+    "logout",
+    "maintenance",
+    "register",
+    "search",
+    "shop",
+    "shops",
+    "signin",
+    "signup",
+    "sitemap.xml",
+    "sw.js",
+    "vendor",
+}
 
 
 def _shop_is_currently_open(shop: Shop | None) -> bool:
+    """Vérifie si une boutique est actuellement ouverte."""
     if not shop:
-        return True
-    if getattr(shop, "is_active", True) is False:
+        return False  # Plus sûr que True
+    
+    if not shop.is_active:
         return False
+    
     now = datetime.utcnow()
-    closed_until = getattr(shop, "closed_until", None)
-    if closed_until and closed_until > now:
+    if shop.closed_until and shop.closed_until > now:
         return False
-    return getattr(shop, "is_open", True) is True
+    
+    # Utiliser la méthode métier si elle existe
+    if hasattr(shop, 'is_open_now') and callable(getattr(shop, 'is_open_now')):
+        return shop.is_open_now()
+    
+    return bool(getattr(shop, "is_open", False))
 
 
 def _is_ajax_request() -> bool:
+    """Détecte si la requête est AJAX."""
     requested_with = (request.headers.get("X-Requested-With") or "").strip()
     return requested_with in ("fetch", "XMLHttpRequest")
+
+
+def _safe_str_param(value: str, max_length: int = 100) -> str:
+    """Nettoie et valide une chaîne de paramètre."""
+    if not value or not isinstance(value, str):
+        return ""
+    return value.strip()[:max_length]
+
+
+def _validate_sort_param(sort: str) -> str:
+    """Valide le paramètre de tri."""
+    valid_sorts = {'new', 'low', 'high'}
+    return sort if sort in valid_sorts else ''
+
+
+def _validate_kind_param(kind: str, allowed_kinds=None) -> str:
+    """Valide le paramètre de type."""
+    if allowed_kinds is None:
+        allowed_kinds = {'physical', 'service', 'location'}
+    return kind if kind in allowed_kinds else ''
+
+
+def _safe_float(value, default: float = 0.0) -> float:
+    try:
+        return float(value or 0)
+    except (TypeError, ValueError):
+        return default
+
+
+def _safe_session_rollback() -> None:
+    try:
+        db.session.rollback()
+    except Exception:
+        pass
+
+
+def _shops_mix_slot() -> str:
+    now = datetime.utcnow()
+    return f"{now:%Y%m%d%H}{now.minute // 2}"
+
+
+def _mixed_shop_ids(query, *, slot: str) -> list[int]:
+    base_rows = query.with_entities(
+        Shop.id.label("id"),
+        Shop.is_verified.label("is_verified"),
+        Shop.created_at.label("created_at"),
+    ).subquery()
+
+    rows = db.session.query(
+        base_rows.c.id,
+        base_rows.c.is_verified,
+        base_rows.c.created_at,
+    ).all()
+
+    def sort_key(row) -> tuple:
+        digest = hashlib.sha1(f"{slot}:{row.id}".encode("utf-8")).hexdigest()[:12]
+        random_rank = int(digest, 16)
+        try:
+            freshness = row.created_at.timestamp() if row.created_at else 0.0
+        except Exception:
+            freshness = 0.0
+        return (
+            random_rank,
+            -int(bool(row.is_verified)),
+            -freshness,
+            -int(row.id),
+        )
+
+    ordered_rows = sorted(rows, key=sort_key)
+    return [int(row.id) for row in ordered_rows]
 
 
 @bp.route("/shops")
 def list_shops():
     """Liste toutes les boutiques actives"""
     page = page_from_args(request.args)
-    q = (request.args.get("q") or "").strip()
-    kind = (request.args.get("kind") or "").strip().lower()
-    if kind not in ("physical", "service", "location"):
-        kind = ""
+    q = _safe_str_param(request.args.get("q", ""))
+    kind = _validate_kind_param((request.args.get("kind") or "").strip().lower())
 
     per_page = 12
+    mix_slot = _shops_mix_slot()
 
     def build_shops_payload():
+        """Construit le payload des boutiques (utilisé pour le cache)."""
         query = Shop.query.filter_by(is_active=True)
+
         if q:
             query = query.filter(
-                Shop.name.ilike(f"%{q}%") | 
+                Shop.name.ilike(f"%{q}%") |
                 Shop.description.ilike(f"%{q}%")
             )
 
@@ -54,18 +164,26 @@ def list_shops():
                 query = query.filter(Shop.sql_allows_clause("products"))
                 shop_ids_subq = (
                     db.session.query(Product.shop_id)
-                    .filter(Product.is_active == True, Product.kind == "physical")
+                    .filter(
+                        Product.is_active == True,
+                        Product.kind == "physical"
+                    )
                     .distinct()
                 )
                 query = query.filter(Shop.id.in_(shop_ids_subq))
+
             elif kind == "service":
                 query = query.filter(Shop.sql_allows_clause("services"))
                 shop_ids_subq = (
                     db.session.query(Product.shop_id)
-                    .filter(Product.is_active == True, Product.kind == "service")
+                    .filter(
+                        Product.is_active == True,
+                        Product.kind == "service"
+                    )
                     .distinct()
                 )
                 query = query.filter(Shop.id.in_(shop_ids_subq))
+
             elif kind == "location":
                 now = datetime.utcnow()
                 query = query.filter(Shop.sql_allows_clause("location"))
@@ -80,60 +198,137 @@ def list_shops():
                 )
                 query = query.filter(Shop.id.in_(location_shop_ids_subq))
 
-        pagination = query.order_by(
-            Shop.is_verified.desc(), 
-            Shop.rating.desc(), 
-            Shop.created_at.desc()
-        ).paginate(page=page, per_page=per_page, error_out=False)
+        mixed_shop_ids = _mixed_shop_ids(query, slot=mix_slot)
+        total = len(mixed_shop_ids)
+        start_idx = max(0, (page - 1) * per_page)
+        page_shop_ids = mixed_shop_ids[start_idx:start_idx + per_page]
 
-        shops_page = pagination.items
-        shop_ids = [s.id for s in shops_page]
+        shops_page = []
+        if page_shop_ids:
+            shops_rows = (
+                query
+                .options(
+                    load_only(
+                        Shop.id,
+                        Shop.vendor_id,
+                        Shop.name,
+                        Shop.slug,
+                        Shop.logo,
+                        Shop.banner,
+                        Shop.description,
+                        Shop.is_verified,
+                        Shop.contact_phone,
+                        Shop.address,
+                        Shop.service_location_note,
+                        Shop.service_latitude,
+                        Shop.service_longitude,
+                        Shop.is_active,
+                        Shop.is_open,
+                        Shop.closed_until,
+                        Shop.primary_type,
+                        Shop.allowed_types_json,
+                    )
+                )
+                .filter(Shop.id.in_(page_shop_ids))
+                .all()
+            )
+            shops_by_id = {shop.id: shop for shop in shops_rows}
+            shops_page = [shops_by_id[sid] for sid in page_shop_ids if sid in shops_by_id]
+        shop_ids = [shop.id for shop in shops_page]
+
         physical_counts = {}
         service_counts = {}
+        location_counts = {}
+        promo_counts = {}
+
         if shop_ids:
-            physical_counts = dict(
-                db.session.query(Product.shop_id, db.func.count(Product.id))
-                .filter(
-                    Product.shop_id.in_(shop_ids),
-                    Product.is_active == True,
-                    Product.kind == "physical",
-                )
-                .group_by(Product.shop_id)
-                .all()
-            )
-            service_counts = dict(
-                db.session.query(Product.shop_id, db.func.count(Product.id))
-                .filter(
-                    Product.shop_id.in_(shop_ids),
-                    Product.is_active == True,
-                    Product.kind == "service",
-                )
-                .group_by(Product.shop_id)
-                .all()
-            )
+            # Produits physiques + services en une seule requête
             now = datetime.utcnow()
-            location_counts = dict(
-                db.session.query(RentalListing.shop_id, db.func.count(RentalListing.id))
+            promo_exists_sq = (
+                db.session.query(Promo.id)
                 .filter(
-                    RentalListing.shop_id.in_(shop_ids),
-                    RentalListing.is_active == True,
-                    RentalListing.status.in_(["active", "reserved"]),
-                    RentalListing.expires_at > now,
+                    Promo.product_id == Product.id,
+                    Promo.end_date >= now,
                 )
-                .group_by(RentalListing.shop_id)
-                .all()
+                .exists()
             )
-        else:
-            location_counts = {}
+            try:
+                product_count_rows = (
+                    db.session.query(
+                        Product.shop_id.label("shop_id"),
+                        func.sum(
+                            case((Product.kind == "physical", 1), else_=0)
+                        ).label("physical"),
+                        func.sum(
+                            case((Product.kind == "service", 1), else_=0)
+                        ).label("service"),
+                        func.sum(
+                            case((promo_exists_sq, 1), else_=0)
+                        ).label("promo"),
+                    )
+                    .filter(
+                        Product.shop_id.in_(shop_ids),
+                        Product.is_active == True
+                    )
+                    .group_by(Product.shop_id)
+                    .all()
+                )
+            except Exception:
+                _safe_session_rollback()
+                product_count_rows = []
+
+            physical_counts = {
+                row.shop_id: int(row.physical or 0)
+                for row in product_count_rows
+            }
+            service_counts = {
+                row.shop_id: int(row.service or 0)
+                for row in product_count_rows
+            }
+            if kind != "location":
+                promo_counts = {
+                    row.shop_id: int(row.promo or 0)
+                    for row in product_count_rows
+                }
+
+            try:
+                location_count_rows = (
+                    db.session.query(
+                        RentalListing.shop_id,
+                        func.count(RentalListing.id)
+                    )
+                    .filter(
+                        RentalListing.shop_id.in_(shop_ids),
+                        RentalListing.is_active == True,
+                        RentalListing.status.in_(["active", "reserved"]),
+                        RentalListing.expires_at > now,
+                    )
+                    .group_by(RentalListing.shop_id)
+                    .all()
+                )
+            except Exception:
+                _safe_session_rollback()
+                location_count_rows = []
+
+            location_counts = {
+                row[0]: (row[1] or 0)
+                for row in location_count_rows
+            }
+
 
         shops_data = []
+
         for shop in shops_page:
             physical_count = physical_counts.get(shop.id, 0)
             service_count = service_counts.get(shop.id, 0)
             location_count = int(location_counts.get(shop.id, 0) or 0)
+
             address = (shop.address or "").strip()
             allowed_types = shop.get_allowed_types()
-            can_show_service_location = ("services" in allowed_types) and ("products" not in allowed_types)
+            can_show_service_location = (
+                ("services" in allowed_types) and ("products" not in allowed_types)
+            )
+
             shops_data.append({
                 "id": shop.id,
                 "name": shop.name,
@@ -141,35 +336,62 @@ def list_shops():
                 "logo": shop.logo,
                 "banner": shop.banner,
                 "description": shop.description,
-                "rating": shop.rating,
+                "rating": _safe_float(shop.__dict__.get("rating"), 0.0),
                 "is_verified": shop.is_verified,
                 "contact_phone": shop.contact_phone,
                 "address": address,
-                "service_location_note": ((shop.service_location_note or "").strip() if can_show_service_location else ""),
-                "service_latitude": (shop.service_latitude if can_show_service_location else None),
-                "service_longitude": (shop.service_longitude if can_show_service_location else None),
-                "service_map_url": (shop.service_map_url if can_show_service_location else ""),
+                "service_location_note": (
+                    (shop.service_location_note or "").strip()
+                    if can_show_service_location else ""
+                ),
+                "service_latitude": (
+                    shop.service_latitude if can_show_service_location else None
+                ),
+                "service_longitude": (
+                    shop.service_longitude if can_show_service_location else None
+                ),
+                "service_map_url": (
+                    shop.service_map_url if can_show_service_location else ""
+                ),
                 "is_open_now": _shop_is_currently_open(shop),
                 "physical_count": physical_count,
                 "service_count": service_count,
                 "location_count": location_count,
                 "product_count": physical_count + service_count,
+                "promo_count": int(promo_counts.get(shop.id, 0) or 0),
+                "has_promo": bool(int(promo_counts.get(shop.id, 0) or 0) > 0),
                 "allowed_types": allowed_types,
                 "primary_type": shop.primary_type,
             })
 
         return {
             "shops": shops_data,
-            "total": pagination.total,
-            "per_page": per_page
+            "total": total,
+            "per_page": per_page,
         }
 
-    cache_key = f"shops_list:{page}:{q}:{kind}"
-    payload = get_catalog_cache(cache_key, build_shops_payload, timeout=120)
-    shops = payload.get("shops", [])
-    pagination = SimplePagination(page, payload.get("per_page", per_page), payload.get("total", 0))
+    cache_key = f"shops_list:{page}:{q}:{kind}:{mix_slot}"
 
-    template_name = "partials/_shops_listing.html" if _is_ajax_request() else "shop/shops.html"
+    try:
+        payload = get_catalog_cache(cache_key, build_shops_payload, timeout=120)
+    except Exception as e:
+        _safe_session_rollback()
+        current_app.logger.error(f"Cache error: {e}")
+        payload = build_shops_payload()
+
+    shops = payload.get("shops", [])
+    pagination = SimplePagination(
+        page,
+        payload.get("per_page", per_page),
+        payload.get("total", 0)
+    )
+
+    template_name = (
+        "partials/_shops_listing.html"
+        if _is_ajax_request()
+        else "shop/shops.html"
+    )
+
     return render_template(
         template_name,
         shops=shops,
@@ -178,11 +400,18 @@ def list_shops():
         kind=kind,
     )
 
-
-@bp.route("/shop/<string:shop_slug>")
+@bp.route("/<string:shop_slug>")
 def shop_detail(shop_slug):
     """Détail d'une boutique avec ses produits"""
+    # Validation du slug
+    if not shop_slug or not isinstance(shop_slug, str):
+        return render_template("errors/404.html"), 404
+    normalized_slug = shop_slug.strip().lower()
+    if not normalized_slug or "." in normalized_slug or normalized_slug in RESERVED_ROOT_SHOP_SLUGS:
+        return render_template("errors/404.html"), 404
+
     shop = Shop.query.filter_by(slug=shop_slug, is_active=True).first_or_404()
+    
     shop_allows_products = shop.allows("products")
     shop_allows_services = shop.allows("services")
     shop_allows_location = shop.allows("location")
@@ -190,27 +419,34 @@ def shop_detail(shop_slug):
     shop_is_open_now = _shop_is_currently_open(shop)
     has_product_universe = shop_allows_products or shop_allows_services
     
-    # Récupérer les produits de la boutique
+    # Validation des paramètres
     page = page_from_args(request.args)
     cat = request.args.get("cat", type=int)
-    q = (request.args.get("q") or "").strip()
-    sort = (request.args.get("sort") or "").strip()
-    kind = (request.args.get("kind") or "").strip().lower()
-    if kind not in ("physical", "service"):
-        kind = ""
+    if cat is not None and cat <= 0:
+        cat = None
+    
+    q = _safe_str_param(request.args.get("q", ""))
+    sort = _validate_sort_param((request.args.get("sort") or "").strip())
+    kind = _validate_kind_param((request.args.get("kind") or "").strip().lower(), {'physical', 'service'})
+    
+    # Ajuster kind en fonction des permissions de la boutique
     if kind == "physical" and not shop_allows_products:
         kind = ""
     if kind == "service" and not shop_allows_services:
         kind = ""
+    
     ajax = request.args.get("ajax", type=int)
     
+    # Construction de la requête de base
     base_query = Product.query.filter(Product.shop_id == shop.id, Product.is_active == True)
+    
     if shop_allows_products and not shop_allows_services:
         base_query = base_query.filter(Product.kind == "physical")
     elif shop_allows_services and not shop_allows_products:
         base_query = base_query.filter(Product.kind == "service")
     elif not has_product_universe:
-        base_query = base_query.filter(Product.id == -1)
+        base_query = base_query.filter(False)  # Plus propre que Product.id == -1
+    
     query = base_query
 
     if kind:
@@ -235,25 +471,46 @@ def shop_detail(shop_slug):
     # Pagination
     per_page = 12
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
-    
-    # Total produits
-    total_products = query.order_by(None).count()
+    promo_map = get_active_promos_for_products([product.id for product in pagination.items])
+    try:
+        promo_product_ids = (
+            db.session.query(Product.id.label("id"))
+            .join(Promo, Promo.product_id == Product.id)
+            .filter(
+                Product.shop_id == shop.id,
+                Product.is_active == True,
+                Promo.end_date >= datetime.utcnow(),
+            )
+            .distinct()
+            .subquery()
+        )
+        shop_promo_count = int(
+            db.session.query(func.count()).select_from(promo_product_ids).scalar() or 0
+        )
+    except Exception:
+        _safe_session_rollback()
+        shop_promo_count = 0
     
     # Si requête AJAX, retourner JSON
     if ajax:
         products_html = render_template(
             "shop/_products_partial.html",
-            products=pagination.items
+            products=pagination.items,
+            promo_map=promo_map,
+            calculate_promo_price=calculate_promo_price,
         )
         return jsonify({
             'products': products_html,
-            'total': total_products,
+            'total': pagination.total,  # Utiliser pagination.total
             'has_more': pagination.has_next
         })
 
-    # Totaux boutique (tous articles actifs)
+    # OPTIMISATION : Une seule requête pour les totaux par type
     kind_totals = dict(
-        db.session.query(Product.kind, db.func.count(Product.id))
+        db.session.query(
+            Product.kind, 
+            func.count(Product.id)
+        )
         .filter(Product.shop_id == shop.id, Product.is_active == True)
         .group_by(Product.kind)
         .all()
@@ -262,59 +519,53 @@ def shop_detail(shop_slug):
     shop_service_total = kind_totals.get("service", 0) if shop_allows_services else 0
     shop_total_items = shop_physical_total + shop_service_total
 
-    # Catégories + compteurs (pour filtrage Produits/Services côté UI)
-    categories_query = (
-        Category.query.join(Product)
-        .filter(Product.shop_id == shop.id, Product.is_active == True)
-    )
-    if shop_allows_products and not shop_allows_services:
-        categories_query = categories_query.filter(Product.kind == "physical")
-    elif shop_allows_services and not shop_allows_products:
-        categories_query = categories_query.filter(Product.kind == "service")
-    elif not has_product_universe:
-        categories_query = categories_query.filter(Product.id == -1)
-
-    categories = categories_query.distinct().order_by(Category.name).all()
-
-    category_counts_query = db.session.query(Product.category_id, db.func.count(Product.id)).filter(
-        Product.shop_id == shop.id,
-        Product.is_active == True,
-    )
-    if shop_allows_products and not shop_allows_services:
-        category_counts_query = category_counts_query.filter(Product.kind == "physical")
-    elif shop_allows_services and not shop_allows_products:
-        category_counts_query = category_counts_query.filter(Product.kind == "service")
-    elif not has_product_universe:
-        category_counts_query = category_counts_query.filter(Product.id == -1)
-
-    category_counts = dict(category_counts_query.group_by(Product.category_id).all())
-    category_counts_physical = dict(
-        db.session.query(Product.category_id, db.func.count(Product.id))
-        .filter(
+    # OPTIMISATION : Catégories et compteurs en une seule requête
+    from sqlalchemy import and_
+    
+    # Déterminer les kinds à inclure
+    kinds_to_include = []
+    if shop_allows_products:
+        kinds_to_include.append("physical")
+    if shop_allows_services:
+        kinds_to_include.append("service")
+    
+    if kinds_to_include:
+        # Requête optimisée pour catégories et compteurs
+        category_data = db.session.query(
+            Category.id,
+            Category.name,
+            func.count(Product.id).label('total'),
+            func.sum(case((Product.kind == "physical", 1), else_=0)).label('physical'),
+            func.sum(case((Product.kind == "service", 1), else_=0)).label('service')
+        ).join(
+            Product, Category.id == Product.category_id
+        ).filter(
             Product.shop_id == shop.id,
             Product.is_active == True,
-            Product.kind == "physical",
-        )
-        .group_by(Product.category_id)
-        .all()
-    ) if shop_allows_products else {}
-    category_counts_service = dict(
-        db.session.query(Product.category_id, db.func.count(Product.id))
-        .filter(
-            Product.shop_id == shop.id,
-            Product.is_active == True,
-            Product.kind == "service",
-        )
-        .group_by(Product.category_id)
-        .all()
-    ) if shop_allows_services else {}
-
-    for category in categories:
-        category_counts.setdefault(category.id, 0)
-        category_counts_physical.setdefault(category.id, 0)
-        category_counts_service.setdefault(category.id, 0)
+            Product.kind.in_(kinds_to_include)
+        ).group_by(
+            Category.id, Category.name
+        ).order_by(Category.name).all()
+        
+        categories = []
+        category_counts = {}
+        category_counts_physical = {}
+        category_counts_service = {}
+        
+        for cat_id, cat_name, total, physical, service in category_data:
+            categories.append(Category(id=cat_id, name=cat_name))
+            category_counts[cat_id] = total
+            category_counts_physical[cat_id] = physical
+            category_counts_service[cat_id] = service
+    else:
+        categories = []
+        category_counts = {}
+        category_counts_physical = {}
+        category_counts_service = {}
 
     now = datetime.utcnow()
+    
+    # Locations (gardé séparé car structure différente)
     location_query = (
         RentalListing.query
         .options(selectinload(RentalListing.media))
@@ -326,8 +577,10 @@ def shop_detail(shop_slug):
         )
         .order_by(RentalListing.created_at.desc())
     )
+    
     if not shop_allows_location:
-        location_query = location_query.filter(RentalListing.id == -1)
+        location_query = location_query.filter(False)
+    
     location_total = location_query.count()
     location_listings = location_query.limit(8).all()
     
@@ -339,13 +592,17 @@ def shop_detail(shop_slug):
         shop_allows_services=shop_allows_services,
         shop_allows_location=shop_allows_location,
         has_product_universe=has_product_universe,
+        shop_promo_count=shop_promo_count,
+        shop_has_promo=bool(shop_promo_count > 0),
         products=pagination.items,
+        promo_map=promo_map,
+        calculate_promo_price=calculate_promo_price,
         categories=categories,
         category_counts=category_counts,
         category_counts_physical=category_counts_physical,
         category_counts_service=category_counts_service,
         pagination=pagination,
-        total_products=total_products,
+        total_products=pagination.total,  # Utiliser pagination.total
         shop_physical_total=shop_physical_total,
         shop_service_total=shop_service_total,
         shop_total_items=shop_total_items,
@@ -357,3 +614,11 @@ def shop_detail(shop_slug):
         sort=sort,
         kind=kind,
     )
+
+
+@bp.route("/shop/<string:shop_slug>")
+def shop_detail_alias(shop_slug):
+    normalized_slug = (shop_slug or "").strip()
+    if not normalized_slug:
+        return render_template("errors/404.html"), 404
+    return redirect(url_for("shops.shop_detail", shop_slug=normalized_slug, **request.args), code=301)

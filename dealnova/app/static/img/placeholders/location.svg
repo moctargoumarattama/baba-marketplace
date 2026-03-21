@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 480" role="img" aria-label="Location placeholder">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fff7ed"/>
+      <stop offset="100%" stop-color="#ffedd5"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="480" fill="url(#g)"/>
+  <g fill="none" stroke="#f59e0b" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" opacity="0.92">
+    <path d="M170 294l150-124 150 124"/>
+    <path d="M210 280v118h220V280"/>
+    <path d="M284 398v-74h72v74"/>
+  </g>
+  <text x="320" y="422" text-anchor="middle" font-size="28" font-family="Arial, sans-serif" fill="#b45309">Location</text>
+</svg>

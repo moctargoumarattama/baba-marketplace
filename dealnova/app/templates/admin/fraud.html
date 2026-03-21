@@ -1,13 +1,11 @@
-{% extends 'admin/base.html' %}
+﻿{% extends 'admin/base.html' %}
 
 {% block title %}Fraude | Admin DealNova{% endblock %}
 {% block page_title %}Détection de fraude{% endblock %}
-{% block body_attrs %}{% endblock %}
+{% block body_attrs %}data-adm-page="fraud" data-ajax-owner="admin"{% endblock %}
 
 {% block head %}
 <style>
-    .fraud-wrap { display: grid; gap: 1.5rem; }
-    
     /* Hero section */
     .fraud-hero {
         background: linear-gradient(135deg, rgba(220, 38, 38, 0.12), rgba(0, 78, 137, 0.08));
@@ -308,7 +306,7 @@
         margin-bottom: 0.5rem;
     }
     
-    /* Animation de mise à jour */
+    /* Animation de mise ? jour */
     @keyframes highlight {
         0% { background-color: rgba(220, 38, 38, 0.2); }
         100% { background-color: transparent; }
@@ -318,29 +316,10 @@
         animation: highlight 1s ease;
     }
     
-    /* Bouton retour en haut */
-    .back-to-top {
-        position: fixed;
-        bottom: 20px;
-        right: 20px;
+    /* Personnalisation du bouton global retour en haut */
+    .fraud-wrap .adm-back-to-top {
         background: #dc2626;
-        color: white;
-        width: 40px;
-        height: 40px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
         box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
-        opacity: 0;
-        transition: opacity 0.3s ease;
-        z-index: 100;
-        border: none;
-    }
-    
-    .back-to-top.show {
-        opacity: 1;
     }
     
     /* Version mobile */
@@ -465,9 +444,9 @@
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid fraud-wrap" id="fraudContent">
+<div class="container-fluid fraud-wrap adm-listing adm-page-stack" id="fraudContent" data-adm-listing="fraud">
     <!-- Bouton retour en haut -->
-    <button class="back-to-top" id="backToTop" title="Retour en haut">
+    <button class="back-to-top adm-back-to-top" id="backToTop" title="Retour en haut">
         <i class="bi bi-arrow-up"></i>
     </button>
 
@@ -491,10 +470,10 @@
             <!-- KPIs -->
             <div class="fraud-kpis">
                 <span class="fraud-pill info"><i class="bi bi-lightning-charge"></i> Temps réel</span>
-                <span class="fraud-pill info"><i class="bi bi-globe2"></i> 🌍 Global</span>
+                <span class="fraud-pill info"><i class="bi bi-globe2"></i> Global</span>
                 <span class="fraud-live">
                     <i class="bi bi-clock"></i>
-                    Dernière mise à jour : <strong id="fraudLastUpdated">{{ now.strftime('%Y-%m-%d %H:%M:%S') }}</strong>
+                    Derni?re mise ? jour : <strong id="fraudLastUpdated">{{ now.strftime('%Y-%m-%d %H:%M:%S') }}</strong>
                 </span>
                 <span class="fraud-live">
                     <i class="bi bi-trash"></i>
@@ -511,7 +490,7 @@
                 <i class="bi bi-sliders2"></i>
                 <h5 class="m-0">Filtres</h5>
             </div>
-            <form method="get" id="fraudFiltersForm" class="filters-form">
+            <form method="get" id="fraudFiltersForm" class="filters-form adm-filters">
                 <div class="filter-group">
                     <label>Jours</label>
                     <input type="number" name="days" min="1" max="365" value="{{ days }}">
@@ -584,12 +563,12 @@
                         <td data-label="Blocage" class="fraud-actions">
                             {% set blocked = blocked_map.get(('phone', phone)) %}
                             {% if blocked %}
-                                <form method="post" action="{{ url_for('admin_users.fraud_unblock', block_id=blocked.id) }}">
+                                <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_unblock', block_id=blocked.id) }}">
                                     {% include "admin/partials/_csrf.html" %}
                                     <button class="btn btn-outline-success btn-sm" type="submit">Débloquer</button>
                                 </form>
                             {% else %}
-                                <form method="post" action="{{ url_for('admin_users.fraud_block') }}" class="d-flex gap-2 align-items-center">
+                                <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_block') }}" class="d-flex gap-2 align-items-center">
                                     {% include "admin/partials/_csrf.html" %}
                                     <input type="hidden" name="kind" value="phone">
                                     <input type="hidden" name="value" value="{{ phone }}">
@@ -643,12 +622,12 @@
                         <td data-label="Blocage" class="fraud-actions">
                             {% set blocked = blocked_map.get(('ip', ip)) %}
                             {% if blocked %}
-                                <form method="post" action="{{ url_for('admin_users.fraud_unblock', block_id=blocked.id) }}">
+                                <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_unblock', block_id=blocked.id) }}">
                                     {% include "admin/partials/_csrf.html" %}
                                     <button class="btn btn-outline-success btn-sm" type="submit">Débloquer</button>
                                 </form>
                             {% else %}
-                                <form method="post" action="{{ url_for('admin_users.fraud_block') }}" class="d-flex gap-2 align-items-center">
+                                <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_block') }}" class="d-flex gap-2 align-items-center">
                                     {% include "admin/partials/_csrf.html" %}
                                     <input type="hidden" name="kind" value="ip">
                                     <input type="hidden" name="value" value="{{ ip }}">
@@ -702,12 +681,12 @@
                         <td data-label="Blocage" class="fraud-actions">
                             {% set blocked = blocked_map.get(('phone', phone)) %}
                             {% if blocked %}
-                                <form method="post" action="{{ url_for('admin_users.fraud_unblock', block_id=blocked.id) }}">
+                                <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_unblock', block_id=blocked.id) }}">
                                     {% include "admin/partials/_csrf.html" %}
                                     <button class="btn btn-outline-success btn-sm" type="submit">Débloquer</button>
                                 </form>
                             {% else %}
-                                <form method="post" action="{{ url_for('admin_users.fraud_block') }}" class="d-flex gap-2 align-items-center">
+                                <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_block') }}" class="d-flex gap-2 align-items-center">
                                     {% include "admin/partials/_csrf.html" %}
                                     <input type="hidden" name="kind" value="phone">
                                     <input type="hidden" name="value" value="{{ phone }}">
@@ -761,12 +740,12 @@
                         <td data-label="Blocage" class="fraud-actions">
                             {% set blocked = blocked_map.get(('ip', ip)) %}
                             {% if blocked %}
-                                <form method="post" action="{{ url_for('admin_users.fraud_unblock', block_id=blocked.id) }}">
+                                <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_unblock', block_id=blocked.id) }}">
                                     {% include "admin/partials/_csrf.html" %}
                                     <button class="btn btn-outline-success btn-sm" type="submit">Débloquer</button>
                                 </form>
                             {% else %}
-                                <form method="post" action="{{ url_for('admin_users.fraud_block') }}" class="d-flex gap-2 align-items-center">
+                                <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_block') }}" class="d-flex gap-2 align-items-center">
                                     {% include "admin/partials/_csrf.html" %}
                                     <input type="hidden" name="kind" value="ip">
                                     <input type="hidden" name="value" value="{{ ip }}">
@@ -822,12 +801,12 @@
                         <td data-label="Blocage" class="fraud-actions">
                             {% set blocked = blocked_map.get(('phone', phone)) %}
                             {% if blocked %}
-                                <form method="post" action="{{ url_for('admin_users.fraud_unblock', block_id=blocked.id) }}">
+                                <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_unblock', block_id=blocked.id) }}">
                                     {% include "admin/partials/_csrf.html" %}
                                     <button class="btn btn-outline-success btn-sm" type="submit">Débloquer</button>
                                 </form>
                             {% else %}
-                                <form method="post" action="{{ url_for('admin_users.fraud_block') }}" class="d-flex gap-2 align-items-center">
+                                <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_block') }}" class="d-flex gap-2 align-items-center">
                                     {% include "admin/partials/_csrf.html" %}
                                     <input type="hidden" name="kind" value="phone">
                                     <input type="hidden" name="value" value="{{ phone }}">
@@ -847,12 +826,12 @@
                         <td data-label="Blocage" class="fraud-actions">
                             {% set blocked = blocked_map.get(('ip', ip)) %}
                             {% if blocked %}
-                                <form method="post" action="{{ url_for('admin_users.fraud_unblock', block_id=blocked.id) }}">
+                                <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_unblock', block_id=blocked.id) }}">
                                     {% include "admin/partials/_csrf.html" %}
                                     <button class="btn btn-outline-success btn-sm" type="submit">Débloquer</button>
                                 </form>
                             {% else %}
-                                <form method="post" action="{{ url_for('admin_users.fraud_block') }}" class="d-flex gap-2 align-items-center">
+                                <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_block') }}" class="d-flex gap-2 align-items-center">
                                     {% include "admin/partials/_csrf.html" %}
                                     <input type="hidden" name="kind" value="ip">
                                     <input type="hidden" name="value" value="{{ ip }}">
@@ -909,12 +888,12 @@
                         <td data-label="Blocage" class="fraud-actions">
                             {% set blocked = blocked_map.get(('ip', ip)) %}
                             {% if blocked %}
-                                <form method="post" action="{{ url_for('admin_users.fraud_unblock', block_id=blocked.id) }}">
+                                <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_unblock', block_id=blocked.id) }}">
                                     {% include "admin/partials/_csrf.html" %}
                                     <button class="btn btn-outline-success btn-sm" type="submit">Débloquer</button>
                                 </form>
                             {% else %}
-                                <form method="post" action="{{ url_for('admin_users.fraud_block') }}" class="d-flex gap-2 align-items-center">
+                                <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_block') }}" class="d-flex gap-2 align-items-center">
                                     {% include "admin/partials/_csrf.html" %}
                                     <input type="hidden" name="kind" value="ip">
                                     <input type="hidden" name="value" value="{{ ip }}">
@@ -976,12 +955,12 @@
                                 {% if order.phone_digits %}
                                     {% set blocked = blocked_map.get(('phone', order.phone_digits)) %}
                                     {% if blocked %}
-                                        <form method="post" action="{{ url_for('admin_users.fraud_unblock', block_id=blocked.id) }}">
+                                        <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_unblock', block_id=blocked.id) }}">
                                             {% include "admin/partials/_csrf.html" %}
                                             <button class="btn btn-outline-success btn-sm" type="submit">Débloq Tél.</button>
                                         </form>
                                     {% else %}
-                                        <form method="post" action="{{ url_for('admin_users.fraud_block') }}" class="d-flex gap-2 align-items-center">
+                                        <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_block') }}" class="d-flex gap-2 align-items-center">
                                             {% include "admin/partials/_csrf.html" %}
                                             <input type="hidden" name="kind" value="phone">
                                             <input type="hidden" name="value" value="{{ order.phone_digits }}">
@@ -993,12 +972,12 @@
                                 {% if order.order_ip %}
                                     {% set blocked_ip = blocked_map.get(('ip', order.order_ip)) %}
                                     {% if blocked_ip %}
-                                        <form method="post" action="{{ url_for('admin_users.fraud_unblock', block_id=blocked_ip.id) }}">
+                                        <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_unblock', block_id=blocked_ip.id) }}">
                                             {% include "admin/partials/_csrf.html" %}
                                             <button class="btn btn-outline-success btn-sm" type="submit">Débloq IP</button>
                                         </form>
                                     {% else %}
-                                        <form method="post" action="{{ url_for('admin_users.fraud_block') }}" class="d-flex gap-2 align-items-center">
+                                        <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_block') }}" class="d-flex gap-2 align-items-center">
                                             {% include "admin/partials/_csrf.html" %}
                                             <input type="hidden" name="kind" value="ip">
                                             <input type="hidden" name="value" value="{{ order.order_ip }}">
@@ -1056,12 +1035,12 @@
                         <td data-label="Blocage" class="fraud-actions">
                             {% set blocked = blocked_map.get(('phone', phone)) %}
                             {% if blocked %}
-                                <form method="post" action="{{ url_for('admin_users.fraud_unblock', block_id=blocked.id) }}">
+                                <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_unblock', block_id=blocked.id) }}">
                                     {% include "admin/partials/_csrf.html" %}
                                     <button class="btn btn-outline-success btn-sm" type="submit">Débloquer</button>
                                 </form>
                             {% else %}
-                                <form method="post" action="{{ url_for('admin_users.fraud_block') }}" class="d-flex gap-2 align-items-center">
+                                <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_block') }}" class="d-flex gap-2 align-items-center">
                                     {% include "admin/partials/_csrf.html" %}
                                     <input type="hidden" name="kind" value="phone">
                                     <input type="hidden" name="value" value="{{ phone }}">
@@ -1081,12 +1060,12 @@
                         <td data-label="Blocage" class="fraud-actions">
                             {% set blocked = blocked_map.get(('ip', ip)) %}
                             {% if blocked %}
-                                <form method="post" action="{{ url_for('admin_users.fraud_unblock', block_id=blocked.id) }}">
+                                <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_unblock', block_id=blocked.id) }}">
                                     {% include "admin/partials/_csrf.html" %}
                                     <button class="btn btn-outline-success btn-sm" type="submit">Débloquer</button>
                                 </form>
                             {% else %}
-                                <form method="post" action="{{ url_for('admin_users.fraud_block') }}" class="d-flex gap-2 align-items-center">
+                                <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_block') }}" class="d-flex gap-2 align-items-center">
                                     {% include "admin/partials/_csrf.html" %}
                                     <input type="hidden" name="kind" value="ip">
                                     <input type="hidden" name="value" value="{{ ip }}">
@@ -1113,240 +1092,6 @@
     </section>
 </div>
 
-<!-- Script pour les fonctionnalités -->
-<script>
-(function() {
-    // Configuration
-    const STORAGE_KEY = 'fraud_page_position';
-    const backToTopBtn = document.getElementById('backToTop');
-    const soundToggle = document.getElementById('soundToggle');
-    
-    // Gestion du son
-    let soundEnabled = localStorage.getItem('adminFraudSound') !== '0';
-    function updateSoundToggle() {
-        if (!soundToggle) return;
-        soundToggle.innerHTML = soundEnabled ? 
-            '<i class="bi bi-volume-up"></i> Son: On' : 
-            '<i class="bi bi-volume-mute"></i> Son: Off';
-    }
-    updateSoundToggle();
-    
-    if (soundToggle) {
-        soundToggle.addEventListener('click', () => {
-            soundEnabled = !soundEnabled;
-            localStorage.setItem('adminFraudSound', soundEnabled ? '1' : '0');
-            updateSoundToggle();
-        });
-    }
-    
-    // Sauvegarde de la position
-    function savePosition() {
-        const scrollY = window.scrollY;
-        const viewportHeight = window.innerHeight;
-        const documentHeight = document.documentElement.scrollHeight;
-        const scrollPercentage = (scrollY / (documentHeight - viewportHeight)) * 100;
-        
-        const urlParams = new URLSearchParams(window.location.search);
-        
-        const positionData = {
-            scrollPercentage: scrollPercentage,
-            scrollY: scrollY,
-            filters: Object.fromEntries(urlParams),
-            timestamp: Date.now()
-        };
-        
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(positionData));
-    }
-    
-    // Restauration de la position
-    function restorePosition() {
-        const savedData = localStorage.getItem(STORAGE_KEY);
-        if (!savedData) return;
-        
-        try {
-            const positionData = JSON.parse(savedData);
-            const isRecent = (Date.now() - positionData.timestamp) < 10 * 60 * 1000;
-            
-            if (!isRecent) {
-                localStorage.removeItem(STORAGE_KEY);
-                return;
-            }
-            
-            const urlParams = new URLSearchParams(window.location.search);
-            const currentFilters = Object.fromEntries(urlParams);
-            const filtersMatch = JSON.stringify(positionData.filters) === JSON.stringify(currentFilters);
-            
-            if (!filtersMatch) {
-                localStorage.removeItem(STORAGE_KEY);
-                return;
-            }
-            
-            setTimeout(() => {
-                const documentHeight = document.documentElement.scrollHeight;
-                const viewportHeight = window.innerHeight;
-                const targetScrollY = (positionData.scrollPercentage / 100) * (documentHeight - viewportHeight);
-                
-                window.scrollTo({
-                    top: targetScrollY,
-                    behavior: 'smooth'
-                });
-                
-                localStorage.removeItem(STORAGE_KEY);
-            }, 100);
-            
-        } catch (e) {
-            console.error('Erreur de restauration:', e);
-            localStorage.removeItem(STORAGE_KEY);
-        }
-    }
-    
-    // Bouton retour en haut
-    function toggleBackToTop() {
-        if (window.scrollY > 300) {
-            backToTopBtn.classList.add('show');
-        } else {
-            backToTopBtn.classList.remove('show');
-        }
-    }
-    
-    backToTopBtn.addEventListener('click', () => {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    });
-    
-    window.addEventListener('scroll', () => {
-        clearTimeout(window.scrollTimeout);
-        window.scrollTimeout = setTimeout(savePosition, 500);
-        toggleBackToTop();
-    });
-    
-    window.addEventListener('beforeunload', savePosition);
-    
-    // Pagination interne pour les tables
-    function setupPagination(table) {
-        const pageSize = parseInt(table.dataset.pageSize || '10', 10);
-        if (!pageSize || pageSize <= 0) return;
-        
-        const tbody = table.tBodies[0];
-        if (!tbody) return;
-        
-        const rows = Array.from(tbody.rows).filter(row => 
-            !row.querySelector('.fraud-empty')
-        );
-        
-        const tableWrap = table.closest('.table-responsive');
-        if (!tableWrap) return;
-        
-        const existingPager = tableWrap.nextElementSibling;
-        if (existingPager && existingPager.classList.contains('fraud-pager')) {
-            existingPager.remove();
-        }
-        
-        if (rows.length <= pageSize) {
-            rows.forEach(row => row.style.display = '');
-            return;
-        }
-        
-        let currentPage = 1;
-        const totalPages = Math.ceil(rows.length / pageSize);
-        
-        const pager = document.createElement('div');
-        pager.className = 'fraud-pager';
-        
-        const prevBtn = document.createElement('button');
-        prevBtn.type = 'button';
-        prevBtn.innerHTML = '<i class="bi bi-chevron-left"></i> Précédent';
-        
-        const nextBtn = document.createElement('button');
-        nextBtn.type = 'button';
-        nextBtn.innerHTML = 'Suivant <i class="bi bi-chevron-right"></i>';
-        
-        const info = document.createElement('span');
-        info.className = 'fraud-page-info';
-        
-        pager.appendChild(prevBtn);
-        pager.appendChild(info);
-        pager.appendChild(nextBtn);
-        
-        tableWrap.insertAdjacentElement('afterend', pager);
-        
-        function render() {
-            const start = (currentPage - 1) * pageSize;
-            const end = start + pageSize;
-            
-            rows.forEach((row, idx) => {
-                row.style.display = (idx >= start && idx < end) ? '' : 'none';
-            });
-            
-            info.textContent = `Page ${currentPage}/${totalPages} - ${rows.length} éléments`;
-            prevBtn.disabled = currentPage <= 1;
-            nextBtn.disabled = currentPage >= totalPages;
-        }
-        
-        prevBtn.addEventListener('click', () => {
-            if (currentPage > 1) {
-                currentPage -= 1;
-                render();
-            }
-        });
-        
-        nextBtn.addEventListener('click', () => {
-            if (currentPage < totalPages) {
-                currentPage += 1;
-                render();
-            }
-        });
-        
-        render();
-    }
-    
-    // Initialiser la pagination sur toutes les tables
-    document.querySelectorAll('.fraud-table').forEach(setupPagination);
-    
-    // Bouton nettoyer 2 jours
-    const cleanBtn = document.getElementById('fraudCleanTwoDays');
-    if (cleanBtn) {
-        cleanBtn.addEventListener('click', () => {
-            const form = document.getElementById('fraudFiltersForm');
-            if (form) {
-                const days = form.querySelector('input[name="days"]');
-                if (days) days.value = 2;
-                form.submit();
-            }
-        });
-    }
-    
-    // Mettre à jour l'horodatage toutes les secondes
-    function updateTimestamp() {
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, '0');
-        const day = String(now.getDate()).padStart(2, '0');
-        const hours = String(now.getHours()).padStart(2, '0');
-        const minutes = String(now.getMinutes()).padStart(2, '0');
-        const seconds = String(now.getSeconds()).padStart(2, '0');
-        
-        const timeStr = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-        const timestampEl = document.getElementById('fraudLastUpdated');
-        if (timestampEl) {
-            timestampEl.textContent = timeStr;
-        }
-    }
-    
-    // Mettre à jour toutes les secondes
-    setInterval(updateTimestamp, 1000);
-    
-    // Initialisation
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', restorePosition);
-    } else {
-        restorePosition();
-    }
-    
-    // Sauvegarde avant changement de page
-    document.querySelectorAll('a:not([href^="#"]), button[type="submit"]').forEach(el => {
-        el.addEventListener('click', savePosition);
-    });
-    
-})();
-</script>
+
 {% endblock %}
+

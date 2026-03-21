@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 480" role="img" aria-label="Product placeholder">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ecfdf5"/>
+      <stop offset="100%" stop-color="#d1fae5"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="480" fill="url(#g)"/>
+  <g fill="none" stroke="#10b981" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" opacity="0.9">
+    <rect x="190" y="126" width="260" height="228" rx="28"/>
+    <path d="M240 196h160M240 244h120M240 292h80"/>
+  </g>
+  <text x="320" y="422" text-anchor="middle" font-size="28" font-family="Arial, sans-serif" fill="#065f46">BABA Market</text>
+</svg>

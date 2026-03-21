@@ -1,4 +1,4 @@
-<div id="locationsListing" data-ajax-listing data-ajax-scroll="preserve">
+﻿<div id="locationsListing" data-ajax-listing data-ajax-scroll="preserve">
   {% if listings %}
     <div class="results-row">
       <div class="results-count"><span class="results-dot"></span>{{ pagination.total }} offre(s) trouvee(s)</div>
@@ -7,11 +7,25 @@
       {% endif %}
     </div>
 
-    <div class="rentals-grid" id="rentalsGrid">
+      <div class="rentals-grid" id="rentalsGrid">
       {% for listing in listings %}
         {% set images = listing.media|selectattr('kind', 'equalto', 'image')|list %}
+        {% set videos = listing.media|selectattr('kind', 'equalto', 'video')|list %}
+        {% set media_items = namespace(items=[]) %}
+        {% for video in videos[:6] %}
+          {% set video_poster_rel = rental_video_poster_rel_path(video.file_path) if rental_video_poster_rel_path is defined else None %}
+          {% set _ = media_items.items.append({'kind': 'video', 'src': url_for('static', filename=video.file_path), 'poster': (url_for('static', filename=video_poster_rel) if video_poster_rel else '')}) %}
+        {% endfor %}
+        {% if media_items.items|length < 6 %}
+          {% set remaining_slots = 6 - media_items.items|length %}
+          {% for image in images[:remaining_slots] %}
+            {% set _ = media_items.items.append({'kind': 'image', 'src': url_for('static', filename=image.file_path)}) %}
+          {% endfor %}
+        {% endif %}
         <article
           class="rental-card js-rental-card"
+          data-item-type="location"
+          data-owner-id="{{ listing.owner_id }}"
           data-title="{{ (listing.title or '')|lower }}"
           data-city="{{ (listing.city or '')|lower }} {{ (listing.area or '')|lower }}"
           data-type="{{ listing.listing_type }}"
@@ -21,21 +35,30 @@
           <div class="rental-media js-card-carousel">
             <span class="pill-type">{{ 'Mensuel' if listing.listing_type == 'monthly' else 'Journalier' }}</span>
             <div class="rental-track">
-              {% if images %}
-                {% for image in images[:6] %}
-                  <img src="{{ url_for('static', filename=image.file_path) }}" alt="{{ listing.title }}" loading="lazy">
+              {% if media_items.items %}
+                {% for media in media_items.items %}
+                  {% if media.kind == 'image' %}
+                    <img src="{{ media.src }}" alt="{{ listing.title }}" loading="lazy">
+                  {% else %}
+                    <div class="rental-video-frame">
+                      <video class="js-lazy-rental-video" preload="none" autoplay loop muted playsinline data-video-src="{{ media.src }}"{% if media.poster %} poster="{{ media.poster }}"{% endif %}>
+                        <source data-src="{{ media.src }}">
+                      </video>
+                      <span class="rental-video-badge"><i class="bi bi-play-fill"></i> Video</span>
+                    </div>
+                  {% endif %}
                 {% endfor %}
               {% else %}
                 <img src="https://images.unsplash.com/photo-1560185007-cde436f6a4d0auto=format&fit=crop&w=800&q=60" alt="{{ listing.title }}" loading="lazy">
               {% endif %}
             </div>
-            {% if images|length > 1 %}
+            {% if media_items.items|length > 1 %}
               <div class="slide-nav">
                   <button class="slide-btn js-prev" type="button" data-stop-nav><i class="bi bi-chevron-left"></i></button>
                   <button class="slide-btn js-next" type="button" data-stop-nav><i class="bi bi-chevron-right"></i></button>
               </div>
               <div class="slide-dots">
-                {% for _ in images[:6] %}
+                {% for _ in media_items.items %}
                   <span class="slide-dot {{ 'active' if loop.first else '' }}"></span>
                 {% endfor %}
               </div>
@@ -77,3 +100,4 @@
     </nav>
   {% endif %}
 </div>
+

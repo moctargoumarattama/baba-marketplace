@@ -4,14 +4,14 @@ from flask_login import UserMixin
 from ..extensions import db
 
 class User(UserMixin, db.Model):
-    ALLOWED_ROLES = ("admin", "vendor", "courier")
+    ALLOWED_ROLES = ("admin", "manager", "vendor", "courier")
 
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
     vendor_history_pin_hash = db.Column(db.String(256), nullable=True)
-    role = db.Column(db.String(20), default="courier")  # admin, vendor, courier
+    role = db.Column(db.String(20), default="courier")  # admin, manager, vendor, courier
     is_active = db.Column(db.Boolean, default=True, nullable=False)
     courier_is_active = db.Column(db.Boolean, default=True, nullable=False, index=True)
     courier_is_available = db.Column(db.Boolean, default=False, nullable=False, index=True)

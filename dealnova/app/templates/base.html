@@ -5,18 +5,20 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+  <link rel="preconnect" href="https://www.babamarket.ma" crossorigin>
   <title>{% block title %}{{ config.SITE_NAME }}{% endblock %}</title>
+  <link rel="preload" as="image" href="{{ url_for('static', filename='logo.png') }}" fetchpriority="high">
 
   <!-- Bootstrap 5 -->
-  <link href="{{ url_for('static', filename='vendor/bootstrap/5.3.3/css/bootstrap.min.css') }}" rel="stylesheet">
+  <link href="{{ url_for('static', filename='vendor/bootstrap/5.3.3/css/bootstrap.min.css', v=app_static_version) }}" rel="stylesheet">
   <!-- Bootstrap Icons -->
-  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons/1.11.1/font/bootstrap-icons.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons/1.11.1/font/bootstrap-icons.css', v=app_static_version) }}">
   <!-- Font Awesome -->
-  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fontawesome/6.4.0/css/all.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fontawesome/6.4.0/css/all.min.css', v=app_static_version) }}">
   <!-- Google Fonts -->
-  <link rel="stylesheet" href="{{ url_for('static', filename='fonts/public.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='fonts/public.css', v=app_static_version) }}">
 
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/ui_shell.css', v=app_static_version) }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/ui_shell.css', v=app_static_version) }}">
 
   <meta name="csrf-token" content="{{ csrf_token() }}">
   {% set preload_logo = config.get('SITE_LOGO') %}
@@ -25,10 +27,116 @@
   {% endif %}
   <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
   <meta name="theme-color" content="#10B981">
-  <script src="{{ url_for('static', filename='js/live.js', v=app_static_version) }}" defer></script>
+
+  <!-- STYLES POUR LE LOADER (très léger, pas de collision) -->
+  <style>
+    #bm-loader {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 999999;
+      transition: opacity 0.2s ease;
+      pointer-events: none; /* ← Ne bloque pas les clics */
+    }
+    #bm-loader::before {
+      content: "";
+      position: absolute;
+      width: 136px;
+      height: 136px;
+      border-radius: 50%;
+      background:
+        radial-gradient(circle, rgba(16, 185, 129, 0.14) 0%, rgba(16, 185, 129, 0.08) 48%, rgba(16, 185, 129, 0) 72%);
+      box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.08);
+      animation: bm-loader-pulse 1.1s ease-in-out infinite;
+    }
+    .bm-loader-logo {
+      position: relative;
+      z-index: 1;
+      display: block;
+      width: 120px;
+      height: auto;
+      opacity: 0;
+      animation: bm-fade-in 0.2s ease forwards;
+    }
+    @keyframes bm-loader-pulse {
+      0%, 100% { transform: scale(0.98); opacity: 0.9; }
+      50% { transform: scale(1.03); opacity: 1; }
+    }
+    @keyframes bm-fade-in {
+      to { opacity: 1; }
+    }
+  </style>
+
+  <script>
+    window.BM_PERF_FLAGS = Object.assign(
+      {
+        fastLoader: true,
+        parallelPageLoader: true,
+        interactionFeedback: true,
+        frontFluidity: true
+      },
+      window.BM_PERF_FLAGS || {}
+    );
+  </script>
+  <link rel="preload" as="style" href="{{ url_for('static', filename='css/ui_drawer_glass.css', v=app_static_version) }}" id="bm-drawer-css">
+  <noscript>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/ui_drawer_glass.css', v=app_static_version) }}">
+  </noscript>
+  <script>
+    (function() {
+      var drawerCss = document.getElementById('bm-drawer-css');
+      if (!drawerCss) return;
+
+      function enableDrawerCss() {
+        if (drawerCss.dataset.loaded === '1') return;
+        drawerCss.dataset.loaded = '1';
+        drawerCss.rel = 'stylesheet';
+        drawerCss.removeAttribute('as');
+      }
+
+      function scheduleEnable() {
+        if (typeof window.requestAnimationFrame === 'function') {
+          window.requestAnimationFrame(function() {
+            window.requestAnimationFrame(enableDrawerCss);
+          });
+          return;
+        }
+        window.setTimeout(enableDrawerCss, 32);
+      }
+
+      function onFirstInteraction() {
+        enableDrawerCss();
+        document.removeEventListener('pointerdown', onFirstInteraction, true);
+        document.removeEventListener('keydown', onFirstInteraction, true);
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', scheduleEnable, { once: true });
+      } else {
+        scheduleEnable();
+      }
+
+      document.addEventListener('pointerdown', onFirstInteraction, true);
+      document.addEventListener('keydown', onFirstInteraction, true);
+      window.addEventListener('load', enableDrawerCss, { once: true });
+    })();
+  </script>
+
+  <script src="{{ url_for('static', filename='js/core/core_dom.js', v=app_static_version) }}" defer></script>
+  <script src="{{ url_for('static', filename='js/core/core_ui.js', v=app_static_version) }}" defer></script>
+  <script src="{{ url_for('static', filename='js/ajax/core/bm_csrf.js', v=app_static_version) }}" defer></script>
+  <script src="{{ url_for('static', filename='js/ajax/core/bm_guard.js', v=app_static_version) }}" defer></script>
+  <script src="{{ url_for('static', filename='js/ajax/core/bm_fetch.js', v=app_static_version) }}" defer></script>
+  <script src="{{ url_for('static', filename='js/ajax/core/bm_swap.js', v=app_static_version) }}" defer></script>
+  <script src="{{ url_for('static', filename='js/core/back_fab.js', v=app_static_version) }}" defer></script>
+  <script src="{{ url_for('static', filename='js/core/page_loader_client.js', v=app_static_version) }}" defer></script>
   <script src="{{ url_for('static', filename='js/i18n.js', v=app_static_version) }}" defer></script>
-  <script src="{{ url_for('static', filename='js/ajax_pagination.js', v=app_static_version) }}" defer></script>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/ui_drawer_glass.css', v=app_static_version) }}">
   <script src="{{ url_for('static', filename='js/ui_drawer.js', v=app_static_version) }}" defer></script>
   {% if home_tabs_enabled %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/ui_home_tabs.css', v=app_static_version) }}">
@@ -37,11 +145,181 @@
   {% block head %}{% endblock %}
 </head>
 
-<body data-lang="{{ current_lang }}" data-rtl-langs="{{ (rtl_langs or [])|join(',') }}" data-static-version="{{ app_static_version }}" dir="{{ 'rtl' if rtl_enabled else 'ltr' }}" {% block body_attrs %}{% endblock %}>
+<body data-page="{{ request.endpoint or '' }}" data-user-role="{{ current_user.role if current_user.is_authenticated else 'guest' }}" data-lang="{{ current_lang }}" data-rtl-langs="{{ (rtl_langs or [])|join(',') }}" data-static-version="{{ app_static_version }}" data-static-root="{{ url_for('static', filename='') }}" data-session-scope="{{ pwa_session_scope }}" dir="{{ 'rtl' if rtl_enabled else 'ltr' }}" {% block body_attrs %}{% endblock %}>
 {% set lang_labels = {"fr": "Français", "en": "English", "ary": "Darija"} %}
 {% set lang_codes = {"fr": "FR", "en": "EN", "ary": "DA"} %}
 {% set current_lang_label = lang_labels.get(current_lang, "Français") %}
 {% set current_lang_code = lang_codes.get(current_lang, "FR") %}
+{% set ep = request.endpoint or '' %}
+{% set back_scope = 'public' %}
+{% set back_fallback = url_for('landing') %}
+{% set back_is_root = ep in ['landing', 'shop.home'] %}
+{% if current_user.is_authenticated and current_user.role == 'vendor' %}
+  {% if ep.startswith('rentals.owner_') %}
+    {% set back_scope = 'owner_locations' %}
+    {% set back_fallback = url_for('rentals.owner_locations') %}
+    {% set back_is_root = ep == 'rentals.owner_locations' %}
+  {% elif ep.startswith('vendor.') %}
+    {% set back_scope = 'vendor' %}
+    {% set back_fallback = url_for('vendor.dashboard') %}
+    {% set back_is_root = ep == 'vendor.dashboard' %}
+  {% endif %}
+{% elif current_user.is_authenticated and current_user.role == 'courier' %}
+  {% set back_scope = 'courier' %}
+  {% set back_fallback = url_for('courier.panel_deliveries') %}
+  {% set back_is_root = ep in ['courier.panel_deliveries', 'courier.panel_orders'] %}
+{% endif %}
+
+  <!-- LOADER IMMÉDIAT (s'affiche tout de suite) -->
+  <div id="bm-loader">
+    <img src="{{ url_for('static', filename='logo.png') }}"
+         alt="{{ config.SITE_NAME }}"
+         class="bm-loader-logo"
+         width="120"
+         height="120"
+         fetchpriority="high"
+         decoding="sync">
+  </div>
+
+  <!-- SCRIPT POUR CACHER LE LOADER (ultra léger) -->
+  <script>
+    (function() {
+      // Anti double exécution
+      if (window.__BM_LOADER_INIT__) return;
+      window.__BM_LOADER_INIT__ = true;
+
+      var perfFlags = window.BM_PERF_FLAGS || {};
+      var fastLoaderEnabled = perfFlags.fastLoader !== false;
+      var loader = document.getElementById('bm-loader');
+      var hideTimer = null;
+      var readiness = window.__BM_PAGE_READINESS__ || {
+        domReady: false,
+        interactive: false,
+        complete: false,
+        loaderHidden: false
+      };
+      window.__BM_PAGE_READINESS__ = readiness;
+
+      function updateReadyState() {
+        var value = 'booting';
+        if (readiness.complete) value = 'complete';
+        else if (readiness.interactive) value = 'interactive';
+        else if (readiness.domReady) value = 'dom-ready';
+        document.documentElement.setAttribute('data-bm-ready-state', value);
+      }
+
+      function clearHideTimer() {
+        if (!hideTimer) return;
+        window.clearTimeout(hideTimer);
+        hideTimer = null;
+      }
+
+      function runAfterPaint(callback) {
+        if (typeof window.requestAnimationFrame === 'function') {
+          window.requestAnimationFrame(function() {
+            window.requestAnimationFrame(callback);
+          });
+          return;
+        }
+        window.setTimeout(callback, 32);
+      }
+
+      function hideLoader() {
+        if (!loader || readiness.loaderHidden) return;
+        readiness.loaderHidden = true;
+        clearHideTimer();
+        loader.style.opacity = '0';
+        setTimeout(() => {
+          loader.style.display = 'none';
+        }, 200);
+      }
+
+      function scheduleHide(delayMs) {
+        if (readiness.loaderHidden) return;
+        clearHideTimer();
+        hideTimer = window.setTimeout(function() {
+          hideLoader();
+        }, Math.max(0, Number(delayMs) || 0));
+      }
+
+      function markDomReady() {
+        if (readiness.domReady) return;
+        readiness.domReady = true;
+        updateReadyState();
+      }
+
+      function markInteractive() {
+        if (readiness.interactive) return;
+        readiness.interactive = true;
+        updateReadyState();
+      }
+
+      function markComplete() {
+        if (readiness.complete) return;
+        readiness.complete = true;
+        updateReadyState();
+      }
+
+      if (!fastLoaderEnabled) {
+        updateReadyState();
+        if (document.readyState === 'complete') {
+          markComplete();
+          hideLoader();
+        } else {
+          window.addEventListener('load', function() {
+            markComplete();
+            hideLoader();
+          }, { once: true });
+          window.setTimeout(hideLoader, 5000);
+        }
+        return;
+      }
+
+      updateReadyState();
+
+      function onDomReady() {
+        markDomReady();
+        runAfterPaint(function() {
+          if (readiness.interactive) {
+            scheduleHide(0);
+            return;
+          }
+          scheduleHide(140);
+        });
+      }
+
+      function onPageInteractive() {
+        markInteractive();
+        scheduleHide(0);
+      }
+
+      function onWindowLoad() {
+        markComplete();
+        if (!readiness.loaderHidden) {
+          scheduleHide(0);
+        }
+      }
+
+      if (document.readyState === 'interactive' || document.readyState === 'complete') {
+        onDomReady();
+      } else {
+        document.addEventListener('DOMContentLoaded', onDomReady, { once: true });
+      }
+
+      document.addEventListener('bm:page-interactive', onPageInteractive);
+
+      if (document.readyState === 'complete') {
+        onWindowLoad();
+      } else {
+        window.addEventListener('load', onWindowLoad, { once: true });
+      }
+
+      // Fallback sécurité: ne jamais rester bloqué à cause des médias lents.
+      window.setTimeout(function() {
+        hideLoader();
+      }, 4000);
+    })();
+  </script>
 
   <!-- NAVBAR -->
   <nav class="navbar navbar-expand-lg navbar-dark fixed-top">
@@ -71,7 +349,7 @@
         <span class="brand-text">{{ config.SITE_NAME }}</span>
       </a>
 
-     <!-- Right icons --> 
+     <!-- Right icons -->
 {% if not current_user.is_authenticated or current_user.role != "vendor" %}
 <div class="nav-icons" data-nav-badges data-cart-attn-seconds="60">
   <a href="{{ url_for('cart.view') }}" class="icon-btn" aria-label="Panier" data-cart-icon>
@@ -82,7 +360,7 @@
       {{ (cart_count or 0)|int }}
     </span>
   </a>
-  
+
   <a href="{{ url_for('cart.track_by_phone') }}" class="icon-btn" aria-label="Suivi commande" data-track-icon>
     <i class="bi bi-truck"></i>
     <span class="track-badge d-none" data-track-badge data-track-active="0" aria-hidden="true"></span>
@@ -99,7 +377,7 @@
         {% set vendor_allows_location = vendor_shop and vendor_shop.allows('location') %}
         {% set vendor_allows_catalog = vendor_allows_products or vendor_allows_services %}
         {% set vendor_catalog_label = 'Mes services' if vendor_allows_services and not vendor_allows_products else 'Mes produits' %}
-        {% set vendor_new_label = 'Nouveau service' if vendor_allows_services and not vendor_allows_products else 'Nouveau' %}
+        {% set vendor_catalog_menu_label = 'Catalogue' %}
         <!-- Mobile menu (hybrid) -->
         <div class="mobile-menu d-lg-none">
           <div class="drawer-top">
@@ -138,7 +416,7 @@
 
 
         {% if not current_user.is_authenticated or current_user.role != "vendor" %}
-<div class="menu-section"> 
+<div class="menu-section">
   <div class="menu-title">Découvrir</div>
   <ul class="menu-links">
     <li>
@@ -170,23 +448,13 @@
   </ul>
 </div>
 
-<div class="menu-section">
-  <div class="menu-title">Recherche</div>
-  <ul class="menu-links">
-    <li>
-      <a class="menu-link drawer-link" href="{{ url_for('global_search') }}">
-        <i class="bi bi-search"></i><span>Recherche</span>
-      </a>
-    </li>
-  </ul>
-</div>
 {% endif %}
 
 
           <div class="menu-section">
             <div class="menu-title">Connexion</div>
             <ul class="menu-links">
-              {% if current_user.is_authenticated and current_user.role == 'admin' %}
+              {% if current_user.is_authenticated and current_user.role in ['admin', 'manager'] %}
               <li>
                 <a class="menu-link" href="{{ url_for('admin_users.admin_dashboard') }}">
                   <i class="bi bi-shield-lock"></i><span>Admin</span>
@@ -207,8 +475,8 @@
                 </a>
               </li>
               <li>
-                <a class="menu-link" href="{{ url_for('vendor.product_new') }}">
-                  <i class="bi bi-plus-circle"></i><span>{{ vendor_new_label }}</span>
+                <a class="menu-link" href="{{ url_for('vendor.catalog') }}">
+                  <i class="bi bi-grid-3x3-gap"></i><span>{{ vendor_catalog_menu_label }}</span>
                 </a>
               </li>
               {% endif %}
@@ -237,7 +505,7 @@
               </li>
               <li>
                 <a class="menu-link" href="{{ url_for('rentals.owner_locations_archives') }}">
-                  <i class="bi bi-archive"></i><span>Archives locations</span>
+                  <i class="bi bi-clock-history"></i><span>Historique location</span>
                 </a>
               </li>
               {% endif %}
@@ -246,7 +514,21 @@
               {% if current_user.is_authenticated %}
               <li>
                 <div class="menu-user">
-                  <span class="menu-avatar">{{ current_user.username[0]|upper }}</span>
+                  <span class="menu-avatar">
+                    {% if current_user.profile_image %}
+                    <img src="{{ url_for('static', filename='uploads/profiles/' + current_user.profile_image) }}"
+                         alt="{{ current_user.username }}"
+                         loading="lazy"
+                         onerror="this.remove(); this.parentElement.textContent='{{ current_user.username[0]|upper }}';">
+                    {% elif current_user.role == 'vendor' and vendor_shop and vendor_shop.logo %}
+                    <img src="{{ url_for('static', filename='uploads/' + vendor_shop.logo) }}"
+                         alt="{{ current_user.username }}"
+                         loading="lazy"
+                         onerror="this.remove(); this.parentElement.textContent='{{ current_user.username[0]|upper }}';">
+                    {% else %}
+                    {{ current_user.username[0]|upper }}
+                    {% endif %}
+                  </span>
                   <span>{{ current_user.username|truncate(14) }}</span>
                 </div>
               </li>
@@ -331,7 +613,7 @@
         <!-- Right nav -->
         <ul class="navbar-nav mb-2 mb-lg-0 d-none d-lg-flex">
           <!-- Admin Button -->
-          {% if current_user.is_authenticated and current_user.role == 'admin' %}
+          {% if current_user.is_authenticated and current_user.role in ['admin', 'manager'] %}
           <li class="nav-item">
             <a class="nav-link btn btn-outline-primary d-flex align-items-center"
                href="{{ url_for('admin_users.admin_dashboard') }}">
@@ -339,7 +621,7 @@
             </a>
           </li>
           {% endif %}
-          
+
           <!-- Vendor Dropdown -->
           {% if current_user.is_authenticated and current_user.role == 'vendor' %}
           <li class="nav-item dropdown">
@@ -361,8 +643,8 @@
                 </a>
               </li>
               <li>
-                <a class="dropdown-item" href="{{ url_for('vendor.product_new') }}">
-                  <i class="bi bi-plus-circle text-success"></i> {{ vendor_new_label }}
+                <a class="dropdown-item" href="{{ url_for('vendor.catalog') }}">
+                  <i class="bi bi-grid-3x3-gap text-success"></i> {{ vendor_catalog_menu_label }}
                 </a>
               </li>
               {% endif %}
@@ -393,7 +675,7 @@
               </li>
               <li>
                 <a class="dropdown-item" href="{{ url_for('rentals.owner_locations_archives') }}">
-                  <i class="bi bi-archive text-secondary"></i> Archives locations
+                  <i class="bi bi-clock-history text-secondary"></i> Historique location
                 </a>
               </li>
               <li>
@@ -440,15 +722,29 @@
               </li>
             </ul>
           </li>
-          
+
           <!-- User Dropdown -->
           {% if current_user.is_authenticated %}
           <li class="nav-item dropdown">
             <a class="nav-link dropdown-toggle d-flex align-items-center gap-2" href="#" role="button"
                data-bs-toggle="dropdown" aria-expanded="false">
-              <div class="rounded-circle bg-white d-flex align-items-center justify-content-center" 
+              <div class="rounded-circle bg-white d-flex align-items-center justify-content-center"
                    style="width: 2.25rem; height: 2.25rem; color: var(--primary-green); font-weight: bold;">
+                {% if current_user.profile_image %}
+                <img src="{{ url_for('static', filename='uploads/profiles/' + current_user.profile_image) }}"
+                     alt="{{ current_user.username }}"
+                     loading="lazy"
+                     style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;"
+                     onerror="this.remove(); this.parentElement.textContent='{{ current_user.username[0]|upper }}';">
+                {% elif current_user.role == 'vendor' and vendor_shop and vendor_shop.logo %}
+                <img src="{{ url_for('static', filename='uploads/' + vendor_shop.logo) }}"
+                     alt="{{ current_user.username }}"
+                     loading="lazy"
+                     style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;"
+                     onerror="this.remove(); this.parentElement.textContent='{{ current_user.username[0]|upper }}';">
+                {% else %}
                 {{ current_user.username[0]|upper }}
+                {% endif %}
               </div>
               <span class="d-none d-xl-inline">{{ current_user.username|truncate(12) }}</span>
             </a>
@@ -459,6 +755,8 @@
                   <div class="small mt-1">
                     {% if current_user.role == 'admin' %}
                       <span class="badge bg-danger">Admin</span>
+                    {% elif current_user.role == 'manager' %}
+                      <span class="badge bg-warning text-dark">Gestionnaire</span>
                     {% elif current_user.role == 'vendor' %}
                       <span class="badge bg-info">Vendeur</span>
                     {% elif current_user.role == 'courier' %}
@@ -470,18 +768,18 @@
                 </div>
               </li>
               <li><hr class="dropdown-divider"></li>
-              
+
               <li>
                 <form method="post" action="{{ url_for('auth.logout') }}" class="d-inline">
                   {% include "partials/_csrf.html" %}
                   <button type="submit" class="dropdown-item text-danger">
-                    <i class="bi bi-box-arrow-right"></i> Dconnexion
+                    <i class="bi bi-box-arrow-right"></i> Déconnexion
                   </button>
                 </form>
               </li>
             </ul>
           </li>
-          
+
           <!-- Login/Register -->
           {% else %}
           <li class="nav-item">
@@ -514,23 +812,23 @@
   </form>
 
   {% if home_tabs_enabled %}
-  <nav class="home-bottom-tabs d-lg-none" data-home-bottom-tabs aria-label="Navigation principale mobile">
-    <a href="{{ url_for('landing') }}" class="home-tab {{ 'is-active' if request.endpoint == 'landing' else '' }}" data-tab-key="home">
+  <nav class="home-bottom-tabs bm-home-tabs d-lg-none" data-home-bottom-tabs aria-label="Navigation principale mobile">
+    <a href="{{ url_for('landing') }}" class="home-tab bm-home-tab {{ 'is-active' if request.endpoint == 'landing' else '' }}" data-tab-key="home">
       <i class="bi bi-house-door-fill"></i>
       <span>Accueil</span>
     </a>
-    <a href="{{ url_for('global_search') }}" class="home-tab {{ 'is-active' if request.endpoint == 'global_search' else '' }}" data-tab-key="search">
+    <a href="{{ url_for('global_search') }}" class="home-tab bm-home-tab {{ 'is-active' if request.endpoint == 'global_search' else '' }}" data-tab-key="search">
       <i class="bi bi-search"></i>
       <span>Recherche</span>
     </a>
-    <a href="{{ url_for('delivery_special.delivery_form') }}" class="home-tab {{ 'is-active' if request.endpoint == 'delivery_special.delivery_form' else '' }}" data-tab-key="delivery">
+    <a href="{{ url_for('delivery_special.delivery_form') }}" class="home-tab bm-home-tab {{ 'is-active' if request.endpoint == 'delivery_special.delivery_form' else '' }}" data-tab-key="delivery">
       <i class="bi bi-truck"></i>
       <span>Livraison express</span>
     </a>
   </nav>
   {% endif %}
 
-  <button class="back-fab" type="button" data-fallback="{{ url_for('landing') }}" aria-label="Retour">
+  <button class="back-fab" type="button" data-fallback="{{ back_fallback }}" data-back-scope="{{ back_scope }}" data-back-root="{{ '1' if back_is_root else '0' }}" aria-label="Retour">
     <i class="bi bi-arrow-left"></i>
     <span>Retour</span>
   </button>
@@ -545,7 +843,7 @@
             {% for cat, msg in msgs %}
             <div class="alert alert-{{ cat }} alert-dismissible fade show fade-in-up" role="alert">
               <div class="d-flex align-items-center">
-                <i class="bi 
+                <i class="bi
                   {% if cat == 'success' %}bi-check-circle-fill text-success
                   {% elif cat == 'danger' %}bi-exclamation-circle-fill text-danger
                   {% elif cat == 'warning' %}bi-exclamation-triangle-fill text-warning
@@ -567,7 +865,7 @@
 
   {% if request.endpoint == 'landing' %}
   <!-- FOOTER -->
-  <footer class="footer d-block d-lg-none">
+  <footer class="footer d-block d-lg-none" {% if home_tabs_enabled %}style="padding-bottom: calc(5.75rem + env(safe-area-inset-bottom, 0px))"{% endif %}>
     <div class="container-fluid">
       <div class="row g-4">
         <!-- Brand Info -->
@@ -579,7 +877,7 @@
             <span>{{ config.SITE_NAME }}</span>
           </div>
           <p class="text-light opacity-75 mb-3" style="font-weight: 500;">
-            Livraison rapide  Rabat & Sal-Tmara-Kenitra avec paiement  la livraison.
+            Livraison rapide  Rabat & Salé-Témara-Kénitra avec paiement  la livraison.
           </p>
           <div class="footer-social">
             <a href="https://www.facebook.com/share/v/1Aokzj7kPg/" aria-label="Facebook" target="_blank" rel="noopener">
@@ -597,7 +895,7 @@
           <div class="d-flex flex-column gap-2">
             <div class="d-flex align-items-center gap-2 text-light opacity-75">
               <i class="bi bi-geo-alt"></i>
-              <span>Rabat & Sal, Maroc</span>
+              <span>Rabat & Salé, Maroc</span>
             </div>
             <div class="d-flex align-items-center gap-2 text-light opacity-75">
               <i class="bi bi-clock"></i>
@@ -686,12 +984,10 @@
   </div>
 
   <!-- Scripts -->
-  <script src="{{ url_for('static', filename='vendor/bootstrap/5.3.3/js/bootstrap.bundle.min.js') }}"></script>
+  <script src="{{ url_for('static', filename='vendor/bootstrap/5.3.3/js/bootstrap.bundle.min.js', v=app_static_version) }}"></script>
 
     <script src="{{ url_for('static', filename='js/ui_shell.js', v=app_static_version) }}"></script>
 
   {% block scripts %}{% endblock %}
 </body>
 </html>
-
-

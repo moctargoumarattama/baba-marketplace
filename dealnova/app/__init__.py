@@ -9,23 +9,32 @@ from urllib.parse import urlparse, urljoin
 from werkzeug.middleware.proxy_fix import ProxyFix
 from flask_wtf.csrf import generate_csrf, validate_csrf
 from wtforms.validators import ValidationError
-from sqlalchemy import event, or_
+from sqlalchemy import event, or_, case
 from sqlalchemy.engine import Engine
+from sqlalchemy.exc import OperationalError
+from sqlalchemy.orm import load_only
 from .config import Config
 from .extensions import db, login_manager, migrate
 from .models.user import User
+from .models.product import Product
 from .models.shop import Shop
 from .models.rental import RentalListing, RentalMedia
+from .models.featured_item import FeaturedItem
 from .routes import auth, shop, vendor, cart, booking, admin, admin_categories, admin_users, rentals, delivery, courier
 from .services.logging_service import logging_service
 from .services.image import image_variant
 from .services.cache import cache
+from .services.migration import ensure_featured_items_table
 from .services.i18n_labels import (
     label_delivery_status,
     label_location_status,
     label_order_status,
     label_source,
 )
+from .services.maintenance import init_cli_commands  # ← IMPORT AJOUTÉ
+
+_SCRIPT_NONCE_RE = re.compile(r"(<script\b)(?![^>]*\bnonce=)", re.IGNORECASE)
+_STYLE_NONCE_RE = re.compile(r"(<style\b)(?![^>]*\bnonce=)", re.IGNORECASE)
 
 
 def create_app(config_class=Config):
@@ -54,16 +63,32 @@ def create_app(config_class=Config):
     migrate.init_app(app, db)
     login_manager.init_app(app)
     login_manager.login_view = "auth.login"
+    login_manager.login_message = "Veuillez vous connecter pour accéder à cette page."
     login_manager.login_message_category = "warning"
+    login_manager.needs_refresh_message = "Votre session a expiré. Veuillez vous reconnecter."
+    login_manager.needs_refresh_message_category = "warning"
     login_manager.session_protection = "basic"
     cache.init_app(app)
     with app.app_context():
         logging_service.setup_logging()
+        ensure_featured_items_table()
         if app.config.get("SECRET_KEY") == "dev":
-            app.logger.warning("SECURITY: SECRET_KEY par dfaut dtect. Configurez une cl forte.")
+            app.logger.warning("SECURITY: SECRET_KEY par défaut détectée. Configurez une clé forte.")
 
     if (app.config.get("SQLALCHEMY_DATABASE_URI") or "").startswith("sqlite:///"):
         _register_sqlite_pragmas()
+
+    from .services.maintenance_mode import get_maintenance_state as _get_maintenance_state
+    from .services.traffic_stats import track_request_hit as _track_request_hit
+
+    def _is_static_like_request() -> bool:
+        endpoint = request.endpoint or ""
+        path = request.path or ""
+        return (
+            endpoint.endswith(".static")
+            or path.startswith("/static/")
+            or path in {"/health", "/favicon.ico", "/sw.js"}
+        )
 
     @app.route("/sw.js")
     def service_worker():
@@ -79,11 +104,20 @@ def create_app(config_class=Config):
 
     @app.route("/maintenance")
     def maintenance_page():
-        from .services.maintenance_mode import get_maintenance_state
-
-        state = get_maintenance_state(force_refresh=True)
+        state = _get_maintenance_state(force_refresh=True)
         status_code = 503 if state.get("active") else 200
         return render_template("maintenance.html", maintenance=state), status_code
+
+    @app.before_request
+    def redirect_to_www():
+        host = (request.host or "").split(":", 1)[0].strip().lower()
+        if host != "babamarket.ma":
+            return None
+
+        target = f"https://www.babamarket.ma{request.full_path}"
+        if target.endswith("?"):
+            target = target[:-1]
+        return redirect(target, code=301)
 
 
     # Handlers d'erreur
@@ -137,7 +171,81 @@ def create_app(config_class=Config):
             "csrf_token": generate_csrf,
             "image_variant": image_variant,
             "app_static_version": app.config.get("APP_STATIC_VERSION", "dev"),
+            "pwa_session_scope": _pwa_session_scope(),
         }
+
+    PWA_PUBLIC_CACHEABLE_HTML_ENDPOINTS = {
+        "landing",
+        "global_search",
+        "shop.home",
+        "shop.product_detail",
+        "shops.list_shops",
+        "shops.shop_detail",
+        "rentals.locations_home",
+        "rentals.location_detail",
+    }
+
+    def _current_cart_count_value() -> int:
+        from flask_login import current_user
+        from sqlalchemy.orm.exc import DetachedInstanceError
+
+        key = None
+
+        try:
+            user_id = getattr(current_user, "id", None)
+            if user_id:
+                key = f"cart_user_{user_id}"
+        except DetachedInstanceError:
+            key = None
+        except Exception:
+            key = None
+
+        if not key:
+            if "cart_guest" in session:
+                key = "cart_guest"
+            else:
+                for session_key in session.keys():
+                    if session_key.startswith("cart_guest_"):
+                        key = session_key
+                        break
+
+        if not key:
+            return 0
+
+        cart = session.get(key, {})
+        return sum(cart.values()) if isinstance(cart, dict) else 0
+
+    def _pwa_session_scope() -> str:
+        from flask_login import current_user
+        from sqlalchemy.orm.exc import DetachedInstanceError
+
+        try:
+            user_id = getattr(current_user, "id", None)
+            if user_id:
+                return f"auth:{user_id}"
+        except DetachedInstanceError:
+            return "anon"
+        except Exception:
+            return "anon"
+        return "anon"
+
+    def _should_mark_response_public_for_pwa(response) -> bool:
+        if request.method != "GET":
+            return False
+        if response.status_code != 200 or response.mimetype != "text/html":
+            return False
+        if _is_static_like_request():
+            return False
+        endpoint = request.endpoint or ""
+        if endpoint not in PWA_PUBLIC_CACHEABLE_HTML_ENDPOINTS:
+            return False
+        if request.headers.get("X-Requested-With") in ("XMLHttpRequest", "fetch"):
+            return False
+        if _pwa_session_scope() != "anon":
+            return False
+        if _current_cart_count_value() > 0:
+            return False
+        return True
 
     def _get_lang():
         if request.path.startswith("/admin"):
@@ -152,6 +260,8 @@ def create_app(config_class=Config):
 
     @app.before_request
     def set_language():
+        if _is_static_like_request():
+            return None
         if request.path.startswith("/admin"):
             g.lang = "fr"
             return
@@ -177,10 +287,20 @@ def create_app(config_class=Config):
             g.set_lang_cookie = g.lang
 
     @app.before_request
-    def track_live_traffic():
-        try:
-            from .services.traffic_stats import track_request_hit as _track_request_hit
+    def ensure_analytics_visitor_id():
+        if _is_static_like_request():
+            return None
+        visitor_id = (request.cookies.get("bm_vid") or "").strip()
+        if not visitor_id:
+            visitor_id = secrets.token_urlsafe(18)
+            g.set_analytics_visitor_cookie = visitor_id
+        g.analytics_visitor_id = visitor_id[:80]
 
+    @app.before_request
+    def track_live_traffic():
+        if _is_static_like_request():
+            return None
+        try:
             _track_request_hit(path=request.path, endpoint=request.endpoint)
         except Exception:
             return None
@@ -193,6 +313,7 @@ def create_app(config_class=Config):
         "/cart/track",
         "/login",
         "/logout",
+        "/moctar",
         "/sw.js",
     )
 
@@ -219,9 +340,7 @@ def create_app(config_class=Config):
             pass
 
         try:
-            from .services.maintenance_mode import get_maintenance_state
-
-            state = get_maintenance_state()
+            state = _get_maintenance_state()
             if state.get("active"):
                 return render_template("maintenance.html", maintenance=state), 503
         except Exception:
@@ -231,7 +350,57 @@ def create_app(config_class=Config):
         return None
 
     @app.before_request
+    def enforce_courier_private_mode():
+        endpoint = request.endpoint or ""
+        path = request.path or "/"
+
+        if endpoint.endswith(".static") or path.startswith("/static/"):
+            return None
+
+        try:
+            from flask_login import current_user
+        except Exception:
+            return None
+
+        if not getattr(current_user, "is_authenticated", False):
+            return None
+
+        role = (getattr(current_user, "role", "") or "").lower()
+        if role != "courier":
+            return None
+
+        allowed_endpoints = {
+            "auth.logout",
+            "set_language_route",
+            "service_worker",
+            "health",
+            "maintenance_page",
+        }
+        if endpoint in allowed_endpoints:
+            return None
+
+        if endpoint.startswith("courier."):
+            return None
+
+        target_url = url_for("courier.panel_deliveries")
+        if request.path == target_url:
+            return None
+
+        is_ajax = request.headers.get("X-Requested-With") in ("XMLHttpRequest", "fetch")
+        wants_json = request.is_json or "application/json" in (request.headers.get("Accept") or "")
+        if is_ajax or wants_json:
+            return jsonify({"error": "courier_private_mode", "redirect_url": target_url}), 403
+
+        return redirect(target_url)
+
+    @app.before_request
     def enforce_vendor_private_mode():
+        endpoint = request.endpoint or ""
+        path = request.path or "/"
+
+        if endpoint.endswith(".static") or path.startswith("/static/"):
+            return None
+
         try:
             from flask_login import current_user
         except Exception:
@@ -242,12 +411,6 @@ def create_app(config_class=Config):
 
         role = (getattr(current_user, "role", "") or "").lower()
         if role != "vendor":
-            return None
-
-        endpoint = request.endpoint or ""
-        path = request.path or "/"
-
-        if endpoint.endswith(".static") or path.startswith("/static/"):
             return None
 
         allowed_endpoints = {
@@ -273,6 +436,22 @@ def create_app(config_class=Config):
                     .first()
                 )
                 if own_shop:
+                    return None
+
+        # Exception explicite: le vendeur peut voir la fiche publique de son propre produit.
+        if endpoint == "shop.product_detail":
+            product_id = (request.view_args or {}).get("pid")
+            try:
+                product_id = int(product_id)
+            except (TypeError, ValueError):
+                product_id = None
+            if product_id:
+                own_product = (
+                    Product.query.with_entities(Product.id)
+                    .filter(Product.id == product_id, Product.vendor_id == current_user.id)
+                    .first()
+                )
+                if own_product:
                     return None
 
         target_url = url_for("vendor.manage_shop")
@@ -331,20 +510,19 @@ def create_app(config_class=Config):
             except Exception:
                 next_url = request.referrer or url_for("landing")
 
-        if request.method == "POST":
-            session["lang"] = lang_code
-            response = redirect(next_url)
-            response.set_cookie(
-                app.config.get("LANG_COOKIE_NAME", "lang"),
-                lang_code,
-                max_age=app.config.get("LANG_COOKIE_MAX_AGE", 63072000),
-                samesite=app.config.get("LANG_COOKIE_SAMESITE", "Lax"),
-                secure=app.config.get("LANG_COOKIE_SECURE", False),
-            )
-            return response
-
-        # GET is non-mutating by design.
-        return redirect(next_url)
+        # Persist the chosen language for both POST and GET.
+        # This keeps language switching reliable even if the click falls back
+        # to a normal link navigation before the JS helper runs.
+        session["lang"] = lang_code
+        response = redirect(next_url)
+        response.set_cookie(
+            app.config.get("LANG_COOKIE_NAME", "lang"),
+            lang_code,
+            max_age=app.config.get("LANG_COOKIE_MAX_AGE", 63072000),
+            samesite=app.config.get("LANG_COOKIE_SAMESITE", "Lax"),
+            secure=app.config.get("LANG_COOKIE_SECURE", False),
+        )
+        return response
 
     def _is_safe_url(target):
         if not target:
@@ -375,7 +553,7 @@ def create_app(config_class=Config):
                 or "application/json" in (request.headers.get("Accept") or "")
             ):
                 return jsonify({"error": "csrf"}), 400
-            flash("Session expiree ou action non autorisee.", "danger")
+            flash("Session expirée ou action non autorisée.", "danger")
             if request.path.startswith("/cart/checkout"):
                 return redirect(url_for("cart.checkout"))
             if request.path.startswith("/delivery"):
@@ -392,10 +570,7 @@ def create_app(config_class=Config):
 
     @app.before_request
     def attach_csp_nonce():
-        if app.config.get("SECURITY_CSP_NONCE_ENABLED", True):
-            g.csp_nonce = secrets.token_urlsafe(16)
-        else:
-            g.csp_nonce = None
+        g.csp_nonce = None
 
     def _inject_csp_nonce_html(response, nonce: str):
         if not nonce:
@@ -410,22 +585,19 @@ def create_app(config_class=Config):
             return response
         if not body:
             return response
+        lower_body = body.lower()
+        if "<script" not in lower_body and "<style" not in lower_body:
+            return response
 
         # Add nonce to inline/external script/style tags only if missing.
-        body = re.sub(
-            r"(<script\b)(?![^>]*\bnonce=)",
-            rf'\1 nonce="{nonce}"',
-            body,
-            flags=re.IGNORECASE,
-        )
-        body = re.sub(
-            r"(<style\b)(?![^>]*\bnonce=)",
-            rf'\1 nonce="{nonce}"',
-            body,
-            flags=re.IGNORECASE,
-        )
-        response.set_data(body)
-        response.headers.pop("Content-Length", None)
+        updated_body = body
+        if "<script" in lower_body:
+            updated_body = _SCRIPT_NONCE_RE.sub(rf'\1 nonce="{nonce}"', updated_body)
+        if "<style" in lower_body:
+            updated_body = _STYLE_NONCE_RE.sub(rf'\1 nonce="{nonce}"', updated_body)
+        if updated_body != body:
+            response.set_data(updated_body)
+            response.headers.pop("Content-Length", None)
         return response
 
     def _build_csp_header(nonce: str | None) -> str:
@@ -433,12 +605,15 @@ def create_app(config_class=Config):
         allow_style_inline = bool(app.config.get("SECURITY_CSP_ALLOW_STYLE_INLINE", True))
         nonce_token = f"'nonce-{nonce}' " if nonce else ""
         script_inline_token = "" if strict_inline else "'unsafe-inline' "
+        # If a nonce is present in style-src, browsers ignore 'unsafe-inline' for style attributes.
+        # Keep nonce protection for styles only when inline styles are explicitly disabled.
         style_inline_token = "'unsafe-inline' " if allow_style_inline else ""
+        style_nonce_token = "" if allow_style_inline else nonce_token
         return (
             "default-src 'self'; "
             "img-src 'self' data: https://images.unsplash.com; "
             "font-src 'self' https://fonts.gstatic.com; "
-            f"style-src 'self' {style_inline_token}{nonce_token}https://fonts.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
+            f"style-src 'self' {style_inline_token}{style_nonce_token}https://fonts.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
             f"script-src 'self' {script_inline_token}{nonce_token}https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com; "
             "connect-src 'self'; "
             "frame-ancestors 'self'; "
@@ -474,7 +649,15 @@ def create_app(config_class=Config):
                 "max-age=31536000; includeSubDomains",
             )
 
+        is_html_response = response.mimetype == "text/html"
         nonce = getattr(g, "csp_nonce", None)
+        if (
+            is_html_response
+            and app.config.get("SECURITY_CSP_NONCE_ENABLED", True)
+            and not nonce
+        ):
+            nonce = secrets.token_urlsafe(16)
+            g.csp_nonce = nonce
         if app.config.get("SECURITY_CSP_ENABLED", True):
             csp = _build_csp_header(nonce)
             response.headers.setdefault("Content-Security-Policy", csp)
@@ -490,6 +673,17 @@ def create_app(config_class=Config):
                     secure=app.config.get("LANG_COOKIE_SECURE", False),
                 )
 
+        analytics_visitor_id = getattr(g, "set_analytics_visitor_cookie", None)
+        if analytics_visitor_id:
+            response.set_cookie(
+                "bm_vid",
+                analytics_visitor_id,
+                max_age=60 * 60 * 24 * 180,
+                samesite="Lax",
+                secure=bool(app.config.get("SESSION_COOKIE_SECURE", False)),
+                httponly=False,
+            )
+
         if request.path.startswith("/static/") and response.status_code < 400:
             try:
                 max_age = int(app.config.get("STATIC_CACHE_MAX_AGE", 86400))
@@ -498,7 +692,11 @@ def create_app(config_class=Config):
             response.headers.setdefault("Cache-Control", f"public, max-age={max(300, max_age)}")
 
         # Enforce UTF-8 for HTML responses to avoid mojibake.
-        if response.mimetype == "text/html":
+        if is_html_response:
+            response.headers["X-BM-PWA-Session-Scope"] = "anon" if _pwa_session_scope() == "anon" else "auth"
+            response.headers["X-BM-PWA-Cache"] = (
+                "public" if _should_mark_response_public_for_pwa(response) else "private"
+            )
             if app.config.get("SECURITY_CSP_NONCE_ENABLED", True) and nonce:
                 response = _inject_csp_nonce_html(response, nonce)
             content_type = response.headers.get("Content-Type", "")
@@ -553,7 +751,7 @@ def create_app(config_class=Config):
     app.register_blueprint(admin_categories.bp)
     app.register_blueprint(admin_users.bp)  # Blueprint deja prefixe /admin
     app.register_blueprint(courier.bp)
-    
+
     #  ENREGISTRER LES AUTRES BLUEPRINTS
     if has_shops:
         app.register_blueprint(shops_bp, url_prefix="/")
@@ -564,11 +762,11 @@ def create_app(config_class=Config):
             from .models.shop import Shop
             shops = Shop.query.filter_by(is_active=True).all()
             return render_template("shop/shops.html", shops=shops)
-    
+
     if has_api:
         app.register_blueprint(api_bp)  # Blueprint deja prefixe /api
 
-    
+
     # Compat: anciens liens /admin/admin/* -> /admin/*
     @app.route("/admin/admin/<path:subpath>")
     def compat_admin_redirect(subpath):
@@ -591,100 +789,58 @@ def create_app(config_class=Config):
     def landing():
         from .models.product import Product
         from .models.shop import Shop
-        from .models.promo import Promo
-        from .services.pricing import prix_final
         from .services.cache import get_categories, get_catalog_cache
-        
+        from .services.marketplace_feed import build_marketplace_feed
+
         def build_landing_payload():
-            products = Product.query.filter_by(is_active=True)\
-                .order_by(Product.created_at.desc())\
-                .limit(12).all()
-
-            product_ids = [p.id for p in products]
             now = datetime.utcnow()
-            promos = Promo.query.filter(
-                Promo.product_id.in_(product_ids), Promo.end_date >= now
-            ).all() if product_ids else []
-            promo_map = {}
-            for pr in promos:
-                if pr.product_id not in promo_map or pr.end_date < promo_map[pr.product_id].end_date:
-                    promo_map[pr.product_id] = pr
+            promo_payload = build_marketplace_feed(page=1, per_page=12, promo_only="1")
+            promo_data = list(promo_payload.get("data", []) or [])
 
-            product_entries = []
-            for p in products:
-                promo = promo_map.get(p.id)
-                final = prix_final(p, promo)
-                discount = promo.value if promo and promo.type == "percentage" else 0
-                product_dict = {
-                    "id": p.id,
-                    "name": p.name,
-                    "price": float(p.price or 0),
-                    "stock": p.stock or 0,
-                    "image_file": p.image_file,
-                    "kind": (getattr(p, "kind", None) or "physical"),
-                }
-                product_entries.append((product_dict, final, discount))
+            data = promo_data[:12]
+            if len(data) < 12:
+                fallback_payload = build_marketplace_feed(page=1, per_page=24)
+                fallback_data = list(fallback_payload.get("data", []) or [])
+                seen_keys = set()
+                for item in data:
+                    payload = item[0] if item else {}
+                    seen_keys.add(
+                        (
+                            payload.get("item_type") or payload.get("kind") or "product",
+                            payload.get("id") or payload.get("slug") or payload.get("name"),
+                        )
+                    )
+                for item in fallback_data:
+                    payload = item[0] if item else {}
+                    item_key = (
+                        payload.get("item_type") or payload.get("kind") or "product",
+                        payload.get("id") or payload.get("slug") or payload.get("name"),
+                    )
+                    if item_key in seen_keys:
+                        continue
+                    data.append(item)
+                    seen_keys.add(item_key)
+                    if len(data) >= 12:
+                        break
 
-            active_locations = (
-                RentalListing.query
-                .join(Shop, Shop.id == RentalListing.shop_id)
-                .filter(
-                    RentalListing.is_active == True,
-                    RentalListing.status.in_(["active", "reserved"]),
-                    RentalListing.expires_at > now,
-                    Shop.is_active == True,
-                    Shop.sql_allows_clause("location"),
+            featured_shops = (
+                Shop.query
+                .options(
+                    load_only(
+                        Shop.id,
+                        Shop.name,
+                        Shop.slug,
+                        Shop.logo,
+                        Shop.is_active,
+                        Shop.is_verified,
+                        Shop.created_at,
+                    )
                 )
-                .order_by(RentalListing.created_at.desc())
-                .limit(6)
+                .filter_by(is_active=True, is_verified=True)
+                .order_by(Shop.created_at.desc())
+                .limit(4)
                 .all()
             )
-
-            location_cover_map = {}
-            listing_ids = [listing.id for listing in active_locations]
-            if listing_ids:
-                media_rows = (
-                    db.session.query(RentalMedia.listing_id, RentalMedia.file_path)
-                    .filter(
-                        RentalMedia.listing_id.in_(listing_ids),
-                        RentalMedia.kind == "image",
-                    )
-                    .order_by(RentalMedia.listing_id.asc(), RentalMedia.id.asc())
-                    .all()
-                )
-                for listing_id, file_path in media_rows:
-                    if listing_id not in location_cover_map and file_path:
-                        location_cover_map[listing_id] = str(file_path)
-
-            location_entries = []
-            for listing in active_locations:
-                location_dict = {
-                    "id": listing.id,
-                    "slug": listing.slug,
-                    "name": listing.title,
-                    "price": float((listing.rent_cents or 0) / 100),
-                    "stock": None,
-                    "image_file": location_cover_map.get(listing.id, ""),
-                    "kind": "location",
-                    "city": listing.city,
-                    "area": listing.area,
-                    "listing_type": listing.listing_type,
-                }
-                location_entries.append((location_dict, float((listing.rent_cents or 0) / 100), 0))
-
-            data = []
-            max_len = max(len(product_entries), len(location_entries))
-            for idx in range(max_len):
-                if idx < len(product_entries):
-                    data.append(product_entries[idx])
-                if idx < len(location_entries):
-                    data.append(location_entries[idx])
-
-            data = data[:12]
-
-            featured_shops = Shop.query.filter_by(is_active=True, is_verified=True)\
-                .order_by(Shop.created_at.desc())\
-                .limit(4).all()
 
             shop_ids = [s.id for s in featured_shops]
             shop_counts = {}
@@ -703,30 +859,55 @@ def create_app(config_class=Config):
                     "name": featured_shop.name,
                     "slug": featured_shop.slug,
                     "logo": featured_shop.logo,
-                    "rating": featured_shop.rating,
+                    "rating": 0.0,
                     "product_count": shop_counts.get(featured_shop.id, 0),
                 })
 
-            products_count = Product.query.filter(
-                Product.is_active == True,
-                Product.kind == "physical",
-            ).count()
-            services_count = Product.query.filter(
-                Product.is_active == True,
-                Product.kind == "service",
-            ).count()
-            locations_count = (
-                RentalListing.query
-                .join(Shop, Shop.id == RentalListing.shop_id)
-                .filter(
-                    RentalListing.is_active == True,
-                    RentalListing.status.in_(["active", "reserved"]),
-                    RentalListing.expires_at > now,
-                    Shop.is_active == True,
-                    Shop.sql_allows_clause("location"),
+            try:
+                product_stats_row = (
+                    db.session.query(
+                        db.func.sum(
+                            case((Product.kind == "physical", 1), else_=0)
+                        ).label("physical"),
+                        db.func.sum(
+                            case((Product.kind == "service", 1), else_=0)
+                        ).label("service"),
+                    )
+                    .filter(Product.is_active == True)
+                    .first()
                 )
-                .count()
-            )
+            except Exception:
+                try:
+                    db.session.rollback()
+                except Exception:
+                    pass
+                product_stats_row = None
+
+            products_count = int(getattr(product_stats_row, "physical", 0) or 0)
+            services_count = int(getattr(product_stats_row, "service", 0) or 0)
+
+            try:
+                locations_count = int(
+                    (
+                        RentalListing.query
+                        .join(Shop, Shop.id == RentalListing.shop_id)
+                        .filter(
+                            RentalListing.is_active == True,
+                            RentalListing.status.in_(["active", "reserved"]),
+                            RentalListing.expires_at > now,
+                            Shop.is_active == True,
+                            Shop.sql_allows_clause("location"),
+                        )
+                        .count()
+                    )
+                    or 0
+                )
+            except Exception:
+                try:
+                    db.session.rollback()
+                except Exception:
+                    pass
+                locations_count = 0
 
             return {
                 "data": data,
@@ -738,16 +919,36 @@ def create_app(config_class=Config):
                 },
             }
 
-        payload = get_catalog_cache("landing", build_landing_payload, timeout=60)
+        try:
+            payload = get_catalog_cache("landing:v2", build_landing_payload, timeout=60)
+        except Exception as exc:
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+            current_app.logger.error("landing cache/build error: %s", exc)
+            try:
+                payload = build_landing_payload()
+            except Exception as inner_exc:
+                try:
+                    db.session.rollback()
+                except Exception:
+                    pass
+                current_app.logger.error("landing fallback build error: %s", inner_exc)
+                payload = {
+                    "data": [],
+                    "featured_shops": [],
+                    "market_stats": {"products": 0, "services": 0, "locations": 0},
+                }
         data = payload.get("data", [])
         featured_shops = payload.get("featured_shops", [])
         market_stats = payload.get("market_stats", {})
 
         categories = get_categories()
-        
+
         return render_template(
-            "home.html", 
-            data=data, 
+            "home.html",
+            data=data,
             categories=categories,
             featured_shops=featured_shops,
             market_stats=market_stats,
@@ -761,17 +962,17 @@ def create_app(config_class=Config):
         from .models.category import Category
         from .models.rental import RentalListing
         from flask import request
-        
+
         q = request.args.get("q", "").strip()
         search_type = request.args.get("type", "products")
-        
+
         results = {
             "products": [],
             "shops": [],
             "categories": [],
             "locations": []
         }
-        
+
         if q:
             # Recherche de produits
             if search_type in ["products", "all"]:
@@ -780,7 +981,7 @@ def create_app(config_class=Config):
                     Product.name.ilike(f"%{q}%")
                 ).limit(10).all()
                 results["products"] = product_results
-            
+
             # Recherche de boutiques
             if search_type in ["shops", "all"]:
                 shop_results = Shop.query.filter(
@@ -788,7 +989,7 @@ def create_app(config_class=Config):
                     (Shop.name.ilike(f"%{q}%") | Shop.description.ilike(f"%{q}%"))
                 ).limit(10).all()
                 results["shops"] = shop_results
-            
+
             # Recherche de catgories
             if search_type in ["products", "all"]:
                 category_results = Category.query.filter(
@@ -810,7 +1011,7 @@ def create_app(config_class=Config):
                     )
                 ).limit(10).all()
                 results["locations"] = location_results
-        
+
         return render_template(
             "search/results.html",
             q=q,
@@ -824,15 +1025,15 @@ def create_app(config_class=Config):
         """Route d'accs au panel admin depuis le site principal"""
         from flask_login import current_user
         from flask import redirect, url_for, flash
-        
+
         if not current_user.is_authenticated:
-            flash("Veuillez vous connecter pour accder  l'administration", "warning")
+            flash("Veuillez vous connecter pour accéder à l'administration.", "warning")
             return redirect(url_for("auth.login"))
-        
+
         if current_user.role != 'admin':
-            flash("Accs rserv aux administrateurs", "danger")
+            flash("Accès réservé aux administrateurs.", "danger")
             return redirect(url_for("shop.home"))
-        
+
         return redirect(url_for("admin_users.admin_dashboard"))
 
     @app.cli.command("cleanup_rentals")
@@ -1000,7 +1201,6 @@ def create_app(config_class=Config):
     def inject_cart_count():
         from flask_login import current_user
         from sqlalchemy.orm.exc import DetachedInstanceError
-        from .services.guest_session import GuestSessionManager
 
         key = None
 
@@ -1023,9 +1223,9 @@ def create_app(config_class=Config):
                     if k.startswith("cart_guest_"):
                         key = k
                         break
-                if not key:
-                    guest_id = GuestSessionManager.get_or_create_guest_token()
-                    key = f"cart_guest_{guest_id}"
+
+        if not key:
+            return {"cart_count": 0}
 
         cart = session.get(key, {})
         count = sum(cart.values()) if isinstance(cart, dict) else 0
@@ -1038,8 +1238,103 @@ def create_app(config_class=Config):
             uid = int(user_id)
         except (TypeError, ValueError):
             return None
-        return db.session.get(User, uid)
 
+        try:
+            return db.session.get(User, uid)
+        except OperationalError:
+            try:
+                db.session.remove()
+            except Exception:
+                pass
+            try:
+                return db.session.get(User, uid)
+            except Exception:
+                current_app.logger.exception(
+                    "auth.load_user.db_connection_failed",
+                    extra={"user_id": uid},
+                )
+                return None
+        except Exception:
+            try:
+                db.session.remove()
+            except Exception:
+                pass
+            current_app.logger.exception(
+                "auth.load_user.unexpected_error",
+                extra={"user_id": uid},
+            )
+            return None
+
+    # ✅ INITIALISATION DES COMMANDES CLI (AJOUTÉ ICI)
+    init_cli_commands(app)
+
+    from flask import Response
+
+    @app.route("/sitemap.xml")
+    def sitemap():
+        from xml.sax.saxutils import escape
+        from .models.product import Product
+        from .models.shop import Shop
+        from .models.rental import RentalListing
+        from .models.category import Category
+
+        urls = []
+        seen = set()
+
+        def add_url(value):
+            if not value:
+                return
+            url_value = str(value).strip()
+            if not url_value or url_value in seen:
+                return
+            seen.add(url_value)
+            urls.append(url_value)
+
+        def build_category_url(category):
+            category_slug = getattr(category, "slug", None)
+            category_detail_endpoint = None
+            for endpoint_name in ("category.detail", "categories.detail", "shop.category_detail"):
+                if endpoint_name in app.view_functions:
+                    category_detail_endpoint = endpoint_name
+                    break
+            if category_detail_endpoint and category_slug:
+                return url_for(category_detail_endpoint, slug=category_slug, _external=True)
+            return url_for("shop.home", cat=category.id, _external=True)
+
+        add_url(url_for("landing", _external=True))
+        add_url(url_for("shops.list_shops", _external=True))
+        add_url(url_for("rentals.locations_home", _external=True))
+        add_url(url_for("shop.home", _external=True))
+        add_url(url_for("global_search", _external=True))
+
+        for shop in Shop.query.filter(Shop.is_active == True).order_by(Shop.id.asc()).all():
+            if getattr(shop, "slug", None):
+                add_url(url_for("shops.shop_detail", shop_slug=shop.slug, _external=True))
+
+        for product in Product.query.filter(Product.is_active == True).order_by(Product.id.asc()).all():
+            add_url(url_for("shop.product_detail", pid=product.id, _external=True))
+
+        for listing in RentalListing.query.filter(RentalListing.is_active == True).order_by(RentalListing.id.asc()).all():
+            listing_slug = getattr(listing, "slug", None)
+            if listing_slug:
+                add_url(url_for("rentals.location_detail", slug=listing_slug, _external=True))
+
+        categories_query = Category.query.order_by(Category.id.asc())
+        if hasattr(Category, "is_active"):
+            categories_query = categories_query.filter(Category.is_active == True)
+        for category in categories_query.all():
+            add_url(build_category_url(category))
+
+        xml_lines = ['<?xml version="1.0" encoding="UTF-8"?>', '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
+        for url in urls:
+            xml_lines.extend([
+                "<url>",
+                f"<loc>{escape(url)}</loc>",
+                "</url>",
+            ])
+        xml_lines.append("</urlset>")
+        xml = "\n".join(xml_lines)
+        return Response(xml, mimetype="application/xml")
 
     return app
 

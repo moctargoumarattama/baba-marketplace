@@ -7,6 +7,7 @@ import re
 from datetime import datetime, timedelta
 from flask import current_app, request
 from ..extensions import db
+from ..services.cache import cache
 
 _PHONE_RE = re.compile(r"\d")
 _EMAIL_RE = re.compile(r"^[^@]+@[^@]+\.[^@]+$")
@@ -56,7 +57,10 @@ def _mask_text_value(value: str) -> str:
     return f"h:{_hash_value(text)}"
 
 
-def _sanitize_details(value):
+def _sanitize_details(value, depth=0, max_depth=5):
+    if depth > max_depth:
+        return f"[max depth exceeded: {type(value).__name__}]"
+    
     if value is None:
         return None
     if isinstance(value, dict):
@@ -65,14 +69,14 @@ def _sanitize_details(value):
             key_text = str(key)
             if _SENSITIVE_KEY_RE.search(key_text):
                 if isinstance(item, (dict, list, tuple, set)):
-                    result[key_text] = _sanitize_details(item)
+                    result[key_text] = _sanitize_details(item, depth + 1, max_depth)
                 else:
                     result[key_text] = _mask_text_value(str(item))
             else:
-                result[key_text] = _sanitize_details(item)
+                result[key_text] = _sanitize_details(item, depth + 1, max_depth)
         return result
     if isinstance(value, (list, tuple, set)):
-        return [_sanitize_details(item) for item in value]
+        return [_sanitize_details(item, depth + 1, max_depth) for item in value]
     if isinstance(value, str):
         if _EMAIL_RE.match(value):
             return _mask_text_value(value)
@@ -80,9 +84,17 @@ def _sanitize_details(value):
             return _mask_text_value(value)
     return value
 
+
 class ActivityLog(db.Model):
     """Model pour stocker les logs d'activité"""
     __tablename__ = 'activity_logs'
+    __table_args__ = (
+        db.Index('ix_activity_logs_timestamp', 'timestamp'),
+        db.Index('ix_activity_logs_category', 'category'),
+        db.Index('ix_activity_logs_level', 'level'),
+        db.Index('ix_activity_logs_user_id', 'user_id'),
+        db.Index('ix_activity_logs_resource', 'resource_type', 'resource_id'),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
@@ -101,34 +113,30 @@ class ActivityLog(db.Model):
     def __repr__(self):
         return f"<ActivityLog {self.category}:{self.action} by {self.username or 'system'}>"
 
+
 class LoggingService:
     """Service de logging pour l'application"""
 
     @staticmethod
     def setup_logging():
         """Configure le système de logging"""
-        # Créer le dossier logs s'il n'existe pas
         logs_dir = os.path.join(current_app.root_path, '..', 'logs')
         os.makedirs(logs_dir, exist_ok=True)
 
-        # Configuration du logger
         logger = logging.getLogger('dealnova')
         if getattr(logger, "_configured", False):
             return logger
         logger.setLevel(logging.INFO)
 
-        # Formatter
         formatter = logging.Formatter(
             '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
         )
 
-        # Handler pour fichier
         log_file = os.path.join(logs_dir, 'dealnova.log')
         file_handler = logging.FileHandler(log_file)
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
 
-        # Handler pour console (seulement en développement)
         if current_app.config.get('DEBUG', False):
             console_handler = logging.StreamHandler()
             console_handler.setFormatter(formatter)
@@ -142,7 +150,6 @@ class LoggingService:
                     details=None, level='INFO', message=None):
         """Log une activité dans la base de données et les fichiers"""
 
-        # Générer le message si non fourni
         if not message:
             if user:
                 message = f"{user.username} ({category}) - {action}"
@@ -153,7 +160,6 @@ class LoggingService:
                 if resource_type and resource_id:
                     message += f" {resource_type} #{resource_id}"
 
-        # Récupérer les infos de la requête
         ip_address = None
         user_agent = None
         try:
@@ -170,7 +176,6 @@ class LoggingService:
             except Exception:
                 serialized_details = str(sanitized_details)
 
-        # Créer l'entrée de log
         log_entry = ActivityLog(
             level=level,
             category=category,
@@ -189,14 +194,12 @@ class LoggingService:
             db.session.add(log_entry)
             db.session.commit()
         except Exception as e:
-            # En cas d'erreur DB, on log quand même dans les fichiers
             try:
                 db.session.rollback()
             except Exception:
                 pass
             current_app.logger.error(f"Erreur lors du logging DB: {e}")
 
-        # Log aussi dans le logger Flask
         logger = current_app.logger
         log_method = getattr(logger, level.lower(), logger.info)
         log_method(f"[{category}] {message}")
@@ -222,11 +225,11 @@ class LoggingService:
         return query.order_by(ActivityLog.timestamp.desc()).limit(limit).all()
 
     @staticmethod
+    @cache.cached(timeout=300, key_prefix="logs_stats")
     def get_logs_stats(days=7):
-        """Récupère les statistiques des logs"""
+        """Récupère les statistiques des logs avec cache"""
         since = datetime.utcnow() - timedelta(days=days)
 
-        # Logs par catégorie
         category_stats = db.session.query(
             ActivityLog.category,
             db.func.count(ActivityLog.id).label('count')
@@ -234,7 +237,6 @@ class LoggingService:
          .group_by(ActivityLog.category)\
          .all()
 
-        # Logs par niveau
         level_stats = db.session.query(
             ActivityLog.level,
             db.func.count(ActivityLog.id).label('count')
@@ -242,7 +244,6 @@ class LoggingService:
          .group_by(ActivityLog.level)\
          .all()
 
-        # Logs par jour (derniers 7 jours)
         daily_stats = []
         for i in range(days):
             day = datetime.utcnow() - timedelta(days=i)
@@ -262,8 +263,23 @@ class LoggingService:
         return {
             'category_stats': dict(category_stats),
             'level_stats': dict(level_stats),
-            'daily_stats': daily_stats[::-1]  # Inverser pour avoir du plus ancien au plus récent
+            'daily_stats': daily_stats[::-1]
         }
+
+    @staticmethod
+    def cleanup_old_logs(days=10):
+        """Supprime les logs plus vieux que days."""
+        try:
+            cutoff = datetime.utcnow() - timedelta(days=days)
+            deleted = ActivityLog.query.filter(ActivityLog.timestamp < cutoff).delete()
+            db.session.commit()
+            current_app.logger.info(f"Cleanup: {deleted} logs supprimés (> {days} jours)")
+            return deleted
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"Cleanup logs failed: {e}")
+            return 0
+
 
 # Instance globale du service
 logging_service = LoggingService()

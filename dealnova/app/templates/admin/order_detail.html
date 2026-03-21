@@ -1,12 +1,26 @@
-{% extends "admin/base.html" %}
+﻿{% extends "admin/base.html" %}
 {% block title %}Commande #{{ order.id }} | Admin{% endblock %}
 {% block page_title %}Commande #{{ order.id }}{% endblock %}
 
 {% block content %}
+{% set is_operational = order.delivery_status in ['new', 'assigned', 'picked_up', 'delivering'] %}
+{% set is_closed_period = order.period and order.period.status == 'closed' %}
+{% set is_special_delivery = order._delivery_source == 'special' %}
+{% set back_url = request.args.get('next') or (url_for('admin.pricing_settings', section='archives', archive_period_id=order.period_id) if is_closed_period else (url_for('admin.deliveries') if is_operational else url_for('admin.all_orders'))) %}
+{% set back_label = 'retour liste' %}
+{% if '/deliveries/archives' in back_url %}
+  {% set back_label = 'retour archives livraison' %}
+{% elif '/pricing' in back_url and 'section=archives' in back_url %}
+  {% set back_label = 'retour archives periodes' %}
+{% elif '/deliveries' in back_url %}
+  {% set back_label = 'retour centre livraison' %}
+{% elif '/orders' in back_url %}
+  {% set back_label = 'retour commandes' %}
+{% endif %}
 <section class="container-fluid py-2">
   <div class="d-flex flex-wrap gap-2 mb-3">
-    <a href="{{ url_for('admin.all_orders') }}" class="btn btn-outline-secondary btn-sm">
-      <i class="bi bi-arrow-left me-1"></i> Retour commandes
+    <a href="{{ back_url }}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-arrow-left me-1"></i> {{ back_label|capitalize }}
     </a>
     {% if order.courier %}
       <a href="{{ url_for('admin.courier_whatsapp', oid=order.id, next=request.full_path) }}" class="btn btn-outline-success btn-sm">
@@ -19,8 +33,15 @@
     <div class="col-xl-8">
       <div class="card shadow-sm">
         <div class="card-header bg-light d-flex justify-content-between align-items-center">
-          <h6 class="mb-0">Informations commande</h6>
-          <span class="badge rounded-pill text-bg-info">{{ order._delivery_source_label if order._delivery_source_label else "Marketplace" }}</span>
+          <h6 class="mb-0">Synthese commande</h6>
+          <div class="d-flex flex-wrap gap-2 justify-content-end">
+            <span class="badge rounded-pill text-bg-info">{{ order._delivery_source_label if order._delivery_source_label else "Marketplace" }}</span>
+            {% if order.period %}
+              <span class="badge rounded-pill {{ 'text-bg-secondary' if is_closed_period else 'text-bg-success' }}">
+                Periode: {{ order.period.name }}
+              </span>
+            {% endif %}
+          </div>
         </div>
         <div class="card-body">
           <div class="row g-3">
@@ -32,14 +53,40 @@
               <div><strong>Adresse:</strong> {{ order.delivery_address or order.address or "N/A" }}</div>
             </div>
             <div class="col-md-6">
-              <h6 class="text-muted">Workflow</h6>
+              <h6 class="text-muted">Workflow admin</h6>
               <div>
                 <strong>Statut commande:</strong>
-                <span class="badge text-bg-secondary">{{ order.status }}</span>
+                {% if order.status == 'delivered' %}
+                  <span class="badge text-bg-success">Livree</span>
+                {% elif order.status == 'cancelled' %}
+                  <span class="badge text-bg-danger">Annulee</span>
+                {% elif order.status == 'pending' %}
+                  <span class="badge text-bg-warning text-dark">En attente</span>
+                {% else %}
+                  <span class="badge text-bg-secondary">{{ order.status }}</span>
+                {% endif %}
               </div>
               <div class="mt-1">
                 <strong>Statut livraison:</strong>
-                <span class="badge text-bg-primary">{{ order.delivery_status or "new" }}</span>
+                {% if order.delivery_status == 'delivered' %}
+                  <span class="badge text-bg-success">Livree</span>
+                {% elif order.delivery_status == 'canceled' %}
+                  <span class="badge text-bg-danger">Annulee</span>
+                {% elif order.delivery_status == 'delivering' %}
+                  <span class="badge text-bg-primary">En livraison</span>
+                {% elif order.delivery_status == 'picked_up' %}
+                  <span class="badge text-bg-primary">Recuperee</span>
+                {% elif order.delivery_status == 'assigned' %}
+                  <span class="badge text-bg-primary">Assignee</span>
+                {% else %}
+                  <span class="badge text-bg-warning text-dark">Nouvelle</span>
+                {% endif %}
+              </div>
+              <div class="mt-1">
+                <strong>Vue principale:</strong>
+                <span class="badge {{ 'text-bg-warning text-dark' if is_operational else 'text-bg-secondary' }}">
+                  {{ 'Centre livraison' if is_operational else 'Commandes periode' }}
+                </span>
               </div>
               <div class="mt-1"><strong>Date:</strong> {{ order.created_at.strftime('%d/%m/%Y %H:%M') if order.created_at else "N/A" }}</div>
               <div class="mt-1">
@@ -58,6 +105,12 @@
                 <strong>Assigne par:</strong>
                 {{ order.assigned_by_user.username if order.assigned_by_user else "N/A" }}
               </div>
+              {% if order.delivered_at %}
+              <div class="mt-1">
+                <strong>Livree le:</strong>
+                {{ order.delivered_at.strftime('%d/%m/%Y %H:%M') }}
+              </div>
+              {% endif %}
             </div>
           </div>
         </div>
@@ -65,21 +118,21 @@
 
       <div class="card shadow-sm mt-3">
         <div class="card-header bg-light">
-          <h6 class="mb-0">Pickup et dropoff</h6>
+          <h6 class="mb-0">{{ "Depart et arrivee" if is_special_delivery else 'Boutique et client' }}</h6>
         </div>
         <div class="card-body">
           <div class="row g-3">
             <div class="col-md-6">
               <div class="border rounded p-3 h-100">
-                <h6 class="mb-2">Pickup</h6>
-                <div><strong>Boutique:</strong> {{ order._delivery_pickup.shop_name if order._delivery_pickup else "N/A" }}</div>
+                <h6 class="mb-2">{{ 'Depart' if is_special_delivery else 'Boutique de depart' }}</h6>
+                <div><strong>{{ 'Lieu:' if is_special_delivery else 'Boutique:' }}</strong> {{ order._delivery_pickup.shop_name if order._delivery_pickup else "N/A" }}</div>
                 <div><strong>Adresse:</strong> {{ order._delivery_pickup.address if order._delivery_pickup else "N/A" }}</div>
-                <div><strong>Coords:</strong> {{ order._delivery_pickup.coords_text if order._delivery_pickup else "N/A" }}</div>
+                <div><strong>Coordonnees:</strong> {{ order._delivery_pickup.coords_text if order._delivery_pickup else "N/A" }}</div>
                 <div><strong>Repere:</strong> {{ order._delivery_pickup.note if order._delivery_pickup and order._delivery_pickup.note else "N/A" }}</div>
                 {% if order._delivery_pickup and order._delivery_pickup.maps_url %}
                   <div class="d-flex flex-wrap gap-2 mt-2">
                     <a class="btn btn-sm btn-outline-primary" href="{{ order._delivery_pickup.maps_url }}" target="_blank" rel="noopener">
-                      <i class="bi bi-geo-alt me-1"></i> Ouvrir Maps pickup
+                      <i class="bi bi-geo-alt me-1"></i> {{ 'Ouvrir Maps depart' if is_special_delivery else 'Ouvrir Maps boutique' }}
                     </a>
                     <button
                       type="button"
@@ -90,22 +143,22 @@
                     </button>
                   </div>
                 {% else %}
-                  <div class="text-muted small mt-2">Maps: N/A</div>
+                  <div class="text-muted small mt-2">Lien carte: indisponible</div>
                 {% endif %}
               </div>
             </div>
             <div class="col-md-6">
               <div class="border rounded p-3 h-100">
-                <h6 class="mb-2">Dropoff</h6>
-                <div><strong>Client:</strong> {{ order._delivery_dropoff.customer_name if order._delivery_dropoff else "N/A" }}</div>
+                <h6 class="mb-2">{{ "Adresse d'arrivee" if is_special_delivery else 'Adresse client' }}</h6>
+                <div><strong>{{ 'Destinataire:' if is_special_delivery else 'Client:' }}</strong> {{ order._delivery_dropoff.customer_name if order._delivery_dropoff else "N/A" }}</div>
                 <div><strong>Telephone:</strong> {{ order._delivery_dropoff.customer_phone if order._delivery_dropoff else "N/A" }}</div>
                 <div><strong>Ville:</strong> {{ order._delivery_dropoff.city if order._delivery_dropoff else "N/A" }}</div>
                 <div><strong>Adresse:</strong> {{ order._delivery_dropoff.address if order._delivery_dropoff else "N/A" }}</div>
-                <div><strong>Coords:</strong> {{ order._delivery_dropoff.coords_text if order._delivery_dropoff else "N/A" }}</div>
+                <div><strong>Coordonnees:</strong> {{ order._delivery_dropoff.coords_text if order._delivery_dropoff else "N/A" }}</div>
                 <div class="d-flex flex-wrap gap-2 mt-2">
                   {% if order._delivery_dropoff and order._delivery_dropoff.maps_url %}
                     <a class="btn btn-sm btn-outline-primary" href="{{ order._delivery_dropoff.maps_url }}" target="_blank" rel="noopener">
-                      <i class="bi bi-geo-alt me-1"></i> Ouvrir Maps client
+                      <i class="bi bi-geo-alt me-1"></i> {{ "Ouvrir Maps arrivee" if is_special_delivery else 'Ouvrir Maps client' }}
                     </a>
                     <button
                       type="button"
@@ -115,7 +168,7 @@
                       <i class="bi bi-clipboard me-1"></i> Copier lien
                     </button>
                   {% else %}
-                    <span class="text-muted small align-self-center">Maps: N/A</span>
+                    <span class="text-muted small align-self-center">Lien carte: indisponible</span>
                   {% endif %}
                   {% if order._delivery_dropoff and order._delivery_dropoff.customer_phone_wa %}
                     <a class="btn btn-sm btn-outline-success" href="https://wa.me/{{ order._delivery_dropoff.customer_phone_wa }}" target="_blank" rel="noopener">
@@ -255,7 +308,7 @@
                           <button type="submit" class="btn btn-sm btn-success">Marquer paye</button>
                         </form>
                       {% else %}
-                        <span class="text-muted">Admin only</span>
+                        <span class="text-muted">Reserve a l'admin</span>
                       {% endif %}
                     {% else %}
                       <small class="text-muted">{{ p.paid_at.strftime('%d/%m/%Y') if p.paid_at else '' }}</small>
@@ -272,14 +325,21 @@
 
       <div class="card shadow-sm mt-3">
         <div class="card-header bg-light">
-          <h6 class="mb-0">Actions</h6>
+          <h6 class="mb-0">Actions admin</h6>
         </div>
         <div class="card-body">
-          {% if order.period and order.period.status == 'closed' %}
+          {% if is_closed_period %}
             <div class="text-muted small">Periode fermee: lecture seule.</div>
           {% else %}
+            <div class="small text-muted mb-2">
+              {% if is_operational %}
+                Cette commande fait encore partie du centre livraison.
+              {% else %}
+                Cette commande est en suivi de la periode ouverte.
+              {% endif %}
+            </div>
             <div class="d-flex flex-wrap gap-2">
-              {% if order.delivery_status in ['new', 'assigned', 'picked_up', 'delivering'] %}
+              {% if is_operational %}
                 <form method="post" action="{{ url_for('admin.mark_delivered', oid=order.id, next=request.full_path) }}">
                   {% include "admin/partials/_csrf.html" %}
                   <button class="btn btn-sm btn-success" type="submit">
@@ -293,7 +353,7 @@
                   </button>
                 </form>
               {% else %}
-                <span class="badge text-bg-secondary">Aucune action disponible</span>
+                <span class="badge text-bg-secondary">Aucune action operationnelle</span>
               {% endif %}
             </div>
           {% endif %}
@@ -303,3 +363,4 @@
   </div>
 </section>
 {% endblock %}
+

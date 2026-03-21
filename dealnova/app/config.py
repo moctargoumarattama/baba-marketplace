@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))  # dossier app/
 ENV_PATH = os.path.abspath(os.path.join(BASE_DIR, "..", ".env"))
 
-# Charger le .env seulement s'il existe (évite surprises en prod)
+# Charger le .env seulement s'il existe (evite surprises en prod)
 if os.path.exists(ENV_PATH):
     load_dotenv(ENV_PATH)
 
@@ -24,12 +24,12 @@ class Config:
     APP_STATIC_VERSION = os.getenv("APP_STATIC_VERSION", "20260225a")
     UI_HOME_TABS_ENABLED = _env_bool.__func__("UI_HOME_TABS_ENABLED", True)
 
-    # ⚠️ On garde le fallback "dev" pour ne pas casser,
-    # mais on recommande fortement de définir SECRET_KEY en prod.
+    # On garde le fallback "dev" pour ne pas casser,
+    # mais on recommande fortement de definir SECRET_KEY en prod.
     SECRET_KEY = os.getenv("SECRET_KEY", "dev")
     if ENV == "production" and (not SECRET_KEY or SECRET_KEY.strip().lower() in ("dev", "secret", "password", "123456")):
         # Warning non-bloquant (ne casse pas le site)
-        print("[WARN] SECRET_KEY faible ou manquant en production. Définis une SECRET_KEY forte dans les variables d'environnement.")
+        print("[WARN] SECRET_KEY faible ou manquant en production. Definis une SECRET_KEY forte dans les variables d'environnement.")
 
     @staticmethod
     def _normalize_sqlite_url(url):
@@ -66,6 +66,7 @@ class Config:
     # =========================
     SITE_NAME = os.getenv("SITE_NAME", "Baba Market ")
     SITE_LOGO = os.getenv("SITE_LOGO", "")
+    PUBLIC_BASE_URL = (os.getenv("PUBLIC_BASE_URL") or os.getenv("SITE_URL") or "").strip().rstrip("/")
     DELIVERY_WHATSAPP_NUMBER = os.getenv("DELIVERY_WHATSAPP_NUMBER", "212602908954")
     ADMIN_PHONE = os.getenv("ADMIN_PHONE", "+212770010264")
     SUPPORT_WHATSAPP_NUMBER = os.getenv("SUPPORT_WHATSAPP_NUMBER", ADMIN_PHONE)
@@ -75,7 +76,7 @@ class Config:
     if os.path.isabs(_upload_folder_env):
         UPLOAD_FOLDER = _upload_folder_env
     else:
-        # relatif => on le rend absolu à partir de BASE_DIR/..
+        # relatif => on le rend absolu a partir de BASE_DIR/..
         UPLOAD_FOLDER = os.path.abspath(os.path.join(BASE_DIR, "..", _upload_folder_env))
 
     DEFAULT_LANG = os.getenv("DEFAULT_LANG", "fr")
@@ -98,7 +99,7 @@ class Config:
     # =========================
     SESSION_COOKIE_HTTPONLY = True
 
-    # Normaliser SameSite (sans casser: on garde Lax par défaut)
+    # Normaliser SameSite (sans casser: on garde Lax par defaut)
     _samesite = (os.getenv("SESSION_COOKIE_SAMESITE", "Lax") or "Lax").strip()
     _samesite_cap = _samesite[:1].upper() + _samesite[1:].lower()
     SESSION_COOKIE_SAMESITE = _samesite_cap if _samesite_cap in ("Lax", "Strict", "None") else "Lax"
@@ -134,6 +135,14 @@ class Config:
     PROXY_FIX_X_HOST = int(os.getenv("PROXY_FIX_X_HOST", "1"))
     PROXY_FIX_X_PORT = int(os.getenv("PROXY_FIX_X_PORT", "0"))
     PROXY_FIX_X_PREFIX = int(os.getenv("PROXY_FIX_X_PREFIX", "0"))
+    ANALYTICS_CITY_HEADERS = [
+        header.strip()
+        for header in os.getenv(
+            "ANALYTICS_CITY_HEADERS",
+            "CF-IPCity,X-AppEngine-City,X-City,CloudFront-Viewer-City,X-Geo-City",
+        ).split(",")
+        if header.strip()
+    ]
 
     BOOTSTRAP_ADMIN = _env_bool.__func__("BOOTSTRAP_ADMIN", False)
     BOOTSTRAP_ADMIN_USERNAME = os.getenv("BOOTSTRAP_ADMIN_USERNAME", "")
@@ -175,11 +184,11 @@ class Config:
         parsed = _safe_num_eval.__func__(max_env)
         MAX_CONTENT_LENGTH = int(parsed) if parsed is not None else 80 * 1024 * 1024
     else:
-        # Taille max requête multipart (uploads)
-        # 4 images * 12MB + 1 vidéo * 30MB + marge formulaire
+        # Taille max requete multipart (uploads)
+        # 4 images * 12MB + 1 video * 30MB + marge formulaire
         MAX_CONTENT_LENGTH = 80 * 1024 * 1024
 
 
-# Valeurs globales (je les laisse inchangées pour ne pas casser ton code)
+# Valeurs globales (je les laisse inchangees pour ne pas casser ton code)
 ADMIN_PHONE = os.getenv("ADMIN_PHONE", "+212770010264")
 DELIVERY_PHONE = os.getenv("DELIVERY_PHONE", "212602908954")

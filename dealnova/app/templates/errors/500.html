@@ -1,9 +1,9 @@
-{% extends 'errors/base.html' %}
+﻿{% extends 'errors/base.html' %}
 {% set error_code = 500 %}
 {% set error_title = 'Erreur interne du serveur' %}
-{% set error_message = 'Une erreur interne est survenue. Notre equipe verifie la situation. Merci de reessayer dans quelques instants.' %}
+{% set error_message = 'Une erreur est survenue. Réessayez dans un instant.' %}
 {% set error_tone = 'danger' %}
-{% set error_hint = 'Code 500 - Incident serveur' %}
+{% set error_hint = 'Code 500' %}
 
 {% block error_actions %}
 <a class="error-btn error-btn-primary" href="{{ url_for('landing') }}">Retour a l'accueil</a>
@@ -19,3 +19,4 @@
   <li><span class="error-dot"></span>Signaler le probleme si cela persiste.</li>
 </ul>
 {% endblock %}
+

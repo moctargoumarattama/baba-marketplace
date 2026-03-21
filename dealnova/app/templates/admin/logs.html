@@ -1,7 +1,8 @@
-{% extends "admin/base.html" %}
+﻿{% extends "admin/base.html" %}
 
 {% block title %}Logs | DealNova Admin{% endblock %}
 {% block page_title %}Logs & Historique{% endblock %}
+{% block body_attrs %}data-adm-page="logs" data-ajax-owner="admin"{% endblock %}
 
 {% block content %}
 {% set critical_logs = logs|selectattr('category', 'in', ['auth', 'admin'])|list %}
@@ -124,7 +125,7 @@
     <div class="lg-stat"><div class="val c-red">{{ critical_logs|length }}</div><div class="lbl">Activités critiques</div></div>
   </div>
 
-  <!-- ── AUDIT ── -->
+      <!-- AUDIT -->
   <div class="lg-card" id="auditSection">
     <div class="lg-hd">
       <h5><i class="bi bi-shield-check"></i> Historique d'audit</h5>
@@ -135,7 +136,7 @@
     </div>
     <div class="lg-body">
 
-      <!-- FILTERS – auto on change -->
+      <!-- FILTERS - auto on change -->
       <div class="lg-fbar" id="auditFilters">
         <div class="fg">
           <label>Action</label>
@@ -180,12 +181,12 @@
             <tbody id="auditTbody">
               {% for log in audit_logs %}
               <tr>
-                <td style="white-space:nowrap;color:var(--muted);font-size:.78rem">{{ log.created_at.strftime('%Y-%m-%d %H:%M') if log.created_at else '—' }}</td>
+                <td style="white-space:nowrap;color:var(--muted);font-size:.78rem">{{ log.created_at.strftime('%Y-%m-%d %H:%M') if log.created_at else '?' }}</td>
                 <td><strong>{{ log.user.username if log.user else 'System' }}</strong></td>
-                <td>{{ log.action or '—' }}</td>
-                <td>{{ log.entity_type or '—' }}</td>
-                <td style="color:var(--muted);font-size:.78rem">{{ log.entity_id or '—' }}</td>
-                <td style="font-family:monospace;font-size:.75rem;color:var(--muted)">{% if log.changes and log.changes.get is defined %}{{ log.changes.get('ip') or '—' }}{% else %}—{% endif %}</td>
+                <td>{{ log.action or '?' }}</td>
+                <td>{{ log.entity_type or '?' }}</td>
+                <td style="color:var(--muted);font-size:.78rem">{{ log.entity_id or '?' }}</td>
+                <td style="font-family:monospace;font-size:.75rem;color:var(--muted)">{% if log.changes and log.changes.get is defined %}{{ log.changes.get('ip') or '?' }}{% else %}?{% endif %}</td>
                 <td>
                   {% set s = log.changes.get('success') if log.changes and log.changes.get is defined else None %}
                   {% if s is sameas true %}<span class="bOK"><i class="bi bi-check-circle-fill"></i> OK</span>
@@ -206,7 +207,7 @@
             {% else %}<span class="dis"><i class="bi bi-chevron-left"></i></span>{% endif %}
             {% for p in audit_pagination.iter_pages(left_edge=1,right_edge=1,left_current=2,right_current=2) %}
               {% if p %}<a class="{{ 'cur' if p==audit_pagination.page }}" data-audit-page="{{ p }}">{{ p }}</a>
-              {% else %}<span class="dis">…</span>{% endif %}
+              {% else %}<span class="dis">...</span>{% endif %}
             {% endfor %}
             {% if audit_pagination.has_next %}
               <a data-audit-page="{{ audit_pagination.next_num }}"><i class="bi bi-chevron-right"></i></a>
@@ -217,7 +218,7 @@
     </div>
   </div>
 
-  <!-- ── ACTIVITÉS CRITIQUES ── -->
+      <!-- ACTIVITES CRITIQUES -->
   <div class="lg-card" id="critSection">
     <div class="lg-hd red-hd">
       <h5><i class="bi bi-shield-exclamation"></i> Activités critiques</h5>
@@ -237,7 +238,7 @@
           <span class="td" style="background:#f59e0b"></span>
           <span class="td" style="background:#22c55e"></span>
           <span style="color:#64748b;font-size:.71rem;margin-left:.2rem">activites-critiques.log</span>
-          <span style="margin-left:auto;color:#64748b;font-size:.7rem" id="critInfo">{{ critical_logs|length }} entrées — page <span id="critPageNum">1</span></span>
+          <span style="margin-left:auto;color:#64748b;font-size:.7rem" id="critInfo">{{ critical_logs|length }} entr?es ? page <span id="critPageNum">1</span></span>
         </div>
         <div class="term-body" id="critBody">
           {% if critical_logs %}
@@ -260,7 +261,7 @@
     </div>
   </div>
 
-  <!-- ── LOGS SYSTÈME ── -->
+      <!-- LOGS SYSTEME -->
   <div class="lg-card" id="sysSection">
     <div class="lg-hd">
       <h5><i class="bi bi-terminal"></i> Logs Système Détaillés</h5>
@@ -280,7 +281,7 @@
           <span class="td" style="background:#f59e0b"></span>
           <span class="td" style="background:#22c55e"></span>
           <span style="color:#64748b;font-size:.71rem;margin-left:.2rem">system.log</span>
-          <span style="margin-left:auto;color:#64748b;font-size:.7rem">{{ logs|length }} entrées — page <span id="sysPageNum">1</span></span>
+          <span style="margin-left:auto;color:#64748b;font-size:.7rem">{{ logs|length }} entr?es ? page <span id="sysPageNum">1</span></span>
         </div>
         <div class="term-body" id="sysBody">
           {% if logs %}
@@ -327,181 +328,11 @@
 }
 </script>
 
-<script>
-(function(){
-'use strict';
-
-/* ─── read Jinja vars safely from JSON block ─── */
-const PV = JSON.parse(document.getElementById('pageVars').textContent);
-
-const BASE_URL = window.location.pathname;
-const BASE_PARAMS = {
-  category: PV.category_filter,
-  level:    PV.level_filter,
-  user:     PV.user_filter,
-  days:     PV.days
-};
-
-const auditSection = document.getElementById('auditSection');
-const auditTbody   = document.getElementById('auditTbody');
-const auditPg      = document.getElementById('auditPg');
-const auditMask    = document.getElementById('auditMask');
-const auditCount   = document.getElementById('auditCount');
-
-let auditState = {
-  action: PV.audit_action_filter,
-  entity: PV.audit_entity_filter,
-  user:   PV.audit_user_filter,
-  page:   PV.audit_page
-};
-
-function buildAuditURL(page) {
-  const p = new URLSearchParams(BASE_PARAMS);
-  p.set('audit_action', auditState.action);
-  p.set('audit_entity', auditState.entity);
-  p.set('audit_user',   auditState.user);
-  p.set('audit_page',   page || auditState.page);
-  return BASE_URL + '?' + p.toString();
-}
-
-function loadAuditPage(page) {
-  const scrollY = window.scrollY;            // save scroll
-  auditMask.classList.add('show');
-  auditState.page = page;
-
-  fetch(buildAuditURL(page), { headers: {'X-Requested-With': 'XMLHttpRequest'} })
-    .then(r => r.text())
-    .then(html => {
-      const doc = new DOMParser().parseFromString(html, 'text/html');
-
-      // swap tbody
-      const newTbody = doc.getElementById('auditTbody');
-      if (newTbody) {
-        auditTbody.innerHTML = newTbody.innerHTML;
-        auditTbody.classList.add('fade-in');
-        setTimeout(()=>auditTbody.classList.remove('fade-in'), 250);
-      }
-
-      // swap pagination
-      const newPg = doc.getElementById('auditPg');
-      if (newPg) { auditPg.innerHTML = newPg.innerHTML; bindAuditPg(); }
-
-      // update count
-      const newCount = doc.getElementById('auditCount');
-      if (newCount) auditCount.textContent = newCount.textContent;
-
-      // update browser URL without reload
-      window.history.replaceState(null, '', buildAuditURL(page));
-
-      auditMask.classList.remove('show');
-      window.scrollTo({ top: scrollY, behavior: 'instant' }); // restore scroll
-    })
-    .catch(()=> { auditMask.classList.remove('show'); window.location = buildAuditURL(page); });
-}
-
-function bindAuditPg() {
-  auditPg.querySelectorAll('[data-audit-page]').forEach(el => {
-    el.addEventListener('click', e => {
-      e.preventDefault();
-      const pg = parseInt(el.dataset.auditPage);
-      if (!isNaN(pg)) loadAuditPage(pg);
-    });
-  });
-}
-bindAuditPg();
-
-// Real-time filter change
-let auditDebounce = null;
-['f-audit-action','f-audit-entity','f-audit-user'].forEach(id => {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.addEventListener('change', () => {
-    auditState.action = document.getElementById('f-audit-action').value;
-    auditState.entity = document.getElementById('f-audit-entity').value;
-    auditState.user   = document.getElementById('f-audit-user').value;
-    clearTimeout(auditDebounce);
-    auditDebounce = setTimeout(() => loadAuditPage(1), 120);
-  });
-});
-
-document.getElementById('auditReset')?.addEventListener('click', e => {
-  e.preventDefault();
-  document.getElementById('f-audit-action').value = '';
-  document.getElementById('f-audit-entity').value = '';
-  document.getElementById('f-audit-user').value   = '';
-  auditState = { action:'', entity:'', user:'', page:1 };
-  loadAuditPage(1);
-});
-
-
-/* ─── CLIENT-SIDE PAGINATION for terminal logs ─── */
-const PER = 50;
-
-function renderTerminalPage(data, bodyEl, pgEl, pageNumEl, page, catClass) {
-  const total = data.length;
-  const pages = Math.ceil(total / PER);
-  const start = (page - 1) * PER;
-  const slice = data.slice(start, start + PER);
-
-  // render log lines
-  bodyEl.innerHTML = slice.length ? slice.map(l => {
-    const cat = l.cat === 'auth' ? 'le-auth' : l.cat === 'admin' ? 'le-admin' : 'le-sys-cat';
-    const usr = l.usr ? `<span class="le-user"> ${l.usr}</span>` : `<span class="le-sys"> SYSTEM</span>`;
-    const ip  = l.ip  ? `<span class="le-ip"><i class="bi bi-globe"></i> ${l.ip}</span>` : '';
-    const extra = (l.rt && l.ri) ? `<span style="color:#cbd5e1;font-size:.69rem"> [${l.rt} #${l.ri}]</span>` : '';
-    return `<div class="le"><span class="le-ts">[${l.ts}]</span><span class="le-${l.lvl}"> ${l.lvl}</span><span class="${cat}"> ${l.cat.toUpperCase()}</span>${usr}<span class="le-msg">${l.msg}</span>${extra}${ip}</div>`;
-  }).join('') : '<div style="text-align:center;padding:2rem;color:#475569">Aucune entrée.</div>';
-
-  if (pageNumEl) pageNumEl.textContent = page;
-
-  // render pagination
-  if (!pgEl) return;
-  if (pages <= 1) { pgEl.innerHTML = ''; return; }
-
-  let html = '';
-  const prev = page > 1;
-  const next = page < pages;
-
-  html += prev ? `<a data-p="${page-1}"><i class="bi bi-chevron-left"></i></a>` : `<span class="dis"><i class="bi bi-chevron-left"></i></span>`;
-
-  for (let p = 1; p <= pages; p++) {
-    if (p === 1 || p === pages || Math.abs(p - page) <= 1) {
-      html += `<a class="${p===page?'cur':''}" data-p="${p}">${p}</a>`;
-    } else if (Math.abs(p - page) === 2) {
-      html += `<span class="dis">…</span>`;
-    }
-  }
-
-  html += next ? `<a data-p="${page+1}"><i class="bi bi-chevron-right"></i></a>` : `<span class="dis"><i class="bi bi-chevron-right"></i></span>`;
-  pgEl.innerHTML = html;
-
-  pgEl.querySelectorAll('[data-p]').forEach(el => {
-    el.addEventListener('click', () => {
-      const scrollY = window.scrollY;
-      renderTerminalPage(data, bodyEl, pgEl, pageNumEl, parseInt(el.dataset.p), catClass);
-      window.scrollTo({ top: scrollY, behavior: 'instant' }); // no jump!
-    });
-  });
-}
-
-// Init critical logs
-const critData = JSON.parse(document.getElementById('critData').textContent);
-const critBody  = document.getElementById('critBody');
-const critPg    = document.getElementById('critPg');
-const critPgNum = document.getElementById('critPageNum');
-if (critData.length > PER) {
-  renderTerminalPage(critData, critBody, critPg, critPgNum, 1);
-}
-
-// Init sys logs
-const sysData  = JSON.parse(document.getElementById('sysData').textContent);
-const sysBody  = document.getElementById('sysBody');
-const sysPg    = document.getElementById('sysPg');
-const sysPgNum = document.getElementById('sysPageNum');
-if (sysData.length > PER) {
-  renderTerminalPage(sysData, sysBody, sysPg, sysPgNum, 1);
-}
-
-})();
-</script>
 {% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="{{ url_for('static', filename='js/pages/admin_logs_page.js', v=app_static_version) }}" defer></script>
+{% endblock %}
+
+
