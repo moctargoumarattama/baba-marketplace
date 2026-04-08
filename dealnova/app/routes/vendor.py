@@ -17,12 +17,18 @@ from ..models.platform_settings import PlatformSettings
 from ..services.image import MAX_PRODUCT_VIDEO_BYTES, delete_product_video, save_image, save_product_video
 from ..services.cache import bump_catalog_version
 from ..services.featured_items import active_featured_shop_notice
-from ..services.pricing import calculate_promo_price, get_active_promos_for_products
+from ..services.pricing import calculate_promo_price, cents_to_money, get_active_promos_for_products, set_product_price
 from sqlalchemy.orm import load_only, selectinload
 from sqlalchemy import or_, and_, text
 from ..services.audit import log_access
 from ..services.shop_access import ensure_shop_allows, ensure_vendor_allows, resolve_vendor_shop, shop_allows_any
 from ..services.pagination import page_from_args
+from ..services.support_whatsapp import (
+    append_support_request,
+    build_support_whatsapp_url,
+    safe_support_back_target,
+    support_user_label,
+)
 from ..middleware.security import order_access_required
 from datetime import datetime, timedelta
 from time import perf_counter
@@ -44,6 +50,51 @@ DASHBOARD_BOOKINGS_PER_PAGE_DEFAULT = 8
 DASHBOARD_BOOKINGS_PER_PAGE_MAX = 30
 LIVE_ENDPOINT_MICROCACHE_TTL_SECONDS = 3.0
 _DASHBOARD_ORDERS_LIVE_CACHE: dict[tuple, tuple[float, dict]] = {}
+
+
+@bp.route("/support/whatsapp")
+@login_required
+def support_whatsapp():
+    if current_user.role != "vendor":
+        flash("Interdit", "danger")
+        return redirect(url_for("shop.home"))
+
+    page_name = (request.args.get("page") or "Page vendeur").strip()[:120]
+    page_url = (request.args.get("page_url") or "").strip()[:400]
+    source = (request.args.get("source") or "").strip()[:160]
+    item_name = (request.args.get("item") or "").strip()[:160]
+    back_url = safe_support_back_target(request.args.get("back"), url_for("vendor.dashboard"))
+    shop = resolve_vendor_shop(current_user)
+
+    lines = [
+        "Bonjour, je signale un probleme sur mon espace vendeur.",
+        f"Compte: {support_user_label(current_user)} (id: {current_user.id})",
+    ]
+    if shop and getattr(shop, "name", None):
+        lines.append(f"Boutique: {shop.name}")
+    lines.append(f"Page: {page_name}")
+    if item_name:
+        lines.append(f"Element: {item_name}")
+    if source:
+        lines.append(f"Route: {source}")
+    if page_url:
+        lines.append(f"URL: {page_url}")
+    append_support_request(
+        lines,
+        issue_type=request.args.get("issue_type"),
+        details=request.args.get("details"),
+        expected=request.args.get("expected"),
+    )
+
+    return render_template(
+        "support/open_whatsapp.html",
+        wa_url=build_support_whatsapp_url(lines),
+        support_scope="Support vendeur",
+        support_title="Signaler un probleme vendeur",
+        support_copy="Votre message est pret avec la page, l'element et votre compte.",
+        back_url=back_url,
+        back_label="Retour a la page",
+    )
 
 
 @bp.app_context_processor
@@ -111,6 +162,11 @@ def _catalog_block_reasons(product: Product | None) -> list[str]:
     return reasons
 
 
+def _redirect_vendor_shop_admin_only():
+    flash("La creation de boutique est geree par l'administration.", "warning")
+    return redirect(url_for("vendor.manage_shop"))
+
+
 def _uploaded_files_total_bytes(files) -> int:
     total = 0
     for file_storage in files or []:
@@ -127,6 +183,67 @@ def _uploaded_files_total_bytes(files) -> int:
         except (OSError, ValueError):
             continue
     return total
+
+
+def _save_uploaded_product_images(files, *, vendor_id: int | None = None, remaining_slots: int | None = None):
+    saved_filenames: list[str] = []
+    skipped_invalid: list[str] = []
+    skipped_overflow: list[str] = []
+    slots_left = None if remaining_slots is None else max(0, int(remaining_slots))
+
+    for file_storage in files or []:
+        if not file_storage or not (getattr(file_storage, "filename", "") or "").strip():
+            continue
+
+        original_name = str(getattr(file_storage, "filename", "") or "").strip()
+        allowed_by_name = allowed_file(original_name)
+
+        current_app.logger.info(
+            "[vendor] product.image_file vendor_id=%s filename=%s content_type=%s allowed_by_name=%s",
+            vendor_id,
+            original_name,
+            getattr(file_storage, "content_type", None),
+            allowed_by_name,
+        )
+
+        if not allowed_by_name:
+            skipped_invalid.append(original_name)
+            continue
+
+        if slots_left is not None and len(saved_filenames) >= slots_left:
+            skipped_overflow.append(original_name)
+            continue
+
+        saved = save_image(file_storage)
+        current_app.logger.info(
+            "[vendor] product.image_save_result vendor_id=%s filename=%s saved=%s",
+            vendor_id,
+            original_name,
+            saved,
+        )
+        if saved:
+            saved_filenames.append(saved)
+        else:
+            skipped_invalid.append(original_name)
+
+    return saved_filenames, skipped_invalid, skipped_overflow
+
+
+def _flash_product_image_notice(*, mode: str, skipped_invalid: list[str], skipped_overflow: list[str]):
+    notes: list[str] = []
+    if skipped_invalid:
+        notes.append(
+            f"{len(skipped_invalid)} photo(s) ignoree(s) car non prises en charge ou illisibles"
+        )
+    if skipped_overflow:
+        notes.append(
+            f"{len(skipped_overflow)} photo(s) ignoree(s) car la limite est de {MAX_PRODUCT_IMAGES}"
+        )
+    if not notes:
+        return
+
+    prefix = "Creation des photos partielle" if mode == "create" else "Mise a jour des photos partielle"
+    flash(prefix + " : " + ". ".join(notes) + ".", "warning")
 
 
 def _shop_is_currently_open(shop: Shop | None) -> bool:
@@ -530,8 +647,7 @@ def dashboard():
     vendor_user = db.session.get(User, current_user.id) or current_user
     shop = resolve_vendor_shop(vendor_user)
     if not shop:
-        flash("Vous devez d'abord creer votre boutique.", "warning")
-        return redirect(url_for("vendor.create_shop"))
+        return _redirect_vendor_shop_admin_only()
 
     type_flags = _vendor_type_flags(shop)
     allows_products = type_flags["allows_products"]
@@ -769,8 +885,7 @@ def catalog():
     vendor_user = db.session.get(User, current_user.id) or current_user
     shop = resolve_vendor_shop(vendor_user)
     if not shop:
-        flash("Créez d’abord votre boutique.", "warning")
-        return redirect(url_for("vendor.create_shop"))
+        return _redirect_vendor_shop_admin_only()
 
     type_flags = _vendor_type_flags(shop)
     allows_products = type_flags["allows_products"]
@@ -876,19 +991,33 @@ def catalog():
     else:
         category_id = None
 
+    active_promo_end_at = (
+        db.session.query(db.func.max(Promo.end_date))
+        .filter(
+            Promo.product_id == Product.id,
+            Promo.end_date >= datetime.utcnow(),
+        )
+        .correlate(Product)
+        .scalar_subquery()
+    )
     sort_map = {
-        "recent": Product.created_at.desc(),
-        "oldest": Product.created_at.asc(),
-        "name": Product.name.asc(),
-        "price_asc": Product.price.asc(),
-        "price_desc": Product.price.desc(),
-        "stock_desc": Product.stock.desc(),
-        "stock_asc": Product.stock.asc(),
-        "views_desc": Product.view_count.desc(),
+        "recent": (Product.created_at.desc(), Product.id.desc()),
+        "oldest": (Product.created_at.asc(), Product.id.asc()),
+        "name": (Product.name.asc(), Product.id.desc()),
+        "price_asc": (Product.price_cents_value.asc(), Product.id.desc()),
+        "price_desc": (Product.price_cents_value.desc(), Product.id.desc()),
+        "stock_desc": (Product.stock.desc(), Product.id.desc()),
+        "stock_asc": (Product.stock.asc(), Product.id.desc()),
+        "promo": (
+            active_promo_end_at.isnot(None).desc(),
+            active_promo_end_at.desc(),
+            Product.created_at.desc(),
+            Product.id.desc(),
+        ),
     }
     if sort_filter not in sort_map:
         sort_filter = "recent"
-    product_query = product_query.order_by(sort_map[sort_filter], Product.id.desc())
+    product_query = product_query.order_by(*sort_map[sort_filter])
 
     pagination = product_query.paginate(page=page, per_page=per_page, error_out=False)
     products = pagination.items
@@ -966,6 +1095,7 @@ def catalog():
 @login_required
 def dashboard_orders_live():
     started_at = perf_counter()
+
     if not hasattr(current_user, "role") or current_user.role != "vendor":
         return jsonify({"success": False, "error": "forbidden"}), 403
 
@@ -1037,7 +1167,16 @@ def dashboard_orders_live():
         bool(allows_services),
         bool(type_flags["allows_location"]),
     )
-    cached_payload = _orders_live_cache_get(cache_key)
+
+    try:
+        cached_payload = _orders_live_cache_get(cache_key)
+    except Exception:
+        current_app.logger.exception(
+            "vendor.dashboard_orders_live.cache_read_error",
+            extra={"vendor_id": getattr(current_user, "id", None)},
+        )
+        cached_payload = None
+
     if cached_payload is not None:
         response = jsonify(
             success=True,
@@ -1070,6 +1209,7 @@ def dashboard_orders_live():
             bookings_per_page=bookings_per_page,
         )
     except SQLAlchemyError:
+        db.session.rollback()
         current_app.logger.exception(
             "vendor.dashboard_orders_live.db_error",
             extra={"vendor_id": getattr(current_user, "id", None)},
@@ -1081,8 +1221,27 @@ def dashboard_orders_live():
             error="database_error",
         )
         return jsonify({"success": False, "error": "database_error"}), 500
+    except Exception:
+        current_app.logger.exception(
+            "vendor.dashboard_orders_live.unexpected_error",
+            extra={"vendor_id": getattr(current_user, "id", None)},
+        )
+        _log_perf(
+            "vendor.dashboard_orders_live",
+            started_at,
+            vendor_id=getattr(current_user, "id", None),
+            error="unexpected_error",
+        )
+        return jsonify({"success": False, "error": "unexpected_error"}), 500
 
-    _orders_live_cache_set(cache_key, cards_payload)
+    try:
+        _orders_live_cache_set(cache_key, cards_payload)
+    except Exception:
+        current_app.logger.exception(
+            "vendor.dashboard_orders_live.cache_write_error",
+            extra={"vendor_id": getattr(current_user, "id", None)},
+        )
+
     payload = dict(
         success=True,
         window_hours=NEW_ORDERS_WINDOW_HOURS,
@@ -1104,7 +1263,6 @@ def dashboard_orders_live():
         bookings_count=payload["today_bookings"].get("count", 0),
     )
     return response
-
 
 @bp.route("/password/change", methods=["POST"])
 @login_required
@@ -1156,8 +1314,7 @@ def product_new():
     # Vrifier que le vendeur a une boutique
     shop = Shop.query.filter_by(vendor_id=current_user.id).first()
     if not shop:
-        flash("Créez d’abord votre boutique.", "warning")
-        return redirect(url_for("vendor.create_shop"))
+        return _redirect_vendor_shop_admin_only()
 
     if not shop_allows_any(shop, "products", "services"):
         flash("Cette boutique ne permet pas d’ajouter des produits ou services.", "warning")
@@ -1191,7 +1348,7 @@ def product_new():
                     current_user.id,
                     "name_empty",
                 )
-                flash("Nom obligatoire.", "warning")
+                flash("Offre non créée : le nom est obligatoire.", "warning")
                 return redirect(url_for("vendor.product_new"))
             if kind not in ("physical", "service"):
                 current_app.logger.warning(
@@ -1212,7 +1369,7 @@ def product_new():
                     "shop_invalid",
                 )
                 return access_guard
-            price = float(request.form["price"])
+            price = request.form["price"]
             if kind == "service":
                 stock = 0
             else:
@@ -1226,7 +1383,7 @@ def product_new():
                     current_user.id,
                     "category_missing",
                 )
-                flash("Catégorie invalide.", "danger")
+                flash("Offre non créée : catégorie invalide.", "danger")
                 return redirect(url_for("vendor.product_new"))
 
             category = _validate_category_for_kind(category_id, kind)
@@ -1237,18 +1394,10 @@ def product_new():
                     "category_invalid",
                 )
                 expected_label = "Services" if kind == "service" else "Produits"
-                flash(f"Choisissez une catégorie valide ({expected_label}).", "warning")
+                flash(f"Offre non créée : choisissez une catégorie valide ({expected_label}).", "warning")
                 return redirect(url_for("vendor.product_new"))
 
             files = [f for f in request.files.getlist("images") if f and (f.filename or "").strip()]
-            if len(files) > MAX_PRODUCT_IMAGES:
-                current_app.logger.warning(
-                    "[vendor] create_product.validation_failed vendor_id=%s reason=%s",
-                    current_user.id,
-                    "image_limit_exceeded",
-                )
-                flash(f"Maximum {MAX_PRODUCT_IMAGES} photos autorisées.", "warning")
-                return redirect(url_for("vendor.product_new"))
 
             uploaded_total_bytes = _uploaded_files_total_bytes(files)
             if uploaded_total_bytes > MAX_PRODUCT_IMAGES_TOTAL_BYTES:
@@ -1257,38 +1406,14 @@ def product_new():
                     current_user.id,
                     "image_total_bytes_exceeded",
                 )
-                flash("La taille totale des photos dépasse 15 MB.", "warning")
+                flash("Offre non créée : la taille totale des photos dépasse 15 MB.", "warning")
                 return redirect(url_for("vendor.product_new"))
 
-            filenames = []
-            for f in files:
-                if not f:
-                    continue
-                current_app.logger.info(
-                    "[vendor] create_product.image_file vendor_id=%s filename=%s content_type=%s allowed_by_name=%s",
-                    current_user.id,
-                    getattr(f, "filename", None),
-                    getattr(f, "content_type", None),
-                    allowed_file(getattr(f, "filename", "")),
-                )
-                saved = save_image(f)
-                current_app.logger.info(
-                    "[vendor] create_product.image_save_result vendor_id=%s filename=%s saved=%s",
-                    current_user.id,
-                    getattr(f, "filename", None),
-                    saved,
-                )
-                if saved:
-                    filenames.append(saved)
-            if len(filenames) != len(files):
-                current_app.logger.warning(
-                    "[vendor] create_product.validation_failed vendor_id=%s reason=%s",
-                    current_user.id,
-                    "image_invalid",
-                )
-                flash("Certaines images ne sont pas prises en charge (png, jpg, jpeg, webp).", "warning")
-                return redirect(url_for("vendor.product_new"))
-
+            filenames, skipped_invalid_images, skipped_overflow_images = _save_uploaded_product_images(
+                files,
+                vendor_id=current_user.id,
+                remaining_slots=MAX_PRODUCT_IMAGES,
+            )
             image_file = "|".join(filenames) if filenames else None
             if not image_file:
                 current_app.logger.warning(
@@ -1303,7 +1428,7 @@ def product_new():
                     current_user.id,
                     "video_limit_exceeded",
                 )
-                flash("Une seule vidéo est autorisée.", "warning")
+                flash("Offre non créée : une seule vidéo est autorisée.", "warning")
                 return redirect(url_for("vendor.product_new"))
 
             video_file = None
@@ -1316,14 +1441,14 @@ def product_new():
                         current_user.id,
                         "video_invalid",
                     )
-                    flash(str(exc), "warning")
+                    flash(f"Offre non créée : {exc}", "warning")
                     return redirect(url_for("vendor.product_new"))
 
             product = Product(
                 kind=kind,
                 name=name,
                 description=description,
-                price=price,
+                price=0,
                 stock=stock,
                 category_id=category.id,
                 image_file=image_file,
@@ -1331,6 +1456,11 @@ def product_new():
                 vendor_id=current_user.id,
                 shop_id=shop.id
             )
+            try:
+                set_product_price(product, price)
+            except ValueError:
+                flash("Offre non créée : prix invalide.", "warning")
+                return redirect(url_for("vendor.product_new"))
             db.session.add(product)
             current_app.logger.info(
                 "[vendor] create_product.before_commit vendor_id=%s product_name=%s",
@@ -1353,7 +1483,12 @@ def product_new():
                 changes={"price": product.price, "stock": product.stock, "shop_id": product.shop_id}
             )
 
-            flash("Produit ajouté à votre boutique.", "success")
+            flash("Offre créée avec succès.", "success")
+            _flash_product_image_notice(
+                mode="create",
+                skipped_invalid=skipped_invalid_images,
+                skipped_overflow=skipped_overflow_images,
+            )
             return redirect(url_for("vendor.dashboard"))
         except Exception:
             db.session.rollback()
@@ -1449,18 +1584,22 @@ def product_edit(pid):
         product.kind = kind
         product.name = request.form["name"].strip()
         product.description = request.form.get("description", "").strip()
-        product.price = float(request.form["price"])
+        try:
+            set_product_price(product, request.form["price"])
+        except ValueError:
+            flash("Mise à jour échouée : prix invalide.", "warning")
+            return redirect(url_for("vendor.product_edit", pid=product.id))
 
         try:
             category_id = int(request.form["category_id"])
         except (TypeError, ValueError):
-            flash("Catégorie invalide.", "danger")
+            flash("Mise à jour échouée : catégorie invalide.", "danger")
             return redirect(url_for("vendor.product_edit", pid=product.id))
 
         category = _validate_category_for_kind(category_id, kind)
         if not category:
             expected_label = "Services" if kind == "service" else "Produits"
-            flash(f"Choisissez une catégorie valide ({expected_label}).", "warning")
+            flash(f"Mise à jour échouée : choisissez une catégorie valide ({expected_label}).", "warning")
             return redirect(url_for("vendor.product_edit", pid=product.id))
         product.category_id = category.id
 
@@ -1478,26 +1617,17 @@ def product_edit(pid):
         kept_existing_images = [img for img in existing_images if img not in remove_images]
         files = [f for f in request.files.getlist("images") if f and (f.filename or "").strip()]
 
-        if len(kept_existing_images) + len(files) > MAX_PRODUCT_IMAGES:
-            flash(f"Maximum {MAX_PRODUCT_IMAGES} photos au total (existantes + nouvelles).", "warning")
-            return redirect(url_for("vendor.product_edit", pid=product.id))
-
         uploaded_total_bytes = _uploaded_files_total_bytes(files)
         if uploaded_total_bytes > MAX_PRODUCT_IMAGES_TOTAL_BYTES:
-            flash("La taille totale des nouvelles photos dépasse 15 MB.", "warning")
+            flash("Mise à jour échouée : la taille totale des nouvelles photos dépasse 15 MB.", "warning")
             return redirect(url_for("vendor.product_edit", pid=product.id))
 
-        new_filenames = []
-        for file in files:
-            if file and file.filename and allowed_file(file.filename):
-                saved = save_image(file)
-                if saved:
-                    new_filenames.append(saved)
-
-        if len(new_filenames) != len(files):
-            flash("Certaines images ne sont pas prises en charge (png, jpg, jpeg, webp).", "warning")
-            return redirect(url_for("vendor.product_edit", pid=product.id))
-
+        remaining_slots = max(0, MAX_PRODUCT_IMAGES - len(kept_existing_images))
+        new_filenames, skipped_invalid_images, skipped_overflow_images = _save_uploaded_product_images(
+            files,
+            vendor_id=current_user.id,
+            remaining_slots=remaining_slots,
+        )
         all_images = (kept_existing_images + new_filenames)[:MAX_PRODUCT_IMAGES]
         product.image_file = "|".join(all_images) if all_images else None
 
@@ -1505,7 +1635,7 @@ def product_edit(pid):
         existing_video = (getattr(product, "video_file", None) or "").strip() or None
         video_files = [f for f in request.files.getlist("video") if f and (f.filename or "").strip()]
         if len(video_files) > MAX_PRODUCT_VIDEOS:
-            flash("Une seule vidéo est autorisée.", "warning")
+            flash("Mise à jour échouée : une seule vidéo est autorisée.", "warning")
             return redirect(url_for("vendor.product_edit", pid=product.id))
 
         replacement_video = existing_video
@@ -1515,7 +1645,7 @@ def product_edit(pid):
             try:
                 replacement_video = save_product_video(video_files[0])
             except ValueError as exc:
-                flash(str(exc), "warning")
+                flash(f"Mise à jour échouée : {exc}", "warning")
                 return redirect(url_for("vendor.product_edit", pid=product.id))
 
         old_video_file = existing_video
@@ -1534,8 +1664,18 @@ def product_edit(pid):
             auto_reactivated = True
 
         db.session.commit()
+        video_cleanup_failed = False
         if old_video_file and old_video_file != product.video_file and (remove_video or video_files):
-            delete_product_video(old_video_file)
+            try:
+                delete_product_video(old_video_file)
+            except Exception:
+                video_cleanup_failed = True
+                current_app.logger.exception(
+                    "[vendor] product_edit.video_cleanup_failed vendor_id=%s product_id=%s old_video_file=%s",
+                    current_user.id,
+                    product.id,
+                    old_video_file,
+                )
         bump_catalog_version()
 
         changed_fields = [k for k, v in before.items() if getattr(product, k) != v]
@@ -1554,9 +1694,16 @@ def product_edit(pid):
                 },
             )
         if auto_reactivated:
-            flash("Produit complété et réactivé automatiquement.", "success")
+            flash("Offre mise à jour avec succès et réactivée automatiquement.", "success")
         else:
-            flash("Produit mis à jour.", "success")
+            flash("Offre mise à jour avec succès.", "success")
+        if video_cleanup_failed:
+            flash("L'offre a bien ete mise a jour, mais l'ancienne video n'a pas pu etre nettoyee tout de suite.", "warning")
+        _flash_product_image_notice(
+            mode="edit",
+            skipped_invalid=skipped_invalid_images,
+            skipped_overflow=skipped_overflow_images,
+        )
         return redirect(url_for("vendor.dashboard"))
 
     current_kind = getattr(product, "kind", "physical") or "physical"
@@ -1595,80 +1742,141 @@ def product_promotion(pid):
         return listing_guard
 
     now = datetime.utcnow()
-    promo = (
+    latest_promo = (
         Promo.query
         .filter(Promo.product_id == product.id)
         .order_by(Promo.end_date.desc(), Promo.id.desc())
         .first()
     )
+    active_promo = (
+        Promo.query
+        .filter(Promo.product_id == product.id, Promo.end_date >= now)
+        .order_by(Promo.end_date.asc(), Promo.id.asc())
+        .first()
+    )
+    promo = active_promo or latest_promo
+
+    def _format_promo_value(value) -> str:
+        if value in (None, ""):
+            return ""
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError):
+            return str(value)
+        if numeric.is_integer():
+            return str(int(numeric))
+        return f"{numeric:.2f}".rstrip("0").rstrip(".")
+
+    suggested_end_date = (
+        active_promo.end_date
+        if active_promo and active_promo.end_date and active_promo.end_date >= now
+        else now + timedelta(days=7)
+    )
+    form_state = {
+        "promo_type": getattr(promo, "type", "percentage") or "percentage",
+        "promo_value": _format_promo_value(getattr(promo, "value", "")),
+        "end_date": suggested_end_date.strftime("%Y-%m-%dT%H:%M") if suggested_end_date else "",
+    }
+    form_error = None
+    item_label = "service" if getattr(product, "kind", "physical") == "service" else "produit"
 
     if request.method == "POST":
-        promo_type = (request.form.get("promo_type") or "").strip().lower()
+        form_state = {
+            "promo_type": (request.form.get("promo_type") or "").strip().lower() or "percentage",
+            "promo_value": (request.form.get("promo_value") or "").strip(),
+            "end_date": (request.form.get("end_date") or "").strip(),
+        }
+        promo_type = form_state["promo_type"]
         if promo_type not in ("percentage", "fixed"):
-            flash("Type de promotion invalide.", "warning")
-            return redirect(url_for("vendor.product_promotion", pid=product.id))
-
-        try:
-            promo_value = float(request.form.get("promo_value") or 0)
-        except (TypeError, ValueError):
-            promo_value = 0.0
-        if promo_value <= 0:
-            flash("La valeur de la promotion doit etre superieure a 0.", "warning")
-            return redirect(url_for("vendor.product_promotion", pid=product.id))
-        if promo_type == "percentage" and promo_value >= 100:
-            flash("Le pourcentage doit rester inferieur a 100.", "warning")
-            return redirect(url_for("vendor.product_promotion", pid=product.id))
-
-        end_date_raw = (request.form.get("end_date") or "").strip()
-        if end_date_raw:
+            form_error = "Choisissez un type de remise valide."
+            flash(form_error, "warning")
+        else:
             try:
-                end_date = datetime.fromisoformat(end_date_raw)
-            except ValueError:
-                flash("Date de fin invalide.", "warning")
-                return redirect(url_for("vendor.product_promotion", pid=product.id))
-        else:
-            end_date = now + timedelta(days=7)
+                promo_value = float((form_state["promo_value"] or "0").replace(",", "."))
+            except (TypeError, ValueError):
+                promo_value = 0.0
+            if promo_value <= 0:
+                form_error = "Entrez une valeur de remise supérieure à 0."
+                flash(form_error, "warning")
+            elif promo_type == "percentage" and promo_value >= 100:
+                form_error = "Le pourcentage doit rester en dessous de 100%."
+                flash(form_error, "warning")
 
-        if end_date <= now:
-            flash("La date de fin doit etre dans le futur.", "warning")
+        end_date = None
+        if not form_error:
+            if form_state["end_date"]:
+                try:
+                    end_date = datetime.fromisoformat(form_state["end_date"])
+                except ValueError:
+                    form_error = "La date de fin n'est pas valide."
+                    flash(form_error, "warning")
+            else:
+                end_date = now + timedelta(days=7)
+
+        if not form_error and end_date <= now:
+            form_error = "Choisissez une date de fin dans le futur."
+            flash(form_error, "warning")
+
+        if not form_error:
+            promo_record = active_promo or latest_promo
+            if promo_record is None:
+                promo_record = Promo(
+                    product_id=product.id,
+                    type=promo_type,
+                    value=promo_value,
+                    end_date=end_date,
+                )
+                db.session.add(promo_record)
+                # Ensure the new promo gets an id before older promos are disabled.
+                db.session.flush()
+                action_name = "create_product_promo"
+                success_message = "Promotion activée. Le nouveau prix est maintenant visible côté client."
+            else:
+                promo_record.type = promo_type
+                promo_record.value = promo_value
+                promo_record.end_date = end_date
+                action_name = "update_product_promo"
+                success_message = "Promotion mise à jour. Le nouveau prix est maintenant visible côté client."
+
+            (
+                Promo.query
+                .filter(Promo.product_id == product.id, Promo.id != promo_record.id, Promo.end_date >= now)
+                .update({"end_date": now - timedelta(seconds=1)}, synchronize_session=False)
+            )
+
+            db.session.commit()
+            bump_catalog_version()
+            log_access(
+                action_name,
+                "promo",
+                promo_record.id,
+                success=True,
+                changes={
+                    "product_id": product.id,
+                    "type": promo_record.type,
+                    "value": promo_record.value,
+                    "end_date": promo_record.end_date.isoformat(),
+                },
+            )
+            flash(success_message, "success")
             return redirect(url_for("vendor.product_promotion", pid=product.id))
 
-        if promo is None:
-            promo = Promo(product_id=product.id, type=promo_type, value=promo_value, end_date=end_date)
-            db.session.add(promo)
-            action_name = "create_product_promo"
-        else:
-            promo.type = promo_type
-            promo.value = promo_value
-            promo.end_date = end_date
-            action_name = "update_product_promo"
-
-        (
-            Promo.query
-            .filter(Promo.product_id == product.id, Promo.id != promo.id, Promo.end_date >= now)
-            .update({"end_date": now - timedelta(seconds=1)}, synchronize_session=False)
-        )
-
-        db.session.commit()
-        bump_catalog_version()
-        log_access(
-            action_name,
-            "promo",
-            promo.id,
-            success=True,
-            changes={"product_id": product.id, "type": promo.type, "value": promo.value, "end_date": promo.end_date.isoformat()},
-        )
-        flash("Promotion enregistree.", "success")
-        return redirect(url_for("vendor.product_promotion", pid=product.id))
-
-    active_promo = promo if promo and promo.is_active else None
-    final_price = calculate_promo_price(product, active_promo) if active_promo else float(product.price or 0)
+    current_price = cents_to_money(
+        getattr(product, "price_cents", None)
+        if getattr(product, "price_cents", None) is not None
+        else getattr(product, "price_cents_value", 0)
+    )
+    final_price = calculate_promo_price(product, active_promo) if active_promo else current_price
     return render_template(
         "vendor/product_promotion_form.html",
         product=product,
         promo=promo,
         active_promo=active_promo,
         final_price=final_price,
+        current_price=current_price,
+        form_state=form_state,
+        form_error=form_error,
+        item_label=item_label,
     )
 
 
@@ -1903,100 +2111,11 @@ def manage_shop():
 @bp.route("/shop/create", methods=["GET", "POST"])
 @login_required
 def create_shop():
-    """Crer une boutique"""
+    """Ancienne route de creation vendeur : desactivee."""
     if current_user.role != "vendor":
         flash("Accs rserv aux vendeurs", "warning")
         return redirect(url_for("shop.home"))
-
-    # Vrifier si le vendeur a dj une boutique
-    existing_shop = Shop.query.filter_by(vendor_id=current_user.id).first()
-    if existing_shop:
-        flash("Vous avez dj une boutique", "info")
-        return redirect(url_for("vendor.manage_shop"))
-
-    if request.method == "POST":
-        try:
-            name = request.form["name"].strip()
-            description = request.form.get("description", "").strip()
-            contact_phone = request.form.get("contact_phone", "").strip()
-            contact_email = request.form.get("contact_email", current_user.email)
-            address = request.form.get("address", "").strip()
-            primary_type = normalize_shop_type(request.form.get("primary_type")) or "products"
-
-            if not name:
-                flash("Le nom de la boutique est requis", "danger")
-                return redirect(url_for("vendor.create_shop"))
-
-            # Crer le slug
-            slug = slugify(name)
-
-            # Vrifier si le slug existe dj
-            counter = 1
-            original_slug = slug
-            while Shop.query.filter_by(slug=slug).first():
-                slug = f"{original_slug}-{counter}"
-                counter += 1
-
-            # Crer la boutique
-            shop = Shop(
-                vendor_id=current_user.id,
-                name=name,
-                slug=slug,
-                description=description,
-                contact_phone=contact_phone,
-                contact_email=contact_email,
-                address=address,
-                primary_type=primary_type,
-                is_active=True,
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow()
-            )
-            shop.set_allowed_types([primary_type])
-
-            # Grer le logo si fourni
-            if 'logo' in request.files:
-                file = request.files['logo']
-                if file and file.filename and allowed_file(file.filename):
-                    logo_filename = save_image(file)
-                    if logo_filename:
-                        shop.logo = logo_filename
-
-            db.session.add(shop)
-            db.session.flush()  # Pour obtenir l'ID
-
-            # Mettre  jour les produits existants du vendeur
-            products = Product.query.filter_by(vendor_id=current_user.id).all()
-            for product in products:
-                product.shop_id = shop.id
-
-            db.session.commit()
-            bump_catalog_version()
-
-            log_access(
-                "create_shop",
-                "shop",
-                shop.id,
-                success=True,
-                changes={"name": shop.name, "vendor_id": current_user.id}
-            )
-
-            flash(" Boutique cre avec succs !", "success")
-            return redirect(url_for("vendor.manage_shop"))
-
-        except (SQLAlchemyError, ValueError, TypeError, OSError):
-            db.session.rollback()
-            current_app.logger.exception(
-                "vendor.create_shop.failed",
-                extra={"vendor_id": getattr(current_user, "id", None)},
-            )
-            flash("Erreur lors de la cration de la boutique", "danger")
-            return redirect(url_for("vendor.create_shop"))
-
-    return render_template(
-        "vendor/create_shop.html",
-        shop_type_order=SHOP_TYPE_ORDER,
-        shop_type_labels=SHOP_TYPE_LABELS,
-    )
+    return _redirect_vendor_shop_admin_only()
 
 @bp.route("/shop/edit", methods=["GET", "POST"])
 @login_required
@@ -2010,8 +2129,7 @@ def edit_shop():
     shop = Shop.query.filter_by(vendor_id=current_user.id).first()
 
     if not shop:
-        flash("Vous n'avez pas encore de boutique", "warning")
-        return redirect(url_for("vendor.create_shop"))
+        return _redirect_vendor_shop_admin_only()
 
     if request.method == "POST":
         before = {
@@ -2084,8 +2202,7 @@ def update_service_location():
     if not shop:
         if _is_ajax_request():
             return jsonify(success=False, message="Boutique non trouvee"), 404
-        flash("Boutique non trouvee", "danger")
-        return redirect(url_for("vendor.create_shop"))
+        return _redirect_vendor_shop_admin_only()
 
     if not shop_allows_any(shop, "services", "products"):
         if _is_ajax_request():
@@ -2377,22 +2494,49 @@ def orders_notifications():
 @login_required
 @order_access_required
 def order_detail(oid):
-    order = Order.query.options(
-        selectinload(Order.items).selectinload(OrderItem.product)
-    ).get_or_404(oid)
+    try:
+        order = (
+            Order.query
+            .options(
+                selectinload(Order.items).selectinload(OrderItem.product)
+            )
+            .get_or_404(oid)
+        )
+    except Exception:
+        current_app.logger.exception(
+            "order_detail.load_error — oid=%s vendor_id=%s",
+            oid,
+            getattr(current_user, "id", None),
+        )
+        flash("Impossible de charger cette commande. Merci de réessayer.", "danger")
+        return redirect(url_for("vendor.earnings"))
 
-    # Audit (acces autorise)
-    log_access("view_order", "order", order.id, success=True)
+    # Audit (accès autorisé)
+    try:
+        log_access("view_order", "order", order.id, success=True)
+    except Exception:
+        # Non bloquant : si le log échoue, la page continue de s'afficher
+        current_app.logger.warning(
+            "order_detail.audit_log_failed — oid=%s", oid
+        )
 
-    # Dfinir les numros de contact
-    admin_phone = "+212600000000"
-    delivery_phone = "+212611111111"
+    # Numéros de contact depuis la configuration (plus de numéros fictifs)
+    admin_phone = (
+        current_app.config.get("ADMIN_PHONE")
+        or current_app.config.get("SUPPORT_WHATSAPP_NUMBER")
+        or ""
+    )
+    delivery_phone = (
+        current_app.config.get("DELIVERY_WHATSAPP_NUMBER")
+        or current_app.config.get("ADMIN_PHONE")
+        or ""
+    )
 
     return render_template(
         "vendor/order_detail.html",
         order=order,
         admin_phone=admin_phone,
-        delivery_phone=delivery_phone
+        delivery_phone=delivery_phone,
     )
 
 # ==================== PRIODES (LIVRE VENDEUR) ====================
@@ -3017,7 +3161,7 @@ def products_stock_api():
 @login_required
 def setup_shop_redirect():
     """Redirection pour compatibilit (ancienne route)"""
-    return redirect(url_for("vendor.create_shop"))
+    return redirect(url_for("vendor.manage_shop"))
 
 
 
@@ -3118,10 +3262,11 @@ def products_search():
 @bp.route("/stats/live")
 @login_required
 def stats_live():
-    """Statistiques en temps rel"""
+    """Statistiques en temps réel"""
     started_at = perf_counter()
+
     if not hasattr(current_user, "role") or current_user.role not in ("vendor", "admin"):
-        return jsonify({"error": "Accs non autoris"}), 403
+        return jsonify({"error": "Accès non autorisé"}), 403
 
     allows_products = True
     if current_user.role == "vendor":
@@ -3148,8 +3293,9 @@ def stats_live():
         )
         return response
 
-    start = (open_period.start_at if open_period else None) or datetime.utcnow()
-    end = (open_period.end_at if open_period else None) or datetime.utcnow()
+    now = datetime.utcnow()
+    start = (open_period.start_at if open_period else None) or now
+    end = (open_period.end_at if open_period else None) or now
     if end <= start:
         end = start + timedelta(days=1)
 
@@ -3192,8 +3338,11 @@ def stats_live():
         if revenue_query is not None:
             total_revenue = float((revenue_query.scalar() or 0) / 100)
 
-        settings = PlatformSettings.get()
-        low_stock_threshold = int(settings.low_stock_threshold or 5)
+        if current_user.role == "admin" or allows_products:
+            settings = PlatformSettings.get()
+            low_stock_threshold = int(settings.low_stock_threshold or 5)
+        else:
+            low_stock_threshold = 5
 
         if current_user.role == "admin":
             low_stock = Product.query.filter(Product.stock <= low_stock_threshold).count()
@@ -3205,10 +3354,15 @@ def stats_live():
             ).count()
         else:
             low_stock = 0
+
     except SQLAlchemyError:
+        db.session.rollback()
         current_app.logger.exception(
             "vendor.stats_live.db_error",
-            extra={"vendor_id": getattr(current_user, "id", None), "role": getattr(current_user, "role", None)},
+            extra={
+                "vendor_id": getattr(current_user, "id", None),
+                "role": getattr(current_user, "role", None),
+            },
         )
         _log_perf(
             "vendor.stats_live",

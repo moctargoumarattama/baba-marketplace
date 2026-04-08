@@ -6,49 +6,14 @@
     return;
   }
   window.__ADM_TABLE_INIT__ = true;
-
-  function makeRequestSeq() {
-    if (window.BMAjaxGuard && typeof window.BMAjaxGuard.makeRequestSeq === "function") {
-      return window.BMAjaxGuard.makeRequestSeq();
-    }
-    var latest = 0;
-    return {
-      next: function () {
-        latest += 1;
-        return latest;
-      },
-      isLatest: function (id) {
-        return Number(id) === latest;
-      },
-    };
-  }
-
-  async function requestText(url, opts) {
-    var options = opts || {};
-    if (window.BMAjaxFetch && typeof window.BMAjaxFetch.requestText === "function") {
-      return window.BMAjaxFetch.requestText(url, options);
-    }
-
-    try {
-      var response = await fetch(url, options);
-      var data = await response.text();
-      return {
-        ok: response.ok,
-        status: response.status,
-        data: data,
-        error: response.ok ? null : (response.statusText || ("HTTP " + response.status)),
-        aborted: false,
-      };
-    } catch (error) {
-      return {
-        ok: false,
-        status: 0,
-        data: "",
-        error: String((error && error.message) || "network_error"),
-        aborted: !!(error && error.name === "AbortError"),
-      };
-    }
-  }
+  var makeRequestSeq =
+    window.BMCoreDom && typeof window.BMCoreDom.makeRequestSeq === "function"
+      ? window.BMCoreDom.makeRequestSeq
+      : window.BMAjaxGuard.makeRequestSeq.bind(window.BMAjaxGuard);
+  var requestText =
+    window.BMCoreDom && typeof window.BMCoreDom.requestText === "function"
+      ? window.BMCoreDom.requestText
+      : window.BMAjaxFetch.requestText.bind(window.BMAjaxFetch);
 
   function swapHtml(targetEl, html, mode, useCoreSwap) {
     if (!targetEl) return false;

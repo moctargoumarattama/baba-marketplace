@@ -834,6 +834,15 @@ body {
     }
 }
 
+@media (max-width: 767.98px) {
+    .orders-header,
+    .alert-premium,
+    .empty-state,
+    .order-card {
+        backdrop-filter: blur(8px) !important;
+    }
+}
+
 @media (max-width: 480px) {
     .orders-container {
         padding: 0.9rem 0.75rem;

@@ -16,12 +16,14 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import load_only, selectinload
 from ..models.category import Category
 from ..models.product import Product
-from ..models.promo import Promo
 from ..models.order import Order, OrderItem
 from ..models.blocked import BlockedContact
 from ..models.shop import Shop
 from ..models.vendor_payout import VendorPayout
 from ..services.pricing import (
+    cents_to_money,
+    final_price_cents,
+    get_active_promos_for_products,
     prix_final,
     get_delivery_courier_net_cents,
     get_delivery_platform_fee_cents,
@@ -158,7 +160,7 @@ def _is_service_product(product) -> bool:
 
 
 def _shop_open_message(product) -> str | None:
-    """Retourne un message si la boutique du produit est ferme/dsactive, sinon None."""
+    """Retourne un message si la boutique du produit est ferme/désactiver, sinon None."""
     shop = getattr(product, "shop", None)
     if not shop:
         return None
@@ -169,10 +171,10 @@ def _shop_open_message(product) -> str | None:
     now = datetime.utcnow()
     closed_until = getattr(shop, "closed_until", None)
     if closed_until and closed_until > now:
-        return f"Boutique ferme jusqu'au {closed_until.strftime('%d/%m/%Y %H:%M')}."
+        return f"Boutique fermé jusqu'au {closed_until.strftime('%d/%m/%Y %H:%M')}."
 
     if getattr(shop, "is_open", True) is False:
-        return "Cette boutique est actuellement ferme."
+        return "Cette boutique est actuellement fermé."
 
     return None
 
@@ -334,27 +336,13 @@ def _cart_product_map(cart_dict, include_shop=False, include_category=False):
     return {p.id: p for p in products}
 
 
-def _active_promo_map(product_ids: list[int], now: datetime | None = None) -> dict[int, Promo]:
-    if not product_ids:
-        return {}
-    now_utc = now or datetime.utcnow()
-    promos = (
-        Promo.query
-        .filter(
-            Promo.product_id.in_(product_ids),
-            Promo.end_date >= now_utc,
-        )
-        .order_by(Promo.product_id.asc(), Promo.end_date.asc())
-        .all()
-    )
-    promo_map: dict[int, Promo] = {}
-    for promo in promos:
-        promo_map.setdefault(promo.product_id, promo)
-    return promo_map
+def _active_promo_map(product_ids: list[int], now: datetime | None = None):
+    _ = now
+    return get_active_promos_for_products(product_ids)
 
 
 def _remove_service_items_from_cart(cart_dict, product_map=None):
-    """Retire les services du panier (ils doivent passer par la rservation)."""
+    """Retire les services du panier (ils doivent passer par la réservation)."""
     if product_map is None:
         product_map = _cart_product_map(cart_dict)
 
@@ -441,41 +429,54 @@ def calculate_cart_total(cart_dict=None):
     if cart_dict is None:
         cart_dict = get_cart()
     
-    total = 0
+    total_cents = 0
     product_map, promo_map = _get_cached_cart_data(cart_dict)
     for pid_str, qty in cart_dict.items():
         try:
             pid = int(pid_str)
             product = product_map.get(pid)
             if product and not _is_service_product(product):
-                total += qty * prix_final(product, promo_map.get(pid))
+                total_cents += qty * final_price_cents(product, promo_map.get(pid))
         except (ValueError, AttributeError):
             continue
-    return total
+    return cents_to_money(total_cents)
+
+
+def _safe_cart_quantity(value) -> int:
+    try:
+        return max(0, int(value or 0))
+    except (TypeError, ValueError):
+        return 0
 
 
 def get_cart_summary(cart=None):
     """Obtenir un rsum du panier pour API"""
     if cart is None:
         cart = get_cart()
+    if not isinstance(cart, dict):
+        cart = {}
     items = []
-    total = 0
+    total_cents = 0
     product_map, promo_map = _get_cached_cart_data(cart)
     
-    for pid_str, qty in cart.items():
+    for pid_str, raw_qty in cart.items():
         try:
             pid = int(pid_str)
+            qty = _safe_cart_quantity(raw_qty)
+            if qty <= 0:
+                continue
             product = product_map.get(pid)
             if product and not _is_service_product(product):
-                final_price = prix_final(product, promo_map.get(pid))
-                item_total = qty * final_price
-                total += item_total
+                item_price_cents = final_price_cents(product, promo_map.get(pid))
+                final_price = cents_to_money(item_price_cents)
+                item_total_cents = qty * item_price_cents
+                total_cents += item_total_cents
                 items.append({
                     'id': product.id,
                     'name': product.name,
                     'quantity': qty,
                     'price': final_price,
-                    'item_total': item_total,
+                    'item_total': cents_to_money(item_total_cents),
                     'stock': getattr(product, 'stock', None)
                 })
         except (ValueError, AttributeError):
@@ -483,7 +484,7 @@ def get_cart_summary(cart=None):
     
     return {
         'items': items,
-        'total': total,
+        'total': cents_to_money(total_cents),
         'count': sum(i.get("quantity", 0) for i in items)
     }
 
@@ -571,11 +572,11 @@ def view():
             continue
 
         # Produits uniquement
-        price_cents = int(prix_final(product, promo_map.get(pid)) * 100)
+        price_cents = final_price_cents(product, promo_map.get(pid))
 
         subtotal = price_cents * qty
         total_cents += subtotal
-        items.append((product, qty, subtotal / 100))
+        items.append((product, qty, cents_to_money(subtotal)))
 
     if missing:
         flash("Certains produits ont été retirés du panier.", "warning")
@@ -596,6 +597,7 @@ def add(pid):
     product = Product.query.get_or_404(pid)
     cart = get_cart()
     is_ajax = _is_ajax_request()
+    post_add_redirect = (request.form.get("post_add_redirect") or request.args.get("post_add_redirect") or "").strip().lower()
 
     if _is_service_product(product):
         message = "Ce service se reserve. Merci de passer par la reservation."
@@ -627,6 +629,16 @@ def add(pid):
 
     cart[str(pid)] = qty + 1
     set_cart(cart)
+    redirect_url = (
+        url_for("cart.view")
+        if post_add_redirect in ("checkout", "cart", "review")
+        else None
+    )
+    success_message = (
+        "Produit ajoute. Verifiez vos articles avant de finaliser."
+        if redirect_url
+        else "Produit ajoute au panier."
+    )
 
     cart_count = 0
     for value in cart.values():
@@ -635,7 +647,19 @@ def add(pid):
         except (TypeError, ValueError):
             continue
 
+    if not is_ajax:
+        flash(success_message, "success")
+        return redirect(redirect_url or request.referrer or url_for("shop.home"))
+
     if is_ajax:
+        payload = {
+            "success": True,
+            "message": success_message,
+            "cart_count": int(cart_count),
+        }
+        if redirect_url:
+            payload["redirect_url"] = redirect_url
+        return jsonify(payload)
         return jsonify(
             {
                 "success": True,
@@ -875,7 +899,8 @@ def update_qty_ajax(pid):
     
     set_cart(cart)
     
-    product_total = new_qty * prix_final(product) if new_qty > 0 else 0
+    promo_map = _active_promo_map([pid]) if new_qty > 0 else {}
+    product_total = cents_to_money(new_qty * final_price_cents(product, promo_map.get(pid))) if new_qty > 0 else 0
     summary = get_cart_summary(cart)
     
     return jsonify({
@@ -910,7 +935,11 @@ def cart_summary():
 
 @bp.route("/api/nav-status")
 def nav_status():
-    summary = get_cart_summary()
+    try:
+        summary = get_cart_summary()
+    except Exception:
+        current_app.logger.exception("nav_status_summary_error")
+        summary = {"count": 0}
     track_active = False
     try:
         track_active = _has_active_tracking()
@@ -973,7 +1002,7 @@ def checkout():
         if hasattr(product, "stock") and product.stock < qty:
             return _ajax_error(f"Stock insuffisant pour {product.name}", status=409, flash_category="danger", redirect_endpoint="cart.view")
 
-        price_cents = int(prix_final(product, promo_map.get(pid)) * 100)
+        price_cents = final_price_cents(product, promo_map.get(pid))
         subtotal_cents += price_cents * qty
 
     shipping_preview = 0
@@ -1119,7 +1148,7 @@ def whatsapp_checkout():
         if hasattr(product, "stock") and product.stock < qty:
             return _ajax_error(f"Stock insuffisant pour {product.name}", status=409, flash_category="danger", redirect_endpoint="cart.view")
 
-        price_cents = int(prix_final(product, promo_map.get(pid)) * 100)
+        price_cents = final_price_cents(product, promo_map.get(pid))
         subtotal_cents += price_cents * qty
         items.append((product, qty, price_cents))
 
@@ -1414,7 +1443,7 @@ def track_status(token):
 
 
 # =====================================================
-# SUIVI PAR TLPHONE
+# SUIVI PAR TELEPHONE
 # =====================================================
 @bp.route("/suivi", methods=["GET", "POST"])
 @rate_limit(limit=15, window_seconds=600, key_prefix="track_phone", methods=("POST",))

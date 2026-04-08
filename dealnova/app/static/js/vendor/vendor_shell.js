@@ -150,117 +150,73 @@
     });
   }
 
-  function toPlainHeaders(headers) {
-    if (!headers) return {};
-    if (headers instanceof Headers) {
-      const plain = {};
-      headers.forEach(function (value, key) {
-        plain[key] = value;
-      });
-      return plain;
-    }
-    return Object.assign({}, headers);
+  function getCoreDomApi() {
+    return window.BMCoreDom || {};
   }
 
-  function shouldAttachCsrf(method) {
-    const normalized = String(method || "GET").toUpperCase();
-    return normalized !== "GET" && normalized !== "HEAD" && normalized !== "OPTIONS";
+  function getAjaxFetchApi() {
+    return window.BMAjaxFetch || {};
   }
 
-  function parseNativeResponse(response, expect) {
-    if (expect === "json") {
-      return response
-        .json()
-        .catch(function () {
-          return null;
-        });
-    }
-    return response
-      .text()
-      .catch(function () {
-        return "";
-      });
-  }
-
-  function nativeRequest(url, options) {
-    const opts = options || {};
-    const method = String(opts.method || "GET").toUpperCase();
-    const expect = opts.expect === "json" ? "json" : "text";
-    const headers = toPlainHeaders(opts.headers);
-    const csrfApi = window.BMAjaxCSRF;
-    const finalHeaders =
-      shouldAttachCsrf(method) && csrfApi && typeof csrfApi.addToHeaders === "function"
-        ? csrfApi.addToHeaders(headers, opts.form || null)
-        : headers;
-
-    const fetchOptions = Object.assign({}, opts, {
-      method: method,
-      headers: finalHeaders,
-    });
-    delete fetchOptions.expect;
-    delete fetchOptions.timeoutMs;
-    delete fetchOptions.onError;
-    delete fetchOptions.form;
-
-    if (!Object.prototype.hasOwnProperty.call(fetchOptions, "credentials")) {
-      fetchOptions.credentials = "same-origin";
-    }
-
-    return fetch(url, fetchOptions)
-      .then(function (response) {
-        return parseNativeResponse(response, expect).then(function (data) {
-          return {
-            ok: response.ok,
-            status: Number(response.status || 0),
-            data: data,
-            error: response.ok
-              ? null
-              : String(response.statusText || "HTTP " + String(response.status || 0)),
-            aborted: false,
-            timedOut: false,
-          };
-        });
-      })
-      .catch(function (error) {
-        const isAbort = !!(error && error.name === "AbortError");
-        return {
-          ok: false,
-          status: 0,
-          data: null,
-          error: String((error && error.message) || "network_error"),
-          aborted: isAbort,
-          timedOut: false,
-        };
-      });
+  function unavailablePayload(expect) {
+    return {
+      ok: false,
+      status: 0,
+      data: expect === "text" ? "" : null,
+      error: "request_unavailable",
+      aborted: false,
+      timedOut: false,
+    };
   }
 
   function request(url, options) {
-    const bmFetch = window.BMAjaxFetch;
-    if (bmFetch && typeof bmFetch.request === "function") {
-      return bmFetch.request(url, options || {});
+    const opts = options || {};
+    const domApi = getCoreDomApi();
+    if (typeof domApi.request === "function") {
+      return domApi.request(url, opts);
     }
-    return nativeRequest(url, options || {});
+    const ajaxFetch = getAjaxFetchApi();
+    if (typeof ajaxFetch.request === "function") {
+      return ajaxFetch.request(url, opts);
+    }
+    return Promise.resolve(unavailablePayload(opts.expect === "json" ? "json" : "text"));
   }
 
   function requestText(url, options) {
-    const opts = Object.assign({}, options || {}, { expect: "text" });
-    const bmFetch = window.BMAjaxFetch;
-    if (bmFetch && typeof bmFetch.requestText === "function") {
-      return bmFetch.requestText(url, opts);
+    const opts = options || {};
+    const domApi = getCoreDomApi();
+    if (typeof domApi.requestText === "function") {
+      return domApi.requestText(url, opts);
     }
-    return request(url, opts);
+    const ajaxFetch = getAjaxFetchApi();
+    if (typeof ajaxFetch.requestText === "function") {
+      return ajaxFetch.requestText(url, opts);
+    }
+    return request(url, Object.assign({}, opts, { expect: "text" }));
   }
 
   function requestJSON(url, options) {
-    const opts = Object.assign({}, options || {}, { expect: "json" });
-    const bmFetch = window.BMAjaxFetch;
-    if (bmFetch && typeof bmFetch.requestJSON === "function") {
-      return bmFetch.requestJSON(url, opts);
+    const opts = options || {};
+    const domApi = getCoreDomApi();
+    if (typeof domApi.requestJSON === "function") {
+      return domApi.requestJSON(url, opts);
     }
-    return request(url, opts);
+    const ajaxFetch = getAjaxFetchApi();
+    if (typeof ajaxFetch.requestJSON === "function") {
+      return ajaxFetch.requestJSON(url, opts);
+    }
+    return request(url, Object.assign({}, opts, { expect: "json" }));
   }
 
   function createRequestSeq() {
+    const domApi = getCoreDomApi();
+    if (typeof domApi.makeRequestSeq === "function") {
+      return domApi.makeRequestSeq();
+    }
+    const ajaxGuard = window.BMAjaxGuard || {};
+    if (typeof ajaxGuard.makeRequestSeq === "function") {
+      return ajaxGuard.makeRequestSeq();
+    }
     let latestId = 0;
     return {
       next: function () {
@@ -379,6 +335,33 @@
     };
   }
 
+  function announceFlashAlerts() {
+    var coreUI = window.BMCoreUI || {};
+    if (typeof coreUI.showToast !== "function") return;
+
+    var alerts = Array.from(document.querySelectorAll("#pageContent .alert[role='alert']"));
+    if (!alerts.length) return;
+
+    alerts.slice(0, 3).forEach(function (alertNode, index) {
+      if (!alertNode || alertNode.dataset.vendorToastAnnounced === "1") return;
+      alertNode.dataset.vendorToastAnnounced = "1";
+
+      var text = String(alertNode.textContent || "")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (!text) return;
+
+      var type = "info";
+      if (alertNode.classList.contains("alert-success")) type = "success";
+      else if (alertNode.classList.contains("alert-danger")) type = "danger";
+      else if (alertNode.classList.contains("alert-warning")) type = "warning";
+
+      window.setTimeout(function () {
+        coreUI.showToast(text, type);
+      }, 120 + index * 140);
+    });
+  }
+
   document.addEventListener(
     "visibilitychange",
     function () {
@@ -415,5 +398,6 @@
 
   initOnce();
   bindScrollMemory();
+  announceFlashAlerts();
 })();
 

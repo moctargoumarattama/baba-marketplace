@@ -64,7 +64,6 @@
     }|tojson
   }}
 </script>
-<link rel="preload" as="image" href="{{ url_for('static', filename='logo.png') }}">
 <link rel="preload" as="image" href="{{ url_for('static', filename='images/produit.jpeg') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/home_shell.css', v=app_static_version) }}">
 {% endblock %}
@@ -88,7 +87,7 @@
     <div class="hero-buttons reveal" style="--i: 4">
       <a href="{{ url_for('shop.home') }}" class="btn-hero btn-hero-primary premium-hover shine">
         <i class="bi bi-bag-check"></i>
-        Acheter et réserver
+        Acheter ou réserver
       </a>
       <a href="{{ url_for('rentals.locations_home') }}" class="btn-hero btn-hero-outline premium-hover">
         <i class="bi bi-house-door"></i>
@@ -399,6 +398,13 @@
     {% endif %}
   </div>
   {% endif %}
+
+  <div class="products-footer-action reveal" style="--i: 1">
+    <a href="{{ url_for('shop.home') }}" class="products-more-btn products-more-btn-secondary premium-hover">
+      <span>Voir plus de produits</span>
+      <i class="bi bi-grid"></i>
+    </a>
+  </div>
 
   {% else %}
   <!-- Empty State -->

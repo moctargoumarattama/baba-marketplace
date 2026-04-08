@@ -44,6 +44,7 @@
 
   const cfg = readConfig();
   const VendorUI = window.VendorUI || {};
+  const coreDomApi = window.BMCoreDom || {};
   const perfFlags = window.BM_PERF_FLAGS || {};
   const interactionFeedbackEnabled = perfFlags.interactionFeedback !== false;
   if (typeof VendorUI.initOnce === "function") {
@@ -66,38 +67,13 @@
         },
       };
     })();
-
-  async function requestText(url, options) {
-    if (typeof VendorUI.requestText === "function") {
-      return VendorUI.requestText(url, options || {});
-    }
-    if (window.BMAjaxFetch && typeof window.BMAjaxFetch.requestText === "function") {
-      return window.BMAjaxFetch.requestText(url, options || {});
-    }
-
-    const opts = options || {};
-    try {
-      const response = await fetch(url, opts);
-      const data = await response.text();
-      return {
-        ok: response.ok,
-        status: Number(response.status || 0),
-        data: data,
-        error: response.ok ? null : String(response.statusText || "HTTP " + String(response.status || 0)),
-        aborted: false,
-        timedOut: false,
-      };
-    } catch (error) {
-      return {
-        ok: false,
-        status: 0,
-        data: "",
-        error: String((error && error.message) || "network_error"),
-        aborted: !!(error && error.name === "AbortError"),
-        timedOut: false,
-      };
-    }
-  }
+  const fallbackRequestText =
+    typeof coreDomApi.requestText === "function"
+      ? coreDomApi.requestText
+      : window.BMAjaxFetch.requestText.bind(window.BMAjaxFetch);
+  const requestText = (typeof VendorUI.requestText === "function")
+    ? VendorUI.requestText
+    : fallbackRequestText;
 
   function getRoot() {
     return document.querySelector(ROOT_SELECTOR);

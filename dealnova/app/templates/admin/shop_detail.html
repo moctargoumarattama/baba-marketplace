@@ -181,16 +181,13 @@
                             </div>
                         </div>
                         
-                        <dl class="row">
-                            <dt class="col-sm-4">Nom complet</dt>
-                            <dd class="col-sm-8">{{ vendor.full_name or 'Non renseigne' }}</dd>
-                            
-                            <dt class="col-sm-4">Telephone</dt>
-                            <dd class="col-sm-8">{{ vendor.phone or 'Non renseigne' }}</dd>
-                            
+                        <dl class="row mb-0">
                             <dt class="col-sm-4">Date d'inscription</dt>
                             <dd class="col-sm-8">{{ vendor.created_at.strftime('%d/%m/%Y') }}</dd>
                         </dl>
+                        <p class="text-muted small mb-0">
+                            Les coordonnees vendeur se gerent desormais au niveau de la boutique.
+                        </p>
                     {% else %}
                         <div class="text-center py-3">
                             <i class="bi bi-person-x display-4 text-muted mb-3"></i>

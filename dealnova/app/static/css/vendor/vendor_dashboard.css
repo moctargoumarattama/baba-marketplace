@@ -2036,6 +2036,51 @@ body {
     border-width: 1px;
 }
 
+.period-pill-action,
+.search-clear,
+.status-btn,
+.today-link,
+.today-outline,
+.today-pager-btn,
+.category-chip,
+.btn-action,
+.btn-product,
+.sound-toggle {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.12s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.12s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.12s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.12s cubic-bezier(0.4, 0, 0.2, 1), filter 0.12s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.12s cubic-bezier(0.4, 0, 0.2, 1), color 0.12s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.period-pill-action:active,
+.search-clear:active,
+.status-btn:active,
+.today-link:active,
+.today-outline:active,
+.today-pager-btn:active,
+.category-chip:active,
+.btn-action:active,
+.btn-product:active,
+.sound-toggle:active {
+    transform: scale(0.97);
+    opacity: 0.85;
+    transition: transform 0.07s ease, opacity 0.07s ease;
+}
+
+@media (max-width: 767.98px) {
+    .period-pill-action,
+    .search-clear,
+    .status-btn,
+    .today-link,
+    .today-outline,
+    .today-pager-btn,
+    .category-chip,
+    .btn-action,
+    .btn-product,
+    .sound-toggle {
+        transition-duration: 70ms !important;
+    }
+}
+
 @media (max-width: 640px) {
     .dashboard-wrapper {
         padding: 0.8rem;
@@ -2182,8 +2227,21 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
     .dashboard-welcome-orb,
-    .dashboard-welcome-orb::before {
+    .dashboard-welcome-orb::before,
+    .spinner,
+    .status-low-stock,
+    .stock-toast,
+    .notif-chip.is-pulsing,
+    .shop-badge-attn,
+    .skeleton-shimmer::before {
         animation: none !important;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .product-category-tag {
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
     }
 }
 

@@ -1,20 +1,39 @@
 {
   "name": "Baba Market",
-  "short_name": "Baba",
+  "short_name": "Baba Market",
+  "description": "Marketplace local pour produits, services, boutiques et locations avec livraison et paiement à la livraison.",
+  "lang": "fr-MA",
+  "id": "/",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#0f172a",
-  "theme_color": "#0f172a",
+  "theme_color": "#10B981",
+  "categories": ["shopping", "business", "lifestyle"],
   "icons": [
     {
-      "src": "/static/logo.png",
+      "src": "/static/android-chrome-192x192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
-      "src": "/static/logo.png",
+      "src": "/static/android-chrome-512x512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/android-chrome-192x192-maskable.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/static/android-chrome-512x512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }

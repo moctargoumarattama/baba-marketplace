@@ -1,0 +1,233 @@
+.support-issue-open {
+  overflow: hidden;
+}
+
+.support-issue-fab {
+  position: fixed;
+  right: 1rem;
+  bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+  z-index: 1080;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 46px;
+  padding: 0.78rem 0.96rem;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.97);
+  color: #0f172a;
+  box-shadow: 0 18px 34px rgba(15, 23, 42, 0.18);
+  backdrop-filter: blur(14px);
+  font-size: 0.88rem;
+  font-weight: 900;
+  line-height: 1;
+  user-select: none;
+  touch-action: none;
+  cursor: grab;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+}
+
+.support-issue-fab:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 22px 36px rgba(15, 23, 42, 0.2);
+}
+
+.support-issue-fab.is-dragging {
+  cursor: grabbing;
+  transform: scale(1.02);
+}
+
+.support-issue-fab i {
+  color: #0b7f59;
+  font-size: 0.98rem;
+}
+
+.support-issue-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1084;
+  background: rgba(15, 23, 42, 0.42);
+  backdrop-filter: blur(6px);
+}
+
+.support-issue-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 1085;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 1rem;
+  pointer-events: none;
+}
+
+.support-issue-card {
+  pointer-events: auto;
+  width: min(100%, 420px);
+  border-radius: 24px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 30px 60px rgba(15, 23, 42, 0.2);
+  padding: 1rem;
+}
+
+.support-issue-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.42rem 0.72rem;
+  border-radius: 999px;
+  background: rgba(16, 185, 129, 0.12);
+  color: #0b7f59;
+  font-size: 0.74rem;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.support-issue-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.82rem;
+}
+
+.support-issue-title {
+  margin: 0;
+  color: #0f172a;
+  font-size: 1.12rem;
+  font-weight: 900;
+  line-height: 1.15;
+}
+
+.support-issue-copy {
+  margin: 0.3rem 0 0;
+  color: #64748b;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.support-issue-close {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 12px;
+  background: #fff;
+  color: #334155;
+}
+
+.support-issue-form {
+  display: grid;
+  gap: 0.78rem;
+  margin-top: 0.95rem;
+}
+
+.support-issue-field {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.support-issue-field label {
+  color: #0f172a;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.support-issue-input,
+.support-issue-select,
+.support-issue-textarea {
+  width: 100%;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 16px;
+  background: #fff;
+  color: #0f172a;
+  font: inherit;
+  padding: 0.88rem 0.95rem;
+  box-shadow: none;
+}
+
+.support-issue-select,
+.support-issue-input,
+.support-issue-textarea {
+  font-size: 1rem;
+}
+
+.support-issue-textarea {
+  min-height: 104px;
+  resize: vertical;
+}
+
+.support-issue-hint {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.support-issue-context {
+  display: grid;
+  gap: 0.34rem;
+  border-radius: 18px;
+  background: rgba(15, 23, 42, 0.04);
+  padding: 0.85rem 0.92rem;
+  color: #475569;
+  font-size: 0.8rem;
+}
+
+.support-issue-context strong {
+  color: #0f172a;
+}
+
+.support-issue-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem;
+  margin-top: 0.25rem;
+}
+
+.support-issue-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.48rem;
+  min-height: 48px;
+  border-radius: 16px;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.support-issue-btn.secondary {
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  background: #fff;
+  color: #0f172a;
+}
+
+.support-issue-btn.primary {
+  border: none;
+  background: linear-gradient(135deg, #25d366, #128c7e);
+  color: #fff;
+  box-shadow: 0 16px 30px rgba(18, 140, 126, 0.24);
+}
+
+@media (min-width: 768px) {
+  .support-issue-dialog {
+    align-items: center;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .support-issue-fab {
+    right: 0.78rem;
+    bottom: calc(82px + env(safe-area-inset-bottom, 0px));
+    min-height: 44px;
+    padding: 0.7rem 0.86rem;
+    font-size: 0.82rem;
+  }
+
+  .support-issue-card {
+    border-radius: 22px;
+    padding: 0.95rem;
+  }
+}

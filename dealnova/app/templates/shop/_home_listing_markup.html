@@ -1,0 +1,277 @@
+{% if data %}
+<div class="products-grid" id="productsGrid">
+  {% for item in data %}
+  {% set product = item[0] %}
+  {% set final_price = item[1] %}
+  {% set discount = item[2] if item|length > 2 else None %}
+  {% set has_promo = product.promo_active if product.promo_active is defined else (product.price and product.price > final_price) %}
+  
+  {% set product_images = product.image_file.split('|') if product.image_file and '|' in product.image_file else [product.image_file] if product.image_file else [] %}
+  {% set product_images_clean = product_images|select|list %}
+  {% set first_image = product_images_clean[0] if product_images_clean|length > 0 else '' %}
+  {% set cover_video = product.cover_video_file if product.kind == 'location' and product.cover_video_file is defined else '' %}
+  {% set cover_video_poster = product.cover_video_poster_file if product.kind == 'location' and product.cover_video_poster_file is defined else '' %}
+  
+  <div class="product-card-compact fade-in"
+       data-item-type="{{ product.item_type|default('service' if product.kind == 'service' else ('location' if product.kind == 'location' else 'product')) }}">
+    <div class="product-badges-compact">
+      {% if discount and discount > 0 %}
+      <div class="badge-compact badge-discount-compact">
+        <i class="bi bi-percent"></i>
+        <span>-{{ discount }}%</span>
+      </div>
+      {% endif %}
+      {% if has_promo %}
+      <div class="badge-compact badge-discount-compact">
+        <i class="bi bi-tag-fill"></i>
+        <span>Promo</span>
+      </div>
+      {% endif %}
+
+      {% if product.kind == 'service' %}
+      <div class="badge-compact badge-service-compact">
+        <i class="bi bi-calendar-check"></i>
+        <span>Service</span>
+      </div>
+      {% elif product.kind == 'location' %}
+      <div class="badge-compact badge-location-compact">
+        <i class="bi bi-house-door"></i>
+        <span>Location</span>
+      </div>
+      {% else %}
+        {% if product.stock == 0 %}
+        <div class="badge-compact badge-stock-out-compact">
+          <i class="bi bi-x-circle"></i>
+          <span>Rupture</span>
+        </div>
+        {% elif product.stock is defined and product.stock < 5 %}
+        <div class="badge-compact badge-stock-low-compact">
+          <i class="bi bi-exclamation-triangle"></i>
+          <span>Stock bas</span>
+        </div>
+        {% elif product.stock is defined and product.stock > 0 %}
+        <div class="badge-compact badge-stock-compact">
+          <i class="bi bi-check-circle"></i>
+          <span>En stock</span>
+        </div>
+        {% endif %}
+      {% endif %}
+    </div>
+
+    {% if product.kind == 'location' %}
+    {% set location_images = product_images_clean %}
+    {% set first_location_image = location_images[0] if location_images|length > 0 else '' %}
+    {% set first_location_variant_source = first_location_image[8:] if first_location_image and first_location_image.startswith('uploads/') else first_location_image %}
+    {% endif %}
+    <div class="product-image-container-compact"
+         data-slider-images='[{% if product.kind == "location" %}{% for img in location_images %}{% set location_variant_source = img[8:] if img and img.startswith("uploads/") else img %}{% set location_variant = image_variant(location_variant_source, "thumb") %}{{ url_for("static", filename=("uploads/" ~ location_variant) if img and img.startswith("uploads/") else location_variant)|tojson }}{% if not loop.last %}, {% endif %}{% endfor %}{% else %}{% for img in product_images_clean %}{{ url_for("static", filename="uploads/" ~ image_variant(img, "thumb"))|tojson }}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}]'
+         data-slider-index="0">
+      {% if product.kind == 'location' and cover_video %}
+        <div class="product-video-frame-compact">
+          <video class="product-image-compact js-lazy-shop-video"
+                 preload="none"
+                 autoplay
+                 loop
+                 muted
+                 playsinline
+                 data-video-src="{{ url_for('static', filename=cover_video) }}"{% if cover_video_poster %} poster="{{ url_for('static', filename=cover_video_poster) }}"{% endif %}>
+            <source data-src="{{ url_for('static', filename=cover_video) }}">
+          </video>
+          <span class="product-video-badge-compact"><i class="bi bi-play-fill"></i> Video</span>
+        </div>
+      {% elif product.kind == 'location' and first_location_image %}
+        {% set first_location_variant = image_variant(first_location_variant_source, 'thumb') %}
+        {% set first_location_large_variant = image_variant(first_location_variant_source, 'large') %}
+        <img src="{{ url_for('static', filename=('uploads/' ~ first_location_variant) if first_location_image.startswith('uploads/') else first_location_variant) }}"
+             {% if first_location_image.startswith('uploads/') %}
+             srcset="{{ url_for('static', filename='uploads/' ~ first_location_variant) }} 300w,
+                      {{ url_for('static', filename='uploads/' ~ first_location_large_variant) }} 900w"
+             sizes="(max-width: 576px) 50vw, (max-width: 992px) 33vw, (max-width: 1400px) 20vw, 220px"
+             {% endif %}
+             alt="{{ product.name }}"
+             class="product-image-compact js-product-slide-image"
+             loading="lazy"
+             decoding="async"
+             width="300"
+             height="300"
+             data-fallback-src="{{ url_for('static', filename='img/placeholders/location.svg') }}">
+      {% elif first_image %}
+        <img src="{{ url_for('static', filename='uploads/' ~ image_variant(first_image, 'thumb')) }}"
+             srcset="{{ url_for('static', filename='uploads/' ~ image_variant(first_image, 'thumb')) }} 300w,
+                      {{ url_for('static', filename='uploads/' ~ image_variant(first_image, 'large')) }} 900w"
+             sizes="(max-width: 576px) 50vw, (max-width: 992px) 33vw, (max-width: 1400px) 20vw, 220px"
+             alt="{{ product.name }}"
+             class="product-image-compact js-product-slide-image"
+             loading="lazy"
+             decoding="async"
+             width="300"
+             height="300"
+             data-fallback-src="{{ url_for('static', filename='img/placeholders/product.svg') }}">
+      {% else %}
+        <div class="image-placeholder-compact">
+          <i class="bi bi-bag"></i>
+        </div>
+      {% endif %}
+      {% if product_images_clean|length > 1 %}
+      <button type="button" class="product-slide-control prev js-slide-prev" aria-label="Image précédente" data-stop-nav>
+        <i class="bi bi-chevron-left"></i>
+      </button>
+      <button type="button" class="product-slide-control next js-slide-next" aria-label="Image suivante" data-stop-nav>
+        <i class="bi bi-chevron-right"></i>
+      </button>
+      {% endif %}
+    </div>
+    
+    <div class="product-content-compact">
+      <h3 class="product-name-compact">
+        {% if product.kind == 'location' %}
+        <a href="{{ url_for('rentals.location_detail', slug=product.slug) }}" data-stop-nav>
+          {{ product.name }}
+        </a>
+        {% else %}
+        <a href="{{ url_for('shop.product_detail', pid=product.id) }}" data-stop-nav>
+          {{ product.name }}
+        </a>
+        {% endif %}
+      </h3>
+      
+      <div class="product-price-container-compact">
+        <div class="current-price-compact">{{ "%.2f"|format(final_price) }} DH</div>
+        
+        {% if product.kind == 'location' %}
+        <div style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 700;">
+          {{ 'Mensuel' if product.listing_type == 'monthly' else 'Journalier' }}
+        </div>
+        {% elif product.price and product.price > final_price %}
+        <div class="old-price-compact">{{ "%.2f"|format(product.price) }} DH</div>
+        {% if discount and discount > 0 %}
+        <div style="font-size: 0.75rem; color: var(--danger-color); font-weight: 700;">
+          Économisez {{ discount }}%
+        </div>
+        {% elif has_promo %}
+        <div style="font-size: 0.75rem; color: var(--danger-color); font-weight: 700;">
+          Promo active
+        </div>
+        {% endif %}
+        {% endif %}
+      </div>
+
+      <div class="product-actions-compact">
+        {% if product.kind == 'location' %}
+        <a href="{{ url_for('rentals.location_detail', slug=product.slug) }}" class="btn-detail-compact" data-stop-nav>
+          <i class="bi bi-eye"></i>
+          <span>Voir</span>
+        </a>
+        {% else %}
+        <a href="{{ url_for('shop.product_detail', pid=product.id) }}" class="btn-detail-compact" data-stop-nav>
+          <i class="bi bi-eye"></i>
+          <span>Voir</span>
+        </a>
+        {% endif %}
+
+        {% if product.kind == 'service' %}
+        <a href="{{ url_for('booking.book', pid=product.id) }}" class="btn-book-compact" data-stop-nav>
+          <i class="bi bi-calendar-check"></i>
+          <span>Réserver</span>
+        </a>
+        {% elif product.kind == 'location' %}
+        <a href="{{ url_for('rentals.location_inquiry', slug=product.slug) }}" class="btn-book-compact" data-stop-nav>
+          <i class="bi bi-whatsapp"></i>
+          <span>Visite</span>
+        </a>
+        {% elif product.stock is not defined or product.stock > 0 %}
+        <form method="post"
+              action="{{ url_for('cart.add', pid=product.id) }}"
+              class="d-inline add-to-cart-form"
+              data-ajax="true"
+              data-action="add-to-cart"
+              data-success-message="Produit ajoute au panier"
+              data-api-url="{{ url_for('cart.add_ajax', pid=product.id) }}"
+              data-stop-nav>
+          {% include "partials/_csrf.html" %}
+          <button type="submit"
+                  class="btn-cart-compact add-to-cart"
+                  data-name="{{ product.name|e }}"
+                  data-pid="{{ product.id }}"
+                  data-stop-nav>
+            <i class="bi bi-cart-plus"></i>
+            <span>Panier</span>
+          </button>
+        </form>
+        {% else %}
+        <button type="button" class="btn-cart-compact" disabled data-stop-nav>
+          <i class="bi bi-x-circle"></i>
+          <span>Indisponible</span>
+        </button>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{% if pagination and pagination.pages > 1 %}
+<div class="pagination-compact" id="paginationContainer" data-ajax-pagination
+     data-page="{{ pagination.page }}"
+     data-pages="{{ pagination.pages }}"
+     data-total="{{ pagination.total }}">
+  <div class="pagination-slot pagination-prev-slot">
+    {% if pagination.has_prev %}
+    <button type="button" class="page-link-compact prev-link"
+            data-page="{{ pagination.prev_num }}">
+      <i class="bi bi-chevron-left"></i> Precedent
+    </button>
+    {% else %}
+    <span class="page-link-compact prev-link disabled">
+      <i class="bi bi-chevron-left"></i> Precedent
+    </span>
+    {% endif %}
+  </div>
+
+  <div class="pagination-pages">
+    {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=1) %}
+      {% if p %}
+        {% if p == pagination.page %}
+        <span class="page-link-compact active">{{ p }}</span>
+        {% else %}
+        <button type="button" class="page-link-compact"
+                data-page="{{ p }}">
+          {{ p }}
+        </button>
+        {% endif %}
+      {% else %}
+      <span class="page-link-compact disabled">…</span>
+      {% endif %}
+    {% endfor %}
+  </div>
+
+  <div class="pagination-slot pagination-next-slot">
+    {% if pagination.has_next %}
+    <button type="button" class="page-link-compact next-link"
+            data-page="{{ pagination.next_num }}">
+      Suivant <i class="bi bi-chevron-right"></i>
+    </button>
+    {% else %}
+    <span class="page-link-compact next-link disabled">
+      Suivant <i class="bi bi-chevron-right"></i>
+    </span>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+{% else %}
+<div class="empty-state">
+  <div class="empty-icon">
+    <i class="bi bi-search"></i>
+  </div>
+  <h3 class="empty-title">Aucun produit trouvé</h3>
+  <p class="empty-text">
+    Essayez avec d'autres critères de recherche ou parcourez nos catégories.
+  </p>
+  <button type="button" class="btn-cart-compact" id="clearFilters" style="display: inline-flex; max-width: 250px; margin: 0 auto;">
+    <i class="bi bi-arrow-clockwise me-2"></i>
+    Voir tous les produits
+  </button>
+</div>
+{% endif %}

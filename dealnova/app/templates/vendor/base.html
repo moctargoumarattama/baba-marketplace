@@ -7,7 +7,11 @@
 
 {% block scripts %}
 {{ super() }}
-<script src="{{ url_for('static', filename='js/vendor/vendor_shell.js', v=app_static_version) }}"></script>
+{% set report_issue_endpoint = 'vendor.support_whatsapp' %}
+{% set report_issue_scope_label = report_issue_scope_label if report_issue_scope_label is defined and report_issue_scope_label else 'Support vendeur' %}
+{% set report_issue_scope_key = report_issue_scope_key if report_issue_scope_key is defined and report_issue_scope_key else 'vendor' %}
+{% include "partials/_support_issue_fab.html" %}
+<script src="{{ url_for('static', filename='js/vendor/vendor_shell.js', v=app_static_version) }}" defer></script>
 {% endblock %}
 
 

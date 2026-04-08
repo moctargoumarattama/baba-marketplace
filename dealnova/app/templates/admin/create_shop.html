@@ -27,7 +27,6 @@
                                     <option value="{{ vendor.id }}" 
                                             {% if request.args.get('vendor_id')|int == vendor.id %}selected{% endif %}>
                                         {{ vendor.username }} ({{ vendor.email }})
-                                        {% if vendor.full_name %} - {{ vendor.full_name }}{% endif %}
                                     </option>
                                     {% endfor %}
                                 </select>
@@ -129,9 +128,6 @@
                             <div class="d-flex justify-content-between align-items-center">
                                 <div>
                                     <strong>{{ vendor.username }}</strong>
-                                    {% if vendor.full_name %}
-                                        <br><small>{{ vendor.full_name }}</small>
-                                    {% endif %}
                                     <br><small class="text-muted">{{ vendor.email }}</small>
                                 </div>
                                 <div>
@@ -141,7 +137,6 @@
                                     <br>
                                     <button type="button" class="btn btn-sm btn-outline-primary mt-1"
                                             data-vendor-id="{{ vendor.id }}"
-                                            data-address="{{ vendor.address or '' }}"
                                             data-select-vendor>
                                         Slectionner
                                     </button>
@@ -181,13 +176,11 @@ document.getElementById('name').addEventListener('input', function() {
     }
 });
 
-// Auto-remplir les informations vendeur
+// Selectionner le vendeur dans le formulaire
 function selectVendor(button) {
     const vendorId = button.dataset.vendorId;
-    const address = button.dataset.address;
 
     document.getElementById('vendor_id').value = vendorId;
-    document.getElementById('address').value = address || '';
 
     // Scroll vers le haut du formulaire
     document.querySelector('form').scrollIntoView({ behavior: 'smooth' });

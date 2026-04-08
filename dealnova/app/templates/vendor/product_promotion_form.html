@@ -1,87 +1,677 @@
 {% extends "base.html" %}
 
-{% block title %}Promotion produit | {{ config.SITE_NAME }}{% endblock %}
-{% block body_attrs %}data-back-target="{{ url_for('vendor.dashboard') }}"{% endblock %}
+{% block title %}Promotion {{ item_label }} | {{ config.SITE_NAME }}{% endblock %}
+{% block body_attrs %}data-back-target="{{ url_for('vendor.catalog') }}"{% endblock %}
+
+{% block head %}
+{{ super() }}
+{% set is_service = product.kind == "service" %}
+<style>
+  .promo-page {
+    --promo-bg:
+      radial-gradient(circle at top left, rgba(16, 185, 129, 0.1), transparent 28%),
+      linear-gradient(180deg, #f8fffc 0%, #f6f9ff 100%);
+    --promo-card: rgba(255, 255, 255, 0.94);
+    --promo-line: rgba(15, 23, 42, 0.08);
+    --promo-text: #0f172a;
+    --promo-muted: #64748b;
+    --promo-shadow: 0 14px 32px rgba(15, 23, 42, 0.07);
+    min-height: calc(100vh - 90px);
+    min-height: calc(100dvh - 90px);
+    background: var(--promo-bg);
+    overflow-x: clip;
+  }
+
+  .promo-shell {
+    width: min(100%, 920px);
+    max-width: 920px;
+    margin: 0 auto;
+  }
+
+  .promo-header,
+  .promo-card,
+  .promo-stop-card {
+    background: var(--promo-card);
+    border: 1px solid var(--promo-line);
+    box-shadow: var(--promo-shadow);
+  }
+
+  .promo-header {
+    border-radius: 24px;
+    padding: 0.95rem 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.9rem;
+    margin-bottom: 0.9rem;
+  }
+
+  .promo-header-main {
+    display: grid;
+    gap: 0.65rem;
+    min-width: 0;
+  }
+
+  .promo-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.48rem;
+    width: fit-content;
+    padding: 0.56rem 0.82rem;
+    border-radius: 999px;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+    text-decoration: none;
+    font-weight: 800;
+    color: var(--promo-text);
+  }
+
+  .promo-back i {
+    color: #0b7f59;
+  }
+
+  .promo-eyebrow {
+    margin: 0;
+    font-size: 0.73rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 900;
+    color: #0b7f59;
+  }
+
+  .promo-title {
+    margin: 0.24rem 0 0.16rem;
+    color: var(--promo-text);
+    font-size: clamp(1.2rem, 2.1vw, 1.75rem);
+    font-weight: 900;
+    line-height: 1.08;
+  }
+
+  .promo-subtitle {
+    margin: 0;
+    color: var(--promo-muted);
+    font-size: 0.92rem;
+    max-width: 36rem;
+  }
+
+  .promo-item-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.48rem;
+    width: fit-content;
+    max-width: 100%;
+    padding: 0.58rem 0.75rem;
+    border-radius: 16px;
+    background: rgba(15, 23, 42, 0.04);
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    min-width: 0;
+  }
+
+  .promo-item-badge-label {
+    color: var(--promo-muted);
+    font-size: 0.74rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+
+  .promo-item-name {
+    color: var(--promo-text);
+    font-weight: 800;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+  }
+
+  .promo-price-chip {
+    min-width: 10.8rem;
+    padding: 0.78rem 0.9rem;
+    border-radius: 18px;
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(37, 99, 235, 0.08));
+    border: 1px solid rgba(16, 185, 129, 0.14);
+  }
+
+  .promo-price-chip-label {
+    display: block;
+    font-size: 0.76rem;
+    color: var(--promo-muted);
+    font-weight: 800;
+    margin-bottom: 0.12rem;
+  }
+
+  .promo-price-chip strong {
+    display: block;
+    color: var(--promo-text);
+    font-size: 1.35rem;
+    line-height: 1;
+  }
+
+  .promo-card,
+  .promo-stop-card {
+    border-radius: 22px;
+    padding: 1rem;
+  }
+
+  .promo-card-title {
+    margin: 0;
+    color: var(--promo-text);
+    font-size: 1rem;
+    font-weight: 900;
+  }
+
+  .promo-card-copy,
+  .promo-stop-copy {
+    margin: 0.18rem 0 0;
+    color: var(--promo-muted);
+    font-size: 0.9rem;
+  }
+
+  .promo-inline-alert {
+    border-radius: 16px;
+    margin-top: 0.85rem;
+    margin-bottom: 0;
+  }
+
+  .promo-label {
+    margin-bottom: 0.4rem;
+    font-weight: 800;
+    color: var(--promo-text);
+    font-size: 0.9rem;
+  }
+
+  .promo-input,
+  .promo-select {
+    min-height: 46px;
+    border-radius: 14px;
+    border: 1px solid rgba(15, 23, 42, 0.1);
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow: none;
+  }
+
+  .promo-help {
+    color: var(--promo-muted);
+    font-size: 0.82rem;
+    line-height: 1.35;
+  }
+
+  .promo-action,
+  .promo-stop-btn {
+    min-height: 46px;
+    border-radius: 14px;
+    font-weight: 900;
+  }
+
+  .promo-preview-box {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .promo-preview-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.42rem;
+    padding: 0.5rem 0.72rem;
+    border-radius: 999px;
+    font-size: 0.79rem;
+    font-weight: 900;
+    width: fit-content;
+  }
+
+  .promo-preview-status.pending {
+    color: #0b7f59;
+    background: rgba(16, 185, 129, 0.12);
+  }
+
+  .promo-preview-status.active {
+    color: #92400e;
+    background: rgba(245, 158, 11, 0.15);
+  }
+
+  .promo-preview-grid {
+    display: grid;
+    gap: 0.7rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .promo-metric {
+    border-radius: 16px;
+    padding: 0.8rem;
+    background: linear-gradient(180deg, rgba(248, 250, 252, 0.98), rgba(241, 245, 249, 0.96));
+    border: 1px solid rgba(148, 163, 184, 0.12);
+  }
+
+  .promo-metric-label {
+    display: block;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--promo-muted);
+    font-weight: 900;
+  }
+
+  .promo-metric-value {
+    display: block;
+    margin-top: 0.24rem;
+    font-size: 1.08rem;
+    font-weight: 900;
+    color: var(--promo-text);
+    line-height: 1.08;
+  }
+
+  .promo-metric-value.result {
+    color: #059669;
+  }
+
+  .promo-summary {
+    padding: 0.8rem 0.9rem;
+    border-radius: 15px;
+    background: rgba(15, 23, 42, 0.04);
+    color: var(--promo-text);
+    font-weight: 700;
+    font-size: 0.88rem;
+    line-height: 1.4;
+  }
+
+  .promo-tip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .promo-tip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.48rem 0.7rem;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.05);
+    color: var(--promo-muted);
+    font-size: 0.78rem;
+    font-weight: 800;
+  }
+
+  .promo-tip i {
+    color: #0b7f59;
+  }
+
+  .promo-stop-card {
+    margin-top: 0.9rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.9rem;
+  }
+
+  .promo-stop-btn {
+    white-space: nowrap;
+  }
+
+  .promo-grid {
+    align-items: start;
+  }
+
+  @media (max-width: 991.98px) {
+    .promo-header {
+      flex-direction: column;
+    }
+
+    .promo-price-chip {
+      width: 100%;
+      min-width: 0;
+    }
+  }
+
+  @media (max-width: 767.98px) {
+    .promo-page {
+      padding-inline: 0.1rem;
+    }
+
+    .promo-header,
+    .promo-card,
+    .promo-stop-card {
+      border-radius: 18px;
+      padding: 0.9rem;
+    }
+
+    .promo-title {
+      font-size: 1.08rem;
+    }
+
+    .promo-subtitle,
+    .promo-card-copy,
+    .promo-stop-copy,
+    .promo-summary {
+      font-size: 0.84rem;
+    }
+
+    .promo-preview-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .promo-input,
+    .promo-select {
+      font-size: 16px;
+    }
+
+    .promo-stop-card {
+      flex-direction: column;
+      align-items: stretch;
+    }
+  }
+
+  body.vendor-promo-keyboard-open .promo-page {
+    overflow-x: hidden;
+  }
+
+  body.vendor-promo-keyboard-open .promo-shell {
+    width: 100%;
+    max-width: 100%;
+    margin-inline: auto;
+  }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="container-fluid py-4">
-  <div class="mx-auto" style="max-width: 900px;">
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
-      <div>
-        <h1 class="h3 fw-bold mb-1">Promotion produit</h1>
-        <p class="text-muted mb-0">{{ product.name }}</p>
+{% set is_service = product.kind == "service" %}
+{% set item_word = "service" if is_service else "produit" %}
+{% set client_label = "Prix reservation" if is_service else "Prix client" %}
+{% set client_verb = "reservera" if is_service else "paiera" %}
+{% set save_label = "Mettre a jour" if active_promo else "Activer la promo" %}
+<div class="container py-3 py-lg-4 promo-page">
+  <div class="promo-shell">
+    <div class="promo-header">
+      <div class="promo-header-main">
+        <a href="{{ url_for('vendor.catalog') }}" class="promo-back">
+          <i class="bi bi-arrow-left"></i>
+          Retour catalogue
+        </a>
+        <div>
+          <p class="promo-eyebrow">Promo {{ item_word }}</p>
+          <h1 class="promo-title">Promotion</h1>
+          <p class="promo-subtitle">
+            {{ "Baissez vite le prix de reservation." if is_service else "Baissez vite le prix client." }}
+          </p>
+        </div>
+        <div class="promo-item-badge">
+          <span class="promo-item-badge-label">{{ "Service" if is_service else "Produit" }}</span>
+          <span class="promo-item-name">{{ product.name }}</span>
+        </div>
       </div>
-      <a href="{{ url_for('vendor.dashboard') }}" class="btn btn-outline-secondary">
-        <i class="bi bi-arrow-left me-1"></i> Retour catalogue
-      </a>
+      <div class="promo-price-chip">
+        <span class="promo-price-chip-label">Prix actuel</span>
+        <strong>{{ '%.2f'|format(current_price|float) }} MAD</strong>
+      </div>
     </div>
 
-    <div class="row g-4">
+    <div class="row g-3 promo-grid">
       <div class="col-lg-7">
-        <div class="card border-0 shadow-sm rounded-4">
-          <div class="card-body p-4">
-            <h2 class="h5 fw-bold mb-3">Configurer la promotion</h2>
-            <form method="post" action="{{ url_for('vendor.product_promotion', pid=product.id) }}" class="row g-3">
-              {% include "partials/_csrf.html" %}
-              <div class="col-md-6">
-                <label class="form-label fw-semibold">Type</label>
-                <select name="promo_type" class="form-select" required>
-                  <option value="percentage" {{ 'selected' if promo and promo.type == 'percentage' else '' }}>Pourcentage</option>
-                  <option value="fixed" {{ 'selected' if promo and promo.type == 'fixed' else '' }}>Montant fixe</option>
-                </select>
-              </div>
-              <div class="col-md-6">
-                <label class="form-label fw-semibold">Valeur</label>
-                <input type="number" step="0.01" min="0.01" name="promo_value" class="form-control" value="{{ promo.value if promo else '' }}" required>
-              </div>
-              <div class="col-md-7">
-                <label class="form-label fw-semibold">Fin de promo</label>
-                <input type="datetime-local" name="end_date" class="form-control" value="{{ promo.end_date.strftime('%Y-%m-%dT%H:%M') if promo and promo.end_date else '' }}">
-                <div class="form-text">Si vide, la promo se termine automatiquement dans 7 jours.</div>
-              </div>
-              <div class="col-md-5 d-flex align-items-end">
-                <button type="submit" class="btn btn-success w-100">
-                  <i class="bi bi-tags me-1"></i> {{ 'Mettre a jour' if promo else 'Creer la promo' }}
-                </button>
-              </div>
-            </form>
-
-            {% if active_promo %}
-            <hr class="my-4">
-            <form method="post" action="{{ url_for('vendor.product_promotion_disable', pid=product.id) }}">
-              {% include "partials/_csrf.html" %}
-              <button type="submit" class="btn btn-outline-danger">
-                <i class="bi bi-pause-circle me-1"></i> Desactiver la promo
-              </button>
-            </form>
-            {% endif %}
+        <div class="promo-card">
+          <div>
+            <h2 class="promo-card-title">Reglage</h2>
+            <p class="promo-card-copy">3 champs suffisent.</p>
           </div>
+
+          {% if form_error %}
+          <div class="alert alert-warning promo-inline-alert" role="alert">
+            {{ form_error }}
+          </div>
+          {% endif %}
+
+          <form method="post"
+                action="{{ url_for('vendor.product_promotion', pid=product.id) }}"
+                class="row g-3 mt-1"
+                id="productPromotionForm">
+            {% include "partials/_csrf.html" %}
+
+            <div class="col-md-6">
+              <label class="form-label promo-label" for="promotionType">Remise</label>
+              <select id="promotionType" name="promo_type" class="form-select promo-select" required>
+                <option value="percentage" {{ 'selected' if form_state.promo_type == 'percentage' else '' }}>
+                  Pourcentage
+                </option>
+                <option value="fixed" {{ 'selected' if form_state.promo_type == 'fixed' else '' }}>
+                  Montant MAD
+                </option>
+              </select>
+              <div class="promo-help mt-2" id="promotionTypeHelp"></div>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label promo-label" for="promotionValue">Valeur</label>
+              <input id="promotionValue"
+                     type="number"
+                     step="0.01"
+                     min="0.01"
+                     name="promo_value"
+                     class="form-control promo-input"
+                     inputmode="decimal"
+                     placeholder="Ex: 10"
+                     value="{{ form_state.promo_value }}"
+                     required>
+              <div class="promo-help mt-2" id="promotionValueHelp"></div>
+            </div>
+
+            <div class="col-md-7">
+              <label class="form-label promo-label" for="promotionEndDate">Fin</label>
+              <input id="promotionEndDate"
+                     type="datetime-local"
+                     name="end_date"
+                     class="form-control promo-input"
+                     value="{{ form_state.end_date }}">
+              <div class="promo-help mt-2">Vide = arret auto dans 7 jours.</div>
+            </div>
+
+            <div class="col-md-5 d-flex align-items-end">
+              <button type="submit" class="btn btn-success w-100 promo-action">
+                <i class="bi bi-tags me-1"></i>
+                {{ save_label }}
+              </button>
+            </div>
+          </form>
         </div>
+
+        {% if active_promo %}
+        <div class="promo-stop-card">
+          <div>
+            <h2 class="promo-card-title mb-0">Promo active</h2>
+            <p class="promo-stop-copy">Le prix normal revient tout de suite.</p>
+          </div>
+          <form method="post" action="{{ url_for('vendor.product_promotion_disable', pid=product.id) }}">
+            {% include "partials/_csrf.html" %}
+            <button type="submit" class="btn btn-outline-danger promo-stop-btn">
+              <i class="bi bi-pause-circle me-1"></i>
+              Couper la promo
+            </button>
+          </form>
+        </div>
+        {% endif %}
       </div>
 
       <div class="col-lg-5">
-        <div class="card border-0 shadow-sm rounded-4">
-          <div class="card-body p-4">
-            <h2 class="h5 fw-bold mb-3">Apercu</h2>
-            <div class="small text-muted mb-2">Prix original</div>
-            <div class="fs-4 fw-bold mb-3">{{ '%.2f'|format((product.price or 0)|float) }} MAD</div>
-            {% if active_promo %}
-            <div class="small text-muted mb-2">Prix promo actif</div>
-            <div class="d-flex align-items-center gap-2 flex-wrap mb-2">
-              <span class="badge bg-danger">Promo</span>
-              <span class="fs-3 fw-bold text-success">{{ '%.2f'|format(final_price|float) }} MAD</span>
+        <div class="promo-card sticky-lg-top"
+             data-promo-preview
+             data-base-price="{{ '%.2f'|format(current_price|float) }}"
+             data-active-price="{{ '%.2f'|format(final_price|float) }}"
+             data-has-active="{{ '1' if active_promo else '0' }}"
+             data-client-label="{{ client_label }}"
+             data-client-verb="{{ client_verb }}"
+             data-pending-text="{{ 'Active apres enregistrement' }}"
+             data-active-text="{{ 'Promo en cours' }}">
+          <div class="promo-preview-box">
+            <div>
+              <h2 class="promo-card-title">Apercu client</h2>
+              <p class="promo-card-copy">Mise a jour en direct.</p>
             </div>
-            <div class="text-muted text-decoration-line-through">{{ '%.2f'|format((product.price or 0)|float) }} MAD</div>
-            <div class="small text-success mt-2">Active jusqu'au {{ promo.end_date.strftime('%d/%m/%Y %H:%M') }}</div>
-            {% else %}
-            <div class="alert alert-light border mb-0">
-              Aucune promotion active. La promotion demarre des qu'elle est enregistree.
+
+            <div class="promo-preview-status {{ 'active' if active_promo else 'pending' }}" id="promotionPreviewStatus">
+              <i class="bi {{ 'bi-lightning-charge-fill' if active_promo else 'bi-eye-fill' }}"></i>
+              <span>
+                {{ 'Promo en cours' if active_promo else 'Active apres enregistrement' }}
+              </span>
             </div>
-            {% endif %}
+
+            <div class="promo-preview-grid">
+              <div class="promo-metric">
+                <span class="promo-metric-label">Prix normal</span>
+                <strong class="promo-metric-value" id="promotionBasePrice">
+                  {{ '%.2f'|format(current_price|float) }} MAD
+                </strong>
+              </div>
+              <div class="promo-metric">
+                <span class="promo-metric-label">{{ client_label }}</span>
+                <strong class="promo-metric-value result" id="promotionPreviewPrice">
+                  {{ '%.2f'|format(final_price|float) }} MAD
+                </strong>
+              </div>
+            </div>
+
+            <div class="promo-summary" id="promotionPreviewSummary">
+              {% if active_promo %}
+              Le client {{ client_verb }} actuellement {{ '%.2f'|format(final_price|float) }} MAD.
+              {% else %}
+              Entrez une remise pour voir le nouveau prix.
+              {% endif %}
+            </div>
+
+            <div class="promo-summary" id="promotionEndPreview">
+              {% if active_promo and active_promo.end_date %}
+              Fin prevue : {{ active_promo.end_date.strftime('%d/%m/%Y a %H:%M') }}
+              {% else %}
+              Fin prevue : dans 7 jours si vide.
+              {% endif %}
+            </div>
+
+            <div class="promo-tip-row">
+              <span class="promo-tip"><i class="bi bi-percent"></i>10 = -10%</span>
+              <span class="promo-tip"><i class="bi bi-cash-coin"></i>15 = -15 MAD</span>
+              <span class="promo-tip"><i class="bi bi-check-circle"></i>1 saisie suffit</span>
+            </div>
           </div>
         </div>
       </div>
     </div>
   </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+{% set report_issue_scope_label = 'Support vendeur' %}
+{% set report_issue_scope_key = 'vendor' %}
+{% set report_issue_endpoint = 'vendor.support_whatsapp' %}
+{% set report_issue_page_name = 'Promotion service' if product.kind == 'service' else 'Promotion produit' %}
+{% set report_issue_item = product.name %}
+{{ super() }}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const form = document.getElementById('productPromotionForm');
+  const previewRoot = document.querySelector('[data-promo-preview]');
+  if (!form || !previewRoot) return;
+
+  const typeField = document.getElementById('promotionType');
+  const valueField = document.getElementById('promotionValue');
+  const endDateField = document.getElementById('promotionEndDate');
+  const typeHelp = document.getElementById('promotionTypeHelp');
+  const valueHelp = document.getElementById('promotionValueHelp');
+  const statusEl = document.getElementById('promotionPreviewStatus');
+  const priceEl = document.getElementById('promotionPreviewPrice');
+  const summaryEl = document.getElementById('promotionPreviewSummary');
+  const endPreviewEl = document.getElementById('promotionEndPreview');
+
+  const basePrice = parseFloat(previewRoot.dataset.basePrice || '0') || 0;
+  const initialActivePrice = parseFloat(previewRoot.dataset.activePrice || previewRoot.dataset.basePrice || '0') || basePrice;
+  const hasActivePromo = previewRoot.dataset.hasActive === '1';
+  const clientLabel = previewRoot.dataset.clientLabel || 'Prix client';
+  const clientVerb = previewRoot.dataset.clientVerb || 'paiera';
+  const pendingText = previewRoot.dataset.pendingText || 'Active apres enregistrement';
+  const activeText = previewRoot.dataset.activeText || 'Promo en cours';
+  const mobileKeyboardGuard = window.BMCoreUI && typeof window.BMCoreUI.bindMobileKeyboardGuard === 'function'
+    ? window.BMCoreUI.bindMobileKeyboardGuard({
+        rootSelector: '#productPromotionForm',
+        bodyClass: 'vendor-promo-keyboard-open'
+      })
+    : null;
+
+  const formatMoney = (value) => `${(Math.max(0, Number(value) || 0)).toFixed(2)} MAD`;
+
+  const formatDateTime = (raw) => {
+    if (!raw) return '';
+    const dt = new Date(raw);
+    if (Number.isNaN(dt.getTime())) return '';
+    return dt.toLocaleString('fr-FR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    }).replace(',', ' a');
+  };
+
+  const parseNumericValue = () => {
+    const raw = String(valueField.value || '').trim().replace(',', '.');
+    const number = parseFloat(raw);
+    return Number.isFinite(number) ? number : 0;
+  };
+
+  const updateHelp = () => {
+    if (typeField.value === 'fixed') {
+      typeHelp.textContent = 'Montant retire en MAD.';
+      valueHelp.textContent = 'Ex: 15 retire 15 MAD.';
+      return;
+    }
+    typeHelp.textContent = 'Pourcentage retire du prix.';
+    valueHelp.textContent = 'Ex: 10 retire 10%.';
+  };
+
+  const setStatus = (active, text) => {
+    statusEl.className = `promo-preview-status ${active ? 'active' : 'pending'}`;
+    statusEl.innerHTML = active
+      ? '<i class="bi bi-lightning-charge-fill"></i><span>' + text + '</span>'
+      : '<i class="bi bi-eye-fill"></i><span>' + text + '</span>';
+  };
+
+  const updatePreview = () => {
+    const promoType = typeField.value === 'fixed' ? 'fixed' : 'percentage';
+    const promoValue = parseNumericValue();
+    let previewPrice = hasActivePromo ? initialActivePrice : basePrice;
+    let savedAmount = 0;
+
+    if (promoValue > 0) {
+      previewPrice = promoType === 'fixed'
+        ? Math.max(0, basePrice - promoValue)
+        : Math.max(0, basePrice - ((basePrice * promoValue) / 100));
+      savedAmount = Math.max(0, basePrice - previewPrice);
+    }
+
+    priceEl.textContent = formatMoney(previewPrice);
+
+    if (promoValue > 0) {
+      setStatus(false, pendingText);
+      summaryEl.textContent = `Le client ${clientVerb} ${formatMoney(previewPrice)}. Gain: ${formatMoney(savedAmount)}.`;
+    } else if (hasActivePromo) {
+      setStatus(true, activeText);
+      summaryEl.textContent = `Le client ${clientVerb} actuellement ${formatMoney(initialActivePrice)}.`;
+    } else {
+      setStatus(false, pendingText);
+      summaryEl.textContent = 'Entrez une remise pour voir le nouveau prix.';
+    }
+
+    const formattedEndDate = formatDateTime(endDateField.value);
+    endPreviewEl.textContent = formattedEndDate
+      ? `Fin prevue : ${formattedEndDate}`
+      : 'Fin prevue : dans 7 jours si vide.';
+  };
+
+  [typeField, valueField, endDateField].forEach((field) => {
+    field.addEventListener('input', updatePreview);
+    field.addEventListener('change', updatePreview);
+  });
+
+  updateHelp();
+  updatePreview();
+  typeField.addEventListener('change', updateHelp);
+  if (mobileKeyboardGuard) mobileKeyboardGuard.sync();
+});
+</script>
 {% endblock %}

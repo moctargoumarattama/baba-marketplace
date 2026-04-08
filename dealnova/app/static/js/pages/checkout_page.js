@@ -51,6 +51,55 @@
     locationStatus.className = `small ${isError ? "text-danger" : "text-success"} mt-1`;
   }
 
+  function canUseGeolocationNow() {
+    return Boolean(
+      window.isSecureContext ||
+      window.location.hostname === "localhost" ||
+      window.location.hostname === "127.0.0.1"
+    );
+  }
+
+  function isWhatsAppUrl(url) {
+    try {
+      const parsed = new URL(String(url || ""), window.location.href);
+      return parsed.hostname === "wa.me" || parsed.hostname === "api.whatsapp.com";
+    } catch (_error) {
+      return false;
+    }
+  }
+
+  function openExternalTarget(url) {
+    const targetUrl = String(url || "").trim();
+    if (!targetUrl) return false;
+
+    if (isWhatsAppUrl(targetUrl) && (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone)) {
+      try {
+        const anchor = document.createElement("a");
+        anchor.href = targetUrl;
+        anchor.target = "_blank";
+        anchor.rel = "noopener noreferrer external";
+        anchor.referrerPolicy = "no-referrer";
+        anchor.style.display = "none";
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+        return true;
+      } catch (_error) {}
+    }
+
+    try {
+      window.location.assign(targetUrl);
+      return true;
+    } catch (_error) {}
+
+    try {
+      window.location.href = targetUrl;
+      return true;
+    } catch (_error) {}
+
+    return false;
+  }
+
   function coerceFloat(value) {
     const raw = (value || "").toString().replace(",", ".").trim();
     const num = parseFloat(raw);
@@ -198,6 +247,10 @@
         setLocationStatus("Geolocalisation indisponible sur cet appareil.", true);
         return;
       }
+      if (!canUseGeolocationNow()) {
+        setLocationStatus("La geolocalisation demande une page HTTPS. Saisis l adresse ou utilise localhost.", true);
+        return;
+      }
 
       const original = locationBtn.innerHTML;
       locationBtn.disabled = true;
@@ -210,8 +263,16 @@
           locationBtn.disabled = false;
           locationBtn.innerHTML = original;
         },
-        () => {
-          setLocationStatus("Impossible d obtenir la position. Verifiez les permissions.", true);
+        (error) => {
+          let message = "Impossible d obtenir la position. Verifiez les permissions.";
+          if (error && error.code === 1) {
+            message = "Acces a la position refuse. Autorise la localisation puis reessaie.";
+          } else if (error && error.code === 2) {
+            message = "Position indisponible pour le moment. Reessaie dans un instant.";
+          } else if (error && error.code === 3) {
+            message = "La localisation a pris trop de temps. Reessaie ou saisis l adresse.";
+          }
+          setLocationStatus(message, true);
           locationBtn.disabled = false;
           locationBtn.innerHTML = original;
         },
@@ -224,22 +285,31 @@
   const statusEl = document.getElementById("wa-status");
   const fallbackWrap = document.getElementById("wa-fallback");
   const fallbackLink = document.getElementById("wa-fallback-link");
-  const submitRequestSeq = (
-    window.BMAjaxGuard && typeof window.BMAjaxGuard.makeRequestSeq === "function"
-  )
-    ? window.BMAjaxGuard.makeRequestSeq()
-    : (function () {
-        let latest = 0;
-        return {
-          next: function () {
-            latest += 1;
-            return latest;
-          },
-          isLatest: function (id) {
-            return Number(id) === latest;
-          }
-        };
-      })();
+  function getCoreDomApi() {
+    return window.BMCoreDom || {};
+  }
+  function createRequestSeq() {
+    const coreDomApi = getCoreDomApi();
+    if (typeof coreDomApi.makeRequestSeq === "function") {
+      return coreDomApi.makeRequestSeq();
+    }
+    if (window.BMAjaxGuard && typeof window.BMAjaxGuard.makeRequestSeq === "function") {
+      return window.BMAjaxGuard.makeRequestSeq();
+    }
+    return (function () {
+      let latest = 0;
+      return {
+        next: function () {
+          latest += 1;
+          return latest;
+        },
+        isLatest: function (id) {
+          return Number(id) === latest;
+        }
+      };
+    })();
+  }
+  const submitRequestSeq = createRequestSeq();
   let submitController = null;
 
   function showStatus(message) {
@@ -248,7 +318,6 @@
     statusEl.classList.toggle("d-none", !message);
   }
 
-  const bmFetchApi = window.BMAjaxFetch || null;
   const bmCsrfApi = window.BMAjaxCSRF || window.BMAjaxCsrf || null;
 
   function bmAddCsrfHeaders(headers, formEl) {
@@ -262,9 +331,10 @@
     return baseHeaders;
   }
 
-  async function bmFetchJSON(url, options) {
-    if (bmFetchApi && typeof bmFetchApi.requestJSON === "function") {
-      return bmFetchApi.requestJSON(url, options || {});
+  async function requestJSON(url, options) {
+    const coreDomApi = getCoreDomApi();
+    if (typeof coreDomApi.requestJSON === "function") {
+      return coreDomApi.requestJSON(url, options || {});
     }
     try {
       const response = await fetch(url, options || {});
@@ -318,7 +388,7 @@
       submitController = (typeof AbortController !== "undefined") ? new AbortController() : null;
 
       try {
-        const result = await bmFetchJSON(checkoutForm.action, {
+        const result = await requestJSON(checkoutForm.action, {
           method: "POST",
           body: new FormData(checkoutForm),
           headers: bmAddCsrfHeaders({
@@ -356,7 +426,15 @@
           return;
         }
 
-        window.location.href = waUrl;
+        const opened = openExternalTarget(waUrl);
+        if (!opened) {
+          showStatus("Ouverture WhatsApp impossible. Utilise le lien ci-dessous.");
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalHTML;
+          }
+          checkoutForm.dataset.submitted = "false";
+        }
 
         setTimeout(() => {
           if (waUrl && fallbackWrap && fallbackLink) {

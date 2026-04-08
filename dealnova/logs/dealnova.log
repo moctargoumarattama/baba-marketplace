@@ -1,0 +1,781 @@
+2026-03-28 00:57:11,968 - dealnova.app - ERROR - Exception on /young-thung [GET]
+Traceback (most recent call last):
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\app.py", line 1455, in wsgi_app
+    response = self.full_dispatch_request()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\app.py", line 869, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\app.py", line 867, in full_dispatch_request
+    rv = self.dispatch_request()
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\app.py", line 852, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\Desktop\baba_marketplace\dealnova\app\routes\shops.py", line 598, in shop_detail
+    return render_template(
+           ^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\templating.py", line 152, in render_template
+    return _render(app, template, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\templating.py", line 133, in _render
+    rv = template.render(context)
+         ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\jinja2\environment.py", line 1295, in render
+    self.environment.handle_exception()
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\jinja2\environment.py", line 942, in handle_exception
+    raise rewrite_traceback_stack(source=source)
+  File "C:\Users\hp\Desktop\baba_marketplace\dealnova\app\templates\shop\shop_detail.html", line 2, in top-level template code
+    {% extends "base.html" %}
+  File "C:\Users\hp\Desktop\baba_marketplace\dealnova\app\templates\base.html", line 1130, in top-level template code
+    {% block scripts %}{% endblock %}
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\Desktop\baba_marketplace\dealnova\app\templates\shop\shop_detail.html", line 520, in block 'scripts'
+    } | tojson }}</script>
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\jinja2\filters.py", line 1721, in do_tojson
+    return htmlsafe_json_dumps(value, dumps=dumps, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\jinja2\utils.py", line 669, in htmlsafe_json_dumps
+    dumps(obj, **kwargs)
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\json\provider.py", line 180, in dumps
+    return json.dumps(obj, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python311\Lib\json\__init__.py", line 238, in dumps
+    **kw).encode(obj)
+          ^^^^^^^^^^^
+  File "C:\Program Files\Python311\Lib\json\encoder.py", line 200, in encode
+    chunks = self.iterencode(o, _one_shot=True)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python311\Lib\json\encoder.py", line 258, in iterencode
+    return _iterencode(o, 0)
+           ^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\json\provider.py", line 120, in _default
+    raise TypeError(f"Object of type {type(o).__name__} is not JSON serializable")
+TypeError: Object of type Undefined is not JSON serializable
+2026-03-28 00:57:12,329 - dealnova.app - ERROR - Exception on /wadata [GET]
+Traceback (most recent call last):
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\app.py", line 1455, in wsgi_app
+    response = self.full_dispatch_request()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\app.py", line 869, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\app.py", line 867, in full_dispatch_request
+    rv = self.dispatch_request()
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\app.py", line 852, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\Desktop\baba_marketplace\dealnova\app\routes\shops.py", line 598, in shop_detail
+    return render_template(
+           ^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\templating.py", line 152, in render_template
+    return _render(app, template, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\templating.py", line 133, in _render
+    rv = template.render(context)
+         ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\jinja2\environment.py", line 1295, in render
+    self.environment.handle_exception()
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\jinja2\environment.py", line 942, in handle_exception
+    raise rewrite_traceback_stack(source=source)
+  File "C:\Users\hp\Desktop\baba_marketplace\dealnova\app\templates\shop\shop_detail.html", line 2, in top-level template code
+    {% extends "base.html" %}
+  File "C:\Users\hp\Desktop\baba_marketplace\dealnova\app\templates\base.html", line 1130, in top-level template code
+    {% block scripts %}{% endblock %}
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\Desktop\baba_marketplace\dealnova\app\templates\shop\shop_detail.html", line 520, in block 'scripts'
+    } | tojson }}</script>
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\jinja2\filters.py", line 1721, in do_tojson
+    return htmlsafe_json_dumps(value, dumps=dumps, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\jinja2\utils.py", line 669, in htmlsafe_json_dumps
+    dumps(obj, **kwargs)
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\json\provider.py", line 180, in dumps
+    return json.dumps(obj, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python311\Lib\json\__init__.py", line 238, in dumps
+    **kw).encode(obj)
+          ^^^^^^^^^^^
+  File "C:\Program Files\Python311\Lib\json\encoder.py", line 200, in encode
+    chunks = self.iterencode(o, _one_shot=True)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python311\Lib\json\encoder.py", line 258, in iterencode
+    return _iterencode(o, 0)
+           ^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\json\provider.py", line 120, in _default
+    raise TypeError(f"Object of type {type(o).__name__} is not JSON serializable")
+TypeError: Object of type Undefined is not JSON serializable
+2026-03-28 00:57:12,437 - dealnova.app - ERROR - Exception on /vvdvd [GET]
+Traceback (most recent call last):
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\app.py", line 1455, in wsgi_app
+    response = self.full_dispatch_request()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\app.py", line 869, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\app.py", line 867, in full_dispatch_request
+    rv = self.dispatch_request()
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\app.py", line 852, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\Desktop\baba_marketplace\dealnova\app\routes\shops.py", line 598, in shop_detail
+    return render_template(
+           ^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\templating.py", line 152, in render_template
+    return _render(app, template, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\templating.py", line 133, in _render
+    rv = template.render(context)
+         ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\jinja2\environment.py", line 1295, in render
+    self.environment.handle_exception()
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\jinja2\environment.py", line 942, in handle_exception
+    raise rewrite_traceback_stack(source=source)
+  File "C:\Users\hp\Desktop\baba_marketplace\dealnova\app\templates\shop\shop_detail.html", line 2, in top-level template code
+    {% extends "base.html" %}
+  File "C:\Users\hp\Desktop\baba_marketplace\dealnova\app\templates\base.html", line 1130, in top-level template code
+    {% block scripts %}{% endblock %}
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\Desktop\baba_marketplace\dealnova\app\templates\shop\shop_detail.html", line 520, in block 'scripts'
+    } | tojson }}</script>
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\jinja2\filters.py", line 1721, in do_tojson
+    return htmlsafe_json_dumps(value, dumps=dumps, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\jinja2\utils.py", line 669, in htmlsafe_json_dumps
+    dumps(obj, **kwargs)
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\json\provider.py", line 180, in dumps
+    return json.dumps(obj, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python311\Lib\json\__init__.py", line 238, in dumps
+    **kw).encode(obj)
+          ^^^^^^^^^^^
+  File "C:\Program Files\Python311\Lib\json\encoder.py", line 200, in encode
+    chunks = self.iterencode(o, _one_shot=True)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python311\Lib\json\encoder.py", line 258, in iterencode
+    return _iterencode(o, 0)
+           ^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\json\provider.py", line 120, in _default
+    raise TypeError(f"Object of type {type(o).__name__} is not JSON serializable")
+TypeError: Object of type Undefined is not JSON serializable
+2026-03-28 00:57:12,518 - dealnova.app - ERROR - Exception on /loadtest-shop-1 [GET]
+Traceback (most recent call last):
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\app.py", line 1455, in wsgi_app
+    response = self.full_dispatch_request()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\app.py", line 869, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\app.py", line 867, in full_dispatch_request
+    rv = self.dispatch_request()
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\app.py", line 852, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\Desktop\baba_marketplace\dealnova\app\routes\shops.py", line 598, in shop_detail
+    return render_template(
+           ^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\templating.py", line 152, in render_template
+    return _render(app, template, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\templating.py", line 133, in _render
+    rv = template.render(context)
+         ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\jinja2\environment.py", line 1295, in render
+    self.environment.handle_exception()
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\jinja2\environment.py", line 942, in handle_exception
+    raise rewrite_traceback_stack(source=source)
+  File "C:\Users\hp\Desktop\baba_marketplace\dealnova\app\templates\shop\shop_detail.html", line 2, in top-level template code
+    {% extends "base.html" %}
+  File "C:\Users\hp\Desktop\baba_marketplace\dealnova\app\templates\base.html", line 1130, in top-level template code
+    {% block scripts %}{% endblock %}
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\Desktop\baba_marketplace\dealnova\app\templates\shop\shop_detail.html", line 520, in block 'scripts'
+    } | tojson }}</script>
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\jinja2\filters.py", line 1721, in do_tojson
+    return htmlsafe_json_dumps(value, dumps=dumps, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\jinja2\utils.py", line 669, in htmlsafe_json_dumps
+    dumps(obj, **kwargs)
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\json\provider.py", line 180, in dumps
+    return json.dumps(obj, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python311\Lib\json\__init__.py", line 238, in dumps
+    **kw).encode(obj)
+          ^^^^^^^^^^^
+  File "C:\Program Files\Python311\Lib\json\encoder.py", line 200, in encode
+    chunks = self.iterencode(o, _one_shot=True)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python311\Lib\json\encoder.py", line 258, in iterencode
+    return _iterencode(o, 0)
+           ^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\json\provider.py", line 120, in _default
+    raise TypeError(f"Object of type {type(o).__name__} is not JSON serializable")
+TypeError: Object of type Undefined is not JSON serializable
+2026-03-28 00:57:34,361 - dealnova.app - ERROR - Exception on /wadata [GET]
+Traceback (most recent call last):
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\app.py", line 1455, in wsgi_app
+    response = self.full_dispatch_request()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\app.py", line 869, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\app.py", line 867, in full_dispatch_request
+    rv = self.dispatch_request()
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\app.py", line 852, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\Desktop\baba_marketplace\dealnova\app\routes\shops.py", line 598, in shop_detail
+    return render_template(
+           ^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\templating.py", line 152, in render_template
+    return _render(app, template, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\templating.py", line 133, in _render
+    rv = template.render(context)
+         ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\jinja2\environment.py", line 1295, in render
+    self.environment.handle_exception()
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\jinja2\environment.py", line 942, in handle_exception
+    raise rewrite_traceback_stack(source=source)
+  File "C:\Users\hp\Desktop\baba_marketplace\dealnova\app\templates\shop\shop_detail.html", line 2, in top-level template code
+    {% extends "base.html" %}
+  File "C:\Users\hp\Desktop\baba_marketplace\dealnova\app\templates\base.html", line 1130, in top-level template code
+    {% block scripts %}{% endblock %}
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\Desktop\baba_marketplace\dealnova\app\templates\shop\shop_detail.html", line 520, in block 'scripts'
+    } | tojson }}</script>
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\jinja2\filters.py", line 1721, in do_tojson
+    return htmlsafe_json_dumps(value, dumps=dumps, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\jinja2\utils.py", line 669, in htmlsafe_json_dumps
+    dumps(obj, **kwargs)
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\json\provider.py", line 180, in dumps
+    return json.dumps(obj, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python311\Lib\json\__init__.py", line 238, in dumps
+    **kw).encode(obj)
+          ^^^^^^^^^^^
+  File "C:\Program Files\Python311\Lib\json\encoder.py", line 200, in encode
+    chunks = self.iterencode(o, _one_shot=True)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python311\Lib\json\encoder.py", line 258, in iterencode
+    return _iterencode(o, 0)
+           ^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\json\provider.py", line 120, in _default
+    raise TypeError(f"Object of type {type(o).__name__} is not JSON serializable")
+TypeError: Object of type Undefined is not JSON serializable
+2026-03-28 00:57:55,224 - dealnova.app - ERROR - Exception on /wadata [GET]
+Traceback (most recent call last):
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\app.py", line 1455, in wsgi_app
+    response = self.full_dispatch_request()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\app.py", line 869, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\app.py", line 867, in full_dispatch_request
+    rv = self.dispatch_request()
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\app.py", line 852, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\Desktop\baba_marketplace\dealnova\app\routes\shops.py", line 598, in shop_detail
+    return render_template(
+           ^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\templating.py", line 152, in render_template
+    return _render(app, template, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\templating.py", line 133, in _render
+    rv = template.render(context)
+         ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\jinja2\environment.py", line 1295, in render
+    self.environment.handle_exception()
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\jinja2\environment.py", line 942, in handle_exception
+    raise rewrite_traceback_stack(source=source)
+  File "C:\Users\hp\Desktop\baba_marketplace\dealnova\app\templates\shop\shop_detail.html", line 2, in top-level template code
+    {% extends "base.html" %}
+  File "C:\Users\hp\Desktop\baba_marketplace\dealnova\app\templates\base.html", line 1130, in top-level template code
+    {% block scripts %}{% endblock %}
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\Desktop\baba_marketplace\dealnova\app\templates\shop\shop_detail.html", line 520, in block 'scripts'
+    } | tojson }}</script>
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\jinja2\filters.py", line 1721, in do_tojson
+    return htmlsafe_json_dumps(value, dumps=dumps, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\jinja2\utils.py", line 669, in htmlsafe_json_dumps
+    dumps(obj, **kwargs)
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\json\provider.py", line 180, in dumps
+    return json.dumps(obj, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python311\Lib\json\__init__.py", line 238, in dumps
+    **kw).encode(obj)
+          ^^^^^^^^^^^
+  File "C:\Program Files\Python311\Lib\json\encoder.py", line 200, in encode
+    chunks = self.iterencode(o, _one_shot=True)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python311\Lib\json\encoder.py", line 258, in iterencode
+    return _iterencode(o, 0)
+           ^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\json\provider.py", line 120, in _default
+    raise TypeError(f"Object of type {type(o).__name__} is not JSON serializable")
+TypeError: Object of type Undefined is not JSON serializable
+2026-03-28 00:58:16,737 - dealnova.app - ERROR - Exception on /wadata [GET]
+Traceback (most recent call last):
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\app.py", line 1455, in wsgi_app
+    response = self.full_dispatch_request()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\app.py", line 869, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\app.py", line 867, in full_dispatch_request
+    rv = self.dispatch_request()
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\app.py", line 852, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\Desktop\baba_marketplace\dealnova\app\routes\shops.py", line 598, in shop_detail
+    return render_template(
+           ^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\templating.py", line 152, in render_template
+    return _render(app, template, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\templating.py", line 133, in _render
+    rv = template.render(context)
+         ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\jinja2\environment.py", line 1295, in render
+    self.environment.handle_exception()
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\jinja2\environment.py", line 942, in handle_exception
+    raise rewrite_traceback_stack(source=source)
+  File "C:\Users\hp\Desktop\baba_marketplace\dealnova\app\templates\shop\shop_detail.html", line 2, in top-level template code
+    {% extends "base.html" %}
+  File "C:\Users\hp\Desktop\baba_marketplace\dealnova\app\templates\base.html", line 1130, in top-level template code
+    {% block scripts %}{% endblock %}
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\Desktop\baba_marketplace\dealnova\app\templates\shop\shop_detail.html", line 520, in block 'scripts'
+    } | tojson }}</script>
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\jinja2\filters.py", line 1721, in do_tojson
+    return htmlsafe_json_dumps(value, dumps=dumps, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\jinja2\utils.py", line 669, in htmlsafe_json_dumps
+    dumps(obj, **kwargs)
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\json\provider.py", line 180, in dumps
+    return json.dumps(obj, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python311\Lib\json\__init__.py", line 238, in dumps
+    **kw).encode(obj)
+          ^^^^^^^^^^^
+  File "C:\Program Files\Python311\Lib\json\encoder.py", line 200, in encode
+    chunks = self.iterencode(o, _one_shot=True)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python311\Lib\json\encoder.py", line 258, in iterencode
+    return _iterencode(o, 0)
+           ^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\json\provider.py", line 120, in _default
+    raise TypeError(f"Object of type {type(o).__name__} is not JSON serializable")
+TypeError: Object of type Undefined is not JSON serializable
+2026-03-28 00:58:49,580 - dealnova.app - ERROR - Exception on /wadata [GET]
+Traceback (most recent call last):
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\app.py", line 1455, in wsgi_app
+    response = self.full_dispatch_request()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\app.py", line 869, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\app.py", line 867, in full_dispatch_request
+    rv = self.dispatch_request()
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\app.py", line 852, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\Desktop\baba_marketplace\dealnova\app\routes\shops.py", line 598, in shop_detail
+    return render_template(
+           ^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\templating.py", line 152, in render_template
+    return _render(app, template, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\templating.py", line 133, in _render
+    rv = template.render(context)
+         ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\jinja2\environment.py", line 1295, in render
+    self.environment.handle_exception()
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\jinja2\environment.py", line 942, in handle_exception
+    raise rewrite_traceback_stack(source=source)
+  File "C:\Users\hp\Desktop\baba_marketplace\dealnova\app\templates\shop\shop_detail.html", line 2, in top-level template code
+    {% extends "base.html" %}
+  File "C:\Users\hp\Desktop\baba_marketplace\dealnova\app\templates\base.html", line 1130, in top-level template code
+    {% block scripts %}{% endblock %}
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\Desktop\baba_marketplace\dealnova\app\templates\shop\shop_detail.html", line 520, in block 'scripts'
+    } | tojson }}</script>
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\jinja2\filters.py", line 1721, in do_tojson
+    return htmlsafe_json_dumps(value, dumps=dumps, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\jinja2\utils.py", line 669, in htmlsafe_json_dumps
+    dumps(obj, **kwargs)
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\json\provider.py", line 180, in dumps
+    return json.dumps(obj, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python311\Lib\json\__init__.py", line 238, in dumps
+    **kw).encode(obj)
+          ^^^^^^^^^^^
+  File "C:\Program Files\Python311\Lib\json\encoder.py", line 200, in encode
+    chunks = self.iterencode(o, _one_shot=True)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python311\Lib\json\encoder.py", line 258, in iterencode
+    return _iterencode(o, 0)
+           ^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Roaming\Python\Python311\site-packages\flask\json\provider.py", line 120, in _default
+    raise TypeError(f"Object of type {type(o).__name__} is not JSON serializable")
+TypeError: Object of type Undefined is not JSON serializable
+2026-03-28 02:28:43,981 - dealnova.app - INFO - [security] Rate limit exceeded on api.search_products (127.0.0.1)
+2026-03-28 02:28:43,981 - dealnova.app - INFO - [security] Rate limit exceeded on api.search_products (127.0.0.1)
+2026-03-28 02:30:03,192 - dealnova.app - INFO - [security] Rate limit exceeded on api.search_products (127.0.0.1)
+2026-03-28 03:01:27,262 - dealnova.app - INFO - [security] Rate limit exceeded on api.search_products (203.0.113.77)
+2026-03-28 03:13:01,010 - app - INFO - [auth] Connexion reussie (uid=2, role=admin)
+2026-03-28 03:35:28,703 - app - INFO - [auth] Deconnexion (uid=2, role=admin)
+2026-03-28 05:02:57,852 - app - INFO - [auth] Connexion reussie (uid=3, role=vendor)
+2026-03-28 05:43:37,449 - app - INFO - [auth] Connexion reussie (uid=3, role=vendor)
+2026-03-28 05:46:47,806 - app - INFO - [auth] Deconnexion (uid=3, role=vendor)
+2026-03-28 05:46:56,617 - app - INFO - [auth] Connexion reussie (uid=4, role=vendor)
+2026-03-28 05:46:58,187 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 2.45, 'vendor_id': 4, 'cache': 'hit'}
+2026-03-28 05:46:58,250 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 54.32, 'vendor_id': 4, 'allows_products': True, 'cache': 'no_period'}
+2026-03-28 05:46:58,345 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 40.94, 'vendor_id': 4, 'allows_products': True, 'cache': 'no_period'}
+2026-03-28 05:46:58,486 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 14.01, 'vendor_id': 4, 'cache': 'hit'}
+2026-03-28 05:48:57,695 - app - INFO - [vendor] create_product.start vendor_id=4
+2026-03-28 05:48:57,695 - app - INFO - [vendor] create_product.payload vendor_id=4 name=ccccccccc shop_id=None category_id=302 kind=physical
+2026-03-28 05:48:57,703 - app - INFO - [vendor] create_product.image_file vendor_id=4 filename=Capture d’écran 2026-02-06 031053 - Copie.png content_type=image/png allowed_by_name=True
+2026-03-28 05:48:59,408 - app - INFO - [vendor] create_product.image_save_result vendor_id=4 filename=Capture d’écran 2026-02-06 031053 - Copie.png saved=791b54f132014c49823d7b0b29b3db5f.webp
+2026-03-28 05:48:59,410 - app - INFO - [vendor] create_product.image_file vendor_id=4 filename=Capture d’écran 2026-02-06 031053.png content_type=image/png allowed_by_name=True
+2026-03-28 05:49:00,508 - app - INFO - [vendor] create_product.image_save_result vendor_id=4 filename=Capture d’écran 2026-02-06 031053.png saved=85e6a88ee74b4148b065d9027e0be794.webp
+2026-03-28 05:49:00,517 - app - INFO - [vendor] create_product.image_file vendor_id=4 filename=hacker--image - Copie.avif content_type=image/avif allowed_by_name=False
+2026-03-28 05:49:00,520 - app - WARNING - image.save_image.invalid_image
+2026-03-28 05:49:00,520 - app - INFO - [vendor] create_product.image_save_result vendor_id=4 filename=hacker--image - Copie.avif saved=None
+2026-03-28 05:49:00,520 - app - INFO - [vendor] create_product.image_file vendor_id=4 filename=msdesigne$.png content_type=image/png allowed_by_name=True
+2026-03-28 05:49:01,646 - app - INFO - [vendor] create_product.image_save_result vendor_id=4 filename=msdesigne$.png saved=666d97d1bcaa4cae8bbf342cf990d6f5.webp
+2026-03-28 05:49:01,646 - app - WARNING - [vendor] create_product.validation_failed vendor_id=4 reason=image_invalid
+2026-03-28 05:51:06,292 - app - INFO - [vendor] create_product.start vendor_id=4
+2026-03-28 05:51:06,292 - app - INFO - [vendor] create_product.payload vendor_id=4 name=XXDDDDDDD shop_id=None category_id=302 kind=physical
+2026-03-28 05:51:06,292 - app - INFO - [vendor] create_product.image_file vendor_id=4 filename=Capture d’écran 2026-02-06 031053 - Copie.png content_type=image/png allowed_by_name=True
+2026-03-28 05:51:07,036 - app - INFO - [vendor] create_product.image_save_result vendor_id=4 filename=Capture d’écran 2026-02-06 031053 - Copie.png saved=441831f63e3f4e269e56621ff632b479.webp
+2026-03-28 05:51:07,036 - app - INFO - [vendor] create_product.image_file vendor_id=4 filename=Capture d’écran 2026-02-06 031053.png content_type=image/png allowed_by_name=True
+2026-03-28 05:51:07,840 - app - INFO - [vendor] create_product.image_save_result vendor_id=4 filename=Capture d’écran 2026-02-06 031053.png saved=064ce44913444204912c7ff9841bd98f.webp
+2026-03-28 05:51:07,840 - app - INFO - [vendor] create_product.image_file vendor_id=4 filename=hacker--image - Copie.avif content_type=image/avif allowed_by_name=False
+2026-03-28 05:51:07,840 - app - WARNING - image.save_image.invalid_image
+2026-03-28 05:51:07,840 - app - INFO - [vendor] create_product.image_save_result vendor_id=4 filename=hacker--image - Copie.avif saved=None
+2026-03-28 05:51:07,840 - app - INFO - [vendor] create_product.image_file vendor_id=4 filename=msdesigne$.png content_type=image/png allowed_by_name=True
+2026-03-28 05:51:08,958 - app - INFO - [vendor] create_product.image_save_result vendor_id=4 filename=msdesigne$.png saved=94f8cfdbb8074bfa8e96b1543018f439.webp
+2026-03-28 05:51:08,979 - app - WARNING - [vendor] create_product.validation_failed vendor_id=4 reason=image_invalid
+2026-03-28 05:55:51,303 - app - INFO - [vendor] create_product.start vendor_id=4
+2026-03-28 05:55:51,305 - app - INFO - [vendor] create_product.payload vendor_id=4 name=SALAH shop_id=None category_id=3 kind=physical
+2026-03-28 05:55:51,307 - app - INFO - [vendor] create_product.image_file vendor_id=4 filename=Capture d’écran 2026-02-06 031053 - Copie.png content_type=image/png allowed_by_name=True
+2026-03-28 05:55:52,090 - app - INFO - [vendor] create_product.image_save_result vendor_id=4 filename=Capture d’écran 2026-02-06 031053 - Copie.png saved=22f6c52c71bf4dd6b46a57117450f998.webp
+2026-03-28 05:55:52,103 - app - INFO - [vendor] create_product.image_file vendor_id=4 filename=Capture d’écran 2026-02-06 031053.png content_type=image/png allowed_by_name=True
+2026-03-28 05:55:52,939 - app - INFO - [vendor] create_product.image_save_result vendor_id=4 filename=Capture d’écran 2026-02-06 031053.png saved=4d18512b387146db9495c6ae5360dad6.webp
+2026-03-28 05:55:52,939 - app - INFO - [vendor] create_product.image_file vendor_id=4 filename=hacker--image - Copie.avif content_type=image/avif allowed_by_name=False
+2026-03-28 05:55:52,939 - app - WARNING - image.save_image.invalid_image
+2026-03-28 05:55:52,939 - app - INFO - [vendor] create_product.image_save_result vendor_id=4 filename=hacker--image - Copie.avif saved=None
+2026-03-28 05:55:52,944 - app - INFO - [vendor] create_product.image_file vendor_id=4 filename=msdesigne$.png content_type=image/png allowed_by_name=True
+2026-03-28 05:55:54,052 - app - INFO - [vendor] create_product.image_save_result vendor_id=4 filename=msdesigne$.png saved=e212df3159774c6c98d30ef558efd7dc.webp
+2026-03-28 05:55:54,052 - app - WARNING - [vendor] create_product.validation_failed vendor_id=4 reason=image_invalid
+2026-03-28 05:58:16,669 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 12.51, 'vendor_id': 4, 'cache': 'hit'}
+2026-03-28 05:58:16,728 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 52.94, 'vendor_id': 4, 'allows_products': True, 'cache': 'no_period'}
+2026-03-28 05:58:16,938 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 9.59, 'vendor_id': 4, 'allows_products': True, 'cache': 'no_period'}
+2026-03-28 05:58:16,965 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 3.31, 'vendor_id': 4, 'cache': 'hit'}
+2026-03-28 06:03:50,507 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 5.48, 'vendor_id': 4, 'allows_products': True, 'cache': 'no_period'}
+2026-03-28 06:03:50,764 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 263.43, 'vendor_id': 4, 'cache': 'miss', 'recent_count': 0, 'prepare_count': 0, 'bookings_count': 0}
+2026-03-28 06:05:06,471 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 3.68, 'vendor_id': 4, 'allows_products': True, 'cache': 'no_period'}
+2026-03-28 06:05:06,756 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 284.0, 'vendor_id': 4, 'cache': 'miss', 'recent_count': 0, 'prepare_count': 0, 'bookings_count': 0}
+2026-03-28 06:05:09,439 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 11.79, 'vendor_id': 4, 'cache': 'hit'}
+2026-03-28 06:05:09,509 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 34.99, 'vendor_id': 4, 'allows_products': True, 'cache': 'no_period'}
+2026-03-28 06:05:09,806 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 18.89, 'vendor_id': 4, 'allows_products': True, 'cache': 'no_period'}
+2026-03-28 06:05:10,105 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 305.85, 'vendor_id': 4, 'cache': 'miss', 'recent_count': 0, 'prepare_count': 0, 'bookings_count': 0}
+2026-03-28 06:05:56,326 - app - INFO - [vendor] create_product.start vendor_id=4
+2026-03-28 06:05:56,326 - app - INFO - [vendor] create_product.payload vendor_id=4 name=nndehdeh shop_id=None category_id=3 kind=physical
+2026-03-28 06:05:56,326 - app - INFO - [vendor] create_product.image_file vendor_id=4 filename=Capture d’écran 2026-02-06 031053 - Copie.png content_type=image/png allowed_by_name=True
+2026-03-28 06:05:57,134 - app - INFO - [vendor] create_product.image_save_result vendor_id=4 filename=Capture d’écran 2026-02-06 031053 - Copie.png saved=d46181acd17c4072ad2a55a69af34f5b.webp
+2026-03-28 06:05:57,135 - app - INFO - [vendor] create_product.image_file vendor_id=4 filename=Capture d’écran 2026-02-06 031053.png content_type=image/png allowed_by_name=True
+2026-03-28 06:05:57,935 - app - INFO - [vendor] create_product.image_save_result vendor_id=4 filename=Capture d’écran 2026-02-06 031053.png saved=6bb5883b6df3499cb7e4aa94e9e47fa3.webp
+2026-03-28 06:05:57,941 - app - INFO - [vendor] create_product.image_file vendor_id=4 filename=hacker--image - Copie.avif content_type=image/avif allowed_by_name=False
+2026-03-28 06:05:57,941 - app - WARNING - image.save_image.invalid_image
+2026-03-28 06:05:57,941 - app - INFO - [vendor] create_product.image_save_result vendor_id=4 filename=hacker--image - Copie.avif saved=None
+2026-03-28 06:05:57,941 - app - INFO - [vendor] create_product.image_file vendor_id=4 filename=hacker--image.avif content_type=image/avif allowed_by_name=False
+2026-03-28 06:05:57,941 - app - WARNING - image.save_image.invalid_image
+2026-03-28 06:05:57,941 - app - INFO - [vendor] create_product.image_save_result vendor_id=4 filename=hacker--image.avif saved=None
+2026-03-28 06:05:57,949 - app - WARNING - [vendor] create_product.validation_failed vendor_id=4 reason=image_invalid
+2026-03-28 06:07:02,300 - app - INFO - [vendor] create_product.start vendor_id=4
+2026-03-28 06:07:02,300 - app - INFO - [vendor] create_product.payload vendor_id=4 name=nndehdeh shop_id=None category_id=302 kind=physical
+2026-03-28 06:07:02,300 - app - INFO - [vendor] create_product.image_file vendor_id=4 filename=Capture d’écran 2026-02-06 031053 - Copie.png content_type=image/png allowed_by_name=True
+2026-03-28 06:07:02,986 - app - INFO - [vendor] create_product.image_save_result vendor_id=4 filename=Capture d’écran 2026-02-06 031053 - Copie.png saved=11d1d59eb4884562862508e281f2a303.webp
+2026-03-28 06:07:02,988 - app - INFO - [vendor] create_product.image_file vendor_id=4 filename=Capture d’écran 2026-02-06 031053.png content_type=image/png allowed_by_name=True
+2026-03-28 06:07:04,040 - app - INFO - [vendor] create_product.image_save_result vendor_id=4 filename=Capture d’écran 2026-02-06 031053.png saved=1f5dc83c92aa44b093a688d1898869b5.webp
+2026-03-28 06:07:04,042 - app - INFO - [vendor] create_product.image_file vendor_id=4 filename=hacker--image - Copie.avif content_type=image/avif allowed_by_name=False
+2026-03-28 06:07:04,043 - app - WARNING - image.save_image.invalid_image
+2026-03-28 06:07:04,045 - app - INFO - [vendor] create_product.image_save_result vendor_id=4 filename=hacker--image - Copie.avif saved=None
+2026-03-28 06:07:04,046 - app - WARNING - [vendor] create_product.validation_failed vendor_id=4 reason=image_invalid
+2026-03-28 06:25:44,824 - app - INFO - [vendor] create_product.start vendor_id=4
+2026-03-28 06:25:44,824 - app - INFO - [vendor] create_product.payload vendor_id=4 name=nndehdeh shop_id=None category_id=302 kind=physical
+2026-03-28 06:25:44,832 - app - INFO - [vendor] product.image_file vendor_id=4 filename=Capture d’écran 2026-02-06 031053 - Copie.png content_type=image/png allowed_by_name=True
+2026-03-28 06:25:45,678 - app - INFO - [vendor] product.image_save_result vendor_id=4 filename=Capture d’écran 2026-02-06 031053 - Copie.png saved=bd92803682614923a0500142c7137d6f.webp
+2026-03-28 06:25:45,678 - app - INFO - [vendor] product.image_file vendor_id=4 filename=Capture d’écran 2026-02-06 031053.png content_type=image/png allowed_by_name=True
+2026-03-28 06:25:46,448 - app - INFO - [vendor] product.image_save_result vendor_id=4 filename=Capture d’écran 2026-02-06 031053.png saved=3e21a590ee2041c69e52c92d20988239.webp
+2026-03-28 06:25:46,448 - app - INFO - [vendor] product.image_file vendor_id=4 filename=hacker--image - Copie.avif content_type=image/avif allowed_by_name=False
+2026-03-28 06:25:46,448 - app - INFO - [vendor] product.image_file vendor_id=4 filename=hacker--image.avif content_type=image/avif allowed_by_name=False
+2026-03-28 06:25:46,595 - app - INFO - [vendor] create_product.before_commit vendor_id=4 product_name=nndehdeh
+2026-03-28 06:25:46,619 - app - INFO - [vendor] create_product.success vendor_id=4 product_id=10422
+2026-03-28 06:25:48,735 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 3.17, 'vendor_id': 4, 'cache': 'hit'}
+2026-03-28 06:25:48,866 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 11.02, 'vendor_id': 4, 'allows_products': True, 'cache': 'no_period'}
+2026-03-28 06:25:49,015 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 12.57, 'vendor_id': 4, 'allows_products': True, 'cache': 'no_period'}
+2026-03-28 06:25:49,057 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 33.09, 'vendor_id': 4, 'cache': 'hit'}
+2026-03-28 06:26:09,109 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 266.99, 'vendor_id': 4, 'cache': 'miss', 'recent_count': 0, 'prepare_count': 0, 'bookings_count': 0}
+2026-03-28 06:26:18,915 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 1.8, 'vendor_id': 4, 'allows_products': True, 'cache': 'no_period'}
+2026-03-28 06:26:29,279 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 145.44, 'vendor_id': 4, 'cache': 'miss', 'recent_count': 0, 'prepare_count': 0, 'bookings_count': 0}
+2026-03-28 06:32:58,480 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 54.08, 'vendor_id': 4, 'allows_products': True, 'cache': 'no_period'}
+2026-03-28 06:32:58,670 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 264.26, 'vendor_id': 4, 'cache': 'miss', 'recent_count': 0, 'prepare_count': 0, 'bookings_count': 0}
+2026-03-28 06:36:27,522 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 11.58, 'vendor_id': 4, 'allows_products': True, 'cache': 'no_period'}
+2026-03-28 06:36:27,709 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 197.54, 'vendor_id': 4, 'cache': 'miss', 'recent_count': 0, 'prepare_count': 0, 'bookings_count': 0}
+2026-03-28 06:36:47,910 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 19.88, 'vendor_id': 4, 'cache': 'hit'}
+2026-03-28 06:36:47,977 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 19.26, 'vendor_id': 4, 'allows_products': True, 'cache': 'no_period'}
+2026-03-28 06:36:48,443 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 12.86, 'vendor_id': 4, 'allows_products': True, 'cache': 'no_period'}
+2026-03-28 06:36:48,648 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 209.02, 'vendor_id': 4, 'cache': 'miss', 'recent_count': 0, 'prepare_count': 0, 'bookings_count': 0}
+2026-03-28 06:37:03,764 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 26.41, 'vendor_id': 4, 'allows_products': True, 'cache': 'no_period'}
+2026-03-28 06:37:04,164 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 419.44, 'vendor_id': 4, 'cache': 'miss', 'recent_count': 0, 'prepare_count': 0, 'bookings_count': 0}
+2026-03-28 06:37:13,528 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 28.86, 'vendor_id': 4, 'allows_products': True, 'cache': 'no_period'}
+2026-03-28 06:37:13,661 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 132.98, 'vendor_id': 4, 'cache': 'miss', 'recent_count': 0, 'prepare_count': 0, 'bookings_count': 0}
+2026-03-28 06:37:32,496 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 4.31, 'vendor_id': 4, 'cache': 'hit'}
+2026-03-28 06:37:32,541 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 4.93, 'vendor_id': 4, 'allows_products': True, 'cache': 'no_period'}
+2026-03-28 06:37:32,734 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 18.53, 'vendor_id': 4, 'allows_products': True, 'cache': 'no_period'}
+2026-03-28 06:37:32,754 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 3.35, 'vendor_id': 4, 'cache': 'hit'}
+2026-03-28 06:37:52,633 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 104.59, 'vendor_id': 4, 'cache': 'miss', 'recent_count': 0, 'prepare_count': 0, 'bookings_count': 0}
+2026-03-28 06:38:15,541 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 13.0, 'vendor_id': 4, 'allows_products': True, 'cache': 'no_period'}
+2026-03-28 06:38:15,883 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 357.65, 'vendor_id': 4, 'cache': 'miss', 'recent_count': 0, 'prepare_count': 0, 'bookings_count': 0}
+2026-03-28 06:38:31,295 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 11.95, 'vendor_id': 4, 'allows_products': True, 'cache': 'no_period'}
+2026-03-28 06:38:31,988 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 702.55, 'vendor_id': 4, 'cache': 'miss', 'recent_count': 0, 'prepare_count': 0, 'bookings_count': 0}
+2026-03-28 06:39:23,168 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 26.2, 'vendor_id': 4, 'allows_products': True, 'cache': 'no_period'}
+2026-03-28 06:39:23,870 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 720.35, 'vendor_id': 4, 'cache': 'miss', 'recent_count': 0, 'prepare_count': 0, 'bookings_count': 0}
+2026-03-28 06:39:26,826 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 4.67, 'vendor_id': 4, 'cache': 'hit'}
+2026-03-28 06:39:26,872 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 10.59, 'vendor_id': 4, 'allows_products': True, 'cache': 'no_period'}
+2026-03-28 06:39:27,171 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 18.98, 'vendor_id': 4, 'allows_products': True, 'cache': 'no_period'}
+2026-03-28 06:39:27,645 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 472.18, 'vendor_id': 4, 'cache': 'miss', 'recent_count': 0, 'prepare_count': 0, 'bookings_count': 0}
+2026-03-28 06:39:56,923 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 15.26, 'vendor_id': 4, 'allows_products': True, 'cache': 'no_period'}
+2026-03-28 06:39:57,108 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 192.5, 'vendor_id': 4, 'cache': 'miss', 'recent_count': 0, 'prepare_count': 0, 'bookings_count': 0}
+2026-03-28 06:40:18,236 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 2.66, 'vendor_id': 4, 'allows_products': True, 'cache': 'no_period'}
+2026-03-28 06:40:18,393 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 151.58, 'vendor_id': 4, 'cache': 'miss', 'recent_count': 0, 'prepare_count': 0, 'bookings_count': 0}
+2026-03-28 06:40:21,018 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 16.36, 'vendor_id': 4, 'allows_products': True, 'cache': 'no_period'}
+2026-03-28 06:40:21,021 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 1.62, 'vendor_id': 4, 'cache': 'hit'}
+2026-03-28 06:40:24,267 - app - INFO - [auth] Deconnexion (uid=4, role=vendor)
+2026-03-28 16:30:23,536 - app - INFO - [auth] Connexion reussie (uid=4, role=vendor)
+2026-03-28 16:30:24,751 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 7.41, 'vendor_id': 4, 'cache': 'hit'}
+2026-03-28 16:30:24,860 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 8.12, 'vendor_id': 4, 'allows_products': True, 'cache': 'no_period'}
+2026-03-28 16:30:24,951 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 14.09, 'vendor_id': 4, 'allows_products': True, 'cache': 'no_period'}
+2026-03-28 16:30:24,973 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 12.09, 'vendor_id': 4, 'cache': 'hit'}
+2026-03-28 16:30:44,951 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 148.32, 'vendor_id': 4, 'cache': 'miss', 'recent_count': 0, 'prepare_count': 0, 'bookings_count': 0}
+2026-03-28 16:32:13,482 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 2.21, 'vendor_id': 4, 'cache': 'hit'}
+2026-03-28 16:32:13,552 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 14.04, 'vendor_id': 4, 'allows_products': True, 'cache': 'no_period'}
+2026-03-28 16:32:13,767 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 5.34, 'vendor_id': 4, 'allows_products': True, 'cache': 'no_period'}
+2026-03-28 16:32:13,771 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 2.42, 'vendor_id': 4, 'cache': 'hit'}
+2026-03-28 16:36:17,316 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 2.46, 'vendor_id': 4, 'cache': 'hit'}
+2026-03-28 16:36:17,356 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 6.41, 'vendor_id': 4, 'allows_products': True, 'cache': 'no_period'}
+2026-03-28 16:36:17,599 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 21.35, 'vendor_id': 4, 'allows_products': True, 'cache': 'no_period'}
+2026-03-28 16:36:17,607 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 11.89, 'vendor_id': 4, 'cache': 'hit'}
+2026-03-28 16:37:52,381 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 3.84, 'vendor_id': 4, 'cache': 'hit'}
+2026-03-28 16:37:52,678 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 3.39, 'vendor_id': 4, 'cache': 'hit'}
+2026-03-28 16:37:52,951 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 521.24, 'vendor_id': 4, 'total_orders': 0, 'low_stock': 0}
+2026-03-28 16:37:53,032 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 416.28, 'vendor_id': 4, 'total_orders': 0, 'low_stock': 0}
+2026-03-28 16:38:12,582 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 172.66, 'vendor_id': 4, 'cache': 'miss', 'recent_count': 0, 'prepare_count': 0, 'bookings_count': 0}
+2026-03-28 16:57:40,707 - app - INFO - [auth] Deconnexion (uid=4, role=vendor)
+2026-03-28 16:59:23,014 - app - INFO - [auth] Connexion reussie (uid=4, role=vendor)
+2026-03-28 16:59:23,963 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 2.77, 'vendor_id': 4, 'cache': 'hit'}
+2026-03-28 16:59:24,104 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 4.67, 'vendor_id': 4, 'cache': 'hit'}
+2026-03-28 16:59:24,472 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 386.8, 'vendor_id': 4, 'total_orders': 0, 'low_stock': 0}
+2026-03-28 16:59:24,478 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 431.35, 'vendor_id': 4, 'total_orders': 0, 'low_stock': 0}
+2026-03-28 18:26:32,188 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 4.02, 'vendor_id': 4, 'cache': 'hit'}
+2026-03-28 18:26:32,492 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 3.77, 'vendor_id': 4, 'cache': 'hit'}
+2026-03-28 18:26:32,709 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 482.53, 'vendor_id': 4, 'total_orders': 0, 'low_stock': 0}
+2026-03-28 18:26:32,804 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 371.69, 'vendor_id': 4, 'total_orders': 0, 'low_stock': 0}
+2026-03-28 18:29:12,222 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 317.34, 'vendor_id': 4, 'cache': 'miss', 'recent_count': 0, 'prepare_count': 0, 'bookings_count': 0}
+2026-03-28 18:29:12,227 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 340.71, 'vendor_id': 4, 'total_orders': 0, 'low_stock': 0}
+2026-03-28 18:29:16,944 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 571.5, 'vendor_id': 4, 'total_orders': 0, 'low_stock': 0}
+2026-03-28 18:29:17,040 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 677.95, 'vendor_id': 4, 'cache': 'miss', 'recent_count': 0, 'prepare_count': 0, 'bookings_count': 0}
+2026-03-28 18:29:17,116 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 548.68, 'vendor_id': 4, 'cache': 'miss', 'recent_count': 0, 'prepare_count': 0, 'bookings_count': 0}
+2026-03-28 18:29:17,160 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 632.74, 'vendor_id': 4, 'total_orders': 0, 'low_stock': 0}
+2026-03-28 18:30:13,304 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 486.95, 'vendor_id': 4, 'cache': 'miss', 'recent_count': 0, 'prepare_count': 0, 'bookings_count': 0}
+2026-03-28 18:30:13,333 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 518.04, 'vendor_id': 4, 'total_orders': 0, 'low_stock': 0}
+2026-03-28 18:30:18,275 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 2.1, 'vendor_id': 4, 'cache': 'hit'}
+2026-03-28 18:30:18,702 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 374.18, 'vendor_id': 4, 'total_orders': 0, 'low_stock': 0}
+2026-03-28 18:30:18,773 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 3.31, 'vendor_id': 4, 'cache': 'hit'}
+2026-03-28 18:30:18,967 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 204.3, 'vendor_id': 4, 'total_orders': 0, 'low_stock': 0}
+2026-03-28 18:35:02,861 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 2.16, 'vendor_id': 4, 'cache': 'hit'}
+2026-03-28 18:35:03,125 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 6.53, 'vendor_id': 4, 'cache': 'hit'}
+2026-03-28 18:35:03,286 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 383.28, 'vendor_id': 4, 'total_orders': 0, 'low_stock': 0}
+2026-03-28 18:35:03,371 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 264.61, 'vendor_id': 4, 'total_orders': 0, 'low_stock': 0}
+2026-03-28 18:58:44,768 - app - INFO - [auth] Deconnexion (uid=4, role=vendor)
+2026-03-28 19:01:04,158 - app - INFO - [auth] Connexion reussie (uid=4, role=vendor)
+2026-03-28 19:01:05,663 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 8.29, 'vendor_id': 4, 'cache': 'hit'}
+2026-03-28 19:01:05,702 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 7.45, 'vendor_id': 4, 'cache': 'hit'}
+2026-03-28 19:01:05,956 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 290.14, 'vendor_id': 4, 'total_orders': 0, 'low_stock': 0}
+2026-03-28 19:01:05,981 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 287.55, 'vendor_id': 4, 'total_orders': 0, 'low_stock': 0}
+2026-03-28 19:01:17,895 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 190.64, 'vendor_id': 4, 'cache': 'miss', 'recent_count': 0, 'prepare_count': 0, 'bookings_count': 0}
+2026-03-28 19:01:17,942 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 235.92, 'vendor_id': 4, 'total_orders': 0, 'low_stock': 0}
+2026-03-28 19:01:38,145 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 202.63, 'vendor_id': 4, 'cache': 'miss', 'recent_count': 0, 'prepare_count': 0, 'bookings_count': 0}
+2026-03-28 19:01:48,128 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 153.06, 'vendor_id': 4, 'total_orders': 0, 'low_stock': 0}
+2026-03-28 19:01:58,323 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 145.76, 'vendor_id': 4, 'cache': 'miss', 'recent_count': 0, 'prepare_count': 0, 'bookings_count': 0}
+2026-03-28 19:03:10,103 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 381.54, 'vendor_id': 4, 'cache': 'miss', 'recent_count': 0, 'prepare_count': 0, 'bookings_count': 0}
+2026-03-28 19:03:10,152 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 470.72, 'vendor_id': 4, 'total_orders': 0, 'low_stock': 0}
+2026-03-28 19:03:14,621 - app - INFO - [auth] Deconnexion (uid=4, role=vendor)
+2026-03-28 19:21:43,808 - app - INFO - [auth] Connexion reussie (uid=5, role=courier)
+2026-03-28 19:23:36,516 - app - INFO - [auth] Deconnexion (uid=5, role=courier)
+2026-03-28 19:23:51,883 - app - INFO - [auth] Connexion reussie (uid=4, role=vendor)
+2026-03-28 19:23:52,962 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 2.67, 'vendor_id': 4, 'cache': 'hit'}
+2026-03-28 19:23:53,211 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 2.1, 'vendor_id': 4, 'cache': 'hit'}
+2026-03-28 19:23:53,403 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 300.0, 'vendor_id': 4, 'total_orders': 0, 'low_stock': 0}
+2026-03-28 19:23:53,441 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 272.25, 'vendor_id': 4, 'total_orders': 0, 'low_stock': 0}
+2026-03-28 19:23:59,717 - app - INFO - [auth] Deconnexion (uid=4, role=vendor)
+2026-03-28 19:24:06,509 - app - INFO - [auth] Connexion reussie (uid=5, role=courier)
+2026-03-28 19:25:17,849 - app - INFO - [auth] Deconnexion (uid=5, role=courier)
+2026-03-28 20:11:26,117 - app - INFO - [auth] Connexion reussie (uid=7, role=vendor)
+2026-03-28 20:21:03,255 - app - INFO - [auth] Connexion reussie (uid=7, role=vendor)
+2026-03-29 03:21:01,877 - app - INFO - [auth] Connexion reussie (uid=7, role=vendor)
+2026-04-02 01:10:40,799 - app - INFO - special_delivery_post_start city=Sale has_name=True has_phone=True
+2026-04-02 01:10:40,852 - app - INFO - special_delivery_post_pricing city=Sale delivery_price_cents=2500 delivery_platform_fee_cents=2000
+2026-04-02 01:11:00,828 - app - INFO - special_delivery_post_start city=Sale has_name=True has_phone=True
+2026-04-02 01:11:00,831 - app - INFO - special_delivery_post_pricing city=Sale delivery_price_cents=2500 delivery_platform_fee_cents=2000
+2026-04-02 02:25:01,807 - app - INFO - [auth] Connexion reussie (uid=5, role=courier)
+2026-04-02 02:25:13,255 - app - INFO - [auth] Deconnexion (uid=5, role=courier)
+2026-04-02 02:25:22,051 - app - INFO - [auth] Connexion reussie (uid=2, role=admin)
+2026-04-02 02:56:03,501 - app - INFO - [auth] Deconnexion (uid=2, role=admin)
+2026-04-02 03:04:37,199 - app - INFO - [auth] Connexion reussie (uid=4, role=vendor)
+2026-04-02 03:04:38,847 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 28.3, 'vendor_id': 4, 'cache': 'hit'}
+2026-04-02 03:04:38,863 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 17.2, 'vendor_id': 4, 'cache': 'hit'}
+2026-04-02 03:04:39,222 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 397.89, 'vendor_id': 4, 'total_orders': 0, 'low_stock': 0}
+2026-04-02 03:04:39,299 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 457.79, 'vendor_id': 4, 'total_orders': 0, 'low_stock': 0}
+2026-04-02 03:04:52,571 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 5.1, 'vendor_id': 4, 'cache': 'hit'}
+2026-04-02 03:04:52,898 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 292.85, 'vendor_id': 4, 'total_orders': 0, 'low_stock': 0}
+2026-04-02 03:04:53,356 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 8.75, 'vendor_id': 4, 'cache': 'hit'}
+2026-04-02 03:04:53,688 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 339.5, 'vendor_id': 4, 'total_orders': 0, 'low_stock': 0}
+2026-04-02 03:05:03,891 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 452.0, 'vendor_id': 4, 'total_orders': 0, 'low_stock': 0}
+2026-04-02 03:05:03,978 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 530.42, 'vendor_id': 4, 'cache': 'miss', 'recent_count': 0, 'prepare_count': 0, 'bookings_count': 0}
+2026-04-02 03:05:19,595 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 373.71, 'vendor_id': 4, 'total_orders': 0, 'low_stock': 0}
+2026-04-02 03:05:19,595 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 359.83, 'vendor_id': 4, 'cache': 'miss', 'recent_count': 0, 'prepare_count': 0, 'bookings_count': 0}
+2026-04-02 03:05:40,753 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 2.73, 'vendor_id': 4, 'cache': 'hit'}
+2026-04-02 03:05:40,978 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 11.54, 'vendor_id': 4, 'cache': 'hit'}
+2026-04-02 03:05:41,265 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 422.71, 'vendor_id': 4, 'total_orders': 0, 'low_stock': 0}
+2026-04-02 03:05:41,302 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 381.99, 'vendor_id': 4, 'total_orders': 0, 'low_stock': 0}
+2026-04-02 03:06:42,130 - app - INFO - [auth] Deconnexion (uid=4, role=vendor)
+2026-04-02 03:06:49,324 - app - INFO - [auth] Connexion reussie (uid=2, role=admin)
+2026-04-02 03:32:51,112 - app - INFO - [auth] Deconnexion (uid=2, role=admin)
+2026-04-02 03:33:00,452 - app - INFO - [auth] Connexion reussie (uid=4, role=vendor)
+2026-04-02 03:33:01,441 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 18.99, 'vendor_id': 4, 'cache': 'hit'}
+2026-04-02 03:33:01,653 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 8.81, 'vendor_id': 4, 'cache': 'hit'}
+2026-04-02 03:33:01,805 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 313.1, 'vendor_id': 4, 'total_orders': 0, 'low_stock': 0}
+2026-04-02 03:33:01,859 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 212.56, 'vendor_id': 4, 'total_orders': 0, 'low_stock': 0}
+2026-04-02 03:33:10,804 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 142.16, 'vendor_id': 4, 'cache': 'miss', 'recent_count': 0, 'prepare_count': 0, 'bookings_count': 0}
+2026-04-02 03:33:10,806 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 149.13, 'vendor_id': 4, 'total_orders': 0, 'low_stock': 0}
+2026-04-02 03:33:58,692 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 2.86, 'vendor_id': 4, 'cache': 'hit'}
+2026-04-02 03:33:58,905 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 8.5, 'vendor_id': 4, 'cache': 'hit'}
+2026-04-02 03:33:59,154 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 287.65, 'vendor_id': 4, 'total_orders': 0, 'low_stock': 0}
+2026-04-02 03:34:14,030 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 126.14, 'vendor_id': 4, 'total_orders': 0, 'low_stock': 0}
+2026-04-02 03:34:14,031 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 129.46, 'vendor_id': 4, 'cache': 'miss', 'recent_count': 0, 'prepare_count': 0, 'bookings_count': 0}
+2026-04-02 03:39:15,251 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 1.84, 'vendor_id': 4, 'cache': 'hit'}
+2026-04-02 03:39:15,674 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 391.69, 'vendor_id': 4, 'total_orders': 0, 'low_stock': 0}
+2026-04-02 03:39:15,797 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 3.32, 'vendor_id': 4, 'cache': 'hit'}
+2026-04-02 03:39:15,962 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 173.3, 'vendor_id': 4, 'total_orders': 0, 'low_stock': 0}
+2026-04-02 03:39:23,231 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 505.07, 'vendor_id': 4, 'total_orders': 0, 'low_stock': 0}
+2026-04-02 03:39:23,245 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 504.35, 'vendor_id': 4, 'cache': 'miss', 'recent_count': 0, 'prepare_count': 0, 'bookings_count': 0}
+2026-04-02 03:39:51,398 - app - INFO - [auth] Deconnexion (uid=4, role=vendor)
+2026-04-02 03:54:55,263 - app - INFO - [auth] Connexion reussie (uid=4, role=vendor)
+2026-04-02 03:54:56,275 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 34.96, 'vendor_id': 4, 'cache': 'hit'}
+2026-04-02 03:54:56,412 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 3.89, 'vendor_id': 4, 'cache': 'hit'}
+2026-04-02 03:54:56,765 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 474.93, 'vendor_id': 4, 'total_orders': 0, 'low_stock': 0}
+2026-04-02 03:54:56,787 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 427.09, 'vendor_id': 4, 'total_orders': 0, 'low_stock': 0}
+2026-04-02 03:55:07,613 - app - INFO - [auth] Deconnexion (uid=4, role=vendor)
+2026-04-02 03:56:25,013 - app - INFO - checkout_post_start user_id=None ajax=True city_input=Kénitra has_location=False
+2026-04-02 03:56:25,020 - app - INFO - checkout_post_pricing user_id=None city=Kénitra delivery_price_cents=5000 delivery_platform_fee_cents=2000
+2026-04-02 04:14:15,238 - app - INFO - checkout_post_start user_id=None ajax=True city_input=Kénitra has_location=True
+2026-04-02 04:14:15,248 - app - INFO - checkout_post_pricing user_id=None city=Kénitra delivery_price_cents=5000 delivery_platform_fee_cents=2000
+2026-04-02 05:04:21,064 - app - INFO - [auth] Connexion reussie (uid=3, role=vendor)
+2026-04-02 05:25:42,986 - app - WARNING - Montant anormal: 666666660 pour rental 7
+2026-04-02 05:25:43,011 - app - ERROR - Pas de periode ouverte pour rental 7
+2026-04-02 05:50:47,135 - app - INFO - [auth] Deconnexion (uid=3, role=vendor)
+2026-04-02 06:36:26,400 - app - INFO - [auth] Connexion reussie (uid=3, role=vendor)
+2026-04-02 07:00:22,937 - app - INFO - [auth] Deconnexion (uid=3, role=vendor)
+2026-04-02 10:33:29,962 - dealnova.app - ERROR - Exception on /cart/api/nav-status [GET]
+Traceback (most recent call last):
+  File "C:\Users\hp\Desktop\baba_marketplace\.venv\Lib\site-packages\flask\app.py", line 1455, in wsgi_app
+    response = self.full_dispatch_request()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\Desktop\baba_marketplace\.venv\Lib\site-packages\flask\app.py", line 869, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\Desktop\baba_marketplace\.venv\Lib\site-packages\flask\app.py", line 867, in full_dispatch_request
+    rv = self.dispatch_request()
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\Desktop\baba_marketplace\.venv\Lib\site-packages\flask\app.py", line 852, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\Desktop\baba_marketplace\dealnova\app\routes\cart.py", line 903, in nav_status
+    summary = get_cart_summary()
+              ^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\Desktop\baba_marketplace\dealnova\app\routes\cart.py", line 461, in get_cart_summary
+    total_cents += item_total_cents
+TypeError: unsupported operand type(s) for +=: 'int' and 'str'
+2026-04-02 10:33:29,967 - dealnova.app - ERROR - http.500
+Traceback (most recent call last):
+  File "C:\Users\hp\Desktop\baba_marketplace\.venv\Lib\site-packages\flask\app.py", line 1455, in wsgi_app
+    response = self.full_dispatch_request()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\Desktop\baba_marketplace\.venv\Lib\site-packages\flask\app.py", line 869, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\Desktop\baba_marketplace\.venv\Lib\site-packages\flask\app.py", line 867, in full_dispatch_request
+    rv = self.dispatch_request()
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\Desktop\baba_marketplace\.venv\Lib\site-packages\flask\app.py", line 852, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\Desktop\baba_marketplace\dealnova\app\routes\cart.py", line 903, in nav_status
+    summary = get_cart_summary()
+              ^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\Desktop\baba_marketplace\dealnova\app\routes\cart.py", line 461, in get_cart_summary
+    total_cents += item_total_cents
+TypeError: unsupported operand type(s) for +=: 'int' and 'str'
+2026-04-03 02:58:27,091 - app - INFO - [auth] Connexion reussie (uid=2, role=admin)
+2026-04-03 15:37:18,125 - app - INFO - [auth] Connexion reussie (uid=2, role=admin)
+2026-04-03 15:56:39,305 - app - INFO - [admin] Administrateur moctargouma a crÃ©Ã© l'utilisateur john (rÃ´le: vendor)
+2026-04-03 16:06:04,790 - app - INFO - [admin] Administrateur moctargouma a crÃ©Ã© l'utilisateur JOHN (rÃ´le: vendor)
+2026-04-03 16:22:53,517 - app - INFO - [auth] Deconnexion (uid=2, role=admin)
+2026-04-03 16:23:08,689 - app - INFO - [auth] Connexion reussie (uid=368, role=vendor)
+2026-04-03 16:23:09,863 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 2.97, 'vendor_id': 368, 'cache': 'hit'}
+2026-04-03 16:23:09,918 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 13.61, 'vendor_id': 368, 'allows_products': True, 'cache': 'no_period'}
+2026-04-03 16:23:10,107 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 13.51, 'vendor_id': 368, 'allows_products': True, 'cache': 'no_period'}
+2026-04-03 16:23:10,108 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 3.87, 'vendor_id': 368, 'cache': 'hit'}
+2026-04-03 16:24:04,383 - app - INFO - [auth] Deconnexion (uid=368, role=vendor)
+2026-04-03 16:24:14,785 - app - INFO - [auth] Connexion reussie (uid=2, role=admin)
+2026-04-03 16:27:55,379 - app - INFO - [auth] Deconnexion (uid=2, role=admin)
+2026-04-03 20:43:10,471 - app - INFO - [auth] Connexion reussie (uid=2, role=admin)
+2026-04-03 21:20:04,482 - app - INFO - [auth] Connexion reussie (uid=2, role=admin)
+2026-04-03 21:20:08,667 - app - INFO - [auth] Connexion reussie (uid=2, role=admin)
+2026-04-03 21:38:55,783 - app - INFO - [auth] Deconnexion (uid=2, role=admin)
+2026-04-03 22:41:30,412 - app - INFO - [auth] Connexion reussie (uid=2, role=admin)
+2026-04-04 02:22:38,740 - app - INFO - [auth] Deconnexion (uid=2, role=admin)
+2026-04-04 02:23:54,145 - app - INFO - [auth] Connexion reussie (uid=2, role=admin)
+2026-04-04 02:24:40,965 - app - INFO - Maintenance mode ENABLED
+2026-04-04 02:25:01,106 - app - INFO - [auth] Deconnexion (uid=2, role=admin)
+2026-04-04 02:25:27,961 - app - INFO - [auth] Connexion reussie (uid=2, role=admin)
+2026-04-04 02:26:37,911 - app - INFO - [auth] Connexion reussie (uid=2, role=admin)
+2026-04-04 02:26:49,849 - app - INFO - Maintenance mode DISABLED
+2026-04-04 02:44:27,264 - app - INFO - [auth] Deconnexion (uid=2, role=admin)
+2026-04-04 03:36:18,752 - app - INFO - [auth] Connexion reussie (uid=3, role=vendor)
+2026-04-04 03:36:25,643 - app - INFO - [auth] Deconnexion (uid=3, role=vendor)
+2026-04-04 03:36:32,306 - app - INFO - [auth] Connexion reussie (uid=7, role=vendor)
+2026-04-04 03:36:35,731 - app - INFO - [auth] Deconnexion (uid=7, role=vendor)
+2026-04-04 03:36:42,254 - app - INFO - [auth] Connexion reussie (uid=4, role=vendor)
+2026-04-04 03:36:43,222 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 8.36, 'vendor_id': 4, 'cache': 'hit'}
+2026-04-04 03:36:43,405 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 6.56, 'vendor_id': 4, 'cache': 'hit'}
+2026-04-04 03:36:43,593 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 383.18, 'vendor_id': 4, 'total_orders': 2, 'low_stock': 0}
+2026-04-04 03:36:43,653 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 279.5, 'vendor_id': 4, 'total_orders': 2, 'low_stock': 0}
+2026-04-04 03:37:03,334 - app - INFO - perf {'endpoint': 'vendor.dashboard_orders_live', 'duration_ms': 155.04, 'vendor_id': 4, 'cache': 'miss', 'recent_count': 0, 'prepare_count': 0, 'bookings_count': 0}
+2026-04-04 03:37:13,742 - app - INFO - perf {'endpoint': 'vendor.stats_live', 'duration_ms': 119.11, 'vendor_id': 4, 'total_orders': 2, 'low_stock': 0}
+2026-04-04 03:37:18,442 - app - INFO - [auth] Deconnexion (uid=4, role=vendor)

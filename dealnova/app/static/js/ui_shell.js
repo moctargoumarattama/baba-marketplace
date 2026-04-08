@@ -28,6 +28,61 @@
     window.console[method].apply(window.console, ["[PWA]"].concat(args));
   }
 
+  function scheduleLowPriority(callback, timeoutMs) {
+    if (typeof callback !== "function") return;
+    const delay = Math.max(0, Number(timeoutMs) || 0);
+    if (typeof window.requestIdleCallback === "function") {
+      window.requestIdleCallback(function () {
+        callback();
+      }, { timeout: Math.max(300, delay || 800) });
+      return;
+    }
+    window.setTimeout(callback, delay);
+  }
+
+  function getConnectionInfo() {
+    const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection || null;
+    const effectiveType = conn ? String(conn.effectiveType || "").toLowerCase() : "";
+    const saveData = !!(conn && conn.saveData);
+    const online = navigator.onLine !== false;
+    const slow = !!(
+      online &&
+      (
+        saveData ||
+        effectiveType === "slow-2g" ||
+        effectiveType === "2g" ||
+        effectiveType === "3g"
+      )
+    );
+    return {
+      online: online,
+      slow: slow,
+      saveData: saveData,
+      effectiveType: effectiveType,
+    };
+  }
+
+  function applyConnectionInfo(info) {
+    const state = info || getConnectionInfo();
+    window.BMConnectionInfo = state;
+    if (document && document.documentElement) {
+      document.documentElement.setAttribute("data-bm-connection", state.slow ? "slow" : "normal");
+      document.documentElement.setAttribute("data-bm-effective-type", state.effectiveType || "unknown");
+    }
+    return state;
+  }
+
+  function readConnectionInfo() {
+    return applyConnectionInfo(getConnectionInfo());
+  }
+
+  function slowConnectionMessage(state) {
+    if (state && state.saveData) {
+      return "Connexion lente - economie de donnees active";
+    }
+    return "Connexion lente detectee - mode allege";
+  }
+
   function currentSessionScope() {
     const body = document.body;
     if (!body || !body.dataset) return "anon";
@@ -164,27 +219,30 @@
       {
         event: name,
         path: window.location.pathname || "/",
+        surface: "public",
       },
       extra || {}
     );
     const body = JSON.stringify(payload);
-
-    try {
-      if (navigator.sendBeacon) {
-        const blob = new Blob([body], { type: "application/json" });
-        if (navigator.sendBeacon("/api/analytics/event", blob)) {
-          return;
-        }
-      }
-    } catch (_error) {}
+    const csrfApi = window.BMAjaxCSRF;
+    const headers = csrfApi && typeof csrfApi.addToHeaders === "function"
+      ? csrfApi.addToHeaders(
+          {
+            "Content-Type": "application/json",
+            "X-Requested-With": "fetch",
+          },
+          null
+        )
+      : {
+          "Content-Type": "application/json",
+          "X-Requested-With": "fetch",
+          "X-CSRFToken": csrfToken,
+        };
 
     try {
       fetch("/api/analytics/event", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Requested-With": "fetch",
-        },
+        headers: headers,
         body: body,
         credentials: "same-origin",
         keepalive: true,
@@ -348,9 +406,19 @@
   }
 
   document.addEventListener("DOMContentLoaded", function () {
-    reconcilePwaSessionScope().catch(function (error) {
-      pwaLog("warn", "Session scope reconciliation failed", error);
-    });
+    let pwaScopeSyncQueued = false;
+    function schedulePwaScopeSync(delayMs) {
+      if (pwaScopeSyncQueued) return;
+      pwaScopeSyncQueued = true;
+      scheduleLowPriority(function () {
+        pwaScopeSyncQueued = false;
+        reconcilePwaSessionScope().catch(function (error) {
+          pwaLog("warn", "Session scope reconciliation failed", error);
+        });
+      }, delayMs);
+    }
+
+    schedulePwaScopeSync(450);
 
     window.addEventListener("storage", function (event) {
       if (!event || event.key !== PWA_SESSION_SCOPE_KEY) return;
@@ -463,7 +531,7 @@
     // Mobile drawer behavior is handled in static/js/ui_drawer.js.
 
     const backBtn = document.querySelector(".back-fab");
-    if (backBtn && backBtn.dataset.backManaged !== "1") {
+    if (backBtn && backBtn.dataset.backManaged !== "1" && !window.__BM_BACK_FAB__) {
       function shouldShowBackButton() {
         const currentPath = window.location.pathname;
         const previousUrl = document.referrer || "";
@@ -518,6 +586,8 @@
     const homeTrackBadge = document.querySelector("[data-home-track-badge]");
     const navBadgeRoot = document.querySelector("[data-nav-badges]");
     const hasNavBadges = Boolean(cartIcon || trackIcon || cartBadge || trackBadge);
+    let navConnectionInfo = window.BMConnectionInfo || readConnectionInfo();
+    let restartNavPolling = function () {};
 
     if (hasNavBadges) {
       const rawAttnSeconds = Number(
@@ -528,8 +598,10 @@
         window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches
       );
       const navRefreshSeq =
-        window.BMAjaxGuard && typeof window.BMAjaxGuard.makeRequestSeq === "function"
-          ? window.BMAjaxGuard.makeRequestSeq()
+        window.BMCoreDom && typeof window.BMCoreDom.makeRequestSeq === "function"
+          ? window.BMCoreDom.makeRequestSeq()
+          : window.BMAjaxGuard && typeof window.BMAjaxGuard.makeRequestSeq === "function"
+            ? window.BMAjaxGuard.makeRequestSeq()
           : (function () {
               let latest = 0;
               return {
@@ -554,11 +626,20 @@
         trackActive: Boolean(trackBadge && trackBadge.getAttribute("data-track-active") === "1"),
       };
 
+      function currentNavPollMultiplier() {
+        if (!navConnectionInfo || !navConnectionInfo.slow) return 1;
+        return navConnectionInfo.saveData ? 3 : 2;
+      }
+
+      function scaledNavPollDelay(baseMs) {
+        return Math.max(1000, Math.round(Number(baseMs || 0) * currentNavPollMultiplier()));
+      }
+
       function nextNavPollDelay() {
-        if (!navigator.onLine) return navPollColdMs;
-        if (navState.trackActive || navState.cartCount > 0) return navPollHotMs;
-        if (navPollStableCount >= 3) return navPollColdMs;
-        return navPollWarmMs;
+        if (!navigator.onLine) return scaledNavPollDelay(navPollColdMs);
+        if (navState.trackActive || navState.cartCount > 0) return scaledNavPollDelay(navPollHotMs);
+        if (navPollStableCount >= 3) return scaledNavPollDelay(navPollColdMs);
+        return scaledNavPollDelay(navPollWarmMs);
       }
 
       function setVisible(node, visible) {
@@ -582,9 +663,9 @@
         nodes.forEach(function (node) {
           if (!node || node.classList.contains("d-none")) return;
           node.classList.remove("badge-pulse");
-          // Force reflow so pulse can replay.
-          void node.offsetWidth;
-          node.classList.add("badge-pulse");
+          window.requestAnimationFrame(function () {
+            node.classList.add("badge-pulse");
+          });
           const stop = function () { node.classList.remove("badge-pulse"); };
           node.addEventListener("animationend", stop, { once: true });
           window.setTimeout(stop, 950);
@@ -670,6 +751,20 @@
       }
 
       async function requestNavStatus(signal) {
+        const coreDomApi = window.BMCoreDom || {};
+        if (typeof coreDomApi.requestJSON === "function") {
+          return coreDomApi.requestJSON("/cart/api/nav-status", {
+            method: "GET",
+            headers: {
+              "X-Requested-With": "fetch",
+              Accept: "application/json",
+            },
+            credentials: "same-origin",
+            cache: "no-store",
+            signal: signal,
+            timeoutMs: 12000,
+          });
+        }
         if (window.BMAjaxFetch && typeof window.BMAjaxFetch.requestJSON === "function") {
           return window.BMAjaxFetch.requestJSON("/cart/api/nav-status", {
             method: "GET",
@@ -806,23 +901,41 @@
         if (!document.hidden && navigator.onLine) refreshNavBadges({ pulse: false });
       });
 
-      if (navigator.onLine) {
-        refreshNavBadges({ pulse: false });
-      }
-      if (window.BMAjaxPolling && typeof window.BMAjaxPolling.start === "function") {
-        window.BMAjaxPolling.start({
-          key: "ui-shell-nav-badges",
-          fn: function () {
-            return refreshNavBadges({ pulse: false });
-          },
-          intervalMs: navPollHotMs,
-          inactiveIntervalMs: navPollColdMs,
-          hiddenPause: true,
-          when: function () {
-            return !!document.querySelector("[data-nav-badges]") && navigator.onLine;
-          },
-        });
-      } else {
+      let navAutoSyncStarted = false;
+      function startNavAutoSync() {
+        if (navAutoSyncStarted) return;
+        navAutoSyncStarted = true;
+
+        if (navigator.onLine) {
+          scheduleLowPriority(function () {
+            refreshNavBadges({ pulse: false });
+          }, 300);
+        }
+
+        if (window.BMAjaxPolling && typeof window.BMAjaxPolling.start === "function") {
+          const startSharedPolling = function () {
+            window.BMAjaxPolling.start({
+              key: "ui-shell-nav-badges",
+              fn: function () {
+                return refreshNavBadges({ pulse: false });
+              },
+              intervalMs: scaledNavPollDelay(navPollHotMs),
+              inactiveIntervalMs: scaledNavPollDelay(navPollColdMs),
+              hiddenPause: true,
+              when: function () {
+                return !!document.querySelector("[data-nav-badges]") && navigator.onLine;
+              },
+            });
+          };
+          restartNavPolling = function () {
+            if (!navAutoSyncStarted || !window.BMAjaxPolling || typeof window.BMAjaxPolling.stop !== "function") return;
+            window.BMAjaxPolling.stop("ui-shell-nav-badges");
+            startSharedPolling();
+          };
+          startSharedPolling();
+          return;
+        }
+
         let navPollTimer = null;
         function clearNavPollTimer() {
           if (navPollTimer) {
@@ -843,6 +956,7 @@
             scheduleNavPoll(nextNavPollDelay());
           });
         }
+
         document.addEventListener("visibilitychange", function () {
           if (document.hidden) {
             clearNavPollTimer();
@@ -857,11 +971,24 @@
         window.addEventListener("offline", function () {
           clearNavPollTimer();
         });
-        scheduleNavPoll(nextNavPollDelay());
+
+        if (!document.hidden && navigator.onLine) {
+          scheduleNavPoll(nextNavPollDelay());
+        }
+        restartNavPolling = function () {
+          if (!navAutoSyncStarted || document.hidden || !navigator.onLine) return;
+          scheduleNavPoll(1200);
+        };
       }
+
+      document.addEventListener("pointerdown", startNavAutoSync, { once: true, passive: true, capture: true });
+      window.addEventListener("load", function () {
+        scheduleLowPriority(startNavAutoSync, 700);
+      }, { once: true });
     }
 
     const offlineBanner = document.getElementById("offlineBanner");
+    const navOfflineHint = document.getElementById("navOfflineHint");
     const installBanner = document.getElementById("installBanner");
     const installModal = document.getElementById("installModal");
     const androidInstallBar = document.getElementById("androidInstallBar");
@@ -880,9 +1007,14 @@
       nodes: [],
     };
     let onlineNoticeTimer = null;
+    let offlineActionNoticeTimer = null;
+    let connectivityOverrideUntil = 0;
+    let connectivityProbePromise = null;
     let wasOffline = !navigator.onLine;
+    let wasSlowConnection = false;
     let androidShimmerTimer = null;
     let androidShimmerCleanupTimer = null;
+    let connectionInfo = window.BMConnectionInfo || readConnectionInfo();
 
     const prefersReducedMotion = Boolean(
       window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches
@@ -941,6 +1073,16 @@
       const standaloneDisplay = window.matchMedia && window.matchMedia("(display-mode: standalone)").matches;
       const iosStandalone = window.navigator.standalone === true;
       return Boolean(standaloneDisplay || iosStandalone);
+    }
+
+    function getEventElement(target) {
+      if (!target) return null;
+      if (target.nodeType === 1) return target;
+      return target.parentElement || null;
+    }
+
+    function isEffectivelyOffline() {
+      return !navigator.onLine && Date.now() > connectivityOverrideUntil;
     }
 
     function canUseStorage() {
@@ -1187,7 +1329,7 @@
     }
 
     function refreshOnlineRequiredUI() {
-      const offline = !navigator.onLine;
+      const offline = isEffectivelyOffline();
       getOnlineRequiredNodes().forEach(function (node) {
         node.classList.toggle("is-offline-disabled", offline);
         if (offline && "disabled" in node && node.tagName !== "A") {
@@ -1206,18 +1348,120 @@
       });
     }
 
-    function showOfflineActionNotice() {
-      if (offlineBanner) {
-        offlineBanner.textContent = "Connexion requise pour cette action.";
+    function clearOfflineActionNoticeTimer() {
+      if (offlineActionNoticeTimer) {
+        window.clearTimeout(offlineActionNoticeTimer);
+        offlineActionNoticeTimer = null;
+      }
+    }
+
+    function hideNavOfflineHint() {
+      if (!navOfflineHint) return;
+      navOfflineHint.classList.remove("show");
+      navOfflineHint.textContent = "";
+    }
+
+    function resolveOfflineActionNode(node) {
+      if (!node) return null;
+      if (node.matches && node.matches("form")) return node;
+      if (!node.closest) return null;
+      return node.closest("[data-offline-message], [data-requires-online], a[href], button, input[type='submit'], form");
+    }
+
+    function resolveOfflineActionMessage(node) {
+      const actionNode = resolveOfflineActionNode(node);
+      const candidates = [
+        actionNode,
+        actionNode && actionNode.form ? actionNode.form : null,
+      ];
+      for (let i = 0; i < candidates.length; i += 1) {
+        const candidate = candidates[i];
+        if (!candidate || !candidate.getAttribute) continue;
+        const message = (candidate.getAttribute("data-offline-message") || "").trim();
+        if (message) return message;
+      }
+      return "Connexion requise pour cette action.";
+    }
+
+    function showOfflineActionNotice(node, explicitMessage) {
+      const actionNode = resolveOfflineActionNode(node) || node;
+      const message = String(explicitMessage || resolveOfflineActionMessage(actionNode) || "").trim()
+        || "Connexion requise pour cette action.";
+      const showNearNav = Boolean(
+        navOfflineHint
+        && actionNode
+        && actionNode.closest
+        && actionNode.closest("[data-nav-badges]")
+      );
+
+      clearOfflineActionNoticeTimer();
+      hideNavOfflineHint();
+
+      if (showNearNav) {
+        navOfflineHint.textContent = message;
+        navOfflineHint.classList.add("show");
+      } else if (offlineBanner) {
+        offlineBanner.textContent = message;
         offlineBanner.classList.add("show");
+      } else {
+        window.alert(message);
         return;
       }
-      window.alert("Connexion requise pour cette action.");
+
+      offlineActionNoticeTimer = window.setTimeout(function () {
+        hideNavOfflineHint();
+        updateOfflineBanner();
+      }, 2400);
+    }
+
+    async function confirmOnlineReachability() {
+      if (!isEffectivelyOffline()) return true;
+      if (connectivityProbePromise) return connectivityProbePromise;
+
+      const controller = typeof AbortController === "function" ? new AbortController() : null;
+      const timeoutId = controller
+        ? window.setTimeout(function () {
+            controller.abort();
+          }, 1800)
+        : null;
+
+      connectivityProbePromise = fetch("/health?_=" + Date.now(), {
+        method: "GET",
+        credentials: "same-origin",
+        cache: "no-store",
+        headers: {
+          "X-Requested-With": "fetch",
+        },
+        signal: controller ? controller.signal : undefined,
+      })
+        .then(function (response) {
+          return Boolean(response && response.ok);
+        })
+        .catch(function () {
+          return false;
+        })
+        .then(function (isReachable) {
+          if (isReachable) {
+            connectivityOverrideUntil = Date.now() + 12000;
+          }
+          return isReachable;
+        })
+        .finally(function () {
+          if (timeoutId) {
+            window.clearTimeout(timeoutId);
+          }
+          connectivityProbePromise = null;
+          updateOfflineBanner();
+        });
+
+      return connectivityProbePromise;
     }
 
     function updateOfflineBanner() {
       if (!offlineBanner) return;
-      if (!navigator.onLine) {
+      connectionInfo = readConnectionInfo();
+      const offline = isEffectivelyOffline();
+      if (offline) {
         if (onlineNoticeTimer) {
           window.clearTimeout(onlineNoticeTimer);
           onlineNoticeTimer = null;
@@ -1225,51 +1469,138 @@
         offlineBanner.textContent = "Hors connexion - mode lecture";
         offlineBanner.classList.add("show");
         wasOffline = true;
+        wasSlowConnection = connectionInfo.slow;
       } else {
         if (wasOffline) {
           offlineBanner.textContent = "Connexion retablie";
           offlineBanner.classList.add("show");
           onlineNoticeTimer = window.setTimeout(function () {
+            updateOfflineBanner();
+          }, 1600);
+        } else if (connectionInfo.slow) {
+          if (onlineNoticeTimer) {
+            window.clearTimeout(onlineNoticeTimer);
+            onlineNoticeTimer = null;
+          }
+          offlineBanner.textContent = slowConnectionMessage(connectionInfo);
+          offlineBanner.classList.add("show");
+        } else if (wasSlowConnection) {
+          offlineBanner.textContent = "Connexion stabilisee";
+          offlineBanner.classList.add("show");
+          onlineNoticeTimer = window.setTimeout(function () {
             offlineBanner.classList.remove("show");
           }, 1600);
         } else {
+          if (onlineNoticeTimer) {
+            window.clearTimeout(onlineNoticeTimer);
+            onlineNoticeTimer = null;
+          }
           offlineBanner.classList.remove("show");
         }
         wasOffline = false;
+        wasSlowConnection = connectionInfo.slow;
       }
       refreshOnlineRequiredUI();
     }
 
     document.addEventListener(
       "click",
-      function (e) {
-        if (navigator.onLine) return;
-        if (!elementNeedsOnline(e.target)) return;
+      async function (e) {
+        const target = getEventElement(e.target);
+        const bypassNode = target && target.closest ? target.closest("[data-bm-offline-verified='1']") : null;
+        if (bypassNode) {
+          bypassNode.removeAttribute("data-bm-offline-verified");
+          return;
+        }
+        if (!isEffectivelyOffline()) return;
+        if (!elementNeedsOnline(target)) return;
         e.preventDefault();
         e.stopPropagation();
-        showOfflineActionNotice();
+        const reachable = await confirmOnlineReachability();
+        if (reachable) {
+          const anchor = target && target.closest ? target.closest("a[href]") : null;
+          if (anchor && anchor.href) {
+            window.location.assign(anchor.href);
+            return;
+          }
+
+          const submitter = target && target.closest ? target.closest("button, input[type='submit']") : null;
+          if (submitter && submitter.form) {
+            submitter.form.setAttribute("data-bm-offline-verified", "1");
+            if (typeof submitter.form.requestSubmit === "function") {
+              submitter.form.requestSubmit(submitter);
+            } else {
+              submitter.form.submit();
+            }
+            return;
+          }
+
+          const actionNode = resolveOfflineActionNode(target);
+          if (actionNode && actionNode.click) {
+            actionNode.setAttribute("data-bm-offline-verified", "1");
+            actionNode.click();
+          }
+          return;
+        }
+        showOfflineActionNotice(target);
       },
       true
     );
 
     document.addEventListener(
       "submit",
-      function (e) {
-        if (navigator.onLine) return;
+      async function (e) {
         const form = e.target;
         if (!form || !form.matches || !form.matches("form")) return;
+        if (form.getAttribute("data-bm-offline-verified") === "1") {
+          form.removeAttribute("data-bm-offline-verified");
+          return;
+        }
         const action = form.getAttribute("action") || window.location.pathname;
         const needsOnline = form.hasAttribute("data-requires-online") || isOnlineRequiredPath(safePath(action));
-        if (!needsOnline) return;
+        if (!needsOnline || !isEffectivelyOffline()) return;
         e.preventDefault();
         e.stopPropagation();
-        showOfflineActionNotice();
+        const reachable = await confirmOnlineReachability();
+        if (reachable) {
+          form.setAttribute("data-bm-offline-verified", "1");
+          if (typeof form.requestSubmit === "function") {
+            form.requestSubmit();
+          } else {
+            form.submit();
+          }
+          return;
+        }
+        showOfflineActionNotice(form);
       },
       true
     );
 
-    window.addEventListener("online", updateOfflineBanner);
-    window.addEventListener("offline", updateOfflineBanner);
+    window.addEventListener("online", function () {
+      connectivityOverrideUntil = 0;
+      navConnectionInfo = readConnectionInfo();
+      restartNavPolling();
+      updateOfflineBanner();
+    });
+    window.addEventListener("offline", function () {
+      connectivityOverrideUntil = 0;
+      navConnectionInfo = readConnectionInfo();
+      restartNavPolling();
+      updateOfflineBanner();
+    });
+    const liveConnection = navigator.connection || navigator.mozConnection || navigator.webkitConnection || null;
+    if (liveConnection) {
+      const onConnectionChange = function () {
+        navConnectionInfo = readConnectionInfo();
+        restartNavPolling();
+        updateOfflineBanner();
+      };
+      if (typeof liveConnection.addEventListener === "function") {
+        liveConnection.addEventListener("change", onConnectionChange);
+      } else if (typeof liveConnection.addListener === "function") {
+        liveConnection.addListener(onConnectionChange);
+      }
+    }
     document.addEventListener("ajax:page-replaced", function () {
       markOnlineRequiredRegistryDirty();
       refreshOnlineRequiredUI();
@@ -1407,9 +1738,7 @@
 
     document.addEventListener("visibilitychange", function () {
       if (document.hidden) return;
-      reconcilePwaSessionScope().catch(function (error) {
-        pwaLog("warn", "Session scope refresh failed", error);
-      });
+      schedulePwaScopeSync(250);
       if (isStandalone()) {
         closePwaModal();
         closePwaBanner();
@@ -1421,20 +1750,46 @@
     });
 
     window.addEventListener("focus", function () {
-      reconcilePwaSessionScope().catch(function (error) {
-        pwaLog("warn", "Session scope focus sync failed", error);
-      });
+      schedulePwaScopeSync(250);
       if (isStandalone()) {
         closePwaModal();
         closePwaBanner();
       }
     });
 
-    if ("serviceWorker" in navigator) {
+    function registerServiceWorker() {
+      if (!("serviceWorker" in navigator)) return;
       const staticVersion = (document.body && document.body.dataset && document.body.dataset.staticVersion) || "dev";
       const swUrl = "/sw.js?v=" + encodeURIComponent(staticVersion) + (PWA_DEBUG ? "&debug=1" : "");
+      let swRefreshTriggered = false;
+
+      function requestWaitingWorkerActivation(registration, reason) {
+        const waitingWorker = registration && registration.waiting;
+        if (!waitingWorker || !navigator.serviceWorker.controller) return false;
+        if (swRefreshTriggered) return true;
+        swRefreshTriggered = true;
+        pwaLog("info", "Activating waiting service worker", { reason: reason || "unknown" });
+        try {
+          waitingWorker.postMessage({ type: "BM_SKIP_WAITING" });
+          return true;
+        } catch (error) {
+          swRefreshTriggered = false;
+          pwaLog("warn", "Failed to activate waiting service worker", error);
+          return false;
+        }
+      }
+
       navigator.serviceWorker.addEventListener("controllerchange", function () {
         pwaLog("info", "Service worker controller changed");
+        if (!swRefreshTriggered) return;
+        swRefreshTriggered = false;
+        window.setTimeout(function () {
+          try {
+            window.location.reload();
+          } catch (_error) {
+            window.location.href = window.location.href;
+          }
+        }, 120);
       });
       navigator.serviceWorker
         .register(swUrl, { scope: "/", updateViaCache: "none" })
@@ -1442,6 +1797,7 @@
           pwaLog("info", "Service worker registered", { scope: registration && registration.scope });
           if (registration && registration.waiting) {
             pwaLog("info", "Service worker update is waiting");
+            requestWaitingWorkerActivation(registration, "register_waiting");
           }
           if (registration) {
             registration.addEventListener("updatefound", function () {
@@ -1452,6 +1808,7 @@
                 pwaLog("info", "Service worker state", nextWorker.state);
                 if (nextWorker.state === "installed" && navigator.serviceWorker.controller) {
                   pwaLog("info", "New service worker installed and waiting");
+                  requestWaitingWorkerActivation(registration, "update_installed");
                 }
               });
             });
@@ -1466,5 +1823,9 @@
           pwaLog("error", "Service worker registration failed", error);
         });
     }
+
+    window.addEventListener("load", function () {
+      scheduleLowPriority(registerServiceWorker, 1200);
+    }, { once: true });
   });
 })();

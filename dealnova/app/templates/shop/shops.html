@@ -1,7 +1,7 @@
 ﻿<!-- templates/shop/shops.html -->
 {% extends "base.html" %}
 
-{% block title %}Boutiques | BABA Market{% endblock %}
+{% block title %}{{ t('Boutiques | BABA Market') }}{% endblock %}
 
 {% block head %}
 {{ super() }}
@@ -14,9 +14,13 @@
 <div class="shops-container">
   <!-- En-tête -->
   <div class="shops-header">
-    <h1 class="shops-title">Nos Boutiques Partenaires</h1>
+    <div class="shops-kicker">
+      <i class="bi bi-shop-window"></i>
+      <span>{{ t('Boutiques') }}</span>
+    </div>
+    <h1 class="shops-title">{{ t('Trouvez la bonne boutique') }}</h1>
     <p class="shops-subtitle">
-      Découvrez toutes les boutiques de notre marketplace
+      {{ t('Explorez vite les meilleures adresses du market.') }}
     </p>
   </div>
 
@@ -30,13 +34,13 @@
         <input type="text" 
                name="q" 
                value="{{ q }}" 
-               placeholder="Rechercher une boutique..."
+               placeholder="{{ t('Rechercher une boutique...') }}"
                class="search-input-shops"
                autocomplete="off"
                id="searchInputShops">
         <button type="submit" class="search-btn-shops">
           <i class="bi bi-search"></i>
-          <span>Rechercher</span>
+          <span>{{ t('Rechercher') }}</span>
         </button>
       </div>
     </form>
@@ -44,42 +48,42 @@
 
   <div class="kind-intro">
     <i class="bi bi-stars"></i>
-    <span>Que cherchez-vous ? </span>
+    <span>{{ t('Filtrez en un geste') }}</span>
   </div>
 
   <!-- Mini filtre: Produits / Services / Locations -->
   <div class="kind-filter-wrap" id="kindFilterWrap">
-    <div class="kind-filter" role="group" aria-label="Filtre boutiques Produits / Services / Locations">
+    <div class="kind-filter" role="group" aria-label="{{ t('Filtre boutiques Produits / Services / Locations') }}">
       <button type="button"
               class="kind-chip kind-physical {% if kind == 'physical' %}active{% endif %}"
               data-kind="physical"
               aria-pressed="{{ 'true' if kind == 'physical' else 'false' }}">
         <i class="bi bi-truck"></i>
-        <span>Produits</span>
+        <span>{{ t('Produits') }}</span>
       </button>
       <button type="button"
               class="kind-chip kind-service {% if kind == 'service' %}active{% endif %}"
               data-kind="service"
               aria-pressed="{{ 'true' if kind == 'service' else 'false' }}">
         <i class="bi bi-calendar-check"></i>
-        <span>Services</span>
+        <span>{{ t('Services') }}</span>
       </button>
       <button type="button"
               class="kind-chip kind-location {% if kind == 'location' %}active{% endif %}"
               data-kind="location"
               aria-pressed="{{ 'true' if kind == 'location' else 'false' }}">
         <i class="bi bi-house-door"></i>
-        <span>Locations</span>
+        <span>{{ t('Locations') }}</span>
       </button>
     </div>
-    <div class="kind-all-label {% if kind %}kind-hidden{% endif %}" id="kindAllLabel">Tout</div>
+    <div class="kind-all-label {% if kind %}kind-hidden{% endif %}" id="kindAllLabel">{{ t('Tout') }}</div>
   </div>
 
   <!-- Bouton retour -->
   <div class="btn-back-container">
     <a href="{{ url_for('shop.home') }}" class="btn-back">
       <i class="bi bi-arrow-left"></i>
-      Retour au marketplace
+      {{ t('Retour au market') }}
     </a>
   </div>
 
@@ -90,11 +94,11 @@
   <div class="floating-pagination-nav-shops" id="floatingPaginationNavShops" aria-live="polite">
     <button type="button" class="floating-pagination-btn-shops" id="floatingPrevBtnShops">
       <i class="bi bi-chevron-left"></i>
-      <span>Precedent</span>
+      <span>{{ t('Précédent') }}</span>
     </button>
     <div class="floating-pagination-status-shops" id="floatingPaginationStatusShops">Page 1/1</div>
     <button type="button" class="floating-pagination-btn-shops is-primary" id="floatingNextBtnShops">
-      <span>Suivant</span>
+      <span>{{ t('Suivant') }}</span>
       <i class="bi bi-chevron-right"></i>
     </button>
   </div>

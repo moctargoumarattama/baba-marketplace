@@ -108,7 +108,49 @@
   function shouldShow(backBtn) {
     if (!backBtn) return false;
     if (backBtn.getAttribute("data-back-root") === "1") return false;
+    var body = document.body;
+    if (body && body.getAttribute("data-home-tabs") === "1") return false;
+    if (!hasUsefulTarget(backBtn)) return false;
+    if (hasInlineBackControl(backBtn)) return false;
     return true;
+  }
+
+  function hasUsefulTarget(backBtn) {
+    if (!backBtn) return false;
+    var scope = backBtn.getAttribute("data-back-scope") || "public";
+    var previousUrl = normalizeUrl(document.referrer || "");
+    if (window.history.length > 1 && isAllowedForScope(previousUrl, scope)) return true;
+    if (getStoredLastUrl(scope)) return true;
+    var fallback = backBtn.getAttribute("data-fallback") || "/";
+    var fallbackUrl = normalizeUrl(fallback);
+    if (!fallbackUrl) return false;
+    if (fallbackUrl.origin !== window.location.origin) return false;
+    return !samePage(fallbackUrl);
+  }
+
+  function hasInlineBackControl(backBtn) {
+    var root = document.querySelector("main") || document.body;
+    if (!root) return false;
+    var candidates = root.querySelectorAll("a, button");
+    for (var i = 0; i < candidates.length; i += 1) {
+      var node = candidates[i];
+      if (!node || node === backBtn || node.closest(".back-fab")) continue;
+      var className = String(node.className || "");
+      if (/back-to-top|scroll-top|adm-back-to-top/i.test(className)) continue;
+      if (node.closest("footer")) continue;
+      if (node.getAttribute("aria-hidden") === "true") continue;
+      if (node.offsetParent === null && !node.getClientRects().length) continue;
+
+      var text = String(node.textContent || "").trim().toLowerCase();
+      var hasBackClass = /(^|\\s)(detail-back|back-link|btn-back|back-button|tp-back|vd-back|fp-back)(\\s|$)/i.test(className);
+      var hasBackText = /(retour|back)/i.test(text);
+      var hasArrowIcon = Boolean(node.querySelector(".bi-arrow-left, .bi-arrow-left-circle, .fa-arrow-left, .fa-chevron-left"));
+      var relPrev = String(node.getAttribute("rel") || "").toLowerCase().indexOf("prev") >= 0;
+      if (hasBackClass || hasBackText || hasArrowIcon || relPrev || node.hasAttribute("data-inline-back")) {
+        return true;
+      }
+    }
+    return false;
   }
 
   function bindBackFab(backBtn) {
@@ -131,6 +173,10 @@
         return;
       }
 
+      if (window.BMPageNav && typeof window.BMPageNav.navigate === "function") {
+        window.BMPageNav.navigate(resolveTarget(backBtn));
+        return;
+      }
       window.location.assign(resolveTarget(backBtn));
     });
 

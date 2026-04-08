@@ -1,18 +1,25 @@
 from datetime import datetime
 import time
 
-from flask import Blueprint, jsonify, request, url_for, current_app
+from flask import Blueprint, jsonify, request, current_app
 from sqlalchemy import or_, case, func
-from sqlalchemy.orm import selectinload
-
 from ..models.product import Product
 from ..models.shop import Shop
 from ..models.category import Category
 from ..models.promo import Promo
 from ..models.rental import RentalListing
-from ..services.pricing import prix_final, compute_shipping_by_city, list_delivery_cities
+from ..services.marketplace_feed import search_public_locations, search_public_products
+from ..services.pricing import (
+    cents_to_money,
+    compute_shipping_by_city,
+    final_price_cents,
+    get_active_promos_for_products,
+    list_delivery_cities,
+    prix_final,
+)
 from ..services.pagination import limit_from_args
 from ..services.traffic_stats import track_custom_event
+from ..middleware.rate_limit import rate_limit
 from .cart import get_cart, set_cart
 from ..extensions import db
 
@@ -27,7 +34,7 @@ def _clean_str(value, max_length=100):
     return (value or "").strip()[:max_length]
 
 
-def _active_promo_map(product_ids: list[int], now: datetime | None = None) -> dict[int, Promo]:
+def _legacy_active_promo_map(product_ids: list[int], now: datetime | None = None) -> dict[int, Promo]:
     """Charge les promotions actives en une seule requête."""
     if not product_ids:
         return {}
@@ -68,16 +75,52 @@ def _cart_total(cart):
     products = Product.query.filter(Product.id.in_(list(qty_by_product_id.keys()))).all()
     promo_map = _active_promo_map([p.id for p in products])
 
-    total = 0
+    total_cents = 0
     for product in products:
         if (getattr(product, "kind", None) or "physical") == "service":
             continue
         qty = qty_by_product_id.get(product.id, 0)
         if qty <= 0:
             continue
-        promo = promo_map.get(product.id)
-        total += prix_final(product, promo) * qty
-    return total
+        total_cents += final_price_cents(product, promo_map.get(product.id)) * qty
+    return cents_to_money(total_cents)
+
+
+def _active_promo_map(product_ids: list[int], now: datetime | None = None):
+    _ = now
+    return get_active_promos_for_products(product_ids)
+
+
+def _legacy_cart_total(cart):
+    """Calcule le total du panier avec conversion centimes cohÃ©rente."""
+    if not isinstance(cart, dict) or not cart:
+        return 0
+
+    qty_by_product_id = {}
+    for key, value in cart.items():
+        try:
+            pid = int(key)
+            qty = int(value)
+        except (TypeError, ValueError):
+            continue
+        if qty > 0:
+            qty_by_product_id[pid] = qty
+
+    if not qty_by_product_id:
+        return 0
+
+    products = Product.query.filter(Product.id.in_(list(qty_by_product_id.keys()))).all()
+    promo_map = _legacy_active_promo_map([p.id for p in products])
+
+    total_cents = 0
+    for product in products:
+        if (getattr(product, "kind", None) or "physical") == "service":
+            continue
+        qty = qty_by_product_id.get(product.id, 0)
+        if qty <= 0:
+            continue
+        total_cents += final_price_cents(product, promo_map.get(product.id)) * qty
+    return cents_to_money(total_cents)
 
 
 def _delivery_price_payload(city_raw: str | None, source_raw: str | None):
@@ -152,6 +195,8 @@ def delivery_price():
 # =====================================================
 
 @bp.route("/search/products")
+@rate_limit(limit=300, window_seconds=3600, key_prefix="api_search_products_hour", methods=["GET"])
+@rate_limit(limit=30, window_seconds=60, key_prefix="api_search_products_minute", methods=["GET"])
 def search_products():
     """Recherche de produits (suggestions)."""
     q = _clean_str(request.args.get("q"))
@@ -161,51 +206,7 @@ def search_products():
         return jsonify({"products": []})
 
     start = time.time()
-    
-    products = (
-        Product.query
-        .options(
-            selectinload(Product.shop),
-            selectinload(Product.category),
-        )
-        .filter(
-            Product.is_active == True,
-            or_(
-                Product.name.ilike(f"%{q}%"),
-                Product.description.ilike(f"%{q}%"),
-            ),
-        )
-        .limit(limit)
-        .all()
-    )
-    promo_map = _active_promo_map([p.id for p in products])
-
-    results = []
-    for p in products:
-        kind = (getattr(p, "kind", None) or "physical")
-        is_service = kind == "service"
-        promo = promo_map.get(p.id)
-        final_price = prix_final(p, promo)
-        promo_value = promo.value if promo else 0
-        promo_type = promo.type if promo else None
-
-        results.append({
-            "id": p.id,
-            "name": p.name,
-            "price": p.price,
-            "final_price": final_price,
-            "promo_value": promo_value,
-            "promo_type": promo_type,
-            "shop_name": p.shop.name if p.shop else "N/A",
-            "category": p.category.name if p.category else "",
-            "stock": p.stock if hasattr(p, "stock") else None,
-            "url": f"/shop/product/{p.id}",
-            "image_file": p.image_file.split('|')[0] if p.image_file else "",
-            "kind": kind,
-            "can_add_to_cart": not is_service,
-            "booking_url": f"/booking/{p.id}" if is_service else None,
-            "default_quantity": 1,
-        })
+    results = search_public_products(search_q=q, limit=limit)
     
     duration = time.time() - start
     if duration > 0.3:  # Log si lent (>300ms)
@@ -219,6 +220,8 @@ def search_products():
 # =====================================================
 
 @bp.route("/search/shops")
+@rate_limit(limit=300, window_seconds=3600, key_prefix="api_search_shops_hour", methods=["GET"])
+@rate_limit(limit=30, window_seconds=60, key_prefix="api_search_shops_minute", methods=["GET"])
 def search_shops():
     """Recherche de boutiques avec compteurs (optimisé)."""
     q = _clean_str(request.args.get("q"))
@@ -227,10 +230,28 @@ def search_shops():
     if not q:
         return jsonify({"shops": []})
 
-    shops = Shop.query.filter(
-        Shop.is_active == True,
-        Shop.name.ilike(f"%{q}%")
-    ).limit(limit).all()
+    exact_name = Shop.name.ilike(q)
+    prefix_name = Shop.name.ilike(f"{q}%")
+    contains_name = Shop.name.ilike(f"%{q}%")
+
+    shops = (
+        Shop.query
+        .filter(
+            Shop.is_active == True,
+            or_(exact_name, prefix_name, contains_name),
+        )
+        .order_by(
+            case(
+                (exact_name, 0),
+                (prefix_name, 1),
+                (contains_name, 2),
+                else_=99,
+            ),
+            Shop.name.asc(),
+        )
+        .limit(limit)
+        .all()
+    )
 
     shop_ids = [shop.id for shop in shops]
     
@@ -296,6 +317,8 @@ def search_shops():
 # =====================================================
 
 @bp.route("/search/locations")
+@rate_limit(limit=300, window_seconds=3600, key_prefix="api_search_locations_hour", methods=["GET"])
+@rate_limit(limit=30, window_seconds=60, key_prefix="api_search_locations_minute", methods=["GET"])
 def search_locations():
     """Recherche d'annonces de location."""
     q = _clean_str(request.args.get("q"))
@@ -304,61 +327,7 @@ def search_locations():
     if not q:
         return jsonify({"locations": []})
 
-    listings = (
-        RentalListing.query
-        .options(selectinload(RentalListing.media), selectinload(RentalListing.shop))
-        .join(Shop, Shop.id == RentalListing.shop_id)
-        .filter(
-            RentalListing.is_active == True,
-            RentalListing.status.in_(["active", "reserved"]),
-            RentalListing.expires_at > datetime.utcnow(),
-            Shop.is_active == True,
-            Shop.sql_allows_clause("location"),
-            or_(
-                RentalListing.title.ilike(f"%{q}%"),
-                RentalListing.city.ilike(f"%{q}%"),
-                RentalListing.area.ilike(f"%{q}%"),
-            ),
-        )
-        .order_by(RentalListing.created_at.desc())
-        .limit(limit)
-        .all()
-    )
-
-    results = []
-    for listing in listings:
-        cover = ""
-        if getattr(listing, "media", None):
-            for media in listing.media:
-                if media.kind == "image" and media.file_path:
-                    cover = media.file_path
-                    break
-        cover_url = ""
-        if cover:
-            normalized_cover = str(cover).replace("\\", "/").lstrip("/")
-            if normalized_cover.startswith(("http://", "https://")):
-                cover_url = normalized_cover
-            elif normalized_cover.startswith("static/"):
-                cover_url = f"/{normalized_cover}"
-            elif normalized_cover.startswith("uploads/"):
-                cover_url = url_for("static", filename=normalized_cover)
-            else:
-                cover_url = url_for("static", filename=f"uploads/rentals/{normalized_cover}")
-        results.append({
-            "id": listing.id,
-            "title": listing.title,
-            "city": listing.city,
-            "area": listing.area or "",
-            "rent_cents": int(listing.rent_cents or 0),
-            "rent_dh": round((listing.rent_cents or 0) / 100, 2),
-            "listing_type": listing.listing_type,
-            "url": url_for("rentals.location_detail", slug=listing.slug),
-            "shop_name": listing.shop.name if listing.shop else "",
-            "cover": cover,
-            "cover_url": cover_url,
-        })
-
-    return jsonify({"locations": results})
+    return jsonify({"locations": search_public_locations(search_q=q, limit=limit)})
 
 
 # =====================================================
@@ -366,6 +335,8 @@ def search_locations():
 # =====================================================
 
 @bp.route("/search/categories")
+@rate_limit(limit=300, window_seconds=3600, key_prefix="api_search_categories_hour", methods=["GET"])
+@rate_limit(limit=30, window_seconds=60, key_prefix="api_search_categories_minute", methods=["GET"])
 def search_categories():
     """Recherche de catégories."""
     q = _clean_str(request.args.get("q"))
@@ -374,9 +345,25 @@ def search_categories():
     if not q:
         return jsonify({"categories": []})
 
-    categories = Category.query.filter(
-        Category.name.ilike(f"%{q}%")
-    ).limit(limit).all()
+    exact_name = Category.name.ilike(q)
+    prefix_name = Category.name.ilike(f"{q}%")
+    contains_name = Category.name.ilike(f"%{q}%")
+
+    categories = (
+        Category.query
+        .filter(or_(exact_name, prefix_name, contains_name))
+        .order_by(
+            case(
+                (exact_name, 0),
+                (prefix_name, 1),
+                (contains_name, 2),
+                else_=99,
+            ),
+            Category.name.asc(),
+        )
+        .limit(limit)
+        .all()
+    )
 
     results = []
     for c in categories:

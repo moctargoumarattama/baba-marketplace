@@ -38,6 +38,16 @@
     var isCoarsePointer = !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
     var carouselControllers = [];
     var carouselVisibilityObserver = null;
+
+    function hardNavigate(url) {
+      var targetUrl = String(url || "").trim();
+      if (!targetUrl) return;
+      if (window.BMPageNav && typeof window.BMPageNav.navigate === "function") {
+        window.BMPageNav.navigate(targetUrl);
+        return;
+      }
+      window.location.assign(targetUrl);
+    }
     var rentalVideoObserver = null;
 
     if ("scrollRestoration" in history) {
@@ -46,6 +56,28 @@
 
     function currentGrid() {
       return document.getElementById("rentalsGrid");
+    }
+
+    function currentRelativeUrl() {
+      return window.location.pathname + window.location.search;
+    }
+
+    function normalizeSpaces(value) {
+      return String(value || "").replace(/\s+/g, " ").trim();
+    }
+
+    function normalizeNumericText(value) {
+      var cleaned = String(value || "").trim().replace(",", ".");
+      if (!cleaned) return "";
+      var parsed = Number.parseFloat(cleaned);
+      if (!Number.isFinite(parsed) || parsed < 0) return cleaned;
+      return String(parsed).replace(/\.0+$/, "").replace(/(\.\d*?)0+$/, "$1");
+    }
+
+    function setInputValue(el, value) {
+      if (!el) return;
+      if (el.value === value) return;
+      el.value = value;
     }
 
     function ensureLocationsSkeleton() {
@@ -164,46 +196,162 @@
       }
     }
 
-    function buildUrlFromForm(resetPage) {
-      var url = new URL(window.location.href);
-      var params = new URLSearchParams();
-      var fd = new FormData(form);
-      fd.forEach(function (value, key) {
-        var v = String(value || "").trim();
-        if (!v || key === "page") return;
-        params.set(key, v);
-      });
-      if (!resetPage) {
-        var currentPage = url.searchParams.get("page");
-        if (currentPage) params.set("page", currentPage);
-      }
-      var query = params.toString();
-      return query ? url.pathname + "?" + query : url.pathname;
-    }
-
     function parseDh(value) {
       var parsed = Number.parseFloat(String(value || "").replace(",", "."));
       return Number.isFinite(parsed) ? Math.round(parsed * 100) : null;
     }
 
+    function getNormalizedPriceRange() {
+      var minText = normalizeNumericText(minInput ? minInput.value : "");
+      var maxText = normalizeNumericText(maxInput ? maxInput.value : "");
+      var min = parseDh(minText);
+      var max = parseDh(maxText);
+
+      if (min !== null && max !== null && min > max) {
+        var minSwap = min;
+        var minTextSwap = minText;
+        min = max;
+        minText = maxText;
+        max = minSwap;
+        maxText = minTextSwap;
+      }
+
+      return {
+        min: min,
+        max: max,
+        minText: minText,
+        maxText: maxText
+      };
+    }
+
+    function commitNormalizedPriceRange() {
+      var range = getNormalizedPriceRange();
+      setInputValue(minInput, range.minText);
+      setInputValue(maxInput, range.maxText);
+      return range;
+    }
+
+    function syncQueryInputs(sourceEl) {
+      var nextValue = normalizeSpaces(sourceEl ? sourceEl.value : qInput ? qInput.value : "");
+      setInputValue(qInput, nextValue);
+      setInputValue(heroSearchInput, nextValue);
+      return nextValue;
+    }
+
+    function buildUrlFromForm(resetPage) {
+      var url = new URL(window.location.href);
+      var params = new URLSearchParams();
+      var qValue = normalizeSpaces(qInput ? qInput.value : "");
+      var cityValue = normalizeSpaces(cityInput ? cityInput.value : "");
+      var typeValue = String(typeInput ? typeInput.value : "").trim();
+      var propertyValue = String(propertyInput ? propertyInput.value : "").trim();
+      var range = getNormalizedPriceRange();
+
+      if (qValue) params.set("q", qValue);
+      if (typeValue) params.set("type", typeValue);
+      if (propertyValue) params.set("property_type", propertyValue);
+      if (cityValue) params.set("city", cityValue);
+      if (range.minText) params.set("min", range.minText);
+      if (range.maxText) params.set("max", range.maxText);
+
+      if (!resetPage) {
+        var currentPage = url.searchParams.get("page");
+        if (currentPage) params.set("page", currentPage);
+      }
+
+      var query = params.toString();
+      return query ? url.pathname + "?" + query : url.pathname;
+    }
+
+    function getActiveFilterCount() {
+      var range = getNormalizedPriceRange();
+      var count = 0;
+      if (normalizeSpaces(qInput ? qInput.value : "")) count += 1;
+      if (typeInput && typeInput.value) count += 1;
+      if (propertyInput && propertyInput.value) count += 1;
+      if (normalizeSpaces(cityInput ? cityInput.value : "")) count += 1;
+      if (range.minText) count += 1;
+      if (range.maxText) count += 1;
+      return count;
+    }
+
+    function updateFilterFootNote(state, visibleCount, totalCount) {
+      if (!filterFootNoteText) return;
+      if (state === "loading") {
+        filterFootNoteText.textContent = "Mise à jour en cours…";
+        return;
+      }
+      var activeFilters = getActiveFilterCount();
+      if (typeof visibleCount === "number" && typeof totalCount === "number" && activeFilters > 0) {
+        filterFootNoteText.textContent =
+          visibleCount + " visible(s) maintenant · " + totalCount + " sur cette page";
+        return;
+      }
+      if (activeFilters > 0) {
+        filterFootNoteText.textContent = activeFilters + " filtre(s) actif(s) · mise à jour auto";
+        return;
+      }
+      filterFootNoteText.textContent = "Résultats instantanés";
+    }
+
+    function syncResetButtonState() {
+      if (!restoreSearchBtn) return;
+      restoreSearchBtn.classList.toggle("empty-attention", getActiveFilterCount() > 0);
+    }
+
+    function getLiveEmptyState() {
+      return document.getElementById("locationsLiveEmptyState");
+    }
+
+    function updateLiveResultsSummary(visibleCount, totalCount, hasFilters) {
+      var countEl = locationsResults.querySelector(".results-count");
+      if (!countEl) {
+        updateFilterFootNote("ready", visibleCount, totalCount);
+        return;
+      }
+      var remoteTotal = Number.parseInt(String(countEl.getAttribute("data-total-count") || ""), 10);
+      if (!Number.isFinite(remoteTotal)) {
+        remoteTotal = totalCount;
+      }
+      if (!hasFilters) {
+        countEl.innerHTML = '<span class="results-dot"></span>' + remoteTotal + " offre(s) trouvee(s)";
+        updateFilterFootNote("ready");
+        return;
+      }
+      countEl.innerHTML =
+        '<span class="results-dot"></span>' +
+        visibleCount +
+        " visible(s) sur cette page · " +
+        remoteTotal +
+        " total";
+      updateFilterFootNote("ready", visibleCount, totalCount);
+    }
+
     function localFilterPreview() {
       var grid = currentGrid();
-      if (!grid) return;
+      if (!grid) {
+        syncResetButtonState();
+        updateFilterFootNote("ready");
+        return;
+      }
 
       var cards = grid.querySelectorAll(".js-rental-card");
-      var qInput = form.querySelector('input[name="q"]');
-      var cityInput = form.querySelector('input[name="city"]');
-      var typeInput = form.querySelector('select[name="type"]');
-      var propertyInput = form.querySelector('select[name="property_type"]');
-      var minInput = form.querySelector('input[name="min"]');
-      var maxInput = form.querySelector('input[name="max"]');
-
-      var q = String((qInput && qInput.value) || "").toLowerCase().trim();
-      var cityFilter = String((cityInput && cityInput.value) || "").toLowerCase().trim();
+      var q = normalizeSpaces((qInput && qInput.value) || "").toLowerCase();
+      var cityFilter = normalizeSpaces((cityInput && cityInput.value) || "").toLowerCase();
       var typeValue = typeInput ? typeInput.value : "";
       var propertyValue = propertyInput ? propertyInput.value : "";
-      var min = parseDh(minInput ? minInput.value : "");
-      var max = parseDh(maxInput ? maxInput.value : "");
+      var range = getNormalizedPriceRange();
+      var min = range.min;
+      var max = range.max;
+      var visibleCount = 0;
+      var hasFilters = !!(
+        q ||
+        cityFilter ||
+        typeValue ||
+        propertyValue ||
+        range.minText ||
+        range.maxText
+      );
 
       cards.forEach(function (card) {
         var title = String(card.getAttribute("data-title") || "");
@@ -218,8 +366,17 @@
         var okProperty = !propertyValue || property === propertyValue;
         var okMin = min === null || rent >= min;
         var okMax = max === null || rent <= max;
-        card.style.display = okQ && okCity && okType && okProperty && okMin && okMax ? "" : "none";
+        var isVisible = okQ && okCity && okType && okProperty && okMin && okMax;
+        card.style.display = isVisible ? "" : "none";
+        if (isVisible) visibleCount += 1;
       });
+
+      var liveEmptyState = getLiveEmptyState();
+      if (liveEmptyState) {
+        liveEmptyState.classList.toggle("d-none", visibleCount !== 0 || !cards.length);
+      }
+      updateLiveResultsSummary(visibleCount, cards.length, hasFilters);
+      syncResetButtonState();
     }
 
     function initCarousels(scope) {
@@ -428,23 +585,38 @@
         return;
       }
       setResultsLoading(false);
-      window.location.href = url;
+      hardNavigate(url);
     }
 
     var qInput = form.querySelector('input[name="q"]');
+    var heroSearchInput = document.getElementById("heroSearchInput");
     var cityInput = form.querySelector('input[name="city"]');
     var typeInput = form.querySelector('select[name="type"]');
     var propertyInput = form.querySelector('select[name="property_type"]');
     var minInput = form.querySelector('input[name="min"]');
     var maxInput = form.querySelector('input[name="max"]');
     var restoreSearchBtn = document.getElementById("restoreSearchBtn");
+    var filterFootNoteText = document.getElementById("filterFootNoteText");
+    var liveInputDelay = isCoarsePointer ? 260 : 220;
 
-    function scheduleFetch(resetPage, triggerEl) {
+    function scheduleFetch(resetPage, triggerEl, options) {
+      var opts = options || {};
       if (submitTimer) window.clearTimeout(submitTimer);
+      if (opts.commitRange) {
+        commitNormalizedPriceRange();
+      }
+      var targetUrl = buildUrlFromForm(resetPage);
+      if (targetUrl === currentRelativeUrl()) {
+        form.classList.remove("is-optimistic");
+        updateFilterFootNote("ready");
+        syncResetButtonState();
+        return;
+      }
       form.classList.add("is-optimistic");
+      updateFilterFootNote("loading");
       submitTimer = window.setTimeout(function () {
-        fetchAndSwap(buildUrlFromForm(resetPage), true, triggerEl || null);
-      }, 320);
+        fetchAndSwap(targetUrl, true, triggerEl || null);
+      }, typeof opts.delayMs === "number" ? opts.delayMs : liveInputDelay);
     }
 
     function buildProbableFilterUrl() {
@@ -491,16 +663,40 @@
       }
     }
 
-    [qInput, cityInput, minInput, maxInput].forEach(function (el) {
+    syncQueryInputs(qInput || heroSearchInput);
+
+    [qInput, heroSearchInput, cityInput, minInput, maxInput].forEach(function (el) {
       if (!el) return;
-      el.addEventListener("input", localFilterPreview);
-      el.addEventListener("blur", function () {
+      var isQueryInput = el === qInput || el === heroSearchInput;
+      var isRangeInput = el === minInput || el === maxInput;
+      el.addEventListener("input", function () {
+        if (isQueryInput) {
+          syncQueryInputs(el);
+        }
+        localFilterPreview();
         scheduleFetch(true, el);
+      });
+      el.addEventListener("blur", function () {
+        if (isQueryInput) {
+          syncQueryInputs(el);
+        }
+        if (isRangeInput) {
+          commitNormalizedPriceRange();
+        }
+        localFilterPreview();
+        scheduleFetch(true, el, { delayMs: 0, commitRange: isRangeInput });
       });
       el.addEventListener("keydown", function (event) {
         if (event.key !== "Enter") return;
         event.preventDefault();
-        scheduleFetch(true, el);
+        if (isQueryInput) {
+          syncQueryInputs(el);
+        }
+        if (isRangeInput) {
+          commitNormalizedPriceRange();
+        }
+        localFilterPreview();
+        scheduleFetch(true, el, { delayMs: 0, commitRange: isRangeInput });
       });
     });
 
@@ -508,20 +704,25 @@
       if (!el) return;
       el.addEventListener("change", function () {
         localFilterPreview();
-        scheduleFetch(true, el);
+        scheduleFetch(true, el, { delayMs: 90 });
       });
     });
 
     form.addEventListener("submit", function (event) {
       event.preventDefault();
       if (submitTimer) window.clearTimeout(submitTimer);
+      syncQueryInputs(qInput || heroSearchInput);
+      commitNormalizedPriceRange();
+      localFilterPreview();
       form.classList.add("is-optimistic");
+      updateFilterFootNote("loading");
       fetchAndSwap(buildUrlFromForm(true), true, event.submitter || form);
     });
 
     if (restoreSearchBtn) {
       restoreSearchBtn.addEventListener("click", function () {
         if (qInput) qInput.value = "";
+        if (heroSearchInput) heroSearchInput.value = "";
         if (cityInput) cityInput.value = "";
         if (typeInput) typeInput.value = "";
         if (propertyInput) propertyInput.value = "";
@@ -529,16 +730,19 @@
         if (maxInput) maxInput.value = "";
         localFilterPreview();
         form.classList.add("is-optimistic");
+        updateFilterFootNote("loading");
         fetchAndSwap(buildUrlFromForm(true), true, restoreSearchBtn);
       });
     }
 
     initCarousels(document);
     initLazyRentalVideos(document);
+    localFilterPreview();
     document.addEventListener("ajax:page-replaced", function () {
       hideResultsLoadingSmooth();
       form.classList.remove("is-optimistic");
       finalizeStableSwap();
+      syncQueryInputs(qInput || heroSearchInput);
       initCarousels(locationsResults);
       initLazyRentalVideos(locationsResults);
       localFilterPreview();
@@ -548,6 +752,8 @@
       hideResultsLoadingSmooth();
       form.classList.remove("is-optimistic");
       finalizeStableSwap();
+      syncQueryInputs(qInput || heroSearchInput);
+      localFilterPreview();
     });
     document.addEventListener("click", function (event) {
       var link = event.target.closest("#locationsPagination a.page-link[href]");

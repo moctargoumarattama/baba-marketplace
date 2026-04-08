@@ -38,6 +38,16 @@ const clearButton = document.getElementById('search-clear');
 const pillsRoot = document.querySelector('.search-pills');
 const perfFlags = window.BM_PERF_FLAGS || {};
 const frontFluidityEnabled = perfFlags.frontFluidity !== false;
+
+function navigateToUrl(url) {
+  const targetUrl = String(url || "").trim();
+  if (!targetUrl) return;
+  if (window.BMPageNav && typeof window.BMPageNav.navigate === "function") {
+    window.BMPageNav.navigate(targetUrl);
+    return;
+  }
+  window.location.assign(targetUrl);
+}
 const SEARCH_MIN_CHARS = 2;
 const SEARCH_SECONDARY_MIN_CHARS = 3;
 const SEARCH_DEBOUNCE_MS = frontFluidityEnabled ? 240 : 300;
@@ -49,21 +59,13 @@ let lastResultsMarkup = null;
 const ajaxGuardApi = window.BMAjaxGuard || null;
 const ajaxFetchApi = window.BMAjaxFetch || null;
 const ajaxCsrfApi = window.BMAjaxCSRF || null;
-const requestSeq = (ajaxGuardApi && typeof ajaxGuardApi.makeRequestSeq === "function")
-  ? ajaxGuardApi.makeRequestSeq()
-  : (function () {
-      // KEEP_FALLBACK: protects result ordering if ajax core is missing during stale-cache scenarios.
-      let latest = 0;
-      return {
-        next: function () {
-          latest += 1;
-          return latest;
-        },
-        isLatest: function (id) {
-          return Number(id) === latest;
-        },
-      };
-    })();
+const coreDomApi = window.BMCoreDom || {};
+const createRequestSeq = (coreDomApi && typeof coreDomApi.makeRequestSeq === "function")
+  ? coreDomApi.makeRequestSeq
+  : ajaxGuardApi.makeRequestSeq.bind(ajaxGuardApi);
+const requestSeq = createRequestSeq();
+const escapeHtml = coreDomApi.escapeHtml;
+const safeUrl = coreDomApi.safeUrl;
 const uiLang = (document.body.dataset.lang || 'fr').toLowerCase();
 const i18n = {
   fr: {
@@ -115,20 +117,6 @@ if (!searchInput || !resultsContainer || !loadingIndicator || !clearButton) {
   return;
 }
 
-function escapeHtml(value) {
-  const div = document.createElement('div');
-  div.textContent = value == null ? '' : String(value);
-  return div.innerHTML;
-}
-
-function safeUrl(url) {
-  const u = String(url || '');
-  if (u.startsWith('/') || u.startsWith('http://') || u.startsWith('https://')) {
-    return u;
-  }
-  return '#';
-}
-
 function safeFile(file) {
   return encodeURIComponent(String(file || '').replace(/[\\/]/g, ''));
 }
@@ -159,37 +147,9 @@ function withCsrfHeaders(headers) {
   return baseHeaders;
 }
 
-async function requestJSON(url, options) {
-  if (ajaxFetchApi && typeof ajaxFetchApi.requestJSON === "function") {
-    return ajaxFetchApi.requestJSON(url, options || {});
-  }
-  try {
-    const response = await fetch(url, options || {});
-    let data = null;
-    try {
-      data = await response.json();
-    } catch (_parseError) {
-      data = null;
-    }
-    return {
-      ok: response.ok,
-      status: response.status,
-      data: data,
-      error: response.ok ? null : (response.statusText || ("HTTP " + response.status)),
-      aborted: false,
-      timedOut: false,
-    };
-  } catch (error) {
-    return {
-      ok: false,
-      status: 0,
-      data: null,
-      error: String((error && error.message) || "network_error"),
-      aborted: !!(error && error.name === "AbortError"),
-      timedOut: false,
-    };
-  }
-}
+const requestJSON = (coreDomApi && typeof coreDomApi.requestJSON === "function")
+  ? coreDomApi.requestJSON
+  : ajaxFetchApi.requestJSON.bind(ajaxFetchApi);
 
 searchInput.focus();
 
@@ -200,7 +160,7 @@ resultsContainer.addEventListener('click', function (event) {
     event.stopPropagation();
     const bookingUrl = safeUrl(bookingBtn.getAttribute('data-booking-url') || '#');
     if (bookingUrl && bookingUrl !== '#') {
-      window.location.href = bookingUrl;
+      navigateToUrl(bookingUrl);
     }
     return;
   }

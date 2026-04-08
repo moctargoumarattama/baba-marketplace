@@ -1,6 +1,8 @@
 import os
 import ast
 import operator as op
+import subprocess
+import datetime
 from dotenv import load_dotenv
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))  # dossier app/
@@ -8,6 +10,17 @@ ENV_PATH = os.path.abspath(os.path.join(BASE_DIR, "..", ".env"))
 
 if os.path.exists(ENV_PATH):
     load_dotenv(ENV_PATH)
+
+
+def _get_static_version():
+    try:
+        git_hash = subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            stderr=subprocess.DEVNULL
+        ).decode().strip()
+        return git_hash
+    except Exception:
+        return datetime.datetime.utcnow().strftime("%Y%m%d%H%M")
 
 
 class Config:
@@ -47,7 +60,7 @@ class Config:
 
     ENV = os.getenv("FLASK_ENV", "production").lower()
     DEBUG = _env_bool("DEBUG", False)
-    APP_STATIC_VERSION = os.getenv("APP_STATIC_VERSION", "20260225a")
+    APP_STATIC_VERSION = os.getenv("APP_STATIC_VERSION", _get_static_version())
     UI_HOME_TABS_ENABLED = _env_bool("UI_HOME_TABS_ENABLED", True)
 
     SECRET_KEY = os.getenv("SECRET_KEY", "dev")
@@ -130,6 +143,9 @@ class Config:
     )
     CACHE_THRESHOLD = int(os.getenv("CACHE_THRESHOLD", "10000"))
     CACHE_IGNORE_ERRORS = _env_bool("CACHE_IGNORE_ERRORS", True)
+    LOG_LEVEL = (os.getenv("LOG_LEVEL", "INFO") or "INFO").strip().upper()
+    LOG_FILE_MAX_BYTES = int(os.getenv("LOG_FILE_MAX_BYTES", str(5 * 1024 * 1024)))
+    LOG_FILE_BACKUP_COUNT = int(os.getenv("LOG_FILE_BACKUP_COUNT", "7"))
 
     try:
         MAX_LIMIT = max(1, int(os.getenv("MAX_LIMIT", "50")))
@@ -166,6 +182,13 @@ class Config:
     SECURITY_CSP_NONCE_ENABLED = _env_bool("SECURITY_CSP_NONCE_ENABLED", True)
     SECURITY_CSP_STRICT_INLINE = _env_bool("SECURITY_CSP_STRICT_INLINE", True)
     SECURITY_CSP_ALLOW_STYLE_INLINE = _env_bool("SECURITY_CSP_ALLOW_STYLE_INLINE", True)
+    SECURITY_PERMISSIONS_POLICY = (
+        os.getenv(
+            "SECURITY_PERMISSIONS_POLICY",
+            "geolocation=(self), microphone=(), camera=(), payment=()",
+        )
+        or ""
+    ).strip()
     SECURITY_RATE_LIMIT_ENABLED = _env_bool("SECURITY_RATE_LIMIT_ENABLED", True)
     FAIL_FAST_CRITICAL_BLUEPRINTS = _env_bool("FAIL_FAST_CRITICAL_BLUEPRINTS", False)
 

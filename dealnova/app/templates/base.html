@@ -1,75 +1,162 @@
 ﻿{% set rtl_enabled = current_lang in (rtl_langs or []) %}
-{% set home_tabs_enabled = config.get('UI_HOME_TABS_ENABLED', True) and request and request.endpoint in ['landing', 'shop.home'] %}
+{% set base_endpoint = request.endpoint or '' %}
+{% set home_tabs_enabled = config.get('UI_HOME_TABS_ENABLED', True) and request and base_endpoint in ['landing', 'shop.home'] %}
+{% set page_loader_enabled = base_endpoint in [
+  'shop.home',
+  'cart.checkout',
+  'shops.list_shops',
+  'rentals.locations_home',
+  'vendor.dashboard',
+  'vendor.earnings',
+  'vendor.periods',
+  'vendor.manage_shop',
+  'vendor.product_new',
+  'vendor.product_edit',
+  'vendor.security'
+] %}
+{% set fontawesome_enabled = base_endpoint in [
+  'cart.track',
+  'cart.track_by_phone',
+  'cart.my_orders'
+] %}
+{% set i18n_runtime_enabled = (current_lang or 'fr')|lower != 'fr' %}
+{% set apple_startup_images = [
+  ('apple-splash-640x1136.png', '(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)'),
+  ('apple-splash-1136x640.png', '(device-width: 568px) and (device-height: 320px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)'),
+  ('apple-splash-750x1334.png', '(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)'),
+  ('apple-splash-1334x750.png', '(device-width: 667px) and (device-height: 375px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)'),
+  ('apple-splash-828x1792.png', '(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)'),
+  ('apple-splash-1792x828.png', '(device-width: 896px) and (device-height: 414px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)'),
+  ('apple-splash-1080x2340.png', '(device-width: 360px) and (device-height: 780px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)'),
+  ('apple-splash-2340x1080.png', '(device-width: 780px) and (device-height: 360px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)'),
+  ('apple-splash-1125x2436.png', '(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)'),
+  ('apple-splash-2436x1125.png', '(device-width: 812px) and (device-height: 375px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)'),
+  ('apple-splash-1170x2532.png', '(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)'),
+  ('apple-splash-2532x1170.png', '(device-width: 844px) and (device-height: 390px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)'),
+  ('apple-splash-1179x2556.png', '(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)'),
+  ('apple-splash-2556x1179.png', '(device-width: 852px) and (device-height: 393px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)'),
+  ('apple-splash-1242x2688.png', '(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)'),
+  ('apple-splash-2688x1242.png', '(device-width: 896px) and (device-height: 414px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)'),
+  ('apple-splash-1284x2778.png', '(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)'),
+  ('apple-splash-2778x1284.png', '(device-width: 926px) and (device-height: 428px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)'),
+  ('apple-splash-1290x2796.png', '(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)'),
+  ('apple-splash-2796x1290.png', '(device-width: 932px) and (device-height: 430px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)')
+] %}
 <!doctype html>
 <html lang="{{ current_lang or 'fr' }}" dir="{{ 'rtl' if rtl_enabled else 'ltr' }}" data-bs-theme="light">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
   <link rel="preconnect" href="https://www.babamarket.ma" crossorigin>
   <title>{% block title %}{{ config.SITE_NAME }}{% endblock %}</title>
-  <link rel="preload" as="image" href="{{ url_for('static', filename='logo.png') }}" fetchpriority="high">
+  <link rel="icon" href="{{ url_for('favicon') }}" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='favicon-32x32.png', v=app_static_version) }}">
+  <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename='favicon-16x16.png', v=app_static_version) }}">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png', v=app_static_version) }}">
+  <meta name="application-name" content="Baba Market">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Baba Market">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  {% for startup_file, startup_media in apple_startup_images %}
+  <link rel="apple-touch-startup-image" href="{{ url_for('static', filename=startup_file, v=app_static_version) }}" media="{{ startup_media }}">
+  {% endfor %}
+  <link rel="preload" as="image" href="{{ url_for('static', filename='apple-touch-icon.png') }}" fetchpriority="high">
 
   <!-- Bootstrap 5 -->
   <link href="{{ url_for('static', filename='vendor/bootstrap/5.3.3/css/bootstrap.min.css', v=app_static_version) }}" rel="stylesheet">
   <!-- Bootstrap Icons -->
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons/1.11.1/font/bootstrap-icons.css', v=app_static_version) }}">
   <!-- Font Awesome -->
+  {% if fontawesome_enabled %}
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fontawesome/6.4.0/css/all.min.css', v=app_static_version) }}">
+  {% endif %}
   <!-- Google Fonts -->
   <link rel="stylesheet" href="{{ url_for('static', filename='fonts/public.css', v=app_static_version) }}">
 
   <link rel="stylesheet" href="{{ url_for('static', filename='css/ui_shell.css', v=app_static_version) }}">
 
   <meta name="csrf-token" content="{{ csrf_token() }}">
-  {% set preload_logo = config.get('SITE_LOGO') %}
-  {% if preload_logo and not preload_logo.startswith('http') %}
-  <link rel="preload" as="image" href="{{ url_for('static', filename=preload_logo) }}">
-  {% endif %}
   <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
   <meta name="theme-color" content="#10B981">
 
   <!-- STYLES POUR LE LOADER (très léger, pas de collision) -->
   <style>
+    html, body {
+      background: #fff;
+    }
     #bm-loader {
       position: fixed;
       top: 0;
       left: 0;
       width: 100%;
       height: 100%;
-      background: white;
+      background: #0f172a;
       display: flex;
+      flex-direction: column;
+      gap: 1rem;
       align-items: center;
       justify-content: center;
       z-index: 999999;
-      transition: opacity 0.2s ease;
+      transition: opacity 0.12s ease;
       pointer-events: none; /* ← Ne bloque pas les clics */
     }
     #bm-loader::before {
       content: "";
       position: absolute;
-      width: 136px;
-      height: 136px;
+      width: 164px;
+      height: 164px;
       border-radius: 50%;
       background:
-        radial-gradient(circle, rgba(16, 185, 129, 0.14) 0%, rgba(16, 185, 129, 0.08) 48%, rgba(16, 185, 129, 0) 72%);
+        radial-gradient(circle, rgba(16, 185, 129, 0.2) 0%, rgba(16, 185, 129, 0.1) 46%, rgba(16, 185, 129, 0) 74%);
       box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.08);
       animation: bm-loader-pulse 1.1s ease-in-out infinite;
     }
-    .bm-loader-logo {
+    .bm-loader-mark {
       position: relative;
       z-index: 1;
-      display: block;
-      width: 120px;
-      height: auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 108px;
+      height: 108px;
+      border-radius: 28px;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(240, 253, 250, 0.96) 100%);
+      box-shadow:
+        0 18px 45px rgba(0, 0, 0, 0.28),
+        0 0 0 1px rgba(255, 255, 255, 0.24);
       opacity: 0;
-      animation: bm-fade-in 0.2s ease forwards;
+      transform: translateY(6px) scale(0.98);
+      animation: bm-loader-mark-in 0.24s ease forwards;
+    }
+    .bm-loader-logo {
+      display: block;
+      width: 74px;
+      height: auto;
+      filter: saturate(1.05) contrast(1.02);
+    }
+    .bm-loader-title {
+      position: relative;
+      z-index: 1;
+      color: rgba(240, 253, 250, 0.96);
+      font-family: "Plus Jakarta Sans", "Segoe UI", sans-serif;
+      font-size: clamp(1rem, 1.8vw, 1.15rem);
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      opacity: 0;
+      transform: translateY(4px);
+      animation: bm-fade-in 0.22s ease 0.04s forwards;
     }
     @keyframes bm-loader-pulse {
       0%, 100% { transform: scale(0.98); opacity: 0.9; }
       50% { transform: scale(1.03); opacity: 1; }
     }
+    @keyframes bm-loader-mark-in {
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
     @keyframes bm-fade-in {
-      to { opacity: 1; }
+      to { opacity: 1; transform: translateY(0); }
     }
   </style>
 
@@ -84,6 +171,43 @@
       window.BM_PERF_FLAGS || {}
     );
   </script>
+  <script id="bm-i18n-payload" type="application/json">{{ (client_i18n_payload or none)|tojson }}</script>
+  <script>
+    (function() {
+      var payloadNode = document.getElementById('bm-i18n-payload');
+      if (!payloadNode) {
+        window.__BM_I18N_PAYLOAD__ = null;
+        return;
+      }
+      try {
+        window.__BM_I18N_PAYLOAD__ = JSON.parse(payloadNode.textContent || 'null');
+      } catch (_) {
+        window.__BM_I18N_PAYLOAD__ = null;
+      }
+    })();
+  </script>
+  <script>
+    (function() {
+      var lang = (document.documentElement.getAttribute('lang') || 'fr').toLowerCase();
+      var payload = window.__BM_I18N_PAYLOAD__;
+      var hasServerPayload = !!(
+        payload &&
+        payload.lang === lang &&
+        payload.dict &&
+        typeof payload.dict === 'object'
+      );
+      window.__BM_I18N_STATE__ = Object.assign(
+        {
+          lang: lang || 'fr',
+          pending: false,
+          ready: true,
+          hasServerPayload: hasServerPayload
+        },
+        window.__BM_I18N_STATE__ || {}
+      );
+      document.documentElement.setAttribute('data-bm-i18n', 'ready');
+    })();
+  </script>
   <link rel="preload" as="style" href="{{ url_for('static', filename='css/ui_drawer_glass.css', v=app_static_version) }}" id="bm-drawer-css">
   <noscript>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/ui_drawer_glass.css', v=app_static_version) }}">
@@ -92,6 +216,7 @@
     (function() {
       var drawerCss = document.getElementById('bm-drawer-css');
       if (!drawerCss) return;
+      var mobileDrawerQuery = '(max-width: 991.98px)';
 
       function enableDrawerCss() {
         if (drawerCss.dataset.loaded === '1') return;
@@ -100,7 +225,12 @@
         drawerCss.removeAttribute('as');
       }
 
+      function shouldWarmDrawer() {
+        return !!(window.matchMedia && window.matchMedia(mobileDrawerQuery).matches);
+      }
+
       function scheduleEnable() {
+        if (!shouldWarmDrawer()) return;
         if (typeof window.requestAnimationFrame === 'function') {
           window.requestAnimationFrame(function() {
             window.requestAnimationFrame(enableDrawerCss);
@@ -110,7 +240,10 @@
         window.setTimeout(enableDrawerCss, 32);
       }
 
-      function onFirstInteraction() {
+      function onFirstInteraction(event) {
+        var target = event && event.target ? event.target : null;
+        var toggler = target && target.closest ? target.closest('.navbar-toggler[data-bs-target="#mainNavbar"]') : null;
+        if (!toggler && !shouldWarmDrawer()) return;
         enableDrawerCss();
         document.removeEventListener('pointerdown', onFirstInteraction, true);
         document.removeEventListener('keydown', onFirstInteraction, true);
@@ -124,7 +257,112 @@
 
       document.addEventListener('pointerdown', onFirstInteraction, true);
       document.addEventListener('keydown', onFirstInteraction, true);
-      window.addEventListener('load', enableDrawerCss, { once: true });
+      window.addEventListener('load', function() {
+        if (shouldWarmDrawer()) enableDrawerCss();
+      }, { once: true });
+
+      if (window.matchMedia) {
+        var mediaQuery = window.matchMedia(mobileDrawerQuery);
+        var onMediaChange = function(event) {
+          if (event && event.matches) {
+            enableDrawerCss();
+            if (typeof mediaQuery.removeEventListener === 'function') {
+              mediaQuery.removeEventListener('change', onMediaChange);
+            } else if (typeof mediaQuery.removeListener === 'function') {
+              mediaQuery.removeListener(onMediaChange);
+            }
+          }
+        };
+        if (typeof mediaQuery.addEventListener === 'function') {
+          mediaQuery.addEventListener('change', onMediaChange);
+        } else if (typeof mediaQuery.addListener === 'function') {
+          mediaQuery.addListener(onMediaChange);
+        }
+      }
+    })();
+  </script>
+  <script id="bm-drawer-runtime-src" type="application/json">{{ url_for('static', filename='js/ui_drawer.js', v=app_static_version)|tojson }}</script>
+  <script>
+    (function() {
+      var drawerScriptSrcNode = document.getElementById('bm-drawer-runtime-src');
+      var drawerScriptSrc = '';
+      if (drawerScriptSrcNode) {
+        try {
+          drawerScriptSrc = JSON.parse(drawerScriptSrcNode.textContent || '""');
+        } catch (_error) {
+          drawerScriptSrc = '';
+        }
+      }
+      var mobileDrawerQuery = '(max-width: 991.98px)';
+      var drawerScriptId = 'bm-ui-drawer-runtime';
+      var drawerScriptLoaded = false;
+      var drawerWarmScheduled = false;
+
+      function shouldWarmDrawer() {
+        return !!(window.matchMedia && window.matchMedia(mobileDrawerQuery).matches);
+      }
+
+      function loadDrawerRuntime() {
+        if (drawerScriptLoaded) return;
+        if (!drawerScriptSrc) return;
+        drawerScriptLoaded = true;
+        if (document.getElementById(drawerScriptId)) return;
+        var script = document.createElement('script');
+        script.id = drawerScriptId;
+        script.src = drawerScriptSrc;
+        document.head.appendChild(script);
+      }
+
+      function scheduleWarmLoad() {
+        if (drawerWarmScheduled || !shouldWarmDrawer()) return;
+        drawerWarmScheduled = true;
+
+        var warm = function() {
+          if (typeof window.requestIdleCallback === 'function') {
+            window.requestIdleCallback(loadDrawerRuntime, { timeout: 1200 });
+            return;
+          }
+          window.setTimeout(loadDrawerRuntime, 320);
+        };
+
+        if (document.readyState === 'complete') {
+          warm();
+          return;
+        }
+        window.addEventListener('load', warm, { once: true });
+      }
+
+      function onFirstDrawerIntent(event) {
+        var target = event && event.target ? event.target : null;
+        var toggler = target && target.closest ? target.closest('.navbar-toggler[data-bs-target="#mainNavbar"]') : null;
+        if (!toggler && !shouldWarmDrawer()) return;
+        loadDrawerRuntime();
+        document.removeEventListener('pointerdown', onFirstDrawerIntent, true);
+        document.removeEventListener('keydown', onFirstDrawerIntent, true);
+      }
+
+      document.addEventListener('pointerdown', onFirstDrawerIntent, true);
+      document.addEventListener('keydown', onFirstDrawerIntent, true);
+      scheduleWarmLoad();
+
+      if (window.matchMedia) {
+        var mediaQuery = window.matchMedia(mobileDrawerQuery);
+        var onMediaChange = function(event) {
+          if (event && event.matches) {
+            loadDrawerRuntime();
+            if (typeof mediaQuery.removeEventListener === 'function') {
+              mediaQuery.removeEventListener('change', onMediaChange);
+            } else if (typeof mediaQuery.removeListener === 'function') {
+              mediaQuery.removeListener(onMediaChange);
+            }
+          }
+        };
+        if (typeof mediaQuery.addEventListener === 'function') {
+          mediaQuery.addEventListener('change', onMediaChange);
+        } else if (typeof mediaQuery.addListener === 'function') {
+          mediaQuery.addListener(onMediaChange);
+        }
+      }
     })();
   </script>
 
@@ -135,9 +373,12 @@
   <script src="{{ url_for('static', filename='js/ajax/core/bm_fetch.js', v=app_static_version) }}" defer></script>
   <script src="{{ url_for('static', filename='js/ajax/core/bm_swap.js', v=app_static_version) }}" defer></script>
   <script src="{{ url_for('static', filename='js/core/back_fab.js', v=app_static_version) }}" defer></script>
+  {% if page_loader_enabled %}
   <script src="{{ url_for('static', filename='js/core/page_loader_client.js', v=app_static_version) }}" defer></script>
+  {% endif %}
+  {% if i18n_runtime_enabled %}
   <script src="{{ url_for('static', filename='js/i18n.js', v=app_static_version) }}" defer></script>
-  <script src="{{ url_for('static', filename='js/ui_drawer.js', v=app_static_version) }}" defer></script>
+  {% endif %}
   {% if home_tabs_enabled %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/ui_home_tabs.css', v=app_static_version) }}">
   <script src="{{ url_for('static', filename='js/ui_home_tabs.js', v=app_static_version) }}" defer></script>
@@ -145,7 +386,7 @@
   {% block head %}{% endblock %}
 </head>
 
-<body data-page="{{ request.endpoint or '' }}" data-user-role="{{ current_user.role if current_user.is_authenticated else 'guest' }}" data-lang="{{ current_lang }}" data-rtl-langs="{{ (rtl_langs or [])|join(',') }}" data-static-version="{{ app_static_version }}" data-static-root="{{ url_for('static', filename='') }}" data-session-scope="{{ pwa_session_scope }}" dir="{{ 'rtl' if rtl_enabled else 'ltr' }}" {% block body_attrs %}{% endblock %}>
+<body data-page="{{ request.endpoint or '' }}" data-user-role="{{ current_user.role if current_user.is_authenticated else 'guest' }}" data-lang="{{ current_lang }}" data-rtl-langs="{{ (rtl_langs or [])|join(',') }}" data-static-version="{{ app_static_version }}" data-static-root="{{ url_for('static', filename='') }}" data-session-scope="{{ pwa_session_scope }}" data-home-tabs="{{ '1' if home_tabs_enabled else '0' }}" dir="{{ 'rtl' if rtl_enabled else 'ltr' }}" {% block body_attrs %}{% endblock %}>
 {% set lang_labels = {"fr": "Français", "en": "English", "ary": "Darija"} %}
 {% set lang_codes = {"fr": "FR", "en": "EN", "ary": "DA"} %}
 {% set current_lang_label = lang_labels.get(current_lang, "Français") %}
@@ -172,13 +413,16 @@
 
   <!-- LOADER IMMÉDIAT (s'affiche tout de suite) -->
   <div id="bm-loader">
-    <img src="{{ url_for('static', filename='logo.png') }}"
-         alt="{{ config.SITE_NAME }}"
-         class="bm-loader-logo"
-         width="120"
-         height="120"
-         fetchpriority="high"
-         decoding="sync">
+    <div class="bm-loader-mark">
+      <img src="{{ url_for('static', filename='apple-touch-icon.png') }}"
+           alt="{{ config.SITE_NAME }}"
+           class="bm-loader-logo"
+           width="74"
+           height="74"
+           fetchpriority="high"
+           decoding="sync">
+    </div>
+    <div class="bm-loader-title">Baba Market</div>
   </div>
 
   <!-- SCRIPT POUR CACHER LE LOADER (ultra léger) -->
@@ -192,6 +436,19 @@
       var fastLoaderEnabled = perfFlags.fastLoader !== false;
       var loader = document.getElementById('bm-loader');
       var hideTimer = null;
+      var navigationFallbackTimer = null;
+      var navEntry = null;
+      var navType = '';
+      try {
+        navEntry = (performance.getEntriesByType && performance.getEntriesByType('navigation')[0]) || null;
+        navType = navEntry && navEntry.type ? String(navEntry.type) : '';
+      } catch (_navError) {}
+      var lastReadyAt = 0;
+      try {
+        lastReadyAt = Number(window.sessionStorage.getItem('__BM_LAST_READY_AT__') || 0);
+      } catch (_storageReadError) {}
+      var warmReturn = !!(lastReadyAt && (Date.now() - lastReadyAt) < 12000);
+      var instantExit = navType === 'back_forward' || warmReturn;
       var readiness = window.__BM_PAGE_READINESS__ || {
         domReady: false,
         interactive: false,
@@ -199,6 +456,8 @@
         loaderHidden: false
       };
       window.__BM_PAGE_READINESS__ = readiness;
+      var i18nState = window.__BM_I18N_STATE__ || { pending: false, ready: true };
+      var pendingHideDelay = 0;
 
       function updateReadyState() {
         var value = 'booting';
@@ -212,6 +471,12 @@
         if (!hideTimer) return;
         window.clearTimeout(hideTimer);
         hideTimer = null;
+      }
+
+      function clearNavigationFallbackTimer() {
+        if (!navigationFallbackTimer) return;
+        window.clearTimeout(navigationFallbackTimer);
+        navigationFallbackTimer = null;
       }
 
       function runAfterPaint(callback) {
@@ -228,11 +493,189 @@
         if (!loader || readiness.loaderHidden) return;
         readiness.loaderHidden = true;
         clearHideTimer();
+        clearNavigationFallbackTimer();
         loader.style.opacity = '0';
+        try {
+          window.sessionStorage.setItem('__BM_LAST_READY_AT__', String(Date.now()));
+        } catch (_storageWriteError) {}
         setTimeout(() => {
           loader.style.display = 'none';
-        }, 200);
+        }, 120);
       }
+
+      function hideTransientLoader() {
+        if (!loader) return;
+        readiness.loaderHidden = true;
+        clearHideTimer();
+        clearNavigationFallbackTimer();
+        loader.style.opacity = '0';
+        window.setTimeout(function() {
+          if (!loader || loader.style.opacity !== '0') return;
+          loader.style.display = 'none';
+          updateReadyState();
+        }, 120);
+      }
+
+      function normalizeNavigationUrl(input) {
+        if (!input) return '';
+        try {
+          var parsed = new URL(String(input), window.location.href);
+          if (parsed.origin !== window.location.origin) return '';
+          if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return '';
+          if (parsed.pathname === window.location.pathname && parsed.search === window.location.search) {
+            return '';
+          }
+          parsed.hash = '';
+          return parsed.toString();
+        } catch (_error) {
+          return '';
+        }
+      }
+
+      function resolveNavigationUrlFromTarget(target) {
+        var anchor = target && target.closest ? target.closest('a[href]') : null;
+        if (!anchor) return '';
+        if (anchor.hasAttribute('download')) return '';
+        var rawHref = String(anchor.getAttribute('href') || '').trim();
+        if (!rawHref || rawHref.charAt(0) === '#') return '';
+        var targetAttr = String(anchor.getAttribute('target') || '').trim().toLowerCase();
+        if (targetAttr && targetAttr !== '_self') return '';
+        return normalizeNavigationUrl(rawHref);
+      }
+
+      function canWarmNavigationNetwork() {
+        try {
+          var conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+          if (!conn) return true;
+          if (conn.saveData) return false;
+          var type = String(conn.effectiveType || '').toLowerCase();
+          if (type === '2g' || type === 'slow-2g' || type === '3g') return false;
+        } catch (_error) {}
+        return true;
+      }
+
+      var prefetchRootReserved = new Set([
+        'admin',
+        'admin-access',
+        'api',
+        'booking',
+        'cart',
+        'courier',
+        'delivery',
+        'health',
+        'lang',
+        'location',
+        'locations',
+        'login',
+        'logout',
+        'maintenance',
+        'register',
+        'search',
+        'shop',
+        'shops',
+        'signin',
+        'signup',
+        'sw.js',
+        'vendor'
+      ]);
+
+      function shouldPrefetchNavigationUrl(url) {
+        if (!url) return false;
+        try {
+          var parsed = new URL(url, window.location.href);
+          if (parsed.origin !== window.location.origin) return false;
+          var pathname = String(parsed.pathname || '/');
+          if (
+            pathname === '/' ||
+            pathname === '/shop' ||
+            pathname.indexOf('/shop/') === 0 ||
+            pathname === '/shops' ||
+            pathname.indexOf('/shops/') === 0 ||
+            pathname === '/locations' ||
+            pathname.indexOf('/locations/') === 0 ||
+            pathname === '/location' ||
+            pathname.indexOf('/location/') === 0 ||
+            pathname === '/search' ||
+            pathname.indexOf('/search/') === 0 ||
+            pathname === '/product' ||
+            pathname.indexOf('/product/') === 0
+          ) {
+            return true;
+          }
+          var segments = pathname.split('/').filter(Boolean);
+          if (segments.length !== 1) return false;
+          var slug = String(segments[0] || '').trim().toLowerCase();
+          if (!slug || slug.indexOf('.') !== -1) return false;
+          return !prefetchRootReserved.has(slug);
+        } catch (_error) {
+          return false;
+        }
+      }
+
+      function warmNavigation(url) {
+        var normalizedUrl = normalizeNavigationUrl(url);
+        if (!normalizedUrl || !canWarmNavigationNetwork() || !shouldPrefetchNavigationUrl(normalizedUrl)) return;
+
+        if (!(window.__BM_NAV_WARMED__ instanceof Set)) {
+          window.__BM_NAV_WARMED__ = new Set();
+        }
+        if (window.__BM_NAV_WARMED__.has(normalizedUrl)) return;
+        window.__BM_NAV_WARMED__.add(normalizedUrl);
+
+        try {
+          var prefetchApi = window.BMIntentPrefetch;
+          if (prefetchApi && typeof prefetchApi.prefetchUrl === 'function') {
+            prefetchApi.prefetchUrl(normalizedUrl, { timeoutMs: 320 });
+            return;
+          }
+        } catch (_prefetchError) {}
+
+        if (!document.head) return;
+        var hint = document.createElement('link');
+        hint.rel = 'prefetch';
+        hint.as = 'document';
+        hint.href = normalizedUrl;
+        document.head.appendChild(hint);
+      }
+
+      function showNavigationLoader(url) {
+        var normalizedUrl = normalizeNavigationUrl(url);
+        if (!loader || !normalizedUrl) return false;
+        clearHideTimer();
+        clearNavigationFallbackTimer();
+        readiness.loaderHidden = false;
+        loader.style.display = 'flex';
+        loader.style.opacity = '1';
+        document.documentElement.setAttribute('data-bm-ready-state', 'navigating');
+        navigationFallbackTimer = window.setTimeout(function() {
+          if (document.visibilityState === 'hidden') return;
+          hideTransientLoader();
+        }, 1800);
+        return true;
+      }
+
+      function navigateTo(url) {
+        var normalizedUrl = normalizeNavigationUrl(url);
+        if (!normalizedUrl) {
+          window.location.assign(String(url || ''));
+          return;
+        }
+        warmNavigation(normalizedUrl);
+        showNavigationLoader(normalizedUrl);
+        window.location.assign(normalizedUrl);
+      }
+
+      function isPlainPrimaryClick(event) {
+        if (!event || event.defaultPrevented) return false;
+        if (typeof event.button === 'number' && event.button !== 0) return false;
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return false;
+        return true;
+      }
+
+      window.BMPageNav = window.BMPageNav || {};
+      window.BMPageNav.prefetch = warmNavigation;
+      window.BMPageNav.show = showNavigationLoader;
+      window.BMPageNav.navigate = navigateTo;
 
       function scheduleHide(delayMs) {
         if (readiness.loaderHidden) return;
@@ -240,6 +683,28 @@
         hideTimer = window.setTimeout(function() {
           hideLoader();
         }, Math.max(0, Number(delayMs) || 0));
+      }
+
+      function isI18nReady() {
+        return !i18nState.pending || !!i18nState.ready;
+      }
+
+      function releaseI18nGate() {
+        i18nState.ready = true;
+        i18nState.pending = false;
+        document.documentElement.setAttribute('data-bm-i18n', 'ready');
+      }
+
+      function onI18nReady() {
+        if (readiness.loaderHidden) return;
+        releaseI18nGate();
+        scheduleHide(pendingHideDelay);
+      }
+
+      function maybeScheduleHide(delayMs) {
+        pendingHideDelay = Math.max(0, Number(delayMs) || 0);
+        if (!isI18nReady()) return;
+        scheduleHide(pendingHideDelay);
       }
 
       function markDomReady() {
@@ -281,22 +746,22 @@
         markDomReady();
         runAfterPaint(function() {
           if (readiness.interactive) {
-            scheduleHide(0);
+            maybeScheduleHide(0);
             return;
           }
-          scheduleHide(140);
+          maybeScheduleHide(instantExit ? 0 : 60);
         });
       }
 
       function onPageInteractive() {
         markInteractive();
-        scheduleHide(0);
+        maybeScheduleHide(0);
       }
 
       function onWindowLoad() {
         markComplete();
         if (!readiness.loaderHidden) {
-          scheduleHide(0);
+          maybeScheduleHide(0);
         }
       }
 
@@ -307,6 +772,7 @@
       }
 
       document.addEventListener('bm:page-interactive', onPageInteractive);
+      document.addEventListener('bm:i18n-ready', onI18nReady);
 
       if (document.readyState === 'complete') {
         onWindowLoad();
@@ -314,10 +780,52 @@
         window.addEventListener('load', onWindowLoad, { once: true });
       }
 
+      window.addEventListener('pageshow', function(event) {
+        if (!event || !event.persisted) return;
+        markComplete();
+        hideLoader();
+      });
+
+      window.addEventListener('pagehide', clearNavigationFallbackTimer, { capture: true });
+
+      document.addEventListener('pointerdown', function(event) {
+        var targetUrl = resolveNavigationUrlFromTarget(event && event.target);
+        if (!targetUrl) return;
+        warmNavigation(targetUrl);
+      }, { capture: true, passive: true });
+
+      document.addEventListener('mouseover', function(event) {
+        var target = event && event.target ? event.target : null;
+        var anchor = target && target.closest ? target.closest('a[href]') : null;
+        if (!anchor) return;
+        var related = event && event.relatedTarget ? event.relatedTarget : null;
+        if (related && anchor.contains && anchor.contains(related)) return;
+        var targetUrl = resolveNavigationUrlFromTarget(anchor);
+        if (!targetUrl) return;
+        warmNavigation(targetUrl);
+      }, { capture: true, passive: true });
+
+      document.addEventListener('focusin', function(event) {
+        var targetUrl = resolveNavigationUrlFromTarget(event && event.target);
+        if (!targetUrl) return;
+        warmNavigation(targetUrl);
+      }, { capture: true, passive: true });
+
+      document.addEventListener('click', function(event) {
+        if (!isPlainPrimaryClick(event)) return;
+        var targetUrl = resolveNavigationUrlFromTarget(event && event.target);
+        if (!targetUrl) return;
+        showNavigationLoader(targetUrl);
+      }, true);
+
+      if (!isI18nReady()) {
+        window.setTimeout(onI18nReady, instantExit ? 450 : 700);
+      }
+
       // Fallback sécurité: ne jamais rester bloqué à cause des médias lents.
       window.setTimeout(function() {
         hideLoader();
-      }, 4000);
+      }, instantExit ? 900 : 2200);
     })();
   </script>
 
@@ -326,10 +834,10 @@
     <div class="container-fluid">
       <button class="navbar-toggler" type="button"
               data-bs-toggle="collapse" data-bs-target="#mainNavbar"
-              aria-controls="mainNavbar" aria-expanded="false" aria-label="Ouvrir le menu">
+              aria-controls="mainNavbar" aria-expanded="false" aria-label="{{ t('Ouvrir le menu') }}">
         <span class="menu-toggle-icon" aria-hidden="true"></span>
-        <span class="menu-toggle-label">Menu</span>
-        <span class="menu-help-bubble" id="menuHelpBubble" role="status" aria-live="polite"> Cliquez ici pour voir le menu</span>
+        <span class="menu-toggle-label">{{ t('Menu') }}</span>
+        <span class="menu-help-bubble" id="menuHelpBubble" role="status" aria-live="polite"> {{ t('Cliquez ici pour voir le menu') }}</span>
       </button>
 
       <!-- Brand -->
@@ -352,7 +860,12 @@
      <!-- Right icons -->
 {% if not current_user.is_authenticated or current_user.role != "vendor" %}
 <div class="nav-icons" data-nav-badges data-cart-attn-seconds="60">
-  <a href="{{ url_for('cart.view') }}" class="icon-btn" aria-label="Panier" data-cart-icon>
+  <a href="{{ url_for('cart.view') }}"
+     class="icon-btn"
+     aria-label="{{ t('Panier') }}"
+     data-cart-icon
+     data-requires-online
+     data-offline-message="{{ t('Connexion requise pour ouvrir le panier.') }}">
     <i class="bi bi-cart3"></i>
     <span class="cart-badge{% if (cart_count or 0)|int <= 0 %} d-none{% endif %}"
           data-cart-badge
@@ -361,23 +874,29 @@
     </span>
   </a>
 
-  <a href="{{ url_for('cart.track_by_phone') }}" class="icon-btn" aria-label="Suivi commande" data-track-icon>
+  <a href="{{ url_for('cart.track_by_phone') }}"
+     class="icon-btn"
+     aria-label="{{ t('Suivi commande') }}"
+     data-track-icon
+     data-requires-online
+     data-offline-message="{{ t('Connexion requise pour suivre la commande.') }}">
     <i class="bi bi-truck"></i>
     <span class="track-badge d-none" data-track-badge data-track-active="0" aria-hidden="true"></span>
   </a>
+  <div id="navOfflineHint" class="nav-offline-hint" role="status" aria-live="polite"></div>
 </div>
 {% endif %}
 
 
           <!-- Collapse -->
-      <div class="collapse navbar-collapse" id="mainNavbar" role="dialog" aria-label="Menu principal">
+      <div class="collapse navbar-collapse" id="mainNavbar" role="dialog" aria-label="{{ t('Menu principal') }}">
         {% set vendor_shop = current_user.shop if current_user.is_authenticated and current_user.role == "vendor" else None %}
         {% set vendor_allows_products = vendor_shop and vendor_shop.allows('products') %}
         {% set vendor_allows_services = vendor_shop and vendor_shop.allows('services') %}
         {% set vendor_allows_location = vendor_shop and vendor_shop.allows('location') %}
         {% set vendor_allows_catalog = vendor_allows_products or vendor_allows_services %}
-        {% set vendor_catalog_label = 'Mes services' if vendor_allows_services and not vendor_allows_products else 'Mes produits' %}
-        {% set vendor_catalog_menu_label = 'Catalogue' %}
+        {% set vendor_catalog_label = t('Mes services') if vendor_allows_services and not vendor_allows_products else t('Mes produits') %}
+        {% set vendor_catalog_menu_label = t('Catalogue') %}
         <!-- Mobile menu (hybrid) -->
         <div class="mobile-menu d-lg-none">
           <div class="drawer-top">
@@ -385,10 +904,10 @@
               <span class="drawer-brand-avatar"><img src="{{ url_for('static', filename='logo.png') }}" alt="{{ config.SITE_NAME }} logo" loading="lazy"></span>
               <div class="drawer-brand-meta">
                 <strong>Baba Market</strong>
-                <small>Marketplace</small>
+                <small>{{ t('Marketplace') }}</small>
               </div>
             </div>
-            <button type="button" class="drawer-close-btn" id="drawerCloseBtn" aria-label="Fermer le menu">
+            <button type="button" class="drawer-close-btn" id="drawerCloseBtn" aria-label="{{ t('Fermer le menu') }}">
               <i class="bi bi-x-lg"></i>
             </button>
           </div>
@@ -396,18 +915,24 @@
 
           {% if not current_user.is_authenticated or current_user.role != "vendor" %}
           <div class="menu-section">
-            <div class="menu-title">Commandes</div>
+            <div class="menu-title">{{ t('Commandes') }}</div>
             <div class="quick-actions">
-              <a class="qa-card qa-primary" href="{{ url_for('cart.view') }}">
+              <a class="qa-card qa-primary"
+                 href="{{ url_for('cart.view') }}"
+                 data-requires-online
+                 data-offline-message="{{ t('Connexion requise pour ouvrir le panier.') }}">
                 <span class="qa-icon"><i class="bi bi-cart3"></i></span>
-                <span>Panier</span>
+                <span>{{ t('Panier') }}</span>
                 <span class="qa-badge{% if (cart_count or 0)|int <= 0 %} d-none{% endif %}" data-drawer-cart-badge>
                   {{ (cart_count or 0)|int }}
                 </span>
               </a>
-              <a class="qa-card qa-secondary" href="{{ url_for('cart.track_by_phone') }}">
+              <a class="qa-card qa-secondary"
+                 href="{{ url_for('cart.track_by_phone') }}"
+                 data-requires-online
+                 data-offline-message="{{ t('Connexion requise pour suivre la commande.') }}">
                 <span class="qa-icon"><i class="bi bi-truck"></i></span>
-                <span>Suivi</span>
+                <span>{{ t('Suivi') }}</span>
                 <span class="qa-track-dot d-none" data-drawer-track-badge aria-hidden="true"></span>
               </a>
             </div>
@@ -415,34 +940,34 @@
           {% endif %}
 
 
-        {% if not current_user.is_authenticated or current_user.role != "vendor" %}
+{% if not current_user.is_authenticated or current_user.role != "vendor" %}
 <div class="menu-section">
-  <div class="menu-title">Découvrir</div>
+  <div class="menu-title">{{ t('Découvrir') }}</div>
   <ul class="menu-links">
     <li>
       <a class="menu-link drawer-link" href="{{ url_for('landing') }}">
-        <i class="bi bi-house-door-fill"></i><span>Accueil</span>
+        <i class="bi bi-house-door-fill"></i><span>{{ t('Accueil') }}</span>
       </a>
     </li>
 
     <li>
       <a class="menu-link drawer-link" href="{{ url_for('shop.home') }}">
-        <i class="bi bi-bag-check"></i><span>Produits & Services</span>
+        <i class="bi bi-bag-check"></i><span>{{ t('Produits & Services') }}</span>
       </a>
     </li>
     <li>
       <a class="menu-link drawer-link" href="{{ url_for('shops.list_shops') }}">
-        <i class="bi bi-shop-window"></i><span>Boutiques</span>
+        <i class="bi bi-shop-window"></i><span>{{ t('Boutiques') }}</span>
       </a>
     </li>
     <li>
       <a class="menu-link drawer-link" href="{{ url_for('rentals.locations_home') }}">
-        <i class="bi bi-house-door"></i><span>Hébergements</span>
+        <i class="bi bi-house-door"></i><span>{{ t('Hébergements') }}</span>
       </a>
     </li>
     <li>
       <a class="menu-link drawer-link" href="{{ url_for('delivery_special.delivery_form') }}">
-        <i class="bi bi-truck"></i><span>Envoyer un colis</span>
+        <i class="bi bi-truck"></i><span>{{ t('Envoyer un colis') }}</span>
       </a>
     </li>
   </ul>
@@ -452,12 +977,12 @@
 
 
           <div class="menu-section">
-            <div class="menu-title">Connexion</div>
+            <div class="menu-title">{{ t('Connexion') }}</div>
             <ul class="menu-links">
               {% if current_user.is_authenticated and current_user.role in ['admin', 'manager'] %}
               <li>
                 <a class="menu-link" href="{{ url_for('admin_users.admin_dashboard') }}">
-                  <i class="bi bi-shield-lock"></i><span>Admin</span>
+                  <i class="bi bi-shield-lock"></i><span>{{ t('Admin') }}</span>
                 </a>
               </li>
               {% endif %}
@@ -465,7 +990,7 @@
               {% if current_user.is_authenticated and current_user.role == 'vendor' %}
               <li>
                 <a class="menu-link" href="{{ url_for('vendor.manage_shop') }}">
-                  <i class="fas fa-store"></i><span>Ma boutique</span>
+                  <i class="bi bi-shop-window"></i><span>{{ t('Ma boutique') }}</span>
                 </a>
               </li>
               {% if vendor_allows_catalog %}
@@ -483,29 +1008,29 @@
               {% if vendor_allows_products %}
               <li>
                 <a class="menu-link" href="{{ url_for('vendor.earnings') }}">
-                  <i class="bi bi-wallet2"></i><span>Encaissements</span>
+                  <i class="bi bi-wallet2"></i><span>{{ t('Encaissements') }}</span>
                 </a>
               </li>
               <li>
                 <a class="menu-link" href="{{ url_for('vendor.periods') }}">
-                  <i class="bi bi-calendar3"></i><span>Périodes</span>
+                  <i class="bi bi-calendar3"></i><span>{{ t('Périodes') }}</span>
                 </a>
               </li>
               <li>
                 <a class="menu-link" href="{{ url_for('vendor.security') }}">
-                  <i class="bi bi-shield-lock"></i><span>Sécurité historique</span>
+                  <i class="bi bi-shield-lock"></i><span>{{ t('Sécurité historique') }}</span>
                 </a>
               </li>
               {% endif %}
               {% if vendor_allows_location %}
               <li>
                 <a class="menu-link" href="{{ url_for('rentals.owner_locations') }}">
-                  <i class="bi bi-house-door"></i><span>Locations</span>
+                  <i class="bi bi-house-door"></i><span>{{ t('Locations') }}</span>
                 </a>
               </li>
               <li>
                 <a class="menu-link" href="{{ url_for('rentals.owner_locations_archives') }}">
-                  <i class="bi bi-clock-history"></i><span>Historique location</span>
+                  <i class="bi bi-clock-history"></i><span>{{ t('Historique location') }}</span>
                 </a>
               </li>
               {% endif %}
@@ -536,14 +1061,14 @@
                 <form method="post" action="{{ url_for('auth.logout') }}" class="d-inline w-100">
                   {% include "partials/_csrf.html" %}
                   <button type="submit" class="menu-link text-danger w-100 menu-link-danger">
-                    <i class="bi bi-box-arrow-right"></i><span>Déconnexion</span>
+                    <i class="bi bi-box-arrow-right"></i><span>{{ t('Déconnexion') }}</span>
                   </button>
                 </form>
               </li>
               {% else %}
               <li>
                 <a class="menu-link" href="{{ url_for('auth.login') }}">
-                  <i class="bi bi-box-arrow-in-right"></i><span>Connexion</span>
+                  <i class="bi bi-box-arrow-in-right"></i><span>{{ t('Connexion') }}</span>
                 </a>
               </li>
               {% endif %}
@@ -551,9 +1076,9 @@
           </div>
 
           <div class="menu-section">
-            <div class="menu-title">Langue</div>
+            <div class="menu-title">{{ t('Langue') }}</div>
             <div class="lang-current">
-              <span class="lang-current-label">Langue actuelle</span>
+              <span class="lang-current-label">{{ t('Langue actuelle') }}</span>
               <span class="lang-current-name">{{ current_lang_label }}</span>
               <span class="lang-current-badge" data-no-i18n>{{ current_lang_code }}</span>
             </div>
@@ -579,32 +1104,32 @@
           {% if not current_user.is_authenticated or current_user.role != "vendor" %}
           <li class="nav-item">
             <a class="nav-link" href="{{ url_for('landing') }}">
-              <i class="bi bi-house-door-fill"></i><span>Accueil</span>
+              <i class="bi bi-house-door-fill"></i><span>{{ t('Accueil') }}</span>
             </a>
           </li>
           <li class="nav-item">
             <a class="nav-link" href="{{ url_for('shop.home') }}">
-              <i class="bi bi-shop"></i><span>Produits</span>
+              <i class="bi bi-shop"></i><span>{{ t('Produits') }}</span>
             </a>
           </li>
           <li class="nav-item">
             <a class="nav-link" href="{{ url_for('shops.list_shops') }}">
-              <i class="bi bi-shop-window"></i><span>Boutiques</span>
+              <i class="bi bi-shop-window"></i><span>{{ t('Boutiques') }}</span>
             </a>
           </li>
           <li class="nav-item">
             <a class="nav-link" href="{{ url_for('rentals.locations_home') }}">
-              <i class="bi bi-house-door"></i><span>Locations</span>
+              <i class="bi bi-house-door"></i><span>{{ t('Locations') }}</span>
             </a>
           </li>
           <li class="nav-item">
             <a class="nav-link" href="{{ url_for('delivery_special.delivery_form') }}">
-              <i class="bi bi-truck"></i><span>Livraison</span>
+              <i class="bi bi-truck"></i><span>{{ t('Livraison') }}</span>
             </a>
           </li>
           <li class="nav-item">
             <a class="nav-link" href="{{ url_for('global_search') }}">
-              <i class="bi bi-search"></i><span>Recherche</span>
+              <i class="bi bi-search"></i><span>{{ t('Recherche') }}</span>
             </a>
           </li>
           {% endif %}
@@ -617,26 +1142,26 @@
           <li class="nav-item">
             <a class="nav-link btn btn-outline-primary d-flex align-items-center"
                href="{{ url_for('admin_users.admin_dashboard') }}">
-              <i class="bi bi-shield-lock me-2"></i> Admin
+              <i class="bi bi-shield-lock me-2"></i> {{ t('Admin') }}
             </a>
           </li>
           {% endif %}
 
           <!-- Vendor Dropdown -->
           {% if current_user.is_authenticated and current_user.role == 'vendor' %}
-          <li class="nav-item dropdown">
-            <a class="nav-link vendor-btn dropdown-toggle" href="#" role="button"
-               data-bs-toggle="dropdown" aria-expanded="false">
-              <i class="fas fa-store"></i><span>Vendeur</span>
-            </a>
-            <ul class="dropdown-menu dropdown-menu-end">
-              <li>
-                <a class="dropdown-item" href="{{ url_for('vendor.manage_shop') }}">
-                  <i class="bi bi-shop-window text-primary"></i> Ma boutique
-                </a>
-              </li>
-              {% if vendor_allows_catalog %}
-              <li><h6 class="dropdown-header">Produits</h6></li>
+           <li class="nav-item dropdown">
+             <a class="nav-link vendor-btn dropdown-toggle" href="#" role="button"
+                data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="bi bi-shop-window"></i><span>{{ t('Vendeur') }}</span>
+             </a>
+             <ul class="dropdown-menu dropdown-menu-end">
+               <li>
+                 <a class="dropdown-item" href="{{ url_for('vendor.manage_shop') }}">
+                   <i class="bi bi-shop-window text-primary"></i> {{ t('Ma boutique') }}
+                 </a>
+               </li>
+               {% if vendor_allows_catalog %}
+               <li><h6 class="dropdown-header">{{ t('Produits') }}</h6></li>
               <li>
                 <a class="dropdown-item" href="{{ url_for('vendor.dashboard') }}">
                   <i class="bi bi-box-seam text-primary"></i> {{ vendor_catalog_label }}
@@ -647,43 +1172,43 @@
                   <i class="bi bi-grid-3x3-gap text-success"></i> {{ vendor_catalog_menu_label }}
                 </a>
               </li>
-              {% endif %}
-              {% if vendor_allows_products %}
-              <li><h6 class="dropdown-header">Ventes</h6></li>
-              <li>
-                <a class="dropdown-item" href="{{ url_for('vendor.earnings') }}">
-                  <i class="bi bi-currency-exchange text-success"></i> Encaissements
-                </a>
-              </li>
-              <li>
-                <a class="dropdown-item" href="{{ url_for('vendor.periods') }}">
-                  <i class="bi bi-calendar3 text-primary"></i> Périodes
-                </a>
-              </li>
-              <li>
-                <a class="dropdown-item" href="{{ url_for('vendor.security') }}">
-                  <i class="bi bi-shield-lock text-warning"></i> Sécurité historique
-                </a>
-              </li>
-              {% endif %}
-              {% if vendor_allows_location %}
-              <li><h6 class="dropdown-header">Location</h6></li>
-              <li>
-                <a class="dropdown-item" href="{{ url_for('rentals.owner_locations') }}">
-                  <i class="bi bi-house-door text-primary"></i> Mes locations
-                </a>
-              </li>
-              <li>
-                <a class="dropdown-item" href="{{ url_for('rentals.owner_locations_archives') }}">
-                  <i class="bi bi-clock-history text-secondary"></i> Historique location
-                </a>
-              </li>
-              <li>
-                <a class="dropdown-item" href="{{ url_for('rentals.owner_location_new') }}">
-                  <i class="bi bi-plus-circle text-success"></i> Nouvelle annonce
-                </a>
-              </li>
-              {% endif %}
+               {% endif %}
+               {% if vendor_allows_products %}
+               <li><h6 class="dropdown-header">{{ t('Ventes') }}</h6></li>
+               <li>
+                 <a class="dropdown-item" href="{{ url_for('vendor.earnings') }}">
+                   <i class="bi bi-currency-exchange text-success"></i> {{ t('Encaissements') }}
+                 </a>
+               </li>
+               <li>
+                 <a class="dropdown-item" href="{{ url_for('vendor.periods') }}">
+                   <i class="bi bi-calendar3 text-primary"></i> {{ t('Périodes') }}
+                 </a>
+               </li>
+               <li>
+                 <a class="dropdown-item" href="{{ url_for('vendor.security') }}">
+                   <i class="bi bi-shield-lock text-warning"></i> {{ t('Sécurité historique') }}
+                 </a>
+               </li>
+               {% endif %}
+               {% if vendor_allows_location %}
+               <li><h6 class="dropdown-header">{{ t('Location') }}</h6></li>
+               <li>
+                 <a class="dropdown-item" href="{{ url_for('rentals.owner_locations') }}">
+                   <i class="bi bi-house-door text-primary"></i> {{ t('Mes locations') }}
+                 </a>
+               </li>
+               <li>
+                 <a class="dropdown-item" href="{{ url_for('rentals.owner_locations_archives') }}">
+                   <i class="bi bi-clock-history text-secondary"></i> {{ t('Historique location') }}
+                 </a>
+               </li>
+               <li>
+                 <a class="dropdown-item" href="{{ url_for('rentals.owner_location_new') }}">
+                   <i class="bi bi-plus-circle text-success"></i> {{ t('Nouvelle annonce') }}
+                 </a>
+               </li>
+               {% endif %}
             </ul>
           </li>
           {% endif %}
@@ -691,13 +1216,13 @@
           <li class="nav-item dropdown lang-switcher">
             <a class="nav-link lang-pill dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
               <span class="lang-icon"><i class="bi bi-translate"></i></span>
-              <span class="lang-title d-none d-xl-inline">Langue</span>
+              <span class="lang-title d-none d-xl-inline">{{ t('Langue') }}</span>
               <span class="lang-badge" data-no-i18n>{{ current_lang_code }}</span>
             </a>
             <ul class="dropdown-menu dropdown-menu-end lang-menu">
               <li class="px-3 pb-2">
                 <div class="lang-current">
-                  <span class="lang-current-label">Actuelle</span>
+                  <span class="lang-current-label">{{ t('Actuelle') }}</span>
                   <span class="lang-current-name">{{ current_lang_label }}</span>
                   <span class="lang-current-badge" data-no-i18n>{{ current_lang_code }}</span>
                 </div>
@@ -754,15 +1279,15 @@
                   <strong>{{ current_user.username }}</strong>
                   <div class="small mt-1">
                     {% if current_user.role == 'admin' %}
-                      <span class="badge bg-danger">Admin</span>
+                      <span class="badge bg-danger">{{ t('Admin') }}</span>
                     {% elif current_user.role == 'manager' %}
-                      <span class="badge bg-warning text-dark">Gestionnaire</span>
+                      <span class="badge bg-warning text-dark">{{ t('Gestionnaire') }}</span>
                     {% elif current_user.role == 'vendor' %}
-                      <span class="badge bg-info">Vendeur</span>
+                      <span class="badge bg-info">{{ t('Vendeur') }}</span>
                     {% elif current_user.role == 'courier' %}
-                      <span class="badge bg-primary">Livreur</span>
+                      <span class="badge bg-primary">{{ t('Livreur') }}</span>
                     {% else %}
-                      <span class="badge bg-secondary">Utilisateur</span>
+                      <span class="badge bg-secondary">{{ t('Utilisateur') }}</span>
                     {% endif %}
                   </div>
                 </div>
@@ -773,7 +1298,7 @@
                 <form method="post" action="{{ url_for('auth.logout') }}" class="d-inline">
                   {% include "partials/_csrf.html" %}
                   <button type="submit" class="dropdown-item text-danger">
-                    <i class="bi bi-box-arrow-right"></i> Déconnexion
+                    <i class="bi bi-box-arrow-right"></i> {{ t('Déconnexion') }}
                   </button>
                 </form>
               </li>
@@ -784,7 +1309,7 @@
           {% else %}
           <li class="nav-item">
             <a class="nav-link" href="{{ url_for('auth.login') }}">
-              <i class="bi bi-box-arrow-in-right"></i><span>Connexion</span>
+              <i class="bi bi-box-arrow-in-right"></i><span>{{ t('Connexion') }}</span>
             </a>
           </li>
           {% endif %}
@@ -795,7 +1320,7 @@
           <div class="input-group">
             <span class="input-group-text"><i class="bi bi-search"></i></span>
             <input class="form-control" name="q" type="search"
-                   placeholder="Rechercher..." aria-label="Rechercher">
+                   placeholder="{{ t('Rechercher...') }}" aria-label="{{ t('Rechercher') }}">
           </div>
         </form>
       </div>
@@ -805,32 +1330,32 @@
        id="drawerOverlay"
        aria-hidden="true"></div>
 
-  <div id="offlineBanner" class="offline-banner" role="status" aria-live="polite">Hors connexion - mode lecture</div>
+  <div id="offlineBanner" class="offline-banner" role="status" aria-live="polite">{{ t('Hors connexion - mode lecture') }}</div>
   <form id="langSwitchForm" method="post" class="d-none" aria-hidden="true">
     {% include "partials/_csrf.html" %}
     <input type="hidden" name="next" id="langSwitchNext" value="{{ request.full_path if request else '/' }}">
   </form>
 
   {% if home_tabs_enabled %}
-  <nav class="home-bottom-tabs bm-home-tabs d-lg-none" data-home-bottom-tabs aria-label="Navigation principale mobile">
+  <nav class="home-bottom-tabs bm-home-tabs d-lg-none" data-home-bottom-tabs aria-label="{{ t('Navigation principale mobile') }}">
     <a href="{{ url_for('landing') }}" class="home-tab bm-home-tab {{ 'is-active' if request.endpoint == 'landing' else '' }}" data-tab-key="home">
       <i class="bi bi-house-door-fill"></i>
-      <span>Accueil</span>
+      <span>{{ t('Accueil') }}</span>
     </a>
     <a href="{{ url_for('global_search') }}" class="home-tab bm-home-tab {{ 'is-active' if request.endpoint == 'global_search' else '' }}" data-tab-key="search">
       <i class="bi bi-search"></i>
-      <span>Recherche</span>
+      <span>{{ t('Recherche') }}</span>
     </a>
     <a href="{{ url_for('delivery_special.delivery_form') }}" class="home-tab bm-home-tab {{ 'is-active' if request.endpoint == 'delivery_special.delivery_form' else '' }}" data-tab-key="delivery">
       <i class="bi bi-truck"></i>
-      <span>Livraison express</span>
+      <span>{{ t('Livraison express') }}</span>
     </a>
   </nav>
   {% endif %}
 
-  <button class="back-fab" type="button" data-fallback="{{ back_fallback }}" data-back-scope="{{ back_scope }}" data-back-root="{{ '1' if back_is_root else '0' }}" aria-label="Retour">
+  <button class="back-fab" type="button" data-fallback="{{ back_fallback }}" data-back-scope="{{ back_scope }}" data-back-root="{{ '1' if back_is_root else '0' }}" aria-label="{{ t('Retour') }}">
     <i class="bi bi-arrow-left"></i>
-    <span>Retour</span>
+    <span>{{ t('Retour') }}</span>
   </button>
 
   <!-- MAIN CONTENT -->
@@ -851,7 +1376,7 @@
                 </i>
                 <div>{{ msg }}</div>
               </div>
-              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="{{ t('Fermer') }}"></button>
             </div>
             {% endfor %}
           {% endif %}
@@ -877,7 +1402,7 @@
             <span>{{ config.SITE_NAME }}</span>
           </div>
           <p class="text-light opacity-75 mb-3" style="font-weight: 500;">
-            Livraison rapide  Rabat & Salé-Témara-Kénitra avec paiement  la livraison.
+            {{ t('Livraison rapide à Rabat & Salé-Témara-Kénitra avec paiement à la livraison.') }}
           </p>
           <div class="footer-social">
             <a href="https://www.facebook.com/share/v/1Aokzj7kPg/" aria-label="Facebook" target="_blank" rel="noopener">
@@ -891,7 +1416,7 @@
 
         <!-- Contact Info -->
         <div class="col-lg-4 col-md-6">
-          <h6>Contact</h6>
+          <h6>{{ t('Contact') }}</h6>
           <div class="d-flex flex-column gap-2">
             <div class="d-flex align-items-center gap-2 text-light opacity-75">
               <i class="bi bi-geo-alt"></i>
@@ -899,11 +1424,11 @@
             </div>
             <div class="d-flex align-items-center gap-2 text-light opacity-75">
               <i class="bi bi-clock"></i>
-              <span>Lun - Dim: 8h - 2h</span>
+              <span>{{ t('Lun - Dim: 8h - 2h') }}</span>
             </div>
             <div class="d-flex align-items-center gap-2 text-light opacity-75">
               <i class="bi bi-truck"></i>
-              <span>Livraison 24h/24</span>
+              <span>{{ t('Livraison 24h/24') }}</span>
             </div>
           </div>
         </div>
@@ -913,7 +1438,7 @@
       <div class="row mt-4 pt-3 border-top border-secondary">
         <div class="col-12 text-center">
           <p class="text-light opacity-75 mb-0 small">
-            &copy; 2026 {{ config.SITE_NAME }} - Tous droits réservés.
+            &copy; 2026 {{ config.SITE_NAME }} - {{ t('Tous droits réservés.') }}
           </p>
         </div>
       </div>
@@ -924,39 +1449,39 @@
   <!-- Install Banner (soft) -->
   <div id="installBanner" class="pwa-banner hidden" role="status" aria-live="polite">
     <div class="pwa-banner__text">
-      <strong>Installez Baba Market</strong>
-      <span>Accès instantané. Moins d'attente. Plus efficace.</span>
+      <strong>{{ t('Installez Baba Market') }}</strong>
+      <span>{{ t("Accès instantané. Moins d'attente. Plus efficace.") }}</span>
     </div>
     <div class="pwa-banner__actions">
-      <button id="pwaBannerInstall" class="pwa-btn primary" type="button">Installer</button>
-      <button id="pwaHowBtn" class="pwa-btn ghost hidden" type="button">Comment installer</button>
-      <button id="pwaBannerLater" class="pwa-btn ghost" type="button">Plus tard</button>
+      <button id="pwaBannerInstall" class="pwa-btn primary" type="button">{{ t('Installer') }}</button>
+      <button id="pwaHowBtn" class="pwa-btn ghost hidden" type="button">{{ t('Comment installer') }}</button>
+      <button id="pwaBannerLater" class="pwa-btn ghost" type="button">{{ t('Plus tard') }}</button>
     </div>
   </div>
 
-  <div id="androidInstallBar" class="install-bar hidden" role="dialog" aria-label="Installer Baba Market">
+  <div id="androidInstallBar" class="install-bar hidden" role="dialog" aria-label="{{ t('Installer Baba Market') }}">
     <div class="install-bar__text">
-      <div class="install-bar__title">📲 Installez Baba Market</div>
-      <div class="install-bar__sub">Accès instantané, plus rapide, plus fluide.</div>
+      <div class="install-bar__title">📲 {{ t('Installez Baba Market') }}</div>
+      <div class="install-bar__sub">{{ t('Accès instantané, plus rapide, plus fluide.') }}</div>
     </div>
 
-    <button id="androidInstallBtn" class="install-btn" type="button">Installer maintenant</button>
-    <button id="androidInstallClose" class="install-close" type="button" aria-label="Fermer">✕</button>
+    <button id="androidInstallBtn" class="install-btn" type="button">{{ t('Installer maintenant') }}</button>
+    <button id="androidInstallClose" class="install-close" type="button" aria-label="{{ t('Fermer') }}">✕</button>
   </div>
 
   <!-- Install Popup (1/day) -->
   <div id="installModal" class="pwa-modal hidden" role="dialog" aria-modal="true" aria-labelledby="pwaInstallTitle">
     <div class="pwa-modal__card">
-      <h3 id="pwaInstallTitle">📲 Accédez à Baba Market en un seul clic</h3>
-      <p class="pwa-modal__value">Accès instantané. Moins d'attente. Plus efficace.</p>
-      <p>Installez l'application sur votre écran d'accueil pour un accès plus rapide et plus fluide.</p>
-      <p class="pwa-modal__steps-lead">Installation en 10 secondes 👇</p>
+      <h3 id="pwaInstallTitle">📲 {{ t('Accédez à Baba Market en un seul clic') }}</h3>
+      <p class="pwa-modal__value">{{ t("Accès instantané. Moins d'attente. Plus efficace.") }}</p>
+      <p>{{ t("Installez l'application sur votre écran d'accueil pour un accès plus rapide et plus fluide.") }}</p>
+      <p class="pwa-modal__steps-lead">{{ t('Installation en 10 secondes 👇') }}</p>
 
       <div id="iosHint" class="pwa-ios-hint hidden">
-        <p class="pwa-ios-title">🍏 Sur iPhone (Safari) :</p>
+        <p class="pwa-ios-title">🍏 {{ t('Sur iPhone (Safari) :') }}</p>
         <ol class="pwa-ios-steps">
           <li>
-            Dans Safari, appuyez sur le bouton
+            {{ t('Dans Safari, appuyez sur le bouton') }}
             <span class="pwa-share-inline">
               <span class="pwa-share-icon" aria-hidden="true">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -965,20 +1490,20 @@
                   <path d="M5 13v6h14v-6"/>
                 </svg>
               </span>
-              <b>Partager</b>
+              <b>{{ t('Partager') }}</b>
             </span>
-            (icône carré avec flèche vers le haut)
+            {{ t('(icône carré avec flèche vers le haut)') }}
           </li>
-          <li>Sélectionnez <b>➕ Sur l'écran d'accueil</b></li>
-          <li>Appuyez sur <b>✅ Ajouter</b></li>
+          <li>{{ t('Sélectionnez') }} <b>➕ {{ t("Sur l'écran d'accueil") }}</b></li>
+          <li>{{ t('Appuyez sur') }} <b>✅ {{ t('Ajouter') }}</b></li>
         </ol>
-        <p class="pwa-ios-end">Baba Market sera accessible directement depuis votre téléphone.</p>
+        <p class="pwa-ios-end">{{ t('Baba Market sera accessible directement depuis votre téléphone.') }}</p>
       </div>
 
       <div class="pwa-modal__actions">
-        <button id="pwaModalInstall" class="pwa-btn primary" type="button">Installer</button>
-        <button id="pwaModalLater" class="pwa-btn ghost" type="button">Plus tard</button>
-        <button id="pwaModalToday" class="pwa-btn subtle" type="button">Ne plus afficher aujourd'hui</button>
+        <button id="pwaModalInstall" class="pwa-btn primary" type="button">{{ t('Installer') }}</button>
+        <button id="pwaModalLater" class="pwa-btn ghost" type="button">{{ t('Plus tard') }}</button>
+        <button id="pwaModalToday" class="pwa-btn subtle" type="button">{{ t("Ne plus afficher aujourd'hui") }}</button>
       </div>
     </div>
   </div>
@@ -986,8 +1511,30 @@
   <!-- Scripts -->
   <script src="{{ url_for('static', filename='vendor/bootstrap/5.3.3/js/bootstrap.bundle.min.js', v=app_static_version) }}"></script>
 
-    <script src="{{ url_for('static', filename='js/ui_shell.js', v=app_static_version) }}"></script>
+  <script src="{{ url_for('static', filename='js/ui_shell.js', v=app_static_version) }}"></script>
 
   {% block scripts %}{% endblock %}
+  {% set public_support_endpoints = [
+    'auth.login',
+    'cart.view',
+    'cart.checkout',
+    'cart.track',
+    'cart.track_by_phone',
+    'cart.my_orders',
+    'delivery_special.delivery_form',
+    'delivery_special.delivery_form_get',
+    'delivery_special.delivery_form_post'
+  ] %}
+  {% set has_special_role = current_user.is_authenticated and current_user.role in ['vendor', 'courier', 'admin', 'manager'] %}
+  {% set client_support_visible = (
+    current_user.is_authenticated and not has_special_role
+  ) or (((request.endpoint or '') in public_support_endpoints) and not has_special_role) %}
+  {% if client_support_visible %}
+  {% set report_issue_endpoint = 'auth.support_whatsapp' %}
+  {% set report_issue_page_name = 'Espace client' %}
+  {% set report_issue_scope_label = 'Support client' %}
+  {% set report_issue_scope_key = 'client' %}
+  {% include "partials/_support_issue_fab.html" %}
+  {% endif %}
 </body>
 </html>

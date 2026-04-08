@@ -1,0 +1,9 @@
+<div id="shopListingFragment"
+     data-listing-fragment="1"
+     data-total="{{ pagination.total if pagination else 0 }}"
+     data-pages="{{ pagination.pages if pagination else 1 }}"
+     data-page="{{ pagination.page if pagination else 1 }}">
+  <div id="productsContainer" data-ajax-listing data-ajax-scroll="preserve">
+    {% include "shop/_home_listing_markup.html" %}
+  </div>
+</div>

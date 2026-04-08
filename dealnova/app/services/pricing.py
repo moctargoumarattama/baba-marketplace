@@ -8,6 +8,7 @@ from ..models.platform_settings import PlatformSettings
 from ..models.promo import Promo
 
 _PROMO_UNSET = object()
+_MONEY_QUANTUM = Decimal("0.01")
 
 
 def _safe_session_rollback() -> None:
@@ -66,30 +67,113 @@ def _to_decimal(value) -> Decimal:
         return Decimal("0")
 
 
+def money_decimal(value) -> Decimal:
+    return _to_decimal(value).quantize(_MONEY_QUANTUM, rounding=ROUND_HALF_UP)
+
+
+def parse_money_input(value, *, allow_zero: bool = True) -> Decimal:
+    raw = str(value or "").strip().replace(",", ".")
+    if not raw:
+        raise ValueError("money_required")
+
+    try:
+        amount = Decimal(raw)
+    except (InvalidOperation, TypeError, ValueError) as exc:
+        raise ValueError("money_invalid") from exc
+
+    amount = amount.quantize(_MONEY_QUANTUM, rounding=ROUND_HALF_UP)
+    if amount < 0 or (not allow_zero and amount <= 0):
+        raise ValueError("money_invalid")
+    return amount
+
+
 def _money(value) -> float:
-    return float(_to_decimal(value).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+    return float(money_decimal(value))
 
 
-def calculate_promo_price(product, promo=_PROMO_UNSET):
+def money_to_cents(value) -> int:
+    amount = money_decimal(value)
+    return int((amount * 100).to_integral_value(rounding=ROUND_HALF_UP))
+
+
+def cents_to_money(value) -> float:
+    return float((Decimal(int(value or 0)) / Decimal("100")).quantize(_MONEY_QUANTUM, rounding=ROUND_HALF_UP))
+
+
+def dh_to_cents(value) -> int:
+    return money_to_cents(value)
+
+
+def product_base_cents(product) -> int:
+    direct_cents = getattr(product, "price_cents", None)
+    if direct_cents is not None:
+        try:
+            return max(0, int(direct_cents))
+        except (TypeError, ValueError):
+            pass
+
+    stored_cents = getattr(product, "price_cents_value", None)
+    if stored_cents is not None:
+        try:
+            return max(0, int(stored_cents))
+        except (TypeError, ValueError):
+            pass
+
+    return money_to_cents(getattr(product, "price", 0) or 0)
+
+
+def set_product_price(product, value) -> int:
+    cents = money_to_cents(parse_money_input(value, allow_zero=False))
+    if hasattr(product, "set_price_amount"):
+        product.price_cents = cents
+        return cents
+
+    setattr(product, "price", cents_to_money(cents))
+    if hasattr(product, "price_cents_value"):
+        setattr(product, "price_cents_value", cents)
+    return cents
+
+
+def base_price_decimal(product) -> Decimal:
+    return money_decimal(Decimal(product_base_cents(product)) / Decimal("100"))
+
+
+def base_price_cents(product) -> int:
+    return product_base_cents(product)
+
+
+def calculate_promo_price_decimal(product, promo=_PROMO_UNSET) -> Decimal:
     if promo is _PROMO_UNSET:
         promo = get_active_promo(product.id)
 
-    price = _to_decimal(getattr(product, "price", 0) or 0)
+    price = base_price_decimal(product)
     if promo and not _promo_is_active(promo):
         promo = None
 
     if promo:
-        promo_val = _to_decimal(getattr(promo, "value", 0) or 0)
+        promo_val = money_decimal(getattr(promo, "value", 0) or 0)
         if getattr(promo, "type", "") == "percentage":
             discounted = price - (price * promo_val / Decimal("100"))
-            return _money(max(discounted, Decimal("0")))
+            return money_decimal(max(discounted, Decimal("0")))
         if getattr(promo, "type", "") == "fixed":
-            return _money(max(price - promo_val, Decimal("0")))
-    return _money(price)
+            return money_decimal(max(price - promo_val, Decimal("0")))
+    return money_decimal(price)
+
+
+def calculate_promo_price(product, promo=_PROMO_UNSET):
+    return _money(calculate_promo_price_decimal(product, promo=promo))
 
 
 def prix_final(product, promo=None):
     return calculate_promo_price(product, promo=promo)
+
+
+def final_price_decimal(product, promo=None) -> Decimal:
+    return calculate_promo_price_decimal(product, promo=promo)
+
+
+def final_price_cents(product, promo=None) -> int:
+    return money_to_cents(final_price_decimal(product, promo=promo))
 
 
 def compute_commission(_total):

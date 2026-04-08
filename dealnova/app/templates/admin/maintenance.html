@@ -459,7 +459,7 @@
         <span>{{ last_run_label }}</span>
       </div>
       <div class="hero-kpi">
-        <strong>Total 500 (24h)</strong>
+        <strong>Total 500 ({{ errors_block.window_days }} jours)</strong>
         <span>{{ errors_block.total_500_last_24h }}</span>
       </div>
       <div class="hero-kpi">
@@ -529,6 +529,7 @@
       <div class="report-item"><strong>Cache vide</strong><span>{{ 'oui' if report_cleanup.get('cache_cleared') else 'non' }}</span></div>
       <div class="report-item"><strong>Sessions supprimees</strong><span>{{ report_cleanup.get('sessions_deleted', 'Non disponible') if report_cleanup.get('sessions_cleaned') else 'non supporte' }}</span></div>
       <div class="report-item"><strong>Erreurs 500 purgees</strong><span>{{ report_cleanup.get('error_logs_purged', 0) }}</span></div>
+      <div class="report-item"><strong>Anciens quotas supprimes</strong><span>{{ report_cleanup.get('rate_limit_states_purged', 0) }}</span></div>
     </div>
 
     {% set cleanup_errors = report_cleanup.get('errors', []) %}
@@ -842,23 +843,23 @@
   <section class="card-shell">
     <div class="section-head">
       <div>
-        <h5 class="section-title"><i class="bi bi-exclamation-triangle"></i> Erreurs recentes (24h)</h5>
+        <h5 class="section-title"><i class="bi bi-exclamation-triangle"></i> Erreurs recentes ({{ errors_block.window_days }} jours)</h5>
         <p class="section-sub">Journal 500 pagine avec actions de purge securisees.</p>
       </div>
       {% if errors_block.available and errors_block.get('items') %}
-      <form method="post" action="{{ url_for('admin.maintenance_errors_purge') }}" data-confirm-submit="Supprimer toutes les erreurs 500 des 24h ?" class="d-inline-flex align-items-center gap-2">
+      <form method="post" action="{{ url_for('admin.maintenance_errors_purge') }}" data-confirm-submit="Supprimer toutes les erreurs 500 des {{ errors_block.window_days }} jours ?" class="d-inline-flex align-items-center gap-2">
         {% include "admin/partials/_csrf.html" %}
         <input type="hidden" name="days" value="{{ days }}">
         <input type="hidden" name="errors_page" value="{{ errors_block.page or 1 }}">
         <button type="submit" class="btn btn-sm btn-outline-danger">
-          <i class="bi bi-trash3"></i> Supprimer toutes (24h)
+          <i class="bi bi-trash3"></i> Supprimer toutes ({{ errors_block.window_days }} jours)
         </button>
       </form>
       {% endif %}
     </div>
     <div class="report-list">
       <div class="report-item">
-        <strong>Total 500 (24h)</strong>
+        <strong>Total 500 ({{ errors_block.window_days }} jours)</strong>
         <span>{{ errors_block.total_500_last_24h }}</span>
       </div>
     </div>
@@ -883,7 +884,7 @@
                   <td data-label="Methode">{{ err.method or 'Non disponible' }}</td>
                   <td data-label="Route"><code>{{ err.path or 'Non disponible' }}</code></td>
                   <td data-label="Code">{{ err.status_code or 'Non disponible' }}</td>
-                  <td data-label="Message">{{ err.short_message or 'Non disponible' }}</td>
+                  <td data-label="Message">{{ err.display_short_message or err.short_message or 'Non disponible' }}</td>
                   <td data-label="Action" class="text-end">
                     <form method="post" action="{{ url_for('admin.maintenance_error_delete', error_id=err.id) }}" data-confirm-submit="Supprimer cette erreur ?" class="d-inline">
                       {% include "admin/partials/_csrf.html" %}
@@ -922,7 +923,7 @@
           </nav>
         {% endif %}
       {% else %}
-        <div class="alert alert-light border mt-3 mb-0">Aucune erreur 500 sur les 24 dernieres heures.</div>
+        <div class="alert alert-light border mt-3 mb-0">Aucune erreur 500 sur les {{ errors_block.window_days }} derniers jours.</div>
       {% endif %}
     {% else %}
       <div class="alert alert-secondary mt-3 mb-0">{{ errors_block.note or 'Non disponible (source de logs indisponible)' }}</div>

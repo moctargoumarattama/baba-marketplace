@@ -17,6 +17,46 @@
   const SCROLL_KEY_PREFIX = "__ajax_scroll__:";
   let pendingTrigger = null;
 
+  function hardNavigate(url) {
+    const targetUrl = String(url || "").trim();
+    if (!targetUrl) return;
+    if (window.BMPageNav && typeof window.BMPageNav.navigate === "function") {
+      window.BMPageNav.navigate(targetUrl);
+      return;
+    }
+    window.location.assign(targetUrl);
+  }
+
+  function getCoreDomApi() {
+    return window.BMCoreDom || {};
+  }
+
+  function createRequestSeq() {
+    const coreDomApi = getCoreDomApi();
+    if (typeof coreDomApi.makeRequestSeq === "function") {
+      return coreDomApi.makeRequestSeq();
+    }
+    if (
+      window.BMAjaxGuard &&
+      typeof window.BMAjaxGuard.makeRequestSeq === "function"
+    ) {
+      return window.BMAjaxGuard.makeRequestSeq();
+    }
+    return (function () {
+      // KEEP_FALLBACK: preserves ordering guard if ajax core guard is missing.
+      let latest = 0;
+      return {
+        next: function () {
+          latest += 1;
+          return latest;
+        },
+        isLatest: function (id) {
+          return Number(id) === latest;
+        },
+      };
+    })();
+  }
+
   function qs(sel, root) {
     return (root || document).querySelector(sel);
   }
@@ -91,12 +131,19 @@
   }
 
   async function fetchHtml(url, signal) {
-    if (!window.BMAjaxFetch || typeof window.BMAjaxFetch.requestText !== "function") {
+    const coreDomApi = getCoreDomApi();
+    const requestText =
+      typeof coreDomApi.requestText === "function"
+        ? coreDomApi.requestText
+        : window.BMAjaxFetch && typeof window.BMAjaxFetch.requestText === "function"
+          ? window.BMAjaxFetch.requestText
+          : null;
+    if (!requestText) {
       // Removed fallback because ajax core is guaranteed in base/admin/vendor templates.
       throw new Error("missing_ajax_core");
     }
 
-    const result = await window.BMAjaxFetch.requestText(url, {
+    const result = await requestText(url, {
       method: "GET",
       headers: { "X-Requested-With": "XMLHttpRequest" },
       credentials: "same-origin",
@@ -177,22 +224,7 @@
   }
 
   let inflightController = null;
-  const requestSeq = (
-    window.BMAjaxGuard &&
-    typeof window.BMAjaxGuard.makeRequestSeq === "function"
-  ) ? window.BMAjaxGuard.makeRequestSeq() : (function () {
-    // KEEP_FALLBACK: preserves ordering guard if ajax core guard is missing.
-    let latest = 0;
-    return {
-      next: function () {
-        latest += 1;
-        return latest;
-      },
-      isLatest: function (id) {
-        return Number(id) === latest;
-      },
-    };
-  })();
+  const requestSeq = createRequestSeq();
 
   async function navigate(url, opts) {
     const options = opts || {};
@@ -203,13 +235,13 @@
 
     if (!sameOrigin(url)) {
       saveScrollForNextNavigation(url, startY);
-      window.location.href = url;
+      hardNavigate(url);
       return false;
     }
 
     if (!isAjaxPage()) {
       saveScrollForNextNavigation(url, startY);
-      window.location.href = url;
+      hardNavigate(url);
       return false;
     }
 
@@ -243,7 +275,7 @@
       if (err && err.name === "AbortError") return false;
       console.error("AJAX pagination failed, fallback:", err);
       saveScrollForNextNavigation(url, startY);
-      window.location.href = url;
+      hardNavigate(url);
       return false;
     } finally {
       if (requestSeq.isLatest(requestId)) {

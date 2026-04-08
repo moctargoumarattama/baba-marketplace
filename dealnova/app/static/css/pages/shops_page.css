@@ -32,6 +32,27 @@
     text-align: center;
   }
 
+  .shops-kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.42rem;
+    margin-bottom: 0.72rem;
+    padding: 0.42rem 0.8rem;
+    border-radius: 999px;
+    background: linear-gradient(135deg, rgba(16,185,129,0.12), rgba(5,150,105,0.08));
+    border: 1px solid rgba(16, 185, 129, 0.22);
+    color: #047857;
+    font-size: 0.82rem;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    box-shadow: 0 8px 18px rgba(16, 185, 129, 0.08);
+  }
+
+  .shops-kicker i {
+    font-size: 0.9rem;
+  }
+
   .shops-title {
     font-size: 2.5rem;
     font-weight: 900;
@@ -225,28 +246,31 @@
 
   /* ===== BOUTON RETOUR ===== */
   .btn-back-container {
-    text-align: center;
-    margin-bottom: 2rem;
+    display: flex;
+    justify-content: center;
+    margin-bottom: 1.5rem;
   }
 
   .btn-back {
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.75rem 1.5rem;
-    background: transparent;
-    border: 2px solid var(--border-color);
-    color: var(--text-secondary);
-    border-radius: 10px;
-    font-weight: 600;
+    padding: 0.8rem 1.2rem;
+    background: linear-gradient(135deg, rgba(16,185,129,0.14), rgba(255,255,255,0.96));
+    border: 1px solid rgba(16, 185, 129, 0.26);
+    color: #065f46;
+    border-radius: 999px;
+    font-weight: 800;
     text-decoration: none;
     transition: all 0.3s ease;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
   }
 
   .btn-back:hover {
     border-color: var(--primary-green);
     color: var(--primary-green);
     transform: translateY(-2px);
+    box-shadow: 0 14px 28px rgba(16, 185, 129, 0.18);
   }
 
   /* ===== GRILLE DE BOUTIQUES ===== */
@@ -339,14 +363,16 @@
 
   /* ===== CARTE BOUTIQUE ===== */
   .shop-card {
+    --shop-card-radius: 16px;
     background: var(--card-bg);
-    border-radius: 16px;
+    border-radius: var(--shop-card-radius);
     overflow: hidden;
     box-shadow: var(--shadow-md);
     transition: all 0.3s ease;
     border: 1px solid var(--border-color);
     height: 100%;
     position: relative;
+    isolation: isolate;
   }
 
   .shop-card:hover {
@@ -360,7 +386,7 @@
     height: 160px;
     background: linear-gradient(135deg, var(--primary-green), var(--accent-purple));
     position: relative;
-    border-radius: 16px 16px 0 0;
+    border-radius: var(--shop-card-radius) var(--shop-card-radius) 0 0;
   }
 
   /* Banner as hero image */
@@ -368,8 +394,9 @@
     height: 170px;
     background: linear-gradient(135deg, var(--primary-green), var(--accent-purple));
     position: relative;
-    border-radius: 16px 16px 0 0;
+    border-radius: var(--shop-card-radius) var(--shop-card-radius) 0 0;
     overflow: hidden;
+    isolation: isolate;
   }
 
   .shop-banner-image {
@@ -379,21 +406,25 @@
     object-position: center;
     background: linear-gradient(135deg, #eef2ff, #f8fafc);
     display: block;
+    border-top-left-radius: inherit;
+    border-top-right-radius: inherit;
+    transform: translateZ(0);
   }
 
   .shop-banner-image.is-logo-banner {
-    object-fit: contain;
+    object-fit: cover;
     object-position: center;
-    padding: 0.7rem;
-    background:
-      radial-gradient(circle at top left, rgba(255,255,255,0.32), transparent 38%),
-      linear-gradient(135deg, rgba(15, 23, 42, 0.06), rgba(15, 23, 42, 0.18));
+    padding: 0;
+    background: linear-gradient(135deg, #eef2ff, #f8fafc);
   }
 
   .shop-banner-overlay {
     position: absolute;
     inset: 0;
     background: linear-gradient(180deg, rgba(15,23,42,0.02), rgba(15,23,42,0.24));
+    border-top-left-radius: inherit;
+    border-top-right-radius: inherit;
+    pointer-events: none;
   }
 
   .shop-banner-initials {
@@ -407,6 +438,8 @@
     color: white;
     text-transform: uppercase;
     letter-spacing: 0.05em;
+    border-top-left-radius: inherit;
+    border-top-right-radius: inherit;
   }
 
   /* Badge vérifié */
@@ -844,79 +877,233 @@
   /* Mobile large */
   @media (max-width: 768px) {
     .shops-container {
-      padding: 0.75rem;
+      padding: 0.68rem;
     }
     
     .shops-header {
-      margin-bottom: 1.5rem;
+      margin-bottom: 1.08rem;
+    }
+
+    .shops-kicker {
+      margin-bottom: 0.56rem;
+      padding: 0.34rem 0.68rem;
+      font-size: 0.72rem;
     }
     
     .shops-title {
-      font-size: 1.75rem;
+      font-size: 1.52rem;
+      margin-bottom: 0.32rem;
     }
     
     .shops-subtitle {
-      font-size: 1rem;
+      font-size: 0.9rem;
+      margin-bottom: 0.82rem;
+    }
+
+    .search-container-shops {
+      margin: 0 auto 1.2rem;
+    }
+
+    .search-wrapper-shops {
+      border-radius: 24px;
+    }
+
+    .search-input-shops {
+      padding: 0.82rem 1rem;
+      font-size: 16px;
+    }
+
+    .search-btn-shops {
+      top: 4px;
+      right: 4px;
+      padding: 0.66rem 1rem;
+      font-size: 0.84rem;
+      gap: 0.36rem;
+    }
+
+    .kind-intro {
+      margin-bottom: 0.82rem;
+      padding: 0.6rem 0.78rem;
+      font-size: 0.86rem;
+      border-radius: 12px;
+    }
+
+    .kind-filter-wrap {
+      margin: 0 auto 1.15rem;
+    }
+
+    .kind-filter {
+      gap: 0.52rem;
+    }
+
+    .kind-chip {
+      padding: 0.62rem 0.88rem;
+      font-size: 0.82rem;
+      gap: 0.42rem;
+    }
+
+    .kind-all-label {
+      margin-top: 0.5rem;
+      font-size: 0.76rem;
+    }
+
+    .btn-back-container {
+      margin-bottom: 1.1rem;
+    }
+
+    .btn-back {
+      padding: 0.58rem 0.96rem;
+      font-size: 0.82rem;
+      border-radius: 999px;
     }
     
     /* Grille - 2 par ligne */
     .shops-grid {
-      grid-template-columns: repeat(2, 1fr);
-      gap: 0.75rem;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.62rem;
     }
     
-    .shop-banner { height: 140px; }
+    .shop-banner { height: 128px; }
     
-    .shop-card-content { padding: 12px; }
+    .shop-card {
+      border-radius: 14px;
+    }
+
+    .shop-card-content { padding: 11px; }
     
     .shop-name {
-      font-size: 1rem;
+      font-size: 0.94rem;
+      margin-bottom: 0.28rem;
     }
     
-    .shop-description { font-size: 0.8rem; height: 1.4em; }
+    .shop-description { font-size: 0.76rem; margin-bottom: 0.62rem; height: 1.32em; }
+
+    .shop-type-badges {
+      gap: 0.32rem;
+      margin-bottom: 0.62rem;
+    }
+
+    .type-badge {
+      padding: 0.24rem 0.48rem;
+      font-size: 0.7rem;
+    }
     
-    .shop-stats { padding: 0.55rem; gap: 0.5rem; }
+    .shop-stats { padding: 0.5rem; gap: 0.36rem; margin-bottom: 0.72rem; border-radius: 9px; }
     
-    .stat-number { font-size: 0.95rem; }
+    .stat-number { font-size: 0.88rem; }
     
-    .stat-label { font-size: 0.7rem; }
+    .stat-label { font-size: 0.66rem; }
     
-    .shop-contact { padding: 0.5rem; font-size: 0.78rem; }
+    .shop-contact { padding: 0.42rem 0.52rem; font-size: 0.72rem; margin-bottom: 0.68rem; }
+
+    .shop-map-link {
+      margin-bottom: 0.68rem;
+      padding: 0.58rem 0.68rem;
+      font-size: 0.76rem;
+      border-radius: 10px;
+    }
     
-    .shop-visit-btn { padding: 0.6rem; font-size: 0.85rem; }
+    .shop-visit-btn { padding: 0.58rem 0.64rem; font-size: 0.78rem; border-radius: 9px; }
     
-    .verified-badge { font-size: 0.7rem; padding: 0.25rem 0.5rem; }
-    .open-badge { font-size: 0.7rem; padding: 0.25rem 0.5rem; }
+    .verified-badge,
+    .open-badge {
+      font-size: 0.64rem;
+      padding: 0.22rem 0.44rem;
+      top: 10px;
+    }
+
+    .verified-badge {
+      right: 10px;
+    }
+
+    .open-badge {
+      left: 10px;
+    }
+
+    .promo-badge {
+      left: 10px;
+      bottom: 10px;
+      padding: 0.3rem 0.56rem;
+      font-size: 0.66rem;
+    }
   }
 
   /* Mobile moyen */
   @media (max-width: 576px) {
+    .shops-kicker {
+      font-size: 0.68rem;
+      padding: 0.3rem 0.58rem;
+    }
+
     .shops-title {
-      font-size: 1.5rem;
+      font-size: 1.3rem;
+    }
+
+    .shops-subtitle {
+      font-size: 0.84rem;
     }
 
     .kind-intro {
-      margin-bottom: 0.75rem;
-      padding: 0.6rem 0.7rem;
-      font-size: 0.92rem;
+      margin-bottom: 0.68rem;
+      padding: 0.52rem 0.64rem;
+      font-size: 0.8rem;
     }
     
-    /* Grille - 1 par ligne pour plus de lisibilité */
-    .shops-grid { grid-template-columns: 1fr; max-width: 420px; margin-left: auto; margin-right: auto; }
+    .kind-chip {
+      padding: 0.54rem 0.74rem;
+      font-size: 0.76rem;
+    }
+
+    .shops-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      max-width: none;
+      margin-left: 0;
+      margin-right: 0;
+      gap: 0.54rem;
+    }
     
-    .shop-banner { height: 146px; }
+    .shop-banner { height: 118px; }
     
     .shop-name {
-      font-size: 1.05rem;
+      font-size: 0.88rem;
     }
     
-    .shop-description { font-size: 0.82rem; height: 1.4em; }
+    .shop-description { font-size: 0.72rem; height: 1.25em; }
     
     .search-wrapper-shops { border-radius: 24px; }
     
-    .search-input-shops { padding: 0.75rem 1rem; }
+    .search-input-shops { padding: 0.74rem 0.92rem; }
     
-    .search-btn-shops { padding: 0.6rem 1rem; }
+    .search-btn-shops { padding: 0.58rem 0.84rem; }
+
+    .search-btn-shops span {
+      display: none;
+    }
+
+    .shop-card-content {
+      padding: 10px;
+    }
+
+    .type-badge {
+      font-size: 0.66rem;
+      padding: 0.2rem 0.42rem;
+    }
+
+    .shop-stats {
+      padding: 0.44rem;
+      gap: 0.3rem;
+      margin-bottom: 0.62rem;
+    }
+
+    .shop-contact,
+    .shop-map-link {
+      font-size: 0.68rem;
+    }
+
+    .shop-visit-btn {
+      font-size: 0.74rem;
+      padding: 0.52rem 0.56rem;
+    }
 
     .floating-pagination-nav-shops.show {
       display: flex;
@@ -962,20 +1149,35 @@
   /* Mobile très petit */
   @media (max-width: 400px) {
     .shops-container {
-      padding: 0.625rem;
+      padding: 0.56rem;
+    }
+
+    .shops-kicker {
+      font-size: 0.64rem;
+      gap: 0.32rem;
     }
     
-    .shops-grid { gap: 0.65rem; }
+    .shops-grid { gap: 0.48rem; }
     
-    .shop-banner { height: 138px; }
+    .shop-banner { height: 108px; }
     
-    .shop-card-content { padding: 10px; }
+    .shop-card-content { padding: 9px; }
     
-    .shop-stats { grid-template-columns: repeat(2, 1fr); padding: 0.5rem; gap: 0.4rem; }
+    .shop-stats { grid-template-columns: repeat(2, 1fr); padding: 0.42rem; gap: 0.28rem; }
     
-    .stat-number { font-size: 0.9rem; }
+    .stat-number { font-size: 0.82rem; }
     
-    .stat-label { font-size: 0.68rem; }
+    .stat-label { font-size: 0.62rem; }
+  }
+
+  @media (max-width: 360px) {
+    .shops-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .shop-banner {
+      height: 132px;
+    }
   }
 
   /* ===== ANIMATIONS ===== */

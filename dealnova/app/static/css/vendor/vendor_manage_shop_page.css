@@ -1013,9 +1013,12 @@
         .animated-card,
         .floating-icon,
         .pulse-button,
-        .stat-card::after {
+        .stat-card::after,
+        .manage-search-wrap,
+        .service-status-dot {
             animation: none !important;
         }
+        
 
         .animated-card {
             opacity: 1 !important;
@@ -1047,5 +1050,29 @@
         .shop-link-badge {
             backdrop-filter: none !important;
             -webkit-backdrop-filter: none !important;
+        }
+    }
+
+    .shop-link-copy-btn,
+    .btn-hover-effect,
+    .manage-search-clear {
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+        transition: transform 0.12s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.12s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.12s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.12s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.12s cubic-bezier(0.4, 0, 0.2, 1), color 0.12s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .shop-link-copy-btn:active,
+    .btn-hover-effect:active,
+    .manage-search-clear:active {
+        transform: scale(0.97);
+        opacity: 0.85;
+        transition: transform 0.07s ease, opacity 0.07s ease;
+    }
+
+    @media (max-width: 767.98px) {
+        .shop-link-copy-btn,
+        .btn-hover-effect,
+        .manage-search-clear {
+            transition-duration: 70ms !important;
         }
     }

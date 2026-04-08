@@ -16,19 +16,40 @@
   to   { opacity: 1; transform: translateX(-50%) scaleX(1);   }
 }
 
-@keyframes bm-bar-float {
-  0%, 100% { box-shadow:
-    0 0 0 1px rgba(16,185,129,0.10) inset,
-    0 1px 0  rgba(255,255,255,0.12) inset,
-    0 28px 60px rgba(0,0,0,0.55),
-    0 12px 28px rgba(0,0,0,0.32),
-    0  4px 12px rgba(16,185,129,0.10); }
-  50% { box-shadow:
-    0 0 0 1px rgba(16,185,129,0.14) inset,
-    0 1px 0  rgba(255,255,255,0.14) inset,
-    0 32px 68px rgba(0,0,0,0.58),
-    0 14px 32px rgba(0,0,0,0.35),
-    0  6px 18px rgba(16,185,129,0.14); }
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes bm-bar-float {
+    0%, 100% { box-shadow:
+      0 0 0 1px rgba(16,185,129,0.10) inset,
+      0 1px 0  rgba(255,255,255,0.12) inset,
+      0 28px 60px rgba(0,0,0,0.55),
+      0 12px 28px rgba(0,0,0,0.32),
+      0  4px 12px rgba(16,185,129,0.10); }
+    50% { box-shadow:
+      0 0 0 1px rgba(16,185,129,0.14) inset,
+      0 1px 0  rgba(255,255,255,0.14) inset,
+      0 32px 68px rgba(0,0,0,0.58),
+      0 14px 32px rgba(0,0,0,0.35),
+      0  6px 18px rgba(16,185,129,0.14); }
+  }
+}
+
+@media (max-width: 767.98px) and (prefers-reduced-motion: no-preference) {
+  @keyframes bm-bar-float {
+    0%, 50%, 100% { box-shadow:
+      0 0 0 1px rgba(16,185,129,0.10) inset,
+      0 1px 0  rgba(255,255,255,0.12) inset,
+      0 28px 60px rgba(0,0,0,0.55),
+      0 12px 28px rgba(0,0,0,0.32),
+      0  4px 12px rgba(16,185,129,0.10); }
+  }
+}
+
+@media (max-width: 767.98px) {
+  .home-bottom-tabs,
+  .bm-home-tabs {
+    backdrop-filter: blur(6px) saturate(135%);
+    -webkit-backdrop-filter: blur(6px) saturate(135%);
+  }
 }
 
 /* ══════════════════════
@@ -36,24 +57,52 @@
 ══════════════════════ */
 .home-bottom-tabs,
 .bm-home-tabs {
+  --bm-home-tabs-gap: var(--bm-bottom-dock-gap, 0.4rem);
+  --bm-home-tabs-safe-extension: var(--bm-home-tabs-live-safe, var(--bm-bottom-dock-inset, 0.5rem));
+  --bm-home-tabs-item-height: var(--bm-home-tabs-live-item-height, clamp(44px, 10.5vw, 48px));
+  --bm-home-tabs-wide-item-height: var(--bm-home-tabs-live-item-height-wide, clamp(46px, 11vw, 50px));
+  --bm-home-tabs-icon-size: var(--bm-home-tabs-live-icon-size, clamp(0.98rem, 3.8vw, 1.08rem));
+  --bm-home-tabs-label-size: var(--bm-home-tabs-live-label-size, clamp(0.56rem, 2.15vw, 0.63rem));
   position: fixed;
   left: 50%;
-  bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+  bottom: var(--bm-home-tabs-gap);
   transform: translateX(-50%);
-  width: min(94vw, 33rem);
+  width: min(calc(100vw - 0.8rem - var(--bm-safe-left, 0px) - var(--bm-safe-right, 0px)), 33rem);
   z-index: 1032;
 
   display: grid;
-  grid-template-columns: 1.15fr 1.15fr 1fr;
-  gap: 0.3rem;
-  padding: 0.34rem;
-  border-radius: 1.35rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(0.18rem, 0.9vw, 0.28rem);
+  align-items: center;
+  padding: 0.28rem;
+  border-radius: calc(1.18rem + min(var(--bm-home-tabs-safe-extension), 0.26rem));
   background: linear-gradient(180deg, rgba(7, 30, 24, 0.96), rgba(5, 19, 15, 0.98));
   border: 1px solid rgba(255,255,255,0.08);
-  box-shadow: 0 10px 24px rgba(4, 20, 16, 0.22);
+  box-shadow:
+    0 12px 28px rgba(4, 20, 16, 0.2),
+    0 4px 10px rgba(4, 20, 16, 0.12);
   animation: none;
-  backdrop-filter: blur(14px) saturate(135%);
-  -webkit-backdrop-filter: blur(14px) saturate(135%);
+  backdrop-filter: blur(16px) saturate(135%);
+  -webkit-backdrop-filter: blur(16px) saturate(135%);
+  overflow: visible;
+}
+
+.home-bottom-tabs::after,
+.bm-home-tabs::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: var(--bm-home-tabs-safe-extension);
+  border-radius: 0 0 calc(1.18rem + min(var(--bm-home-tabs-safe-extension), 0.26rem)) calc(1.18rem + min(var(--bm-home-tabs-safe-extension), 0.26rem));
+  background: linear-gradient(180deg, rgba(5, 19, 15, 0.98), rgba(5, 19, 15, 0.96));
+  border: 1px solid rgba(255,255,255,0.08);
+  border-top: 0;
+  box-shadow:
+    0 12px 28px rgba(4, 20, 16, 0.18),
+    0 4px 10px rgba(4, 20, 16, 0.1);
+  pointer-events: none;
 }
 
 /* Taille minimale pour les grands onglets */
@@ -65,7 +114,7 @@
 .home-bottom-tabs .bm-home-tab[data-tab-key="search"],
 .bm-home-tabs .home-tab[data-tab-key="search"],
 .bm-home-tabs .bm-home-tab[data-tab-key="search"] {
-  min-height: 52px;
+  min-height: var(--bm-home-tabs-wide-item-height);
 }
 
 /* ══════════════════════
@@ -74,12 +123,13 @@
 .home-tab,
 .bm-home-tab {
   position: relative;
-  min-height: 50px;
+  min-height: var(--bm-home-tabs-item-height);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.22rem;
+  gap: clamp(0.14rem, 0.6vw, 0.22rem);
+  padding: 0.2rem 0.3rem;
   border-radius: 1rem;
   text-decoration: none;
   color: rgba(224, 245, 238, 0.72);
@@ -102,7 +152,7 @@
 /* Icône */
 .home-tab i,
 .bm-home-tab i {
-  font-size: 1.125rem;
+  font-size: var(--bm-home-tabs-icon-size);
   line-height: 1;
   transition:
     transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1),
@@ -113,11 +163,12 @@
 /* Label */
 .home-tab span,
 .bm-home-tab span {
-  font-size: 0.66rem;
+  font-size: var(--bm-home-tabs-label-size);
   font-weight: 800;
   letter-spacing: 0.02em;
   line-height: 1.1;
   transition: opacity 180ms ease, color 180ms ease;
+  white-space: nowrap;
 }
 
 /* ── Hover ── */
@@ -235,7 +286,7 @@
 
 /* ── Padding main ── */
 main.has-home-tabs {
-  padding-bottom: calc(6.5rem + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(var(--bm-home-tabs-wide-item-height) + 1.2rem + var(--bm-home-tabs-safe-extension) + var(--bm-home-tabs-gap));
 }
 
 /* ── Masqué quand menu ouvert ── */
@@ -257,6 +308,19 @@ body.menu-open .bm-home-tabs {
   }
   main.has-home-tabs {
     padding-bottom: 0;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .home-bottom-tabs,
+  .bm-home-tabs {
+    width: min(calc(100vw - 0.7rem - var(--bm-safe-left, 0px) - var(--bm-safe-right, 0px)), 31rem);
+    bottom: var(--bm-home-tabs-gap);
+    border-radius: calc(1.05rem + min(var(--bm-home-tabs-safe-extension), 0.22rem));
+  }
+
+  main.has-home-tabs {
+    padding-bottom: calc(var(--bm-home-tabs-wide-item-height) + 1rem + var(--bm-home-tabs-safe-extension) + var(--bm-home-tabs-gap));
   }
 }
 

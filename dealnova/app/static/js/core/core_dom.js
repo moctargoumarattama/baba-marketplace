@@ -22,6 +22,124 @@
     return "#";
   }
 
+  function makeRequestSeq() {
+    const ajaxGuard = window.BMAjaxGuard || {};
+    if (typeof ajaxGuard.makeRequestSeq === "function") {
+      return ajaxGuard.makeRequestSeq();
+    }
+
+    let latest = 0;
+    return {
+      next() {
+        latest += 1;
+        return latest;
+      },
+      isLatest(id) {
+        return Number(id) === latest;
+      },
+    };
+  }
+
+  function toPlainHeaders(headers) {
+    if (!headers) return {};
+    if (headers instanceof Headers) {
+      const plain = {};
+      headers.forEach((value, key) => {
+        plain[key] = value;
+      });
+      return plain;
+    }
+    return Object.assign({}, headers);
+  }
+
+  function shouldAttachCsrf(method) {
+    const normalized = String(method || "GET").toUpperCase();
+    return normalized !== "GET" && normalized !== "HEAD" && normalized !== "OPTIONS";
+  }
+
+  async function parseRequestData(response, expect) {
+    if (expect === "json") {
+      try {
+        return await response.json();
+      } catch (_error) {
+        return null;
+      }
+    }
+
+    try {
+      return await response.text();
+    } catch (_error) {
+      return "";
+    }
+  }
+
+  async function request(url, options) {
+    const ajaxFetch = window.BMAjaxFetch || {};
+    if (typeof ajaxFetch.request === "function") {
+      return ajaxFetch.request(url, options || {});
+    }
+
+    const opts = options || {};
+    const method = String(opts.method || "GET").toUpperCase();
+    const expect = opts.expect === "json" ? "json" : "text";
+    const headers = toPlainHeaders(opts.headers);
+    const csrfApi = window.BMAjaxCSRF || {};
+    const finalHeaders =
+      shouldAttachCsrf(method) && typeof csrfApi.addToHeaders === "function"
+        ? csrfApi.addToHeaders(headers, opts.form || null)
+        : headers;
+
+    const fetchOptions = Object.assign({}, opts, {
+      method,
+      headers: finalHeaders,
+    });
+    delete fetchOptions.expect;
+    delete fetchOptions.timeoutMs;
+    delete fetchOptions.onError;
+    delete fetchOptions.form;
+
+    if (!Object.prototype.hasOwnProperty.call(fetchOptions, "credentials")) {
+      fetchOptions.credentials = "same-origin";
+    }
+
+    try {
+      const response = await fetch(url, fetchOptions);
+      const data = await parseRequestData(response, expect);
+      const error =
+        response.ok
+          ? null
+          : (data && typeof data === "object" && (data.error || data.message)) ||
+            response.statusText ||
+            ("HTTP " + response.status);
+
+      return {
+        ok: response.ok,
+        status: response.status,
+        data,
+        error: error ? String(error) : null,
+        aborted: false,
+        timedOut: false,
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        status: 0,
+        data: expect === "json" ? null : "",
+        error: String((error && error.message) || "network_error"),
+        aborted: !!(error && error.name === "AbortError"),
+        timedOut: false,
+      };
+    }
+  }
+
+  function requestText(url, options) {
+    return request(url, Object.assign({}, options || {}, { expect: "text" }));
+  }
+
+  function requestJSON(url, options) {
+    return request(url, Object.assign({}, options || {}, { expect: "json" }));
+  }
+
   function collectFormValues(root) {
     const values = {};
     if (!root) return values;
@@ -146,6 +264,10 @@
   window.BMCoreDom = {
     escapeHtml,
     safeUrl,
+    makeRequestSeq,
+    request,
+    requestText,
+    requestJSON,
     collectFormValues,
     applyFormValues,
     setupPaginationForTable,

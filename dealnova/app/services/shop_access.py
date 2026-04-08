@@ -1,6 +1,23 @@
-﻿from flask import abort, flash, redirect, request, url_for
+import re
+
+from flask import abort, flash, redirect, request, url_for
 
 from ..models.shop import Shop, normalize_shop_type
+
+PUBLIC_SHOP_SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,99}$")
+
+
+def normalize_public_shop_slug(value: str | None) -> str:
+    return str(value or "").strip().strip("/").lower()
+
+
+def is_safe_public_shop_slug(value: str | None, *, reserved: set[str] | None = None) -> bool:
+    slug = normalize_public_shop_slug(value)
+    if not slug or "." in slug:
+        return False
+    if reserved and slug in reserved:
+        return False
+    return bool(PUBLIC_SHOP_SLUG_RE.fullmatch(slug))
 
 
 def _wants_json_response() -> bool:
@@ -96,4 +113,3 @@ def ensure_shop_allows(
     if endpoint.startswith("vendor.") or endpoint.startswith("rentals.owner_"):
         return redirect(url_for("vendor.manage_shop"))
     return redirect(url_for("shop.home"))
-

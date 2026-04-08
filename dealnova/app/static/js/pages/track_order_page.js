@@ -4,57 +4,14 @@
   if (typeof window === "undefined" || typeof document === "undefined") return;
   if (window.__BM_TRACK_ORDER_INIT__) return;
   window.__BM_TRACK_ORDER_INIT__ = true;
-
-  function makeRequestSeq() {
-    if (window.BMAjaxGuard && typeof window.BMAjaxGuard.makeRequestSeq === "function") {
-      return window.BMAjaxGuard.makeRequestSeq();
-    }
-    var latest = 0;
-    return {
-      next: function () {
-        latest += 1;
-        return latest;
-      },
-      isLatest: function (id) {
-        return Number(id) === latest;
-      },
-    };
-  }
-
-  const bmFetchApi = window.BMAjaxFetch || null;
-
-  async function bmFetchJSON(url, options) {
-    var opts = options || {};
-    if (bmFetchApi && typeof bmFetchApi.requestJSON === "function") {
-      return bmFetchApi.requestJSON(url, opts);
-    }
-    try {
-      var response = await fetch(url, opts);
-      var data = null;
-      try {
-        data = await response.json();
-      } catch (_parseError) {
-        data = null;
-      }
-      return {
-        ok: response.ok,
-        status: response.status,
-        data: data,
-        error: response.ok ? null : (response.statusText || ("HTTP " + response.status)),
-        aborted: false,
-        timedOut: false,
-      };
-    } catch (error) {
-      return {
-        ok: false,
-        status: 0,
-        data: null,
-        error: String((error && error.message) || "network_error"),
-        aborted: !!(error && error.name === "AbortError"),
-        timedOut: false,
-      };
-    }
-  }
+  var makeRequestSeq =
+    window.BMCoreDom && typeof window.BMCoreDom.makeRequestSeq === "function"
+      ? window.BMCoreDom.makeRequestSeq
+      : window.BMAjaxGuard.makeRequestSeq.bind(window.BMAjaxGuard);
+  var bmFetchJSON =
+    window.BMCoreDom && typeof window.BMCoreDom.requestJSON === "function"
+      ? window.BMCoreDom.requestJSON
+      : window.BMAjaxFetch.requestJSON.bind(window.BMAjaxFetch);
 
   function initTrackOrderPage() {
     var page = document.getElementById("trackOrderPage");

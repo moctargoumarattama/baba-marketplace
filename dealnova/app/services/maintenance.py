@@ -21,6 +21,7 @@ from ..models.maintenance import ErrorLog, MaintenanceRun
 from ..models.platform_settings import PlatformSettings
 from ..models.product import Product
 from ..models.rental import RentalArchive, RentalListing, RentalMedia
+from ..models.runtime_state import RuntimeState
 from ..models.shop import Shop
 from ..models.user import User
 from .image import LARGE_SIZE, THUMB_SIZE
@@ -44,9 +45,48 @@ EXPIRED_LOCATIONS_GT_DAYS_DANGER = 100
 DB_SIZE_MB_WARNING = 300.0
 DB_SIZE_MB_DANGER = 800.0
 ERROR_LOG_RETENTION_DAYS_DEFAULT = 7
+RATE_LIMIT_STATE_RETENTION_DAYS_DEFAULT = 7
 ERROR_LOG_SPAM_WINDOW_SECONDS = 60
 ERROR_LOG_SPAM_MAX_PER_SIGNATURE = 20
 ERROR_LOG_SPAM_MAX_SIGNATURES = 2000
+
+_HTTP_STATUS_LABELS_FR = {
+    400: "400 Requete invalide",
+    401: "401 Non autorise",
+    403: "403 Acces interdit",
+    404: "404 Introuvable",
+    405: "405 Methode non autorisee",
+    413: "413 Charge utile trop volumineuse",
+    429: "429 Trop de requetes",
+    500: "500 Erreur interne du serveur",
+}
+
+_HTTP_STATUS_DETAILS_FR = {
+    "The browser (or proxy) sent a request that this server could not understand.": (
+        "Le navigateur (ou le proxy) a envoye une requete que le serveur n'a pas pu comprendre."
+    ),
+    "The server could not verify that you are authorized to access the URL requested.": (
+        "Le serveur n'a pas pu verifier que vous etes autorise a acceder a l'URL demandee."
+    ),
+    "You do not have the permission to access the requested resource.": (
+        "Vous n'avez pas la permission d'acceder a la ressource demandee."
+    ),
+    "The requested URL was not found on the server.": (
+        "L'URL demandee est introuvable sur le serveur."
+    ),
+    "The method is not allowed for the requested URL.": (
+        "La methode utilisee n'est pas autorisee pour cette URL."
+    ),
+    "The data value transmitted exceeds the capacity limit.": (
+        "Les donnees envoyees depassent la limite acceptee par le serveur."
+    ),
+    "This user has exceeded an allotted request count. Try again later.": (
+        "Cette limite de requetes a ete depassee. Reessayez plus tard."
+    ),
+    "The server encountered an internal error and was unable to complete your request. Either the server is overloaded or there is an error in the application.": (
+        "Le serveur a rencontre une erreur interne et n'a pas pu terminer votre requete. Le serveur est peut-etre surcharge ou une erreur s'est produite dans l'application."
+    ),
+}
 
 _ERROR_LOG_SPAM_LOCK = Lock()
 _ERROR_LOG_SPAM_BUCKETS: dict[tuple[str, str, int, str], deque[float]] = {}
@@ -105,10 +145,10 @@ def _resolve_backup_dir(custom_dir: str | None = None) -> Path:
     if not path.is_absolute():
         path = (_project_root() / path).resolve()
     path.mkdir(parents=True, exist_ok=True)
-    
+
     if not _validate_backup_dir(path):
         raise RuntimeError(f"Le dossier de backup {path} n'est pas accessible en écriture.")
-    
+
     return path
 
 
@@ -279,8 +319,22 @@ def _used_upload_paths() -> set[str]:
         if rel:
             used.add(rel)
 
-    return used
+    # ── Protection vidéos produits ──────────────────────────────────────
+    # Tous les fichiers dans uploads/product_videos/ sont considérés utilisés
+    # pour éviter leur suppression lors du nettoyage des orphelins.
+    try:
+        videos_dir = _uploads_root() / "product_videos"
+        if videos_dir.exists():
+            for video_file in videos_dir.iterdir():
+                if video_file.is_file():
+                    rel = _safe_rel_from_static(video_file)
+                    if rel:
+                        used.add(rel)
+    except Exception:
+        pass
+    # ────────────────────────────────────────────────────────────────────
 
+    return used
 
 def find_global_orphan_upload_files() -> list[str]:
     all_files = set(_iter_upload_files())
@@ -406,7 +460,7 @@ def human_size(num_bytes: int | None) -> str:
 def collect_system_health(expired_days: int = 6) -> dict[str, Any]:
     days = max(0, int(expired_days or 0))
     thresholds = _get_thresholds()
-    
+
     health: dict[str, Any] = {
         "uploads_size": "N/A",
         "uploads_size_bytes": None,
@@ -579,6 +633,27 @@ def _purge_old_error_logs(retention_days: int = ERROR_LOG_RETENTION_DAYS_DEFAULT
         return 0, str(exc)
 
 
+def _purge_stale_rate_limit_states(
+    retention_days: int = RATE_LIMIT_STATE_RETENTION_DAYS_DEFAULT,
+) -> tuple[int, str | None]:
+    days = max(1, int(retention_days or RATE_LIMIT_STATE_RETENTION_DAYS_DEFAULT))
+    cutoff = datetime.utcnow() - timedelta(days=days)
+    try:
+        deleted = (
+            RuntimeState.query
+            .filter(
+                RuntimeState.state_key.like("rate:%"),
+                RuntimeState.updated_at < cutoff,
+            )
+            .delete(synchronize_session=False)
+        )
+        db.session.commit()
+        return int(deleted or 0), None
+    except Exception as exc:
+        db.session.rollback()
+        return 0, str(exc)
+
+
 def _allow_error_log_insert(path: str | None, method: str | None, status_code: int, short_message: str | None) -> bool:
     signature = (
         (str(path or "")[:180]),
@@ -616,6 +691,35 @@ def _allow_error_log_insert(path: str | None, method: str | None, status_code: i
     return True
 
 
+def localize_http_error_message(status_code: int | None, message: str | None) -> str | None:
+    raw_message = " ".join(str(message or "").strip().replace("\n", " ").split())
+    if not raw_message:
+        return None
+
+    safe_status = None
+    try:
+        safe_status = int(status_code) if status_code is not None else None
+    except (TypeError, ValueError):
+        safe_status = None
+
+    prefix, separator, detail = raw_message.partition(": ")
+    translated_prefix = _HTTP_STATUS_LABELS_FR.get(safe_status, prefix)
+    translated_detail = _HTTP_STATUS_DETAILS_FR.get(detail, detail)
+
+    if separator:
+        if translated_prefix != prefix or translated_detail != detail:
+            return f"{translated_prefix}: {translated_detail}"[:255]
+        return raw_message[:255]
+
+    if safe_status in _HTTP_STATUS_LABELS_FR and raw_message == prefix:
+        return _HTTP_STATUS_LABELS_FR[safe_status][:255]
+
+    if raw_message in _HTTP_STATUS_DETAILS_FR:
+        return _HTTP_STATUS_DETAILS_FR[raw_message][:255]
+
+    return raw_message[:255]
+
+
 def run_maintenance_cleanup(
     mode: str = "quick",
     expired_days: int = 6,
@@ -637,6 +741,7 @@ def run_maintenance_cleanup(
         "sessions_cleaned": False,
         "sessions_deleted": 0,
         "error_logs_purged": 0,
+        "rate_limit_states_purged": 0,
         "errors": [],
     }
 
@@ -657,6 +762,11 @@ def run_maintenance_cleanup(
     report["cache_cleared"] = cache_cleared
     if cache_error:
         report["errors"].append(f"cache: {cache_error}")
+
+    deleted_rate_states, rate_states_error = _purge_stale_rate_limit_states()
+    report["rate_limit_states_purged"] = deleted_rate_states
+    if rate_states_error:
+        report["errors"].append(f"rate_limit_states_purge: {rate_states_error}")
 
     if normalized_mode == "full":
         purged, media_deleted, archives_deleted, rental_errors = _purge_stale_rentals(expired_days=expired_days)
@@ -738,10 +848,10 @@ def run_and_store_maintenance_report(
 
 
 def log_http_error(path: str | None, method: str | None, status_code: int, message: str | None) -> None:
-    short_message = (str(message or "").strip().replace("\n", " "))[:255] or None
+    safe_status = int(status_code)
+    short_message = localize_http_error_message(safe_status, message)
     safe_path = (str(path or "").strip() or None)
     safe_method = (str(method or "").strip().upper()[:16] or None)
-    safe_status = int(status_code)
 
     if not _allow_error_log_insert(safe_path, safe_method, safe_status, short_message):
         return
@@ -823,45 +933,53 @@ def auto_cleanup_nightly():
     results = {
         "sessions_deleted": 0,
         "logs_deleted": 0,
+        "rate_limit_states_deleted": 0,
         "cache_cleared": False,
         "duration_ms": 0
     }
-    
+
     try:
         # 1. Supprimer les sessions expirées
         _, sessions_deleted, sessions_error = _cleanup_expired_server_sessions()
         results["sessions_deleted"] = sessions_deleted
         if sessions_error:
             current_app.logger.warning(f"Erreur sessions: {sessions_error}")
-        
+
         # 2. Nettoyer les vieux logs (>30 jours)
         cutoff = datetime.utcnow() - timedelta(days=30)
         deleted_logs = ErrorLog.query.filter(ErrorLog.created_at < cutoff).delete()
         results["logs_deleted"] = deleted_logs
-        
-        # 3. Vider le cache périmé (pas tous les jours)
+
+        # 3. Nettoyer les anciens quotas de rate limit partagés
+        deleted_rate_states, rate_states_error = _purge_stale_rate_limit_states()
+        results["rate_limit_states_deleted"] = deleted_rate_states
+        if rate_states_error:
+            current_app.logger.warning(f"Erreur rate_limit_states: {rate_states_error}")
+
+        # 4. Vider le cache périmé (pas tous les jours)
         if random.random() < 0.1:  # 10% de chance
             from .cache import cache
             cache.clear()
             results["cache_cleared"] = True
-        
+
         db.session.commit()
-        
+
         duration = (datetime.utcnow() - start).total_seconds() * 1000
         results["duration_ms"] = int(duration)
-        
+
         current_app.logger.info(
             f"Nettoyage auto: {results['sessions_deleted']} sessions, "
             f"{results['logs_deleted']} logs, "
+            f"{results['rate_limit_states_deleted']} rate states, "
             f"{'cache vidé' if results['cache_cleared'] else 'cache intact'} "
             f"({results['duration_ms']} ms)"
         )
-        
+
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"Nettoyage auto échoué: {e}")
         results["error"] = str(e)
-    
+
     return results
 
 
@@ -871,7 +989,7 @@ def auto_cleanup_nightly():
 
 def init_cli_commands(app):
     """Initialise les commandes CLI pour l'application."""
-    
+
     @app.cli.command("nightly-cleanup")
     def nightly_cleanup_command():
         """Commande CLI pour le nettoyage automatique"""
@@ -880,7 +998,7 @@ def init_cli_commands(app):
         click.echo(f"Logs supprimés: {results['logs_deleted']}")
         click.echo(f"Cache vidé: {results['cache_cleared']}")
         click.echo(f"Durée: {results['duration_ms']} ms")
-    
+
     @app.cli.command("cleanup-old-reports")
     @click.option("--days", default=20, help="Nombre de jours de rétention")
     def cleanup_old_reports_command(days):

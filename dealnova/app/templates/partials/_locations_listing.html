@@ -1,7 +1,7 @@
 ﻿<div id="locationsListing" data-ajax-listing data-ajax-scroll="preserve">
   {% if listings %}
     <div class="results-row">
-      <div class="results-count"><span class="results-dot"></span>{{ pagination.total }} offre(s) trouvee(s)</div>
+      <div class="results-count" aria-live="polite" data-total-count="{{ pagination.total }}"><span class="results-dot"></span>{{ pagination.total }} offre(s) trouvee(s)</div>
       {% if has_active_filters %}
         <span class="active-filters-badge"><i class="bi bi-funnel-fill"></i> Filtres actifs</span>
       {% endif %}
@@ -80,6 +80,7 @@
         </article>
       {% endfor %}
     </div>
+    <div class="empty-state d-none" id="locationsLiveEmptyState">Aucune annonce visible sur cette page avec ces filtres.</div>
   {% else %}
     <div class="empty-state">Aucune annonce trouvee avec ces filtres.</div>
   {% endif %}

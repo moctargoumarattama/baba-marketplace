@@ -42,65 +42,19 @@
 
     return source;
   }
-
-  async function requestJSON(url, options) {
-    var opts = options || {};
-    if (window.BMAjaxFetch && typeof window.BMAjaxFetch.requestJSON === "function") {
-      return window.BMAjaxFetch.requestJSON(url, opts);
-    }
-
-    var fetchOptions = Object.assign({}, opts);
-    try {
-      var response = await fetch(url, fetchOptions);
-      var data = null;
-      try {
-        data = await response.json();
-      } catch (_err) {
-        data = null;
-      }
-      return {
-        ok: response.ok,
-        status: response.status,
-        data: data,
-        error: response.ok ? null : (response.statusText || ("HTTP " + response.status)),
-      };
-    } catch (error) {
-      return {
-        ok: false,
-        status: 0,
-        data: null,
-        error: String((error && error.message) || "network_error"),
-      };
-    }
-  }
-
-  async function requestText(url, options) {
-    var opts = options || {};
-    if (window.BMAjaxFetch && typeof window.BMAjaxFetch.requestText === "function") {
-      return window.BMAjaxFetch.requestText(url, opts);
-    }
-
-    var fetchOptions = Object.assign({}, opts);
-    try {
-      var response = await fetch(url, fetchOptions);
-      var data = await response.text();
-      return {
-        ok: response.ok,
-        status: response.status,
-        data: data,
-        error: response.ok ? null : (response.statusText || ("HTTP " + response.status)),
-        aborted: false,
-      };
-    } catch (error) {
-      return {
-        ok: false,
-        status: 0,
-        data: "",
-        error: String((error && error.message) || "network_error"),
-        aborted: !!(error && error.name === "AbortError"),
-      };
-    }
-  }
+  var coreDomApi = window.BMCoreDom || {};
+  var requestJSON =
+    typeof coreDomApi.requestJSON === "function"
+      ? function (url, options) {
+          return coreDomApi.requestJSON(url, options || {});
+        }
+      : window.BMAjaxFetch.requestJSON.bind(window.BMAjaxFetch);
+  var requestText =
+    typeof coreDomApi.requestText === "function"
+      ? function (url, options) {
+          return coreDomApi.requestText(url, options || {});
+        }
+      : window.BMAjaxFetch.requestText.bind(window.BMAjaxFetch);
 
   function normalizeValue(value) {
     return String(value || "")

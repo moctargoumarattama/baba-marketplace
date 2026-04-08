@@ -12,6 +12,12 @@ from ..models.user import User
 from ..services.delivery_context import enrich_orders_delivery_context
 from ..services.financial_periods import record_delivery_fee_entry
 from ..services.pagination import page_from_args
+from ..services.support_whatsapp import (
+    append_support_request,
+    build_support_whatsapp_url,
+    safe_support_back_target,
+    support_user_label,
+)
 from ..middleware.rate_limit import rate_limit  # IMPORT AJOUTÉ
 
 
@@ -167,6 +173,49 @@ def panel_orders():
 def panel_deliveries():
     """Page principale des livraisons."""
     return _render_courier_deliveries(default_tab="in_progress")
+
+
+@bp.route("/support/whatsapp")
+@login_required
+def support_whatsapp():
+    courier = _get_courier_user()
+    if current_user.role != "courier" or courier is None:
+        flash("Interdit", "danger")
+        return redirect(url_for("shop.home"))
+
+    page_name = (request.args.get("page") or "Page livreur").strip()[:120]
+    page_url = (request.args.get("page_url") or "").strip()[:400]
+    source = (request.args.get("source") or "").strip()[:160]
+    item_name = (request.args.get("item") or "").strip()[:160]
+    back_url = safe_support_back_target(request.args.get("back"), url_for("courier.panel_deliveries"))
+
+    lines = [
+        "Bonjour, je signale un probleme sur mon espace livreur.",
+        f"Compte: {support_user_label(courier)} (id: {courier.id})",
+        f"Page: {page_name}",
+    ]
+    if item_name:
+        lines.append(f"Element: {item_name}")
+    if source:
+        lines.append(f"Route: {source}")
+    if page_url:
+        lines.append(f"URL: {page_url}")
+    append_support_request(
+        lines,
+        issue_type=request.args.get("issue_type"),
+        details=request.args.get("details"),
+        expected=request.args.get("expected"),
+    )
+
+    return render_template(
+        "support/open_whatsapp.html",
+        wa_url=build_support_whatsapp_url(lines),
+        support_scope="Support livreur",
+        support_title="Signaler un probleme livreur",
+        support_copy="Votre message est pret avec la page et votre compte livreur.",
+        back_url=back_url,
+        back_label="Retour a la page",
+    )
 
 
 @bp.route("/password/change", methods=["POST"])

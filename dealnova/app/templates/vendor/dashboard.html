@@ -407,13 +407,6 @@
             </a>
             {% endif %}
 
-            {% if allows_products %}
-            <a href="{{ url_for('vendor.earnings') }}" class="btn-action" data-prefetch-critical="vendor-earnings">
-                <i class="fas fa-shopping-cart"></i>
-                <span>Encaissements</span>
-            </a>
-            {% endif %}
-
             {% if shop %}
             <a href="{{ url_for('vendor.manage_shop') }}" class="btn-action" data-prefetch-critical="vendor-manage-shop">
                 <i class="fas fa-store"></i>

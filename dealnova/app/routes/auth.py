@@ -9,6 +9,12 @@ from ..services.logging_service import logging_service
 from ..services.audit import log_access
 from ..services.traffic_stats import track_custom_event
 from ..services.shop_access import shop_allows_any
+from ..services.support_whatsapp import (
+    append_support_request,
+    build_support_whatsapp_url,
+    safe_support_back_target,
+    support_user_label,
+)
 from ..middleware.rate_limit import rate_limit
 from datetime import datetime
 from urllib.parse import urlparse, urljoin, quote
@@ -51,6 +57,51 @@ def _email_fingerprint(email: str | None) -> str:
     secret = str(current_app.config.get("SECRET_KEY") or "dealnova")
     payload = f"{secret}|{value}".encode("utf-8")
     return hashlib.sha256(payload).hexdigest()[:12]
+
+
+@bp.route("/support/whatsapp")
+def support_whatsapp():
+    role = (getattr(current_user, "role", "") or "").lower()
+    if getattr(current_user, "is_authenticated", False) and role in {"vendor", "courier", "admin", "manager"}:
+        flash("Interdit", "danger")
+        return redirect(url_for("shop.home"))
+
+    page_name = (request.args.get("page") or "Espace client").strip()[:120]
+    page_url = (request.args.get("page_url") or "").strip()[:400]
+    source = (request.args.get("source") or "").strip()[:160]
+    item_name = (request.args.get("item") or "").strip()[:160]
+    back_url = safe_support_back_target(request.args.get("back"), url_for("shop.home"))
+
+    lines = [
+        "Bonjour, je signale un probleme sur mon espace client.",
+        f"Page: {page_name}",
+    ]
+    if getattr(current_user, "is_authenticated", False):
+        lines.insert(1, f"Compte: {support_user_label(current_user)} (id: {current_user.id})")
+    else:
+        lines.insert(1, "Compte: Visiteur")
+    if item_name:
+        lines.append(f"Element: {item_name}")
+    if source:
+        lines.append(f"Route: {source}")
+    if page_url:
+        lines.append(f"URL: {page_url}")
+    append_support_request(
+        lines,
+        issue_type=request.args.get("issue_type"),
+        details=request.args.get("details"),
+        expected=request.args.get("expected"),
+    )
+
+    return render_template(
+        "support/open_whatsapp.html",
+        wa_url=build_support_whatsapp_url(lines),
+        support_scope="Support client",
+        support_title="Signaler un probleme client",
+        support_copy="Votre message est pret avec la page et votre compte client.",
+        back_url=back_url,
+        back_label="Retour a la page",
+    )
 
 @bp.route("/register", methods=["GET", "POST"])
 def register():
@@ -229,7 +280,7 @@ def forgot_password():
 
 @bp.route("/reset-password/<token>", methods=["GET"])
 def reset_password(_token):
-    """Ancien flux email/token dsactive: redirection vers WhatsApp."""
+    """Ancien flux email/token désactive: redirection vers WhatsApp."""
     flash("Le reset par e-mail est désactivé. Utilisez WhatsApp.", "info")
     return redirect(url_for("auth.forgot_password"))
 

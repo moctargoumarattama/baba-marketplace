@@ -23,11 +23,19 @@
     return !!getOwnerRoot();
   }
 
+  var mobileKeyboardGuard =
+    window.BMCoreUI && typeof window.BMCoreUI.bindMobileKeyboardGuard === "function"
+      ? window.BMCoreUI.bindMobileKeyboardGuard({
+          getRoot: getOwnerRoot,
+          bodyClass: "owner-locations-keyboard-open",
+        })
+      : null;
+
   function shouldHandleLink(link) {
     if (!link || link.target === "_blank" || link.hasAttribute("download")) return false;
     var href = link.getAttribute("href") || "";
     if (!href || href.charAt(0) === "#") return false;
-    return href.indexOf("/owner/locations") !== -1 || href.indexOf("/owner/location/") !== -1;
+    return href.indexOf("/owner/locations") !== -1;
   }
 
   function shouldHandleForm(form) {
@@ -78,6 +86,9 @@
     } else if (historyMode === "replace") {
       window.history.replaceState({ ownerLocations: true }, "", nextUrl);
     }
+    window.setTimeout(function () {
+      if (mobileKeyboardGuard) mobileKeyboardGuard.sync();
+    }, 0);
   }
 
   async function fetchAndSwap(url, options, historyMode) {
@@ -147,4 +158,5 @@
     if (!isOwnerPage()) return;
     fetchAndSwap(window.location.href, { method: "GET", cache: "no-store" }, null);
   });
+  if (mobileKeyboardGuard) mobileKeyboardGuard.sync();
 })();

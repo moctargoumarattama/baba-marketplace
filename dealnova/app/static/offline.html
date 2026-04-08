@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
@@ -7,67 +7,91 @@
   <link rel="stylesheet" href="/static/css/offline.css">
 </head>
 <body>
+  <main class="offline-shell">
+    <section class="offline-card" aria-labelledby="offlineTitle">
+      <div class="offline-chip">Hors connexion</div>
+      <h1 id="offlineTitle">Service temporairement indisponible</h1>
+      <p class="offline-copy">
+        Votre connexion est peut-être coupée,
+        ou le service est momentanément indisponible.
+        Les pages déjà ouvertes restent accessibles.
+      </p>
 
-  <div class="bg-glow"></div>
-  <div class="particles">
-    <div class="p"></div><div class="p"></div><div class="p"></div>
-    <div class="p"></div><div class="p"></div>
-  </div>
-
-  <div class="card">
-
-    <!-- Icône wifi-off -->
-    <div class="icon-wrap">
-      <div class="icon-ring"></div>
-      <div class="icon-ring"></div>
-      <div class="icon-circle">
-        <svg class="wifi-icon" width="30" height="30" viewBox="0 0 24 24"
-             xmlns="http://www.w3.org/2000/svg"
-             fill="none" stroke="#93c5fd" stroke-width="1.7"
-             stroke-linecap="round" stroke-linejoin="round">
-          <line x1="1" y1="1" x2="23" y2="23"/>
-          <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"/>
-          <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"/>
-          <path d="M10.71 5.05A16 16 0 0 1 22.56 9"/>
-          <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"/>
-          <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
-          <circle cx="12" cy="20" r="1" fill="#93c5fd" stroke="none"/>
-        </svg>
+      <div class="offline-points" role="list" aria-label="Ce qui reste disponible">
+        <div class="offline-point ok" role="listitem">
+          <span class="offline-point-icon">OK</span>
+          <span>Pages deja ouvertes</span>
+        </div>
+        <div class="offline-point no" role="listitem">
+          <span class="offline-point-icon">!</span>
+          <span>Commande, paiement et mises a jour indisponibles</span>
+        </div>
       </div>
+
+      <button class="offline-retry" id="retryBtn" type="button">Réessayer</button>
+
+      <p class="offline-note">
+        Si un souci persiste, vous pouvez preparer un message pour le support.
+      </p>
+    </section>
+  </main>
+
+  <button type="button"
+          class="offline-support-fab"
+          data-offline-support-open
+          aria-label="Signaler un probleme">
+    <span class="offline-support-fab-icon">!</span>
+    <span>Signaler</span>
+  </button>
+
+  <div class="offline-support-backdrop" data-offline-support-backdrop hidden></div>
+
+  <div class="offline-support-dialog" data-offline-support-dialog hidden>
+    <div class="offline-support-card" role="dialog" aria-modal="true" aria-labelledby="offlineSupportTitle">
+      <div class="offline-support-top">
+        <div>
+          <div class="offline-support-chip">Support</div>
+          <h2 id="offlineSupportTitle">Signaler un probleme</h2>
+          <p>Expliquez simplement le souci. Le message WhatsApp sera prepare juste apres.</p>
+        </div>
+        <button type="button" class="offline-support-close" data-offline-support-close aria-label="Fermer">x</button>
+      </div>
+
+      <form class="offline-support-form"
+            data-offline-support-form
+            data-support-number="212770010264">
+        <div class="offline-support-field">
+          <label for="offlineSupportType">Sujet</label>
+          <select id="offlineSupportType" name="issue_type">
+            <option value="Connexion">Connexion</option>
+            <option value="Page hors ligne">Page hors ligne</option>
+            <option value="Commande">Commande</option>
+            <option value="Paiement">Paiement</option>
+            <option value="Autre">Autre</option>
+          </select>
+        </div>
+
+        <div class="offline-support-field">
+          <label for="offlineSupportDetails">Ce qui ne va pas</label>
+          <textarea id="offlineSupportDetails"
+                    name="details"
+                    placeholder="Ex: la page reste bloquee hors ligne, un bouton ne repond pas."></textarea>
+        </div>
+
+        <div class="offline-support-field">
+          <label for="offlineSupportExpected">Ce que vous vouliez faire</label>
+          <input id="offlineSupportExpected"
+                 name="expected"
+                 type="text"
+                 placeholder="Ex: rouvrir l'accueil, finaliser ma commande.">
+        </div>
+
+        <div class="offline-support-actions">
+          <button type="button" class="offline-support-btn secondary" data-offline-support-close>Fermer</button>
+          <button type="submit" class="offline-support-btn primary">Continuer</button>
+        </div>
+      </form>
     </div>
-
-    <div class="badge"><div class="badge-dot"></div>Hors connexion</div>
-
-    <h1>Pas de connexion</h1>
-    <p>Vous êtes en mode hors ligne. Vous pouvez parcourir les pages déjà visitées, mais certaines actions restent indisponibles.</p>
-
-    <div class="caps">
-      <div class="cap ok">
-        <div class="cap-icon">✓</div>
-        <span>Parcourir les pages déjà visitées</span>
-      </div>
-      <div class="cap no">
-        <div class="cap-icon">✕</div>
-        <span>Passer ou gérer des commandes</span>
-      </div>
-      <div class="cap no">
-        <div class="cap-icon">✕</div>
-        <span>Mettre à jour le panier ou le compte</span>
-      </div>
-    </div>
-
-    <button class="btn-retry" id="retryBtn" type="button">
-      <svg class="spin-icon" width="16" height="16" viewBox="0 0 24 24"
-           xmlns="http://www.w3.org/2000/svg"
-           fill="none" stroke="#fff" stroke-width="2.3"
-           stroke-linecap="round" stroke-linejoin="round">
-        <polyline points="23 4 23 10 17 10"/>
-        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
-      </svg>
-      Réessayer la connexion
-    </button>
-
-    <div class="footer-note">Baba Market · Mode hors ligne</div>
   </div>
 
   <script src="/static/js/offline_page.js" defer></script>

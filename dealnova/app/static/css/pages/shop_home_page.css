@@ -105,6 +105,8 @@
   .shop-header {
     margin-bottom: 1rem;
     text-align: center;
+    position: relative;
+    z-index: 6;
   }
 
   .shop-title {
@@ -129,6 +131,9 @@
     display: flex;
     justify-content: center;
     margin-top: -0.2rem;
+    position: relative;
+    z-index: 8;
+    isolation: isolate;
   }
 
   .btn-promotions-home {
@@ -145,6 +150,17 @@
     box-shadow: 0 14px 28px rgba(245, 158, 11, 0.22);
     overflow: hidden;
     transition: transform 0.22s ease, box-shadow 0.22s ease, filter 0.22s ease;
+    pointer-events: auto;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    z-index: 9;
+  }
+
+  .search-container,
+  .search-wrapper,
+  .live-suggest {
+    position: relative;
+    z-index: 1;
   }
 
   .btn-promotions-home::after {
@@ -188,9 +204,17 @@
     animation: introCardGlow 1s ease-in-out 2;
   }
 
-  @keyframes introCardGlow {
-    0%, 100% { box-shadow: var(--shadow-sm); }
-    50% { box-shadow: 0 0 0 5px rgba(16,185,129,0.12), var(--shadow-md); }
+  @media (prefers-reduced-motion: no-preference) {
+    @keyframes introCardGlow {
+      0%, 100% { box-shadow: var(--shadow-sm); }
+      50% { box-shadow: 0 0 0 5px rgba(16,185,129,0.12), var(--shadow-md); }
+    }
+  }
+
+  @media (max-width: 767.98px) and (prefers-reduced-motion: no-preference) {
+    @keyframes introCardGlow {
+      0%, 50%, 100% { box-shadow: var(--shadow-sm); }
+    }
   }
 
   .mode-intro-top {
@@ -213,9 +237,18 @@
     animation: introPulse 1.7s ease-in-out infinite;
   }
 
-  @keyframes introPulse {
-    0%, 100% { transform: scale(1); box-shadow: 0 0 0 6px rgba(16,185,129,0.2); }
-    50% { transform: scale(1.08); box-shadow: 0 0 0 10px rgba(16,185,129,0.08); }
+  @media (prefers-reduced-motion: no-preference) {
+    @keyframes introPulse {
+      0%, 100% { transform: scale(1); box-shadow: 0 0 0 6px rgba(16,185,129,0.2); }
+      50% { transform: scale(1.08); box-shadow: 0 0 0 10px rgba(16,185,129,0.08); }
+    }
+  }
+
+  @media (max-width: 767.98px) and (prefers-reduced-motion: no-preference) {
+    @keyframes introPulse {
+      0%, 100% { transform: scale(1); box-shadow: 0 0 0 6px rgba(16,185,129,0.2); }
+      50% { transform: scale(1.08); box-shadow: 0 0 0 6px rgba(16,185,129,0.2); }
+    }
   }
 
   .mode-intro-line {
@@ -631,9 +664,18 @@
     animation: modeIconFloat .95s ease-in-out 2;
   }
 
-  @keyframes modeGlowPulse {
-    0%, 100% { transform: translateY(0); box-shadow: var(--shadow-sm); }
-    50% { transform: translateY(-3px); box-shadow: 0 0 0 5px rgba(16,185,129,0.12), var(--shadow-md); }
+  @media (prefers-reduced-motion: no-preference) {
+    @keyframes modeGlowPulse {
+      0%, 100% { transform: translateY(0); box-shadow: var(--shadow-sm); }
+      50% { transform: translateY(-3px); box-shadow: 0 0 0 5px rgba(16,185,129,0.12), var(--shadow-md); }
+    }
+  }
+
+  @media (max-width: 767.98px) and (prefers-reduced-motion: no-preference) {
+    @keyframes modeGlowPulse {
+      0%, 100% { transform: translateY(0); box-shadow: var(--shadow-sm); }
+      50% { transform: translateY(-3px); box-shadow: var(--shadow-sm); }
+    }
   }
 
   @keyframes modeIconFloat {
@@ -1991,6 +2033,7 @@
       max-width: 18rem;
       justify-content: center;
       padding: 0.78rem 1rem;
+      min-height: 48px;
     }
 
     .mode-intro {

@@ -106,11 +106,7 @@
   }
 
   document.addEventListener("DOMContentLoaded", function () {
-    const toastElement = document.getElementById("cartToast");
-    const cartToast =
-      (toastElement && window.bootstrap && window.bootstrap.Toast)
-        ? new window.bootstrap.Toast(toastElement)
-        : null;
+    const coreUI = window.BMCoreUI || {};
 
     const qtyControllers = new Map();
     const qtySeq = new Map();
@@ -129,17 +125,25 @@
     }
 
     function showToast(message, type) {
-      const level = type || "success";
-      const toast = document.getElementById("cartToast");
-      const toastMessage = document.getElementById("toastMessage");
-      if (!toast || !toastMessage) return;
-
-      toast.className = "toast align-items-center text-white border-0";
-      toast.classList.add("bg-" + (level === "error" ? "danger" : "success"));
-      toastMessage.textContent = message || "";
-
-      if (cartToast && typeof cartToast.show === "function") {
-        cartToast.show();
+      if (typeof coreUI.showBootstrapToast === "function") {
+        coreUI.showBootstrapToast({
+          message: message || "",
+          type: type || "success",
+          toastId: "cartToast",
+          messageId: "toastMessage",
+          durationMs: 3000,
+          classMap: {
+            success: "bg-success",
+            info: "bg-info",
+            warning: "bg-warning",
+            error: "bg-danger",
+            danger: "bg-danger",
+          },
+        });
+        return;
+      }
+      if (typeof coreUI.showToast === "function") {
+        coreUI.showToast(message || "", type || "success");
       }
     }
 

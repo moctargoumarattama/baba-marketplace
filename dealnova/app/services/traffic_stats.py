@@ -12,9 +12,12 @@ from flask import current_app, g, request
 from flask_login import current_user
 
 from .cache import cache
+from .shared_state import get_json_state, mutate_json_states, set_json_state
 
 REQUESTS_PREFIX = "stats:requests:"
 ORDERS_PREFIX = "stats:orders:"
+REQUESTS_BUCKETS_KEY = "stats:request_buckets"
+ORDERS_BUCKETS_KEY = "stats:order_buckets"
 
 REQUESTS_TTL_SECONDS = 120
 ORDERS_TTL_SECONDS = 7200
@@ -28,6 +31,8 @@ MAX_VISITOR_HISTORY_ENTRIES = 50000
 MAX_DAILY_SEEN_ENTRIES = 25000
 MAX_BUCKET_ENTRIES = 120
 MAX_ACTIVE_AUTH_USERS = 8
+MAX_REQUEST_COUNTER_BUCKETS = 180
+MAX_ORDER_COUNTER_BUCKETS = 96
 
 DAILY_STATS_PREFIX = "stats:daily:"
 DAILY_SEEN_PREFIX = "stats:daily_seen:"
@@ -145,27 +150,99 @@ def _hash_value(raw_value: str) -> str:
     return hashlib.sha256(payload).hexdigest()[:40]
 
 
-def _cache_increment(key: str, ttl_seconds: int) -> int:
+def _trim_counter_buckets(bucket: dict[str, Any], max_entries: int) -> dict[str, int]:
+    normalized = {
+        str(key): _safe_int(value, default=0)
+        for key, value in (bucket or {}).items()
+    }
+    if len(normalized) <= max_entries:
+        return normalized
+    ordered = sorted(normalized.items(), key=lambda item: item[0], reverse=True)[:max_entries]
+    return {key: value for key, value in ordered}
+
+
+def _increment_counter_bucket(
+    state_key: str,
+    bucket_key: str,
+    ttl_seconds: int,
+    max_entries: int,
+) -> int:
+    result = {"count": 0}
+
+    def _mutate(payloads: dict[str, dict[str, Any]]) -> None:
+        payload = _trim_counter_buckets(payloads.get(state_key, {}), max_entries)
+        payload[bucket_key] = _safe_int(payload.get(bucket_key), default=0) + 1
+        payloads[state_key] = _trim_counter_buckets(payload, max_entries)
+        result["count"] = _safe_int(payloads[state_key].get(bucket_key), default=0)
+
+    _mutate_durable_dicts(
+        {state_key: dict},
+        {state_key: max(ttl_seconds * 4, LIVE_METRICS_CACHE_TTL_SECONDS * 6)},
+        _mutate,
+    )
+    return _safe_int(result.get("count"), default=0)
+
+
+def _read_counter_bucket(state_key: str, bucket_key: str) -> int:
+    payload = _load_durable_dict(state_key, dict)
+    return _safe_int(payload.get(bucket_key), default=0)
+
+
+def _default_dict(factory_or_value) -> dict[str, Any]:
+    if callable(factory_or_value):
+        value = factory_or_value()
+    else:
+        value = factory_or_value
+    return value if isinstance(value, dict) else {}
+
+
+def _load_cache_dict(key: str, default_factory) -> dict[str, Any]:
+    payload = cache.get(key)
+    if isinstance(payload, dict):
+        return payload
+    return _default_dict(default_factory)
+
+
+def _load_durable_dict(key: str, default_factory) -> dict[str, Any]:
     try:
-        cache.add(key, 0, timeout=int(ttl_seconds))
+        payload = get_json_state(key, default_factory)
+        if isinstance(payload, dict):
+            return payload
     except Exception:
         pass
+    return _load_cache_dict(key, default_factory)
 
+
+def _store_durable_dict(key: str, value: dict[str, Any], ttl_seconds: int) -> None:
     try:
-        value = cache.inc(key, 1)
-        if value is not None:
-            cache.set(key, _safe_int(value), timeout=int(ttl_seconds))
-            return _safe_int(value)
+        set_json_state(key, value)
+        return
     except Exception:
         pass
-
-    current = _safe_int(cache.get(key), default=0) + 1
-    cache.set(key, current, timeout=int(ttl_seconds))
-    return current
+    cache.set(key, value, timeout=int(ttl_seconds))
 
 
-def _cache_read_counter(key: str) -> int:
-    return _safe_int(cache.get(key), default=0)
+def _mutate_durable_dicts(
+    specs: dict[str, Any],
+    ttl_seconds_by_key: dict[str, int],
+    mutator,
+) -> dict[str, dict[str, Any]]:
+    try:
+        return mutate_json_states(specs, mutator)
+    except Exception:
+        with _ANALYTICS_LOCK:
+            payloads = {
+                key: _load_cache_dict(key, default_factory)
+                for key, default_factory in (specs or {}).items()
+            }
+            mutator(payloads)
+            for key, value in payloads.items():
+                cache.set(
+                    key,
+                    value,
+                    timeout=int(ttl_seconds_by_key.get(key, DAILY_STATS_TTL_SECONDS)),
+                )
+            return payloads
 
 
 def _now_ts(now: datetime | None = None) -> int:
@@ -360,25 +437,31 @@ def _touch_active_visitor(now: datetime | None = None) -> int:
         "path": _normalize_path(request.path or "/"),
     }
 
-    with _ANALYTICS_LOCK:
-        active_visitors = cache.get(ACTIVE_VISITORS_KEY)
-        if not isinstance(active_visitors, dict):
-            active_visitors = {}
-        active_visitors = _cleanup_active_visitors(active_visitors, now_ts)
+    result = {"count": 0}
+
+    def _mutate(payloads: dict[str, dict[str, Any]]) -> None:
+        active_visitors = _cleanup_active_visitors(
+            payloads.get(ACTIVE_VISITORS_KEY, {}),
+            now_ts,
+        )
         active_visitors[visitor_id] = active_entry
-        cache.set(ACTIVE_VISITORS_KEY, active_visitors, timeout=ACTIVE_TTL_SECONDS * 2)
-        return len(active_visitors)
+        payloads[ACTIVE_VISITORS_KEY] = active_visitors
+        result["count"] = len(active_visitors)
+
+    _mutate_durable_dicts(
+        {ACTIVE_VISITORS_KEY: dict},
+        {ACTIVE_VISITORS_KEY: ACTIVE_TTL_SECONDS * 2},
+        _mutate,
+    )
+    return _safe_int(result.get("count"), default=0)
 
 
 def _active_snapshot(now: datetime | None = None) -> dict[str, Any]:
     now_ts = _now_ts(now)
-    with _ANALYTICS_LOCK:
-        active_visitors = cache.get(ACTIVE_VISITORS_KEY)
-        if not isinstance(active_visitors, dict):
-            active_visitors = {}
-        cleaned = _cleanup_active_visitors(active_visitors, now_ts)
-        if cleaned != active_visitors:
-            cache.set(ACTIVE_VISITORS_KEY, cleaned, timeout=ACTIVE_TTL_SECONDS * 2)
+    active_visitors = _load_durable_dict(ACTIVE_VISITORS_KEY, dict)
+    cleaned = _cleanup_active_visitors(active_visitors, now_ts)
+    if cleaned != active_visitors:
+        _store_durable_dict(ACTIVE_VISITORS_KEY, cleaned, ACTIVE_TTL_SECONDS * 2)
 
     active_total = len(cleaned)
     active_authenticated = 0
@@ -441,18 +524,10 @@ def _record_daily_page_view(now: datetime | None = None, active_total: int | Non
     role = _role_bucket()
     hour_key = current_dt.strftime("%H")
 
-    with _ANALYTICS_LOCK:
-        stats = cache.get(stats_key)
-        if not isinstance(stats, dict):
-            stats = _fresh_daily_stats()
-
-        seen_today = cache.get(seen_key)
-        if not isinstance(seen_today, dict):
-            seen_today = {}
-
-        visitor_history = cache.get(VISITOR_HISTORY_KEY)
-        if not isinstance(visitor_history, dict):
-            visitor_history = {}
+    def _mutate(payloads: dict[str, dict[str, Any]]) -> None:
+        stats = payloads.get(stats_key, _fresh_daily_stats())
+        seen_today = payloads.get(seen_key, {})
+        visitor_history = payloads.get(VISITOR_HISTORY_KEY, {})
 
         first_seen_today = visitor_id not in seen_today
         is_new_visitor = visitor_id not in visitor_history
@@ -490,13 +565,25 @@ def _record_daily_page_view(now: datetime | None = None, active_total: int | Non
                 _safe_int(stats.get("peak_active_today"), default=0),
                 _safe_int(active_total, default=0),
             )
+        payloads[stats_key] = stats
+        payloads[seen_key] = seen_today
+        payloads[VISITOR_HISTORY_KEY] = visitor_history
 
-        cache.set(stats_key, stats, timeout=DAILY_STATS_TTL_SECONDS)
-        cache.set(seen_key, seen_today, timeout=DAILY_STATS_TTL_SECONDS)
-        cache.set(VISITOR_HISTORY_KEY, visitor_history, timeout=VISITOR_HISTORY_TTL_SECONDS)
-
-        _live_metrics_cache_set(None, time.time())
-        _live_metrics_cache_invalidate()
+    _mutate_durable_dicts(
+        {
+            stats_key: _fresh_daily_stats,
+            seen_key: dict,
+            VISITOR_HISTORY_KEY: dict,
+        },
+        {
+            stats_key: DAILY_STATS_TTL_SECONDS,
+            seen_key: DAILY_STATS_TTL_SECONDS,
+            VISITOR_HISTORY_KEY: VISITOR_HISTORY_TTL_SECONDS,
+        },
+        _mutate,
+    )
+    _live_metrics_cache_set(None, time.time())
+    _live_metrics_cache_invalidate()
 
 
 def _live_metrics_cache_get(now_ts: float) -> dict[str, Any] | None:
@@ -524,12 +611,16 @@ def _live_metrics_cache_invalidate() -> None:
 
 
 def _update_lifetime_event(event_name: str, amount: int = 1) -> None:
-    with _ANALYTICS_LOCK:
-        payload = cache.get(LIFETIME_EVENTS_KEY)
-        if not isinstance(payload, dict):
-            payload = {}
+    def _mutate(payloads: dict[str, dict[str, Any]]) -> None:
+        payload = payloads.get(LIFETIME_EVENTS_KEY, {})
         payload[event_name] = _safe_int(payload.get(event_name), default=0) + int(amount)
-        cache.set(LIFETIME_EVENTS_KEY, payload, timeout=LIFETIME_STATS_TTL_SECONDS)
+        payloads[LIFETIME_EVENTS_KEY] = payload
+
+    _mutate_durable_dicts(
+        {LIFETIME_EVENTS_KEY: dict},
+        {LIFETIME_EVENTS_KEY: LIFETIME_STATS_TTL_SECONDS},
+        _mutate,
+    )
 
 
 def track_request_hit(path: str | None = None, endpoint: str | None = None) -> None:
@@ -544,7 +635,12 @@ def track_request_hit(path: str | None = None, endpoint: str | None = None) -> N
             return
 
         now = datetime.utcnow()
-        _cache_increment(_requests_key(now), REQUESTS_TTL_SECONDS)
+        _increment_counter_bucket(
+            REQUESTS_BUCKETS_KEY,
+            _requests_key(now),
+            REQUESTS_TTL_SECONDS,
+            MAX_REQUEST_COUNTER_BUCKETS,
+        )
         active_total = _touch_active_visitor(now)
         _record_daily_page_view(now, active_total=active_total)
     except Exception:
@@ -553,7 +649,12 @@ def track_request_hit(path: str | None = None, endpoint: str | None = None) -> N
 
 def track_order_created(now: datetime | None = None) -> None:
     try:
-        _cache_increment(_orders_key(now), ORDERS_TTL_SECONDS)
+        _increment_counter_bucket(
+            ORDERS_BUCKETS_KEY,
+            _orders_key(now),
+            ORDERS_TTL_SECONDS,
+            MAX_ORDER_COUNTER_BUCKETS,
+        )
         track_custom_event("order_created", now=now)
     except Exception:
         return
@@ -567,13 +668,17 @@ def track_custom_event(event_name: str, now: datetime | None = None) -> None:
     current_dt = now or datetime.utcnow()
     stats_key = _daily_stats_key(current_dt)
 
-    with _ANALYTICS_LOCK:
-        stats = cache.get(stats_key)
-        if not isinstance(stats, dict):
-            stats = _fresh_daily_stats()
+    def _mutate(payloads: dict[str, dict[str, Any]]) -> None:
+        stats = payloads.get(stats_key, _fresh_daily_stats())
         events = stats.setdefault("events", {name: 0 for name in ALLOWED_EVENTS})
         events[safe_event] = _safe_int(events.get(safe_event), default=0) + 1
-        cache.set(stats_key, stats, timeout=DAILY_STATS_TTL_SECONDS)
+        payloads[stats_key] = stats
+
+    _mutate_durable_dicts(
+        {stats_key: _fresh_daily_stats},
+        {stats_key: DAILY_STATS_TTL_SECONDS},
+        _mutate,
+    )
 
     if safe_event == "pwa_installed":
         _update_lifetime_event("pwa_installed", amount=1)
@@ -582,10 +687,7 @@ def track_custom_event(event_name: str, now: datetime | None = None) -> None:
 
 
 def _load_daily_stats(now: datetime) -> dict[str, Any]:
-    stats = cache.get(_daily_stats_key(now))
-    if not isinstance(stats, dict):
-        return _fresh_daily_stats()
-    return stats
+    return _load_durable_dict(_daily_stats_key(now), _fresh_daily_stats)
 
 
 def get_live_traffic_metrics(now: datetime | None = None) -> dict[str, Any]:
@@ -639,7 +741,7 @@ def get_live_traffic_metrics(now: datetime | None = None) -> dict[str, Any]:
     }
 
     try:
-        snapshot["rpm"] = _cache_read_counter(_requests_key(current_dt))
+        snapshot["rpm"] = _read_counter_bucket(REQUESTS_BUCKETS_KEY, _requests_key(current_dt))
     except Exception as exc:
         snapshot["error"] = str(exc)
 
@@ -656,7 +758,7 @@ def get_live_traffic_metrics(now: datetime | None = None) -> dict[str, Any]:
         snapshot["error"] = str(exc)
 
     try:
-        snapshot["orders_per_hour"] = _cache_read_counter(_orders_key(current_dt))
+        snapshot["orders_per_hour"] = _read_counter_bucket(ORDERS_BUCKETS_KEY, _orders_key(current_dt))
     except Exception as exc:
         snapshot["error"] = str(exc)
 
@@ -718,9 +820,11 @@ def get_live_traffic_metrics(now: datetime | None = None) -> dict[str, Any]:
         snapshot["error"] = str(exc)
 
     try:
-        lifetime_events = cache.get(LIFETIME_EVENTS_KEY)
-        if isinstance(lifetime_events, dict):
-            snapshot["pwa_installs_total"] = _safe_int(lifetime_events.get("pwa_installed"), default=0)
+        lifetime_events = _load_durable_dict(LIFETIME_EVENTS_KEY, dict)
+        snapshot["pwa_installs_total"] = _safe_int(
+            lifetime_events.get("pwa_installed"),
+            default=0,
+        )
     except Exception as exc:
         snapshot["error"] = str(exc)
 

@@ -154,6 +154,30 @@
       }, opts.fastExit ? 120 : 420);
     }
 
+    function syncDrawerVisibilityState() {
+      if (!isMobileDrawer()) {
+        hardResetDrawerUI();
+        return;
+      }
+
+      var isOpen = drawer.classList.contains("show");
+      document.body.classList.toggle("menu-open", isOpen);
+      document.body.classList.toggle("drawer-open", isOpen);
+      toggler.setAttribute("aria-expanded", isOpen ? "true" : "false");
+      overlay.setAttribute("aria-hidden", isOpen ? "false" : "true");
+
+      if (isOpen) {
+        if (typeof window.lockScroll === "function") {
+          window.lockScroll("drawer");
+        }
+        return;
+      }
+
+      if (typeof window.ensureScrollLockConsistency === "function") {
+        window.ensureScrollLockConsistency();
+      }
+    }
+
     if (closeBtn) {
       var closeWithIntent = function (e) {
         if (e) {
@@ -277,6 +301,8 @@
       clearPendingState();
       hardResetDrawerUI();
     });
+
+    syncDrawerVisibilityState();
 
     window.addEventListener("resize", function () {
       if (!isMobileDrawer()) {

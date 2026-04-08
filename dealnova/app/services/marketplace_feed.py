@@ -15,7 +15,7 @@ from ..models.promo import Promo
 from ..models.rental import RentalListing, RentalMedia
 from ..models.shop import Shop
 from .featured_items import featured_rank_expr, location_featured_exists_expr, product_featured_exists_expr
-from .pricing import prix_final
+from .pricing import cents_to_money, dh_to_cents, final_price_cents, get_active_promos_for_products
 from .rentals import rental_existing_video_poster_rel_path
 
 
@@ -26,6 +26,7 @@ ANTI_MONOPOLY_WINDOW = 20
 ANTI_MONOPOLY_MAX_PER_OWNER = 2
 FEATURED_HEAD_WINDOW = 12
 FEATURED_HEAD_MAX = 6
+SEARCH_DESCRIPTION_MIN_LENGTH = 3
 
 
 @dataclass(slots=True)
@@ -207,6 +208,137 @@ def build_location_feed(
     }
 
 
+def build_standard_marketplace_page(
+    *,
+    page: int,
+    per_page: int,
+    category_id: int | None = None,
+    search_q: str = "",
+    sort: str = "",
+    kind: str = "",
+    min_price: float | None = None,
+    max_price: float | None = None,
+    promo_only: str = "0",
+    in_stock: str = "0",
+    shop_id: int | None = None,
+) -> dict:
+    query, _, final_price_expr, featured_expr, search_rank_expr = _base_product_query(
+        search_q=search_q,
+        category_id=category_id,
+        kind=kind,
+        min_price=min_price,
+        max_price=max_price,
+        promo_only=promo_only,
+        in_stock=in_stock,
+        shop_id=shop_id,
+    )
+    ordered_query = _apply_product_sort(
+        query,
+        sort=sort,
+        featured_expr=featured_expr,
+        final_price_expr=final_price_expr,
+        search_rank_expr=search_rank_expr,
+    )
+    try:
+        pagination = ordered_query.paginate(page=page, per_page=per_page, error_out=False)
+    except Exception:
+        _safe_session_rollback()
+        return {"data": [], "total": 0, "per_page": per_page}
+
+    products = pagination.items
+    product_ids = [product.id for product in products]
+    promo_map = _promo_map_for_products(product_ids)
+    data = [_serialize_product_legacy_tuple(product, promo_map.get(product.id)) for product in products]
+
+    if not kind and page == 1:
+        rotation_seed = _rotation_seed(
+            page=page,
+            search_q=search_q,
+            kind=kind,
+            category_id=category_id,
+            shop_id=shop_id,
+        )
+        location_cards = _fetch_location_cards(
+            limit=max(6, per_page // 3),
+            rotation_seed=rotation_seed,
+            search_q=search_q,
+            min_price=min_price,
+            max_price=max_price,
+            shop_id=shop_id,
+            sort=sort,
+        )
+        location_entries = [card.as_legacy_tuple() for card in location_cards]
+        if location_entries:
+            data = _mix_legacy_entries(data, location_entries)[:per_page]
+
+    if sort == "low":
+        data.sort(key=lambda item: item[1])
+    elif sort == "high":
+        data.sort(key=lambda item: item[1], reverse=True)
+
+    return {
+        "data": data,
+        "total": pagination.total,
+        "per_page": per_page,
+    }
+
+
+def search_public_products(*, search_q: str, limit: int) -> list[dict]:
+    search_filter, search_rank_expr = _product_search_filter(search_q, include_description=True)
+    if search_filter is None:
+        return []
+    try:
+        products = (
+            Product.query
+            .options(
+                selectinload(Product.shop).load_only(Shop.id, Shop.name),
+                selectinload(Product.category),
+            )
+            .filter(Product.is_active == True)
+            .filter(search_filter)
+            .order_by(search_rank_expr.asc(), Product.created_at.desc(), Product.id.desc())
+            .limit(limit)
+            .all()
+        )
+    except Exception:
+        _safe_session_rollback()
+        return []
+
+    product_ids = [product.id for product in products]
+    promo_map = _promo_map_for_products(product_ids)
+    return [_serialize_product_search_result(product, promo_map.get(product.id)) for product in products]
+
+
+def search_public_locations(*, search_q: str, limit: int) -> list[dict]:
+    if not (search_q or "").strip():
+        return []
+    try:
+        listings = (
+            _public_location_query(
+                search_q=search_q,
+                min_price=None,
+                max_price=None,
+                shop_id=None,
+            )
+            .options(
+                selectinload(RentalListing.media),
+                selectinload(RentalListing.shop).load_only(Shop.id, Shop.name),
+            )
+            .order_by(
+                _location_search_rank(search_q).asc(),
+                RentalListing.created_at.desc(),
+                RentalListing.id.desc(),
+            )
+            .limit(limit)
+            .all()
+        )
+    except Exception:
+        _safe_session_rollback()
+        return []
+
+    return [_serialize_location_search_result(listing) for listing in listings]
+
+
 def _rotation_seed(*, page: int, search_q: str, kind: str, category_id: int | None, shop_id: int | None) -> str:
     now = datetime.utcnow()
     slot = (now.hour * 60 + now.minute) // 30
@@ -230,6 +362,214 @@ def _safe_session_rollback() -> None:
         db.session.rollback()
     except Exception:
         pass
+
+
+def _promo_map_for_products(product_ids: list[int]) -> dict[int, Promo]:
+    return get_active_promos_for_products(product_ids)
+
+
+def _mix_legacy_entries(product_entries: list[tuple], location_entries: list[tuple]) -> list[tuple]:
+    mixed: list[tuple] = []
+    max_len = max(len(product_entries), len(location_entries))
+    for idx in range(max_len):
+        if idx < len(product_entries):
+            mixed.append(product_entries[idx])
+        if idx < len(location_entries):
+            mixed.append(location_entries[idx])
+    return mixed
+
+
+def _product_search_filter(search_q: str, *, include_description: bool = False):
+    term = (search_q or "").strip()
+    if not term:
+        return None, None
+
+    exact_name = Product.name.ilike(term)
+    prefix_name = Product.name.ilike(f"{term}%")
+    contains_name = Product.name.ilike(f"%{term}%")
+
+    clauses = [exact_name, prefix_name, contains_name]
+    rank_cases = [
+        (exact_name, 0),
+        (prefix_name, 1),
+    ]
+
+    if include_description and len(term) >= SEARCH_DESCRIPTION_MIN_LENGTH:
+        prefix_description = Product.description.ilike(f"{term}%")
+        contains_description = Product.description.ilike(f"%{term}%")
+        clauses.extend([prefix_description, contains_description])
+        rank_cases.extend([
+            (prefix_description, 2),
+            (contains_name, 3),
+            (contains_description, 4),
+        ])
+    else:
+        rank_cases.append((contains_name, 2))
+
+    return or_(*clauses), case(*rank_cases, else_=99)
+
+
+def _location_search_filter(search_q: str, *, include_description: bool = True):
+    term = (search_q or "").strip()
+    if not term:
+        return None
+
+    clauses = [
+        RentalListing.title.ilike(term),
+        RentalListing.title.ilike(f"{term}%"),
+        RentalListing.city.ilike(f"{term}%"),
+        RentalListing.area.ilike(f"{term}%"),
+        RentalListing.title.ilike(f"%{term}%"),
+        RentalListing.city.ilike(f"%{term}%"),
+        RentalListing.area.ilike(f"%{term}%"),
+    ]
+    if include_description and len(term) >= SEARCH_DESCRIPTION_MIN_LENGTH:
+        clauses.append(RentalListing.description.ilike(f"%{term}%"))
+    return or_(*clauses)
+
+
+def _location_search_rank(search_q: str):
+    term = (search_q or "").strip()
+    if not term:
+        return case((RentalListing.id.isnot(None), 0), else_=0)
+
+    exact_title = RentalListing.title.ilike(term)
+    prefix_title = RentalListing.title.ilike(f"{term}%")
+    prefix_city = RentalListing.city.ilike(f"{term}%")
+    prefix_area = RentalListing.area.ilike(f"{term}%")
+    contains_title = RentalListing.title.ilike(f"%{term}%")
+    contains_city = RentalListing.city.ilike(f"%{term}%")
+    contains_area = RentalListing.area.ilike(f"%{term}%")
+    contains_description = (
+        RentalListing.description.ilike(f"%{term}%")
+        if len(term) >= SEARCH_DESCRIPTION_MIN_LENGTH
+        else None
+    )
+
+    rank_cases = [
+        (exact_title, 0),
+        (prefix_title, 1),
+        (prefix_city, 2),
+        (prefix_area, 3),
+        (contains_title, 4),
+        (contains_city, 5),
+        (contains_area, 6),
+    ]
+    if contains_description is not None:
+        rank_cases.append((contains_description, 7))
+    return case(*rank_cases, else_=99)
+
+
+def _apply_product_sort(query, *, sort: str, featured_expr, final_price_expr, search_rank_expr):
+    if search_rank_expr is None:
+        if sort == "low":
+            return query.order_by(featured_expr.desc(), final_price_expr.asc(), Product.created_at.desc(), Product.id.desc())
+        if sort == "high":
+            return query.order_by(featured_expr.desc(), final_price_expr.desc(), Product.created_at.desc(), Product.id.desc())
+        return query.order_by(featured_expr.desc(), Product.created_at.desc(), Product.id.desc())
+
+    if sort == "low":
+        return query.order_by(search_rank_expr.asc(), featured_expr.desc(), final_price_expr.asc(), Product.created_at.desc(), Product.id.desc())
+    if sort == "high":
+        return query.order_by(search_rank_expr.asc(), featured_expr.desc(), final_price_expr.desc(), Product.created_at.desc(), Product.id.desc())
+    return query.order_by(search_rank_expr.asc(), featured_expr.desc(), Product.created_at.desc(), Product.id.desc())
+
+
+def _apply_location_sort(query, *, sort: str, featured_expr, search_rank_expr):
+    if search_rank_expr is None:
+        if sort == "low":
+            return query.order_by(featured_expr.desc(), RentalListing.rent_cents.asc(), RentalListing.created_at.desc(), RentalListing.id.desc())
+        if sort == "high":
+            return query.order_by(featured_expr.desc(), RentalListing.rent_cents.desc(), RentalListing.created_at.desc(), RentalListing.id.desc())
+        return query.order_by(featured_expr.desc(), RentalListing.created_at.desc(), RentalListing.id.desc())
+
+    if sort == "low":
+        return query.order_by(search_rank_expr.asc(), featured_expr.desc(), RentalListing.rent_cents.asc(), RentalListing.created_at.desc(), RentalListing.id.desc())
+    if sort == "high":
+        return query.order_by(search_rank_expr.asc(), featured_expr.desc(), RentalListing.rent_cents.desc(), RentalListing.created_at.desc(), RentalListing.id.desc())
+    return query.order_by(search_rank_expr.asc(), featured_expr.desc(), RentalListing.created_at.desc(), RentalListing.id.desc())
+
+
+def _serialize_product_legacy_tuple(product, promo) -> tuple:
+    safe_price = cents_to_money(getattr(product, "price_cents", 0) or 0)
+    final_price = cents_to_money(final_price_cents(product, promo))
+    discount = _safe_float(getattr(promo, "value", 0), 0.0) if promo and promo.type == "percentage" else 0.0
+    product_dict = {
+        "id": product.id,
+        "name": product.name,
+        "price": safe_price,
+        "stock": product.stock or 0,
+        "kind": (product.kind or "physical"),
+        "item_type": "service" if (product.kind or "physical") == "service" else "product",
+        "image_file": product.image_file,
+        "promo_active": bool(promo),
+        "promo_type": (promo.type if promo else ""),
+        "promo_value": _safe_float(getattr(promo, "value", 0), 0.0) if promo else 0.0,
+        "owner_id": product.vendor_id or getattr(product.shop, "vendor_id", None),
+        "shop_id": product.shop_id,
+        "created_at": product.created_at,
+    }
+    return (product_dict, final_price, discount)
+
+
+def _serialize_product_search_result(product, promo) -> dict:
+    kind = (getattr(product, "kind", None) or "physical")
+    is_service = kind == "service"
+    final_price = cents_to_money(final_price_cents(product, promo))
+    image_file = ""
+    if getattr(product, "image_file", None):
+        image_file = str(product.image_file).split("|")[0]
+    return {
+        "id": product.id,
+        "name": product.name,
+        "price": cents_to_money(getattr(product, "price_cents", 0) or 0),
+        "final_price": final_price,
+        "promo_value": _safe_float(getattr(promo, "value", 0), 0.0) if promo else 0.0,
+        "promo_type": promo.type if promo else None,
+        "shop_name": product.shop.name if getattr(product, "shop", None) else "N/A",
+        "category": product.category.name if getattr(product, "category", None) else "",
+        "stock": product.stock if hasattr(product, "stock") else None,
+        "url": f"/shop/product/{product.id}",
+        "image_file": image_file,
+        "kind": kind,
+        "can_add_to_cart": not is_service,
+        "booking_url": f"/booking/{product.id}" if is_service else None,
+        "default_quantity": 1,
+    }
+
+
+def _serialize_location_search_result(listing) -> dict:
+    cover = ""
+    if getattr(listing, "media", None):
+        for media in listing.media:
+            if media.kind == "image" and media.file_path:
+                cover = media.file_path
+                break
+    cover_url = ""
+    if cover:
+        normalized_cover = str(cover).replace("\\", "/").lstrip("/")
+        if normalized_cover.startswith(("http://", "https://")):
+            cover_url = normalized_cover
+        elif normalized_cover.startswith("static/"):
+            cover_url = f"/{normalized_cover}"
+        elif normalized_cover.startswith("uploads/"):
+            cover_url = f"/static/{normalized_cover}"
+        else:
+            cover_url = f"/static/uploads/rentals/{normalized_cover}"
+
+    return {
+        "id": listing.id,
+        "title": listing.title,
+        "city": listing.city,
+        "area": listing.area or "",
+        "rent_cents": int(listing.rent_cents or 0),
+        "rent_dh": round((listing.rent_cents or 0) / 100, 2),
+        "listing_type": listing.listing_type,
+        "url": f"/location/{listing.slug}",
+        "shop_name": listing.shop.name if getattr(listing, "shop", None) else "",
+        "cover": cover,
+        "cover_url": cover_url,
+    }
 
 
 def _base_product_query(*, search_q: str, category_id: int | None, kind: str, min_price: float | None, max_price: float | None, promo_only: str, in_stock: str, shop_id: int | None):
@@ -267,14 +607,16 @@ def _base_product_query(*, search_q: str, category_id: int | None, kind: str, mi
     )
 
     promo_value = db.func.coalesce(promo_value_sq, 0.0)
+    promo_value_cents = db.cast(db.func.round(promo_value * 100.0), db.Integer)
+    base_price_cents_expr = db.func.coalesce(Product.price_cents_value, 0)
     fixed_price_expr = case(
-        ((Product.price - promo_value) > 0, Product.price - promo_value),
-        else_=0.0,
+        ((base_price_cents_expr - promo_value_cents) > 0, base_price_cents_expr - promo_value_cents),
+        else_=0,
     )
-    final_price_expr = case(
-        (promo_type_sq == "percentage", Product.price - (Product.price * promo_value / 100.0)),
+    final_price_cents_expr = case(
+        (promo_type_sq == "percentage", db.cast(db.func.round(base_price_cents_expr - (base_price_cents_expr * promo_value / 100.0)), db.Integer)),
         (promo_type_sq == "fixed", fixed_price_expr),
-        else_=Product.price,
+        else_=base_price_cents_expr,
     )
 
     query = (
@@ -285,9 +627,10 @@ def _base_product_query(*, search_q: str, category_id: int | None, kind: str, mi
         .filter(or_(Product.shop_id.is_(None), Shop.is_active == True))
     )
     featured_expr = featured_rank_expr(product_featured_exists_expr(Product.id, Product.shop_id, now))
+    search_filter, search_rank_expr = _product_search_filter(search_q, include_description=False)
 
-    if search_q:
-        query = query.filter(Product.name.ilike(f"%{search_q}%"))
+    if search_filter is not None:
+        query = query.filter(search_filter)
     if category_id:
         query = query.filter(Product.category_id == category_id)
     if shop_id:
@@ -299,15 +642,15 @@ def _base_product_query(*, search_q: str, category_id: int | None, kind: str, mi
     if promo_only == "1":
         query = query.filter(promo_exists_sq)
     if min_price is not None:
-        query = query.filter(final_price_expr >= min_price)
+        query = query.filter(final_price_cents_expr >= dh_to_cents(min_price))
     if max_price is not None:
-        query = query.filter(final_price_expr <= max_price)
+        query = query.filter(final_price_cents_expr <= dh_to_cents(max_price))
 
-    return query, promo_exists_sq, final_price_expr, featured_expr
+    return query, promo_exists_sq, final_price_cents_expr, featured_expr, search_rank_expr
 
 
 def _count_products(**kwargs) -> int:
-    query, _, _, _ = _base_product_query(**kwargs)
+    query, _, _, _, _ = _base_product_query(**kwargs)
     try:
         base_rows = (
             query.enable_eagerloads(False)
@@ -326,6 +669,7 @@ def _fetch_product_cards(
     limit: int,
     rotation_seed: str,
     search_q: str,
+    sort: str = "",
     category_id: int | None,
     kind: str,
     min_price: float | None,
@@ -334,7 +678,7 @@ def _fetch_product_cards(
     in_stock: str,
     shop_id: int | None,
 ) -> list[FeedCard]:
-    query, _, _, featured_expr = _base_product_query(
+    query, _, final_price_expr, featured_expr, search_rank_expr = _base_product_query(
         search_q=search_q,
         category_id=category_id,
         kind=kind,
@@ -346,7 +690,13 @@ def _fetch_product_cards(
     )
     try:
         products = (
-            query.order_by(featured_expr.desc(), Product.created_at.desc(), Product.id.desc())
+            _apply_product_sort(
+                query,
+                sort=sort,
+                featured_expr=featured_expr,
+                final_price_expr=final_price_expr,
+                search_rank_expr=search_rank_expr,
+            )
             .limit(limit)
             .all()
         )
@@ -355,25 +705,7 @@ def _fetch_product_cards(
         return []
 
     product_ids = [product.id for product in products]
-    if product_ids:
-        try:
-            promos = (
-                Promo.query
-                .filter(
-                    Promo.product_id.in_(product_ids),
-                    Promo.end_date >= datetime.utcnow(),
-                )
-                .order_by(Promo.product_id.asc(), Promo.end_date.asc())
-                .all()
-            )
-        except Exception:
-            _safe_session_rollback()
-            promos = []
-    else:
-        promos = []
-    promo_map = {}
-    for promo in promos:
-        promo_map.setdefault(promo.product_id, promo)
+    promo_map = _promo_map_for_products(product_ids)
 
     now = datetime.utcnow()
     featured_product_ids: set[int] = set()
@@ -413,26 +745,9 @@ def _fetch_product_cards(
     for product in products:
         try:
             promo = promo_map.get(product.id)
-            safe_price = _safe_float(getattr(product, "price", 0), 0.0)
-            final_price = _safe_float(prix_final(product, promo), safe_price)
-            discount = _safe_float(getattr(promo, "value", 0), 0.0) if promo and promo.type == "percentage" else 0.0
-            item_type = "service" if product.kind == "service" else "product"
-            owner_id = product.vendor_id or getattr(product.shop, "vendor_id", None)
-            payload = {
-                "id": product.id,
-                "name": product.name,
-                "price": safe_price,
-                "stock": product.stock or 0,
-                "kind": product.kind or "physical",
-                "item_type": item_type,
-                "image_file": product.image_file,
-                "owner_id": owner_id,
-                "shop_id": product.shop_id,
-                "created_at": product.created_at,
-                "promo_active": bool(promo),
-                "promo_type": (promo.type if promo else ""),
-                "promo_value": _safe_float(getattr(promo, "value", 0), 0.0) if promo else 0.0,
-            }
+            payload, final_price, discount = _serialize_product_legacy_tuple(product, promo)
+            item_type = payload.get("item_type", "product")
+            owner_id = payload.get("owner_id")
             cards.append(
                 FeedCard(
                     owner_key=_owner_key(owner_id=owner_id, shop_id=product.shop_id, fallback_id=product.id),
@@ -475,14 +790,9 @@ def _public_location_query(
         )
     )
 
-    if search_q:
-        like = f"%{search_q}%"
-        query = query.filter(
-            (RentalListing.title.ilike(like))
-            | (RentalListing.city.ilike(like))
-            | (RentalListing.area.ilike(like))
-            | (RentalListing.description.ilike(like))
-        )
+    search_filter = _location_search_filter(search_q, include_description=True)
+    if search_filter is not None:
+        query = query.filter(search_filter)
     if listing_type:
         query = query.filter(RentalListing.listing_type == listing_type)
     if property_type:
@@ -496,9 +806,9 @@ def _public_location_query(
     if shop_id:
         query = query.filter(RentalListing.shop_id == shop_id)
     if min_price is not None:
-        query = query.filter(RentalListing.rent_cents >= int(round(min_price * 100)))
+        query = query.filter(RentalListing.rent_cents >= dh_to_cents(min_price))
     if max_price is not None:
-        query = query.filter(RentalListing.rent_cents <= int(round(max_price * 100)))
+        query = query.filter(RentalListing.rent_cents <= dh_to_cents(max_price))
 
     return query
 
@@ -523,6 +833,7 @@ def _fetch_location_cards(
     limit: int,
     rotation_seed: str,
     search_q: str,
+    sort: str = "",
     listing_type: str = "",
     property_type: str = "",
     city_area: str = "",
@@ -553,7 +864,12 @@ def _fetch_location_cards(
         location_featured_exists_expr(RentalListing.id, RentalListing.shop_id, datetime.utcnow())
     )
     listings = (
-        query.order_by(featured_expr.desc(), RentalListing.created_at.desc(), RentalListing.id.desc())
+        _apply_location_sort(
+            query,
+            sort=sort,
+            featured_expr=featured_expr,
+            search_rank_expr=_location_search_rank(search_q) if (search_q or "").strip() else None,
+        )
         .limit(limit)
         .all()
     )

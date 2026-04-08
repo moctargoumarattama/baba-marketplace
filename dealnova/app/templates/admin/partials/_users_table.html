@@ -32,7 +32,7 @@
               </div>
               <div>
                 <div class="user-name">{{ user.username }}</div>
-                {% if user.full_name %}
+                {% if user.role != 'vendor' and user.full_name %}
                   <div class="user-meta">{{ user.full_name }}</div>
                 {% endif %}
               </div>

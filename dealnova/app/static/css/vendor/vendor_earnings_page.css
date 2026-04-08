@@ -1354,12 +1354,77 @@
     }
   }
 
+  .btn-back-quick,
+  .filter-pill,
+  .search-pill,
+  .search-clear,
+  .earnings-back-top,
+  .btn-filter,
+  .btn-history,
+  .stat-tile,
+  .product-pill,
+  .pay-btn,
+  .toast-close,
+  .pagination-item {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .btn-back-quick:active,
+  .filter-pill:active,
+  .search-pill:active,
+  .search-clear:active,
+  .earnings-back-top:active,
+  .btn-filter:active,
+  .btn-history:active,
+  .stat-tile:active,
+  .product-pill:active,
+  .pay-btn:active,
+  .toast-close:active,
+  .pagination-item:active {
+    transform: scale(0.97);
+    opacity: 0.85;
+    transition: transform 0.07s ease, opacity 0.07s ease;
+  }
+
+  @media (max-width: 767.98px) {
+    .btn-back-quick,
+    .filter-pill,
+    .search-pill,
+    .search-clear,
+    .earnings-back-top,
+    .btn-filter,
+    .btn-history,
+    .stat-tile,
+    .product-pill,
+    .pay-btn,
+    .toast-close,
+    .pagination-item {
+      transition-duration: 70ms !important;
+    }
+  }
+
   /* ===== REDUCED MOTION ===== */
   @media (prefers-reduced-motion: reduce) {
     * {
       animation-duration: 0.01ms !important;
       animation-iteration-count: 1 !important;
       transition-duration: 0.01ms !important;
+    }
+  }
+
+  @media (max-width: 767.98px) {
+    .earnings-title i,
+    .btn-back-quick,
+    .btn-history {
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+    }
+
+    .filter-pill,
+    .search-pill {
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
     }
   }
 

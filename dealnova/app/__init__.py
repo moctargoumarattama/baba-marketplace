@@ -4,7 +4,8 @@ import secrets
 import sqlite3
 import click
 from datetime import datetime
-from flask import Flask, render_template, session, request, redirect, url_for, flash, jsonify, current_app, g
+from flask import Flask, render_template, session, request, redirect, url_for, flash, jsonify, current_app, g, Response, make_response
+from flask_compress import Compress
 from urllib.parse import urlparse, urljoin
 from werkzeug.middleware.proxy_fix import ProxyFix
 from flask_wtf.csrf import generate_csrf, validate_csrf
@@ -25,6 +26,7 @@ from .services.logging_service import logging_service
 from .services.image import image_variant
 from .services.cache import cache
 from .services.migration import ensure_featured_items_table
+from .services.shop_access import is_safe_public_shop_slug, normalize_public_shop_slug
 from .services.i18n_labels import (
     label_delivery_status,
     label_location_status,
@@ -33,6 +35,8 @@ from .services.i18n_labels import (
 )
 from .services.maintenance import init_cli_commands  # ← IMPORT AJOUTÉ
 
+from .services.i18n_runtime import build_client_i18n_payload, translate_text
+
 _SCRIPT_NONCE_RE = re.compile(r"(<script\b)(?![^>]*\bnonce=)", re.IGNORECASE)
 _STYLE_NONCE_RE = re.compile(r"(<style\b)(?![^>]*\bnonce=)", re.IGNORECASE)
 
@@ -40,6 +44,7 @@ _STYLE_NONCE_RE = re.compile(r"(<style\b)(?![^>]*\bnonce=)", re.IGNORECASE)
 def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
+    Compress(app)
 
     if app.config.get("TRUST_PROXY", False):
         app.wsgi_app = ProxyFix(
@@ -98,6 +103,12 @@ def create_app(config_class=Config):
         response.headers["Expires"] = "0"
         return response
 
+    @app.route("/favicon.ico")
+    def favicon():
+        response = current_app.send_static_file("favicon.ico")
+        response.headers["Cache-Control"] = "public, max-age=86400"
+        return response
+
     @app.route("/health")
     def health():
         return jsonify(status="ok"), 200
@@ -106,7 +117,9 @@ def create_app(config_class=Config):
     def maintenance_page():
         state = _get_maintenance_state(force_refresh=True)
         status_code = 503 if state.get("active") else 200
-        return render_template("maintenance.html", maintenance=state), status_code
+        response = make_response(render_template("maintenance.html", maintenance=state), status_code)
+        response.headers["X-BM-Maintenance"] = "1"
+        return response
 
     @app.before_request
     def redirect_to_www():
@@ -150,6 +163,16 @@ def create_app(config_class=Config):
     def internal_error(error):
         try:
             db.session.rollback()
+        except Exception:
+            pass
+        try:
+            current_app.logger.exception(
+                "http.500",
+                extra={
+                    "path": request.path if request else None,
+                    "method": request.method if request else None,
+                },
+            )
         except Exception:
             pass
         try:
@@ -239,8 +262,21 @@ def create_app(config_class=Config):
         endpoint = request.endpoint or ""
         if endpoint not in PWA_PUBLIC_CACHEABLE_HTML_ENDPOINTS:
             return False
-        if request.headers.get("X-Requested-With") in ("XMLHttpRequest", "fetch"):
+
+        is_fetch_request = request.headers.get("X-Requested-With") in ("XMLHttpRequest", "fetch")
+        is_public_listing_fragment = (
+            is_fetch_request
+            and (request.args.get("_fragment") or "").strip().lower() == "listing"
+            and endpoint in {
+                "shop.home",
+                "shops.list_shops",
+                "rentals.locations_home",
+                "global_search",
+            }
+        )
+        if is_fetch_request and not is_public_listing_fragment:
             return False
+
         if _pwa_session_scope() != "anon":
             return False
         if _current_cart_count_value() > 0:
@@ -342,7 +378,9 @@ def create_app(config_class=Config):
         try:
             state = _get_maintenance_state()
             if state.get("active"):
-                return render_template("maintenance.html", maintenance=state), 503
+                response = make_response(render_template("maintenance.html", maintenance=state), 503)
+                response.headers["X-BM-Maintenance"] = "1"
+                return response
         except Exception:
             # Safe fallback requested by product: maintenance OFF on DB/runtime issue.
             return None
@@ -428,8 +466,8 @@ def create_app(config_class=Config):
 
         # Exception explicite: le vendeur peut voir sa propre boutique publique.
         if endpoint == "shops.shop_detail":
-            shop_slug = (request.view_args or {}).get("shop_slug")
-            if shop_slug:
+            shop_slug = normalize_public_shop_slug((request.view_args or {}).get("shop_slug"))
+            if shop_slug and is_safe_public_shop_slug(shop_slug):
                 own_shop = (
                     Shop.query.with_entities(Shop.id)
                     .filter(Shop.vendor_id == current_user.id, Shop.slug == shop_slug)
@@ -467,6 +505,10 @@ def create_app(config_class=Config):
 
     @app.context_processor
     def inject_lang():
+        def _translate(value, lang=None):
+            target_lang = lang or getattr(g, "lang", app.config.get("DEFAULT_LANG", "fr"))
+            return translate_text(value, target_lang)
+
         def _label_delivery(status, lang=None):
             target_lang = lang or getattr(g, "lang", app.config.get("DEFAULT_LANG", "fr"))
             return label_delivery_status(status, target_lang)
@@ -487,6 +529,10 @@ def create_app(config_class=Config):
             "current_lang": getattr(g, "lang", app.config.get("DEFAULT_LANG", "fr")),
             "supported_langs": app.config.get("LANGUAGES", ["fr", "en", "ary"]),
             "rtl_langs": app.config.get("RTL_LANGUAGES", []),
+            "t": _translate,
+            "client_i18n_payload": build_client_i18n_payload(
+                getattr(g, "lang", app.config.get("DEFAULT_LANG", "fr"))
+            ),
             "label_delivery_status": _label_delivery,
             "label_order_status": _label_order,
             "label_source": _label_source,
@@ -611,7 +657,8 @@ def create_app(config_class=Config):
         style_nonce_token = "" if allow_style_inline else nonce_token
         return (
             "default-src 'self'; "
-            "img-src 'self' data: https://images.unsplash.com; "
+            "img-src 'self' data: blob: https://images.unsplash.com; "
+            "media-src 'self' data: blob:; "
             "font-src 'self' https://fonts.gstatic.com; "
             f"style-src 'self' {style_inline_token}{style_nonce_token}https://fonts.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
             f"script-src 'self' {script_inline_token}{nonce_token}https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com; "
@@ -629,10 +676,9 @@ def create_app(config_class=Config):
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
         response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
-        response.headers.setdefault(
-            "Permissions-Policy",
-            "geolocation=(), microphone=(), camera=(), payment=()",
-        )
+        permissions_policy = (app.config.get("SECURITY_PERMISSIONS_POLICY", "") or "").strip()
+        if permissions_policy:
+            response.headers.setdefault("Permissions-Policy", permissions_policy)
 
         hsts_enabled = bool(app.config.get("SECURITY_HSTS_ENABLED"))
         request_is_secure = bool(request.is_secure)
@@ -1228,7 +1274,13 @@ def create_app(config_class=Config):
             return {"cart_count": 0}
 
         cart = session.get(key, {})
-        count = sum(cart.values()) if isinstance(cart, dict) else 0
+        count = 0
+        if isinstance(cart, dict):
+            for value in cart.values():
+                try:
+                    count += max(0, int(value or 0))
+                except (TypeError, ValueError):
+                    continue
         return {"cart_count": count}
 
     # User loader
@@ -1268,8 +1320,6 @@ def create_app(config_class=Config):
     # ✅ INITIALISATION DES COMMANDES CLI (AJOUTÉ ICI)
     init_cli_commands(app)
 
-    from flask import Response
-
     @app.route("/sitemap.xml")
     def sitemap():
         from xml.sax.saxutils import escape
@@ -1301,31 +1351,69 @@ def create_app(config_class=Config):
                 return url_for(category_detail_endpoint, slug=category_slug, _external=True)
             return url_for("shop.home", cat=category.id, _external=True)
 
+        # Pages statiques
         add_url(url_for("landing", _external=True))
         add_url(url_for("shops.list_shops", _external=True))
         add_url(url_for("rentals.locations_home", _external=True))
         add_url(url_for("shop.home", _external=True))
         add_url(url_for("global_search", _external=True))
 
-        for shop in Shop.query.filter(Shop.is_active == True).order_by(Shop.id.asc()).all():
-            if getattr(shop, "slug", None):
-                add_url(url_for("shops.shop_detail", shop_slug=shop.slug, _external=True))
+        # ✅ Boutiques — avec limite pour éviter de charger toute la DB
+        try:
+            for shop in (
+                Shop.query
+                .filter(Shop.is_active == True)
+                .order_by(Shop.id.asc())
+                .limit(2000)
+                .all()
+            ):
+                if getattr(shop, "slug", None):
+                    add_url(url_for("shops.shop_detail", shop_slug=shop.slug, _external=True))
+        except Exception:
+            app.logger.exception("sitemap.shops_error")
 
-        for product in Product.query.filter(Product.is_active == True).order_by(Product.id.asc()).all():
-            add_url(url_for("shop.product_detail", pid=product.id, _external=True))
+        # ✅ Produits — avec limite
+        try:
+            for product in (
+                Product.query
+                .filter(Product.is_active == True)
+                .order_by(Product.id.asc())
+                .limit(5000)
+                .all()
+            ):
+                add_url(url_for("shop.product_detail", pid=product.id, _external=True))
+        except Exception:
+            app.logger.exception("sitemap.products_error")
 
-        for listing in RentalListing.query.filter(RentalListing.is_active == True).order_by(RentalListing.id.asc()).all():
-            listing_slug = getattr(listing, "slug", None)
-            if listing_slug:
-                add_url(url_for("rentals.location_detail", slug=listing_slug, _external=True))
+        # ✅ Locations — avec limite
+        try:
+            for listing in (
+                RentalListing.query
+                .filter(RentalListing.is_active == True)
+                .order_by(RentalListing.id.asc())
+                .limit(2000)
+                .all()
+            ):
+                listing_slug = getattr(listing, "slug", None)
+                if listing_slug:
+                    add_url(url_for("rentals.location_detail", slug=listing_slug, _external=True))
+        except Exception:
+            app.logger.exception("sitemap.listings_error")
 
-        categories_query = Category.query.order_by(Category.id.asc())
-        if hasattr(Category, "is_active"):
-            categories_query = categories_query.filter(Category.is_active == True)
-        for category in categories_query.all():
-            add_url(build_category_url(category))
+        # ✅ Catégories — avec limite
+        try:
+            categories_query = Category.query.order_by(Category.id.asc()).limit(500)
+            if hasattr(Category, "is_active"):
+                categories_query = categories_query.filter(Category.is_active == True)
+            for category in categories_query.all():
+                add_url(build_category_url(category))
+        except Exception:
+            app.logger.exception("sitemap.categories_error")
 
-        xml_lines = ['<?xml version="1.0" encoding="UTF-8"?>', '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
+        xml_lines = [
+            '<?xml version="1.0" encoding="UTF-8"?>',
+            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+        ]
         for url in urls:
             xml_lines.extend([
                 "<url>",

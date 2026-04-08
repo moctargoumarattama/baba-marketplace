@@ -473,11 +473,12 @@
                         <td data-label="Vendeur">
                             {% if p.vendor %}
                                 <div>{{ p.vendor.username or p.vendor.email }}</div>
-                                {% if p.vendor.phone %}
-                                    <small class="text-muted">{{ p.vendor.phone }}</small>
+                                {% set vendor_contact_phone = p.shop.contact_phone if p.shop else '' %}
+                                {% if vendor_contact_phone %}
+                                    <small class="text-muted">{{ vendor_contact_phone }}</small>
                                     <div class="mt-1">
                                         <a class="btn btn-sm btn-outline-success" 
-                                           href="https://wa.me/{{ p.vendor.phone|replace('+','')|replace(' ','') }}" 
+                                           href="https://wa.me/{{ vendor_contact_phone|replace('+','')|replace(' ','') }}" 
                                            target="_blank"
                                            title="WhatsApp">
                                             <i class="bi bi-whatsapp"></i>

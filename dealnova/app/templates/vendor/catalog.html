@@ -5,10 +5,10 @@
 {% block head %}
 {{ super() }}
 <style>
-  .vendor-catalog-page{--bg:radial-gradient(circle at top left,rgba(16,185,129,.14),transparent 32%),radial-gradient(circle at top right,rgba(37,99,235,.13),transparent 28%),linear-gradient(180deg,#f6fffb 0%,#eef8ff 48%,#f9fbff 100%);--card:rgba(255,255,255,.88);--line:rgba(15,23,42,.08);--text:#0f172a;--muted:#64748b;--shadow:0 18px 44px rgba(15,23,42,.08);background:var(--bg);min-height:calc(100vh - 90px)}
-  .catalog-shell{max-width:1420px;margin:0 auto}
+  .vendor-catalog-page{--bg:radial-gradient(circle at top left,rgba(16,185,129,.14),transparent 32%),radial-gradient(circle at top right,rgba(37,99,235,.13),transparent 28%),linear-gradient(180deg,#f6fffb 0%,#eef8ff 48%,#f9fbff 100%);--card:rgba(255,255,255,.88);--line:rgba(15,23,42,.08);--text:#0f172a;--muted:#64748b;--shadow:0 18px 44px rgba(15,23,42,.08);background:var(--bg);min-height:calc(100vh - 90px);min-height:calc(100dvh - 90px);overflow-x:clip}
+  .catalog-shell{width:min(100%,1360px);max-width:1360px;margin:0 auto}
   .catalog-hero,.catalog-panel,.catalog-toolbar,.catalog-pagination,.catalog-stat,.catalog-empty{background:var(--card);border:1px solid var(--line);box-shadow:var(--shadow);backdrop-filter:blur(18px)}
-  .catalog-hero{position:relative;overflow:hidden;border-radius:26px;padding:1.1rem 1.2rem;background:linear-gradient(135deg,rgba(7,117,83,.97),rgba(16,185,129,.92) 46%,rgba(37,99,235,.86));color:#fff;box-shadow:0 24px 54px rgba(15,23,42,.16)}
+  .catalog-hero{position:relative;overflow:hidden;border-radius:26px;padding:1rem 1.1rem;background:linear-gradient(135deg,rgba(7,117,83,.97),rgba(16,185,129,.92) 46%,rgba(37,99,235,.86));color:#fff;box-shadow:0 24px 54px rgba(15,23,42,.16)}
   .catalog-hero:before,.catalog-hero:after{content:"";position:absolute;border-radius:999px;background:rgba(255,255,255,.12)}
   .catalog-hero:before{width:220px;height:220px;top:-70px;right:-45px}
   .catalog-hero:after{width:140px;height:140px;left:-25px;bottom:-45px}
@@ -19,13 +19,13 @@
   .catalog-btn:hover{transform:translateY(-1px)}
   .catalog-btn-soft{background:rgba(255,255,255,.13);border-color:rgba(255,255,255,.22);color:#fff}
   .catalog-btn-primary{background:linear-gradient(135deg,#f59e0b,#f97316);color:#fff;box-shadow:0 14px 28px rgba(249,115,22,.28)}
-  .catalog-stat{height:100%;border-radius:20px;padding:.9rem}
+  .catalog-stat{height:100%;border-radius:20px;padding:.82rem}
   .catalog-stat-label{font-size:.78rem;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.05em}
-  .catalog-stat-value{margin-top:.3rem;font-size:clamp(1.55rem,2.6vw,2.05rem);font-weight:900;line-height:1;color:var(--text)}
+  .catalog-stat-value{margin-top:.28rem;font-size:clamp(1.42rem,2.4vw,1.92rem);font-weight:900;line-height:1;color:var(--text)}
   .catalog-stat-note{margin-top:.35rem;color:var(--muted);font-size:.84rem;line-height:1.25}
-  .catalog-panel{border-radius:28px;padding:1.25rem;margin-top:1.35rem}
-  .catalog-panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;margin-bottom:1rem}
-  .catalog-panel-title{font-size:1.15rem;font-weight:900;color:var(--text)}
+  .catalog-panel{border-radius:28px;padding:1.08rem;margin-top:1.2rem}
+  .catalog-panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;margin-bottom:.92rem;flex-wrap:wrap}
+  .catalog-panel-title{font-size:1.06rem;font-weight:900;color:var(--text)}
   .catalog-panel-copy{margin:.25rem 0 0;color:var(--muted)}
   .catalog-smart{display:inline-flex;align-items:center;gap:.5rem;padding:.74rem 1rem;border-radius:999px;background:rgba(16,185,129,.1);color:#0b7f59;font-weight:800}
   .catalog-search-wrap{position:relative}
@@ -34,20 +34,20 @@
   .catalog-search-clear{right:.8rem;width:38px;height:38px;border:0;border-radius:12px;background:rgba(15,23,42,.06);color:var(--muted)}
   .catalog-search-clear[hidden]{display:none}
   .catalog-search-input,.catalog-select{border:1px solid rgba(15,23,42,.08);background:rgba(255,255,255,.92);font-weight:600}
-  .catalog-search-input{min-height:60px;padding:1rem 3.15rem 1rem 3rem;border-radius:20px}
-  .catalog-select{min-height:52px;border-radius:16px}
+  .catalog-search-input{min-height:56px;padding:.95rem 3rem .95rem 2.95rem;border-radius:18px}
+  .catalog-select{min-height:48px;border-radius:15px}
   .catalog-label{margin-bottom:.45rem;color:var(--text);font-weight:800;font-size:.9rem}
   .catalog-chip{display:inline-flex;align-items:center;gap:.45rem;padding:.56rem .84rem;border-radius:999px;background:rgba(15,23,42,.06);font-size:.88rem;font-weight:700;color:var(--text)}
   .catalog-chip button{padding:0;border:0;background:transparent;color:inherit}
   .catalog-toolbar,.catalog-pagination{border-radius:22px;padding:1rem 1.1rem}
-  .catalog-toolbar{display:flex;align-items:center;justify-content:space-between;gap:.75rem;margin:1.1rem 0 1rem}
+  .catalog-toolbar{display:flex;align-items:center;justify-content:space-between;gap:.75rem;margin:1.05rem 0 .95rem;flex-wrap:wrap}
   .catalog-toolbar-copy{color:var(--muted);font-weight:700}
   .catalog-toolbar-copy strong{color:var(--text)}
   .catalog-live{display:inline-flex;align-items:center;gap:.55rem;font-size:.92rem;font-weight:800;color:#0b7f59}
   .catalog-live-dot{width:10px;height:10px;border-radius:999px;background:#10b981;box-shadow:0 0 0 6px rgba(16,185,129,.16)}
   .catalog-results-region{position:relative;transition:opacity .18s ease, transform .18s ease}
   .catalog-results-region.is-loading{opacity:.58;transform:translateY(2px);pointer-events:none}
-  .catalog-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(245px,1fr));gap:.9rem}
+  .catalog-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(228px,1fr));gap:.82rem}
   .catalog-card{overflow:hidden;border-radius:20px;background:rgba(255,255,255,.95);border:1px solid rgba(15,23,42,.08);box-shadow:0 16px 34px rgba(15,23,42,.08);transition:.18s ease}
   .catalog-card:hover{transform:translateY(-3px);box-shadow:0 28px 58px rgba(15,23,42,.12)}
   .catalog-card.is-hidden{display:none}
@@ -58,10 +58,10 @@
   .catalog-badge{display:inline-flex;align-items:center;gap:.32rem;padding:.34rem .56rem;border-radius:999px;background:rgba(15,23,42,.7);color:#fff;font-size:.71rem;font-weight:800}
   .catalog-badge.category{background:rgba(255,255,255,.92);color:#0f172a;max-width:80%}
   .catalog-badge.active{background:rgba(5,150,105,.9)} .catalog-badge.inactive{background:rgba(100,116,139,.9)} .catalog-badge.promo{background:rgba(249,115,22,.92)}
-  .catalog-card-body{padding:.88rem}
-  .catalog-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:.8rem}
+  .catalog-card-body{padding:.8rem}
+  .catalog-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:.8rem;min-width:0}
   .catalog-card-title{margin:0;font-size:.96rem;font-weight:900;line-height:1.18}
-  .catalog-card-title a{color:#0f172a;text-decoration:none}
+  .catalog-card-title a{color:#0f172a;text-decoration:none;overflow-wrap:anywhere}
   .catalog-price{color:#ea580c;font-weight:900;white-space:nowrap;font-size:.95rem}
   .catalog-desc{min-height:2.15rem;margin:.4rem 0 .65rem;color:var(--muted);font-size:.84rem}
   .catalog-mini-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.48rem;margin-bottom:.68rem}
@@ -79,8 +79,12 @@
   .catalog-empty{display:none;border-radius:28px;padding:2.4rem 1.5rem;text-align:center;color:var(--muted)}
   .catalog-empty.is-visible{display:block}
   .catalog-pagination .disabled{pointer-events:none;opacity:.45}
-  @media (max-width:991.98px){.catalog-hero{padding:1rem 1.05rem}.catalog-hero-actions{justify-content:flex-start}}
-  @media (max-width:575.98px){.catalog-hero{padding:.9rem;border-radius:22px}.catalog-title{font-size:1.45rem}.catalog-btn{min-height:41px;padding:.62rem .8rem;border-radius:14px}.catalog-stat{padding:.8rem;border-radius:18px}.catalog-stat-value{font-size:1.45rem}.catalog-stat-note{font-size:.8rem}.catalog-mini-stats,.catalog-card-actions{grid-template-columns:1fr}}
+  .vendor-catalog-page,.catalog-shell,.catalog-panel,.catalog-results-region,.catalog-grid,.catalog-card,.catalog-card-body{min-width:0}
+  @media (max-width:991.98px){.catalog-hero{padding:1rem 1.02rem}.catalog-hero-actions{justify-content:flex-start}.catalog-grid{grid-template-columns:repeat(auto-fit,minmax(214px,1fr))}}
+  @media (max-width:767.98px){.vendor-catalog-page{padding-top:.95rem!important;padding-bottom:1rem!important;padding-left:.72rem!important;padding-right:.72rem!important}.catalog-shell{width:100%;max-width:100%}.catalog-hero,.catalog-panel,.catalog-toolbar,.catalog-pagination,.catalog-empty{border-radius:20px}.catalog-hero{padding:.9rem .94rem}.catalog-title{font-size:1.34rem;line-height:1.02}.catalog-btn{min-height:40px;padding:.62rem .78rem;border-radius:14px}.catalog-stat{padding:.76rem;border-radius:17px}.catalog-stat-value{font-size:1.32rem}.catalog-panel{padding:.92rem}.catalog-panel-title{font-size:1rem}.catalog-smart,.catalog-toolbar-copy,.catalog-live,.catalog-desc,.catalog-note,.catalog-action{font-size:.82rem}.catalog-search-input,.catalog-select{font-size:16px;line-height:1.2;-webkit-text-size-adjust:100%}.catalog-search-input{min-height:52px;padding:.88rem 2.8rem .88rem 2.75rem;border-radius:16px}.catalog-select{min-height:48px;border-radius:14px}.catalog-toolbar{align-items:flex-start}.catalog-grid{grid-template-columns:minmax(0,1fr);gap:.72rem}}
+  @media (max-width:575.98px){.catalog-hero{padding:.84rem .88rem;border-radius:18px}.catalog-title{font-size:1.24rem}.catalog-btn{min-height:39px;padding:.58rem .74rem;border-radius:13px}.catalog-stat{padding:.72rem;border-radius:16px}.catalog-stat-value{font-size:1.24rem}.catalog-stat-note{font-size:.78rem}.catalog-card-body{padding:.76rem}.catalog-mini-stats,.catalog-card-actions{grid-template-columns:1fr}.catalog-search-input,.catalog-select{font-size:16px}}
+  body.vendor-catalog-keyboard-open .vendor-catalog-page{overflow-x:hidden}
+  body.vendor-catalog-keyboard-open .catalog-shell{width:100%;max-width:100%;margin-inline:auto}
 </style>
 {% endblock %}
 
@@ -129,7 +133,7 @@
         <div class="col-6 col-md-4 col-xl-2"><label class="catalog-label" for="catalogKindSelect">Type</label><select id="catalogKindSelect" name="kind" class="form-select catalog-select"><option value="all" {% if selected_kind == 'all' %}selected{% endif %}>Tout</option>{% if allows_products %}<option value="physical" {% if selected_kind == 'physical' %}selected{% endif %}>Produits</option>{% endif %}{% if allows_services %}<option value="service" {% if selected_kind == 'service' %}selected{% endif %}>Services</option>{% endif %}</select></div>
         <div class="col-6 col-md-4 col-xl-3"><label class="catalog-label" for="catalogCategorySelect">Catégorie</label><select id="catalogCategorySelect" name="category_id" class="form-select catalog-select"><option value="">Toutes</option>{% for category in category_options %}<option value="{{ category.id }}" {% if selected_category_id == category.id %}selected{% endif %}>{{ category.name }} ({{ category.count }})</option>{% endfor %}</select></div>
         <div class="col-6 col-md-4 col-xl-2"><label class="catalog-label" for="catalogStockSelect">Stock</label><select id="catalogStockSelect" name="stock" class="form-select catalog-select"><option value="all" {% if selected_stock == 'all' %}selected{% endif %}>Tous</option><option value="available" {% if selected_stock == 'available' %}selected{% endif %}>Disponibles</option><option value="low" {% if selected_stock == 'low' %}selected{% endif %}>Stock faible</option><option value="out" {% if selected_stock == 'out' %}selected{% endif %}>Rupture</option></select></div>
-        <div class="col-6 col-md-4 col-xl-2"><label class="catalog-label" for="catalogSortSelect">Tri</label><select id="catalogSortSelect" name="sort" class="form-select catalog-select"><option value="recent" {% if selected_sort == 'recent' %}selected{% endif %}>Plus récents</option><option value="oldest" {% if selected_sort == 'oldest' %}selected{% endif %}>Plus anciens</option><option value="name" {% if selected_sort == 'name' %}selected{% endif %}>Nom A-Z</option><option value="price_asc" {% if selected_sort == 'price_asc' %}selected{% endif %}>Prix croissant</option><option value="price_desc" {% if selected_sort == 'price_desc' %}selected{% endif %}>Prix décroissant</option><option value="stock_desc" {% if selected_sort == 'stock_desc' %}selected{% endif %}>Stock élevé</option><option value="stock_asc" {% if selected_sort == 'stock_asc' %}selected{% endif %}>Stock faible</option><option value="views_desc" {% if selected_sort == 'views_desc' %}selected{% endif %}>Plus vus</option></select></div>
+        <div class="col-6 col-md-4 col-xl-2"><label class="catalog-label" for="catalogSortSelect">Tri</label><select id="catalogSortSelect" name="sort" class="form-select catalog-select"><option value="recent" {% if selected_sort == 'recent' %}selected{% endif %}>Plus récents</option><option value="oldest" {% if selected_sort == 'oldest' %}selected{% endif %}>Plus anciens</option><option value="name" {% if selected_sort == 'name' %}selected{% endif %}>Nom A-Z</option><option value="price_asc" {% if selected_sort == 'price_asc' %}selected{% endif %}>Prix croissant</option><option value="price_desc" {% if selected_sort == 'price_desc' %}selected{% endif %}>Prix décroissant</option><option value="stock_desc" {% if selected_sort == 'stock_desc' %}selected{% endif %}>Stock élevé</option><option value="stock_asc" {% if selected_sort == 'stock_asc' %}selected{% endif %}>Stock faible</option><option value="promo" {% if selected_sort == 'promo' %}selected{% endif %}>Promotion</option></select></div>
         <div class="col-6 col-md-4 col-xl-2"><label class="catalog-label" for="catalogPerPageSelect">Par page</label><select id="catalogPerPageSelect" name="per_page" class="form-select catalog-select">{% for choice in [12, 24, 48, 100] %}<option value="{{ choice }}" {% if per_page == choice %}selected{% endif %}>{{ choice }}</option>{% endfor %}</select></div>
         <div class="col-12 d-flex flex-wrap justify-content-between align-items-center gap-3">
           <div class="catalog-chip-row" id="catalogActiveChips" aria-live="polite"></div>
@@ -176,6 +180,12 @@ document.addEventListener('DOMContentLoaded', function () {
   const getLiveStatusEl = () => document.getElementById('catalogLiveStatus');
   const getCards = () => Array.from(document.querySelectorAll('[data-catalog-card]'));
   const setLoading = (loading) => resultsRegion && resultsRegion.classList.toggle('is-loading', loading);
+  const mobileKeyboardGuard = window.BMCoreUI && typeof window.BMCoreUI.bindMobileKeyboardGuard === 'function'
+    ? window.BMCoreUI.bindMobileKeyboardGuard({
+        rootSelector: '#catalogFilterForm',
+        bodyClass: 'vendor-catalog-keyboard-open'
+      })
+    : null;
 
   const renderChips = (state) => {
     if (!chipRow) return;
@@ -305,6 +315,7 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   applyRealtimeFilter();
+  if (mobileKeyboardGuard) mobileKeyboardGuard.sync();
 });
 </script>
 {% endblock %}

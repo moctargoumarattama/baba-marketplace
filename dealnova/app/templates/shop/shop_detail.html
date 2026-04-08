@@ -1,16 +1,89 @@
 <!-- templates/shop/shop_detail.html - OPTIMISE -->
 {% extends "base.html" %}
+{% set shop_share_url = url_for('shops.shop_detail', shop_slug=shop.slug, _external=True) %}
+{% set shop_share_image_rel = ('uploads/' ~ shop.banner) if shop.banner else (('uploads/' ~ shop.logo) if shop.logo else 'images/produit.jpeg') %}
+{% set shop_share_image_url = request.url_root.rstrip('/') ~ url_for('static', filename=shop_share_image_rel) %}
+{% set shop_share_description = shop.description %}
+{% if not shop_share_description %}
+    {% if shop_allows_products and not shop_allows_services %}
+        {% set shop_share_description = "Boutique produits du market" %}
+    {% elif shop_allows_services and not shop_allows_products %}
+        {% set shop_share_description = "Boutique services du market" %}
+    {% elif shop_allows_products and shop_allows_services %}
+        {% set shop_share_description = "Catalogue du market" %}
+    {% elif shop_allows_location %}
+        {% set shop_share_description = "Boutique annonces du market" %}
+    {% else %}
+        {% set shop_share_description = "Boutique du market" %}
+    {% endif %}
+{% endif %}
+{% set shop_share_title = shop.name ~ " | BabaMarket" %}
 
 {% block title %}{{ shop.name }} | DealNova{% endblock %}
 
 {% block head %}
 {{ super() }}
-<script src="https://unpkg.com/infinite-scroll@4/dist/infinite-scroll.pkgd.min.js" defer></script>
+<meta name="description" content="{{ shop_share_description[:160] }}">
+<link rel="canonical" href="{{ shop_share_url }}">
+<meta property="og:locale" content="fr_MA">
+<meta property="og:site_name" content="BabaMarket">
+<meta property="og:type" content="website">
+<meta property="og:title" content="{{ shop_share_title }}">
+<meta property="og:description" content="{{ shop_share_description[:200] }}">
+<meta property="og:url" content="{{ shop_share_url }}">
+<meta property="og:image" content="{{ shop_share_image_url }}">
+<meta property="og:image:alt" content="{{ shop.name }}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{ shop_share_title }}">
+<meta name="twitter:description" content="{{ shop_share_description[:200] }}">
+<meta name="twitter:image" content="{{ shop_share_image_url }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/shop_detail_page.css', v=app_static_version) }}">
 {% endblock %}
 
+{% set default_shop_subtitle = "Boutique du market" %}
+{% set default_results_title = "Tout le catalogue" %}
+{% set default_item_label = "article(s)" %}
+{% set default_search_placeholder = "Rechercher dans la boutique..." %}
+{% set default_empty_heading = "Aucun article" %}
+{% set default_clear_label = "Tout voir" %}
+{% set shop_has_mixed_default = supported_detail_mode_count > 1 %}
+{% if shop_allows_products and not shop_allows_services %}
+    {% set default_shop_subtitle = "Boutique produits du market" %}
+    {% set default_results_title = "Produits" %}
+    {% set default_item_label = "produit(s)" %}
+    {% set default_search_placeholder = "Rechercher un produit..." %}
+    {% set default_empty_heading = "Aucun produit" %}
+    {% set default_clear_label = "Tous les produits" %}
+{% elif shop_allows_services and not shop_allows_products %}
+    {% set default_shop_subtitle = "Boutique services du market" %}
+    {% set default_results_title = "Services" %}
+    {% set default_item_label = "service(s)" %}
+    {% set default_search_placeholder = "Rechercher un service..." %}
+    {% set default_empty_heading = "Aucun service" %}
+    {% set default_clear_label = "Tous les services" %}
+{% elif shop_allows_products and shop_allows_services %}
+    {% set default_shop_subtitle = "Catalogue du market" %}
+{% elif shop_allows_location %}
+    {% set default_shop_subtitle = "Boutique annonces du market" %}
+{% endif %}
+{% if shop_has_mixed_default and shop_allows_location and has_product_universe %}
+    {% set default_results_title = "Toute la boutique" %}
+    {% set default_search_placeholder = "Rechercher produits ou services..." %}
+    {% set default_clear_label = "Tout afficher" %}
+{% endif %}
+{% set default_mix_total = total_products + (location_total if shop_has_mixed_default and shop_allows_location and not kind and not q and not cat else 0) %}
+
 {% block content %}
-<div class="container py-3 py-md-4 shop-detail-page">
+<div class="container py-3 py-md-4 shop-detail-page" id="shopDetailTop">
+    <div class="shop-back-row d-flex justify-content-start mb-3">
+        <a href="{{ url_for('shops.list_shops') }}"
+           class="btn btn-back shop-back-btn"
+           rel="prev"
+           data-shop-back-link>
+            <i class="bi bi-arrow-left"></i>
+            Retour aux boutiques
+        </a>
+    </div>
     <!-- Shop Header -->
     <div class="row mb-4">
         <div class="col">
@@ -26,7 +99,7 @@
                     {% elif shop.logo %}
                     <img src="{{ url_for('static', filename='uploads/' + shop.logo) }}"
                          alt="{{ shop.name }}"
-                         class="shop-hero-image"
+                         class="shop-hero-image is-logo-fallback"
                          loading="lazy"
                          decoding="async"
                          data-img-fallback="remove">
@@ -58,9 +131,9 @@
                     <div class="shop-hero-content">
                         <h1 class="fw-bold h3">{{ shop.name }}</h1>
                         <p class="small mb-0">
-                            {{ shop.description if shop.description else "Boutique DealNova" }}
+                            {{ shop.description if shop.description else default_shop_subtitle }}
                         </p>
-                        <div class="mt-2">
+                        <div class="mt-2 shop-hero-actions">
                             <a class="shop-link-badge"
                                href="{{ url_for('shops.shop_detail', shop_slug=shop.slug) }}"
                                target="_blank"
@@ -68,6 +141,16 @@
                                 <i class="bi bi-link-45deg"></i>
                                 {{ request.host_url.rstrip('/') }}/{{ shop.slug }}
                             </a>
+                            <button type="button"
+                                    class="shop-share-badge"
+                                    data-share-button
+                                    data-share-title="{{ shop_share_title }}"
+                                    data-share-text="{{ shop_share_description[:180] }}"
+                                    data-share-url="{{ shop_share_url }}"
+                                    data-share-copied-message="Lien de la boutique copie">
+                                <i class="bi bi-share"></i>
+                                Partager
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -126,10 +209,16 @@
         </div>
     </div>
 
-    {% if has_product_universe %}
+    {% set catalog_hidden = (kind == 'location') or not has_product_universe %}
+    {% set location_hidden = (not shop_allows_location) or (kind in ['physical', 'service']) %}
+    {% if supported_detail_mode_count %}
     <!-- Mode: Produits / Services (2 boutons uniquement) -->
     <div class="sd-mode-wrap" id="sdModeWrap">
-        <div class="sd-mode-switch" role="group" aria-label="Filtre Produits / Services">
+        <div class="sd-mode-guide">
+            <i class="bi bi-stars"></i>
+            <span>Filtrez en un geste</span>
+        </div>
+        <div class="sd-mode-switch" role="group" aria-label="Filtre Produits / Services / Locations">
             {% if shop_allows_products %}
             <button type="button"
                     class="sd-mode-btn sd-mode-products {% if kind == 'physical' %}active{% endif %}"
@@ -156,13 +245,26 @@
                 <div class="sd-mode-count">{{ shop_service_total }}</div>
             </button>
             {% endif %}
+            {% if shop_allows_location %}
+            <button type="button"
+                    class="sd-mode-btn sd-mode-location {% if kind == 'location' %}active{% endif %}"
+                    data-kind="location"
+                    aria-pressed="{{ 'true' if kind == 'location' else 'false' }}">
+                <div class="sd-mode-icon"><i class="bi bi-house-door"></i></div>
+                <div class="sd-mode-text">
+                    <div class="sd-mode-title">Locations</div>
+                    <div class="sd-mode-sub">Annonces</div>
+                </div>
+                <div class="sd-mode-count">{{ location_total }}</div>
+            </button>
+            {% endif %}
         </div>
         <div class="sd-mode-all-label {% if kind %}kind-hidden{% endif %}" id="sdModeAllLabel">Tout</div>
     </div>
 
     <!-- Catégories (uniquement si Produits/Services sélectionnés) -->
     {% if categories %}
-    <div class="sd-category-strip-wrap {% if not kind %}kind-hidden{% endif %}" id="sdCategoryStripWrap">
+    <div class="sd-category-strip-wrap {% if (not kind) or kind == 'location' %}kind-hidden{% endif %}" id="sdCategoryStripWrap">
         <div class="sd-category-strip-title">
             <i class="bi bi-tags"></i>
             <span id="sdCategoryStripTitleText">
@@ -196,9 +298,9 @@
     </div>
     {% endif %}
 
-    <div class="row g-4">
+    <div class="row g-4 {% if catalog_hidden %}d-none{% endif %}" id="shopCatalogRow">
         <!-- Sidebar Filters -->
-        <div class="col-lg-3">
+        <div class="col-lg-3 {% if catalog_hidden %}d-none{% endif %}" id="shopCatalogPanel">
             <div class="card border-0 shadow-sm sticky-sidebar filter-card">
                 <div class="card-header bg-light py-3">
                     <h5 class="mb-0">
@@ -211,16 +313,16 @@
                         <input type="hidden" name="cat" id="catInput" value="{{ cat or '' }}">
                         <!-- Search -->
                         <div class="mb-3">
-                            <label class="form-label fw-bold mb-2">Rechercher</label>
+                            <label class="form-label fw-bold mb-2">Recherche rapide</label>
                             <div class="input-group">
                                 <input type="text"
                                        name="q"
                                        id="searchInput"
                                        value="{{ q }}"
-                                       placeholder="Nom du produit..."
+                                       placeholder="{% if kind == 'service' %}Rechercher un service...{% elif kind == 'physical' %}Rechercher un produit...{% else %}{{ default_search_placeholder }}{% endif %}"
                                        class="form-control"
                                        autocomplete="off">
-                                <button type="submit" class="btn btn-primary">
+                                <button type="submit" class="btn btn-primary" aria-label="Lancer la recherche">
                                     <i class="bi bi-search"></i>
                                 </button>
                             </div>
@@ -228,7 +330,7 @@
 
                         <!-- Categories (uniquement si Produits/Services selectionné) -->
                         {% if categories %}
-                        <div class="mb-3 {% if not kind %}kind-hidden{% endif %}" id="sidebarCategoriesWrap">
+                        <div class="mb-3 {% if (not kind) or kind == 'location' %}kind-hidden{% endif %}" id="sidebarCategoriesWrap">
                             <label class="form-label fw-bold mb-2">Catégories</label>
                             <div class="list-group list-group-flush" id="sidebarCategoriesList">
                                 <a href="{{ url_for('shops.shop_detail', shop_slug=shop.slug, kind=kind or None, q=q or None, sort=sort or None) }}"
@@ -263,12 +365,13 @@
 
                         <!-- Sort -->
                         <div class="mb-4">
-                            <label class="form-label fw-bold mb-2">Trier par</label>
+                            <label class="form-label fw-bold mb-2">Trier</label>
                             <select name="sort" id="sortSelect" class="form-select">
                                 <option value="" {% if not sort %}selected{% endif %}>Plus récent</option>
                                 <option value="new" {% if sort == 'new' %}selected{% endif %}>Nouveautés</option>
                                 <option value="low" {% if sort == 'low' %}selected{% endif %}>Prix croissant</option>
                                 <option value="high" {% if sort == 'high' %}selected{% endif %}>Prix décroissant</option>
+                                <option value="promo" {% if sort == 'promo' %}selected{% endif %}>Promos d'abord</option>
                             </select>
                         </div>
 
@@ -283,7 +386,7 @@
         </div>
 
         <!-- Products Grid -->
-        <div class="col-lg-9">
+        <div class="col-lg-9 {% if catalog_hidden %}d-none{% endif %}" id="shopCatalogResults">
             <!-- Results Header -->
             <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4 results-header">
                 <div class="mb-3 mb-md-0">
@@ -296,25 +399,20 @@
                           {% elif kind == 'physical' %}
                             Produits
                           {% else %}
-                            Tout
+                            {{ default_results_title }}
                           {% endif %}
                         {% endif %}
                     </h4>
                     <small class="text-muted" id="productCount">
-                      {{ total_products }}
+                      {{ default_mix_total if not kind else total_products }}
                       {% if kind == 'service' %}
                         service(s)
                       {% elif kind == 'physical' %}
                         produit(s)
                       {% else %}
-                        article(s)
+                        {{ default_item_label }}
                       {% endif %}
                     </small>
-                </div>
-                <div class="d-flex gap-2">
-                    <a href="{{ url_for('shops.list_shops') }}" class="btn btn-outline-secondary btn-sm">
-                        <i class="bi bi-arrow-left me-1"></i>Boutiques
-                    </a>
                 </div>
             </div>
 
@@ -327,9 +425,15 @@
             </div>
 
             <!-- Loading Spinner -->
-            <div id="loadingSpinner" class="d-none text-center py-4">
+            <div id="loadingSpinner" class="d-none text-center py-4 loading-spinner-wrap" aria-hidden="true">
                 <div class="loading-spinner"></div>
-                <p class="text-muted mt-2">Chargement...</p>
+                <p class="text-muted mt-2">Mise a jour...</p>
+            </div>
+
+            <div id="loadMoreWrap" class="mt-3 text-center {% if not pagination or not pagination.has_next %}d-none{% endif %}">
+                <button type="button" id="loadMoreProducts" class="btn btn-outline-primary">
+                    Voir plus
+                </button>
             </div>
 
             <!-- No Results -->
@@ -359,17 +463,17 @@
                 </p>
                 <button type="button" id="clearSearch" class="btn btn-primary">
                     {% if kind == 'service' %}
-                      Voir tous les services
+                      Tous les services
                     {% elif kind == 'physical' %}
-                      Voir tous les produits
+                      Tous les produits
                     {% else %}
-                      Voir tout
+                      {{ default_clear_label }}
                     {% endif %}
                 </button>
             </div>
 
             <!-- Pagination (fallback for JS disabled) -->
-            <nav class="mt-4 d-none" id="fallbackPagination">
+            <nav class="mt-4" id="fallbackPagination">
                 {% if pagination.pages > 1 %}
                 <ul class="pagination justify-content-center">
                     {% if pagination.has_prev %}
@@ -409,69 +513,108 @@
             </nav>
         </div>
     </div>
-    {% else %}
+    {% elif not shop_allows_location %}
     <div class="card border-0 shadow-sm filter-card mb-4">
         <div class="card-body py-4 text-center">
-            <h5 class="mb-2">Cette boutique n'active pas encore le catalogue produits/services.</h5>
-            <p class="text-muted mb-0">Consultez les annonces location disponibles ci-dessous.</p>
+            <h5 class="mb-2">Aucun contenu actif</h5>
+            <p class="text-muted mb-0">Cette boutique sera bientot mise a jour.</p>
         </div>
     </div>
     {% endif %}
 
     {% if shop_allows_location %}
-    <div class="card border-0 shadow-sm filter-card mt-4">
+    <div class="card border-0 shadow-sm filter-card mt-4 {% if location_hidden %}d-none{% endif %}" id="shopLocationPanel">
         <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
             <h5 class="mb-0">
-                <i class="bi bi-house-door me-2"></i>Locations ({{ location_total }})
+                <i class="bi bi-house-door me-2"></i>{{ 'Annonces' if not has_product_universe else 'Locations' }} ({{ location_total }})
             </h5>
             <a href="{{ url_for('rentals.locations_home') }}" class="btn btn-outline-primary btn-sm">
-                Explorer les locations
+                {{ 'Explorer les annonces' if not has_product_universe else 'Explorer les locations' }}
             </a>
         </div>
         <div class="card-body">
             {% if location_listings %}
-            <div class="row g-3">
+            <div class="rentals-grid shop-location-grid">
                 {% for listing in location_listings %}
-                {% set listing_images = listing.media|selectattr('kind', 'equalto', 'image')|list %}
-                <div class="col-12 col-sm-6 col-xl-4">
-                    <div class="card h-100 border shadow-sm">
-                        <a href="{{ url_for('rentals.location_detail', slug=listing.slug) }}" class="text-decoration-none text-dark">
-                            {% if listing_images and listing_images[0] %}
-                            <img src="{{ url_for('static', filename=listing_images[0].file_path) }}"
-                                 alt="{{ listing.title }}"
-                                  class="card-img-top"
-                                 loading="lazy"
-                                 decoding="async"
-                                 style="height: 168px; object-fit: cover;">
+                {% set images = listing.media|selectattr('kind', 'equalto', 'image')|list %}
+                {% set videos = listing.media|selectattr('kind', 'equalto', 'video')|list %}
+                {% set media_items = namespace(items=[]) %}
+                {% for video in videos[:6] %}
+                  {% set video_poster_rel = rental_video_poster_rel_path(video.file_path) if rental_video_poster_rel_path is defined else None %}
+                  {% set _ = media_items.items.append({'kind': 'video', 'src': url_for('static', filename=video.file_path), 'poster': (url_for('static', filename=video_poster_rel) if video_poster_rel else (url_for('static', filename=images[0].file_path) if images else ''))}) %}
+                {% endfor %}
+                {% if media_items.items|length < 6 %}
+                  {% set remaining_slots = 6 - media_items.items|length %}
+                  {% for image in images[:remaining_slots] %}
+                    {% set _ = media_items.items.append({'kind': 'image', 'src': url_for('static', filename=image.file_path)}) %}
+                  {% endfor %}
+                {% endif %}
+                <article class="rental-card js-rental-card">
+                    <div class="rental-media js-card-carousel">
+                        <span class="pill-type">{{ 'Mensuel' if listing.listing_type == 'monthly' else 'Journalier' }}</span>
+                        <div class="rental-track">
+                            {% if media_items.items %}
+                                {% for media in media_items.items %}
+                                    {% if media.kind == 'image' %}
+                                    <img src="{{ media.src }}" alt="{{ listing.title }}" loading="lazy" decoding="async">
+                                    {% else %}
+                                    <div class="rental-video-frame">
+                                        <video class="js-lazy-rental-video" preload="none" autoplay loop muted playsinline data-video-src="{{ media.src }}"{% if media.poster %} poster="{{ media.poster }}"{% endif %}>
+                                            <source data-src="{{ media.src }}">
+                                        </video>
+                                        <span class="rental-video-badge"><i class="bi bi-play-fill"></i> Video</span>
+                                    </div>
+                                    {% endif %}
+                                {% endfor %}
                             {% else %}
-                            <div class="d-flex align-items-center justify-content-center bg-light"
-                                 style="height: 168px;">
-                                <i class="bi bi-house-door fs-1 text-muted"></i>
+                            <div class="rental-media-fallback">
+                                <i class="bi bi-house-door"></i>
                             </div>
                             {% endif %}
-                            <div class="card-body pb-2">
-                                <h6 class="fw-bold mb-1">{{ listing.title|truncate(58) }}</h6>
-                                <div class="small text-muted mb-2">
-                                    <i class="bi bi-geo-alt"></i> {{ listing.city }}{% if listing.area %}, {{ listing.area }}{% endif %}
-                                </div>
-                                <div class="fw-bold text-success">{{ "%.2f"|format((listing.rent_cents or 0) / 100) }} DH</div>
-                            </div>
-                        </a>
-                        <div class="card-footer bg-white border-0 pt-0">
-                            <a href="{{ url_for('rentals.location_inquiry', slug=listing.slug) }}" class="btn btn-success btn-sm w-100">
-                                Demander visite / infos
-                            </a>
+                        </div>
+                        {% if media_items.items|length > 1 %}
+                        <div class="slide-nav">
+                            <button class="slide-btn js-prev" type="button" data-stop-nav><i class="bi bi-chevron-left"></i></button>
+                            <button class="slide-btn js-next" type="button" data-stop-nav><i class="bi bi-chevron-right"></i></button>
+                        </div>
+                        <div class="slide-dots">
+                            {% for _ in media_items.items %}
+                            <span class="slide-dot {{ 'active' if loop.first else '' }}"></span>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="rental-body">
+                        <h3 class="rental-title">{{ listing.title }}</h3>
+                        <div class="rental-meta"><i class="bi bi-geo-alt"></i> {{ listing.city }}{% if listing.area %}, {{ listing.area }}{% endif %}</div>
+                        <div class="rental-meta">{{ listing.property_type }} · {{ 'Mensuel' if listing.listing_type == 'monthly' else 'Journalier' }}</div>
+                        <div class="rental-price">{{ cents_to_dh(listing.rent_cents) }}</div>
+                        <div class="rental-meta">Caution: {% if listing.deposit_required %}{{ cents_to_dh(listing.deposit_cents) if listing.deposit_cents else "Avec caution" }}{% else %}Sans caution{% endif %}</div>
+                        <div class="rental-meta">Frais proprietaire: {{ cents_to_dh(listing.owner_fee_cents) if listing.owner_fee_cents is not none else "Non specifie" }}{% if listing.owner_fee_text %} · {{ listing.owner_fee_text }}{% endif %}</div>
+                        <div class="rental-actions">
+                            <a href="{{ url_for('rentals.location_detail', slug=listing.slug) }}" class="btn btn-outline-primary btn-sm" data-stop-nav>Infos</a>
+                            <a href="{{ url_for('rentals.location_inquiry', slug=listing.slug) }}" class="btn btn-success btn-sm" data-stop-nav>Demande visite</a>
                         </div>
                     </div>
-                </div>
+                </article>
                 {% endfor %}
             </div>
             {% else %}
-            <p class="text-muted mb-0">Aucune annonce location active pour cette boutique.</p>
+            <p class="text-muted mb-0">{{ "Aucune annonce active pour cette boutique." if not has_product_universe else "Aucune annonce location active pour cette boutique." }}</p>
             {% endif %}
         </div>
     </div>
     {% endif %}
+
+    <a href="#shopDetailTop"
+       id="shopScrollTop"
+       class="shop-scroll-top"
+       data-stop-nav="hard"
+       aria-label="Retour en haut"
+       title="Retour en haut"
+       role="button">
+        <i class="bi bi-chevron-up"></i>
+    </a>
 </div>
 
 {% endblock %}
@@ -479,8 +622,19 @@
 {% block scripts %}
 <script type="application/json" id="shopDetailPageConfig">{{ {
   "fetchBase": request.path,
-  "infiniteScrollOffset": 140
+  "infiniteScrollOffset": 140,
+  "fallbackBackUrl": url_for('shops.list_shops'),
+  "initialKind": kind,
+  "hasProductUniverse": has_product_universe,
+  "hasLocationMode": shop_allows_location,
+  "locationTotal": location_total,
+  "defaultCatalogLabel": default_results_title,
+  "defaultItemLabel": default_item_label,
+  "defaultSearchPlaceholder": default_search_placeholder,
+  "defaultEmptyHeading": default_empty_heading,
+  "defaultClearLabel": default_clear_label
 } | tojson }}</script>
+<script src="{{ url_for('static', filename='js/core/core_share.js', v=app_static_version) }}" defer></script>
 <script src="{{ url_for('static', filename='js/pages/shop_detail_page.js', v=app_static_version) }}" defer></script>
 {% endblock %}
 

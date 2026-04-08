@@ -189,6 +189,7 @@
   flex-wrap: wrap;
 }
 .filter-foot-note { font-size: .72rem; color: #94a3b8; display: flex; align-items: center; gap: .3rem; min-width: 0; max-width: 100%; }
+.filter-foot-note-text { min-width: 0; }
 
 .btn-clear-search { display: none; }
 #restoreSearchBtn {
@@ -303,11 +304,35 @@
 /* ─── RESPONSIVE ─────────────────────────────────────── */
 @media (max-width: 980px) { .filter-grid { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 760px) {
-  .rentals-shell { padding: .6rem; }
-  .rentals-hero  { margin: 0 -.6rem .75rem; border-radius: 0 0 16px 16px; }
-  .filter-grid   { grid-template-columns: 1fr 1fr; }
-  .rentals-grid  { grid-template-columns: repeat(2, 1fr); gap: .5rem; }
-  .rental-media  { height: 118px; }
+  .rentals-shell { padding: .56rem; }
+  .rentals-hero  { margin: 0 -.56rem .68rem; border-radius: 0 0 16px 16px; padding: .92rem .88rem 1.06rem; }
+  .rentals-hero h2 { font-size: clamp(1.02rem, 5vw, 1.28rem); margin-bottom: .16rem; }
+  .rentals-hero p { font-size: .76rem; margin-bottom: .64rem; }
+  .hero-topline { margin-bottom: .4rem; }
+  .hero-return-link { padding: .24rem .58rem; font-size: .69rem; }
+  .hero-search { gap: .38rem; border-radius: 11px; padding: .34rem .34rem .34rem .62rem; }
+  .hero-search i { font-size: .9rem; }
+  .filter-wrap { border-radius: 13px; padding: .64rem; margin-bottom: .66rem; }
+  .filter-grid   { grid-template-columns: 1fr 1fr; gap: .38rem; }
+  .price-range-group { gap: .28rem; }
+  .filter-foot { margin-top: .46rem; padding-top: .42rem; }
+  .results-row { gap: .42rem; margin-bottom: .5rem; }
+  .results-count { font-size: .79rem; }
+  .active-filters-badge { font-size: .69rem; padding: .14rem .46rem; }
+  .rentals-grid  { grid-template-columns: repeat(2, 1fr); gap: .44rem; }
+  .rental-card { border-radius: 13px; }
+  .rental-media  { height: 108px; }
+  .pill-type { top: .38rem; left: .38rem; padding: .16rem .46rem; font-size: .61rem; }
+  .rental-video-badge { right: .35rem; bottom: .35rem; font-size: .6rem; padding: .14rem .38rem; }
+  .slide-btn { width: 22px; height: 22px; font-size: .64rem; }
+  .slide-dot { width: 4px; height: 4px; }
+  .slide-dot.active { width: 10px; }
+  .rental-body { padding: .58rem; gap: .18rem; }
+  .rental-title { font-size: .84rem; min-height: 2.05em; }
+  .rental-meta { font-size: .71rem; }
+  .rental-price { font-size: .9rem; }
+  .rental-actions { gap: .32rem; }
+  .rental-actions .btn { font-size: .72rem; min-height: 36px; padding: .3rem .34rem; border-radius: 9px; }
   .hero-search input,
   .filter-wrap .form-control,
   .filter-wrap .form-select {
@@ -315,12 +340,29 @@
   }
 }
 @media (max-width: 480px) {
-  .filter-grid { grid-template-columns: 1fr; }
-  .rentals-grid { grid-template-columns: repeat(2, 1fr); }
+  .rentals-shell { padding: .5rem; }
+  .rentals-hero { margin: 0 -.5rem .6rem; padding: .82rem .78rem .94rem; border-radius: 0 0 14px 14px; }
+  .rentals-hero h2 { font-size: .96rem; }
+  .rentals-hero p { font-size: .72rem; }
+  .hero-search { padding-left: .56rem; }
+  .filter-wrap { padding: .56rem; border-radius: 12px; }
+  .filter-grid { grid-template-columns: 1fr; gap: .34rem; }
+  .rentals-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .38rem; }
+  .rental-media { height: 100px; }
+  .rental-body { padding: .5rem; }
+  .rental-title { font-size: .8rem; min-height: 1.98em; }
+  .rental-meta { font-size: .68rem; }
+  .rental-price { font-size: .84rem; }
+  .rental-actions { grid-template-columns: 1fr; }
+  .rental-actions .btn { min-height: 34px; font-size: .7rem; }
   .filter-foot { flex-direction: column; align-items: stretch; }
   #restoreSearchBtn { width: 100%; justify-content: center; }
 }
-@media (max-width: 360px) { .rentals-grid { grid-template-columns: 1fr; } }
+@media (max-width: 360px) {
+  .rentals-grid { grid-template-columns: 1fr; }
+  .rental-media { height: 138px; }
+  .rental-body { padding: .62rem; }
+}
 @media (pointer: coarse), (prefers-reduced-motion: reduce) {
   .hero-search,
   .pill-type {
@@ -364,13 +406,13 @@
     </div>
     <h2>Trouvez votre location</h2>
     <p>Explorez facilement les biens disponibles selon votre budget et votre quartier.</p>
-    <div class="hero-search">
-      <i class="bi bi-search"></i>
-      <input type="text" form="locationsFilterForm" name="_q_mirror"
-             placeholder="Recherche annonce, ville, quartier…"
-             autocomplete="off" id="heroSearchInput">
-    </div>
-  </section>
+     <div class="hero-search">
+       <i class="bi bi-search"></i>
+       <input type="text" form="locationsFilterForm" name="_q_mirror"
+              placeholder="Recherche annonce, ville, quartier…"
+             autocomplete="off" id="heroSearchInput" value="{{ q }}" inputmode="search">
+     </div>
+   </section>
 
   {% set has_active_filters = q or listing_type or property_type or city_area or price_min or price_max %}
 
@@ -401,7 +443,10 @@
       </div>
     </div>
     <div class="filter-foot">
-      <span class="filter-foot-note"><i class="bi bi-lightning-charge"></i> Résultats instantanés</span>
+      <span class="filter-foot-note" id="filterFootNote" aria-live="polite">
+        <i class="bi bi-lightning-charge"></i>
+        <span class="filter-foot-note-text" id="filterFootNoteText">Résultats instantanés</span>
+      </span>
       <button type="button" id="restoreSearchBtn"
               class="btn-clear-search {% if has_active_filters %}empty-attention{% endif %}">
         <i class="bi bi-arrow-counterclockwise"></i> Réinitialiser

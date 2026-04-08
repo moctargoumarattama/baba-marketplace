@@ -28,6 +28,8 @@
     const categoriesMeta = document.getElementById('categoriesMeta');
     const categoriesToggleBtn = document.getElementById('categoriesToggleBtn');
     const loadingOverlay = document.getElementById('loadingOverlay');
+    const coreDomApi = window.BMCoreDom || {};
+    const escapeHtml = coreDomApi.escapeHtml;
     const dashboardShopStatusBar = document.getElementById('dashboardShopStatusBar');
     const stockToast = document.getElementById('stockToast');
     const stockToastText = document.getElementById('stockToastText');
@@ -82,64 +84,19 @@
                 });
             });
         };
-
+    const fallbackRequestJSON = (typeof coreDomApi.requestJSON === 'function')
+        ? coreDomApi.requestJSON
+        : window.BMAjaxFetch.requestJSON.bind(window.BMAjaxFetch);
+    const fallbackRequestText = (typeof coreDomApi.requestText === 'function')
+        ? coreDomApi.requestText
+        : window.BMAjaxFetch.requestText.bind(window.BMAjaxFetch);
     const requestJSON = (typeof VendorUI.requestJSON === 'function')
         ? VendorUI.requestJSON
-        : function(url, options) {
-            if (window.BMAjaxFetch && typeof window.BMAjaxFetch.requestJSON === 'function') {
-                return window.BMAjaxFetch.requestJSON(url, options || {});
-            }
-            return fetch(url, options || {})
-                .then(function(response) {
-                    return response.json().catch(function() { return null; }).then(function(data) {
-                        return {
-                            ok: response.ok,
-                            status: response.status,
-                            data: data,
-                            error: response.ok ? null : (response.statusText || ('HTTP ' + response.status)),
-                            aborted: false
-                        };
-                    });
-                })
-                .catch(function(error) {
-                    return {
-                        ok: false,
-                        status: 0,
-                        data: null,
-                        error: String((error && error.message) || 'network_error'),
-                        aborted: !!(error && error.name === 'AbortError')
-                    };
-                });
-        };
+        : fallbackRequestJSON;
 
     const requestText = (typeof VendorUI.requestText === 'function')
         ? VendorUI.requestText
-        : function(url, options) {
-            if (window.BMAjaxFetch && typeof window.BMAjaxFetch.requestText === 'function') {
-                return window.BMAjaxFetch.requestText(url, options || {});
-            }
-            return fetch(url, options || {})
-                .then(function(response) {
-                    return response.text().catch(function() { return ''; }).then(function(data) {
-                        return {
-                            ok: response.ok,
-                            status: response.status,
-                            data: data,
-                            error: response.ok ? null : (response.statusText || ('HTTP ' + response.status)),
-                            aborted: false
-                        };
-                    });
-                })
-                .catch(function(error) {
-                    return {
-                        ok: false,
-                        status: 0,
-                        data: '',
-                        error: String((error && error.message) || 'network_error'),
-                        aborted: !!(error && error.name === 'AbortError')
-                    };
-                });
-        };
+        : fallbackRequestText;
 
     const createRequestSeq = (typeof VendorUI.createRequestSeq === 'function')
         ? VendorUI.createRequestSeq
@@ -653,12 +610,6 @@
             window.clearTimeout(shopStatusOptimistic.rollbackTimer);
             shopStatusOptimistic.rollbackTimer = null;
         }
-    }
-
-    function escapeHtml(value) {
-        const div = document.createElement('div');
-        div.textContent = value == null ? '' : String(value);
-        return div.innerHTML;
     }
 
     function buildItemsSignature(items, keys) {

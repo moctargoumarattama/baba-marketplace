@@ -102,7 +102,15 @@ def delivery_whatsapp_redirect():
     except Exception:
         pass
 
-    return render_template("delivery/open_whatsapp.html", wa_url=wa_url)
+    return render_template(
+        "support/open_whatsapp.html",
+        wa_url=wa_url,
+        support_scope="Livraison",
+        support_title="Demande de livraison prete",
+        support_copy="Votre message WhatsApp est pret pour la livraison speciale.",
+        back_url=url_for("delivery_special.delivery_form"),
+        back_label="Retour au formulaire",
+    )
 
 
 @bp.route("/delivery", methods=["GET"])

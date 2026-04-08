@@ -5,11 +5,13 @@
   z-index: 1050;
   border: 0;
   background:
-    radial-gradient(140% 90% at 100% 0%, rgba(3, 16, 13, 0.35), transparent 55%),
-    rgba(2, 10, 8, 0.55);
+    radial-gradient(140% 90% at 100% 0%, rgba(3, 16, 13, 0.26), transparent 55%),
+    rgba(2, 10, 8, 0.5);
   opacity: 0;
   pointer-events: none;
   transition: opacity 220ms ease-out;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
 }
 
 .drawer-top {
@@ -161,16 +163,16 @@
     left: 0;
     top: 0;
     bottom: 0;
-    width: 80vw;
-    max-width: 380px;
+    width: min(calc(88vw - var(--bm-safe-right, 0px)), 22.75rem);
+    max-width: 22.75rem;
     margin-top: 0 !important;
-    border-radius: 0 1.1rem 1.1rem 0 !important;
-    padding: 0.78rem 0.68rem 0.95rem !important;
-    background: linear-gradient(160deg, rgba(14, 124, 102, 0.82), rgba(7, 90, 74, 0.82)) !important;
+    border-radius: 0 1.2rem 1.2rem 0 !important;
+    padding: calc(0.78rem + var(--bm-safe-top, 0px)) 0.72rem calc(0.95rem + var(--bm-safe-bottom, 0px)) !important;
+    background: linear-gradient(160deg, rgba(14, 124, 102, 0.94), rgba(7, 90, 74, 0.96)) !important;
     border-right: 1px solid var(--drawer-border);
-    box-shadow: var(--drawer-shadow);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(18px) saturate(125%);
+    -webkit-backdrop-filter: blur(18px) saturate(125%);
     overflow-y: auto;
     overflow-x: hidden;
     overscroll-behavior: contain;
@@ -214,11 +216,11 @@
   }
 
   .mobile-menu {
-    min-height: 100%;
+    min-height: calc(100dvh - var(--bm-safe-top, 0px));
     display: flex;
     flex-direction: column;
     gap: 0.62rem;
-    padding-bottom: 0.85rem;
+    padding-bottom: calc(0.85rem + var(--bm-safe-bottom, 0px));
   }
 
   .drawer-top {
@@ -237,8 +239,8 @@
   .mobile-menu .menu-section {
     position: relative;
     border-radius: 1rem;
-    background: rgba(255, 255, 255, 0.045);
-    border: 1px solid rgba(255, 255, 255, 0.11);
+    background: rgba(255, 255, 255, 0.072);
+    border: 1px solid rgba(255, 255, 255, 0.15);
     box-shadow: none;
   }
 
@@ -296,8 +298,8 @@
     padding: 0.5rem 0.52rem;
     border-radius: 0.7rem;
     margin-bottom: 0.4rem;
-    background: rgba(255, 255, 255, 0.14);
-    border-color: rgba(255, 255, 255, 0.24);
+    background: rgba(255, 255, 255, 0.17);
+    border-color: rgba(255, 255, 255, 0.28);
   }
 
   .mobile-menu .lang-current .lang-current-label {
@@ -334,14 +336,15 @@
   }
 
   .drawer-close-btn {
-    margin-top: 1.2rem;
+    margin-top: 0;
   }
 }
 
 @media (max-width: 991.98px) and (pointer: coarse) {
   .navbar-collapse#mainNavbar {
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
+    background: linear-gradient(160deg, rgba(14, 124, 102, 0.97), rgba(7, 90, 74, 0.98)) !important;
+    backdrop-filter: blur(18px) saturate(125%) !important;
+    -webkit-backdrop-filter: blur(18px) saturate(125%) !important;
   }
 }
 
@@ -353,7 +356,9 @@
 
 @media (max-width: 768px) {
   .navbar-collapse#mainNavbar {
-    padding: 0.62rem 0.62rem 0.74rem !important;
+    padding: calc(0.62rem + var(--bm-safe-top, 0px)) 0.62rem calc(0.74rem + var(--bm-safe-bottom, 0px)) !important;
+    width: min(calc(89vw - var(--bm-safe-right, 0px)), 21.75rem);
+    max-width: 21.75rem;
   }
 
   .drawer-top {
@@ -367,13 +372,13 @@
 
   .mobile-menu {
     gap: 0.48rem;
-    padding-bottom: 0.62rem;
+    padding-bottom: calc(0.62rem + var(--bm-safe-bottom, 0px));
   }
 
   .mobile-menu .menu-section {
     padding: 0.54rem;
-    background: rgba(255, 255, 255, 0.034);
-    border-color: rgba(255, 255, 255, 0.09);
+    background: rgba(255, 255, 255, 0.064);
+    border-color: rgba(255, 255, 255, 0.13);
   }
 
   .mobile-menu .menu-title {
@@ -425,6 +430,13 @@
     font-size: 0.66rem;
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .navbar-collapse#mainNavbar {
+    backdrop-filter: blur(8px) saturate(125%) !important;
+    -webkit-backdrop-filter: blur(8px) saturate(125%) !important;
   }
 }
 

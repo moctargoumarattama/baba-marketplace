@@ -129,11 +129,12 @@
                 <div class="card admin-card">
                     <div class="card-header">
                         <h5 class="mb-0">
-                            <i class="bi bi-info-circle"></i> {{ 'Informations du compte' if current_user.role == 'manager' else 'Informations personnelles' }}
+                            <i class="bi bi-info-circle"></i> {{ 'Informations du compte' if current_user.role == 'manager' or user.role == 'vendor' else 'Informations personnelles' }}
                         </h5>
                     </div>
                     <div class="card-body">
                         <dl class="row">
+                            {% if user.role != 'vendor' %}
                             <dt class="col-sm-4">Nom complet</dt>
                             <dd class="col-sm-8">{{ user.full_name or 'Non renseigné' }}</dd>
 
@@ -142,6 +143,7 @@
 
                             <dt class="col-sm-4">Adresse</dt>
                             <dd class="col-sm-8">{{ user.address or 'Non renseignée' }}</dd>
+                            {% endif %}
 
                             <dt class="col-sm-4">{{ "Date d'ajout" if current_user.role == 'manager' else "Date d'inscription" }}</dt>
                             <dd class="col-sm-8">{{ user.created_at.strftime('%d/%m/%Y ? %H:%M') }}</dd>
@@ -155,6 +157,11 @@
                                 {% endif %}
                             </dd>
                         </dl>
+                        {% if user.role == 'vendor' %}
+                        <div class="small text-muted">
+                            Les informations de contact et d'adresse sont gerées au niveau de la boutique.
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
 
@@ -264,7 +271,7 @@
                                         <i class="bi bi-shop"></i> Voir la boutique
                                     </a>
                                 {% else %}
-                                    <a href="{{ url_for('admin_users.create_shop') }}vendor_id={{ user.id }}"
+                                    <a href="{{ url_for('admin_users.create_shop', vendor_id=user.id) }}"
                                        class="btn btn-success btn-sm btn-attention">
                                         <i class="bi bi-shop"></i> Créer une boutique
                                     </a>
@@ -345,22 +352,22 @@
                             Voir la boutique
                         </a>
                     {% endif %}
-                </div>
-                <div class="card-body">
-                    {% if shop %}
-                        <h6>{{ shop.name }}</h6>
-                        <p class="text-muted">{{ shop.description|truncate(100) }}</p>
-                        
-                        <dl class="row">
-                            <dt class="col-sm-4">Statut</dt>
-                            <dd class="col-sm-8">
-                                <span class="badge bg-{{ 'success' if shop.is_active else 'secondary' }}">
-                                    {{ 'Active' if shop.is_active else 'Inactive' }}
-                                </span>
-                            </dd>
+            </div>
+<div class="card-body">
+    {% if shop %}
+        <h6>{{ shop.name }}</h6>
+        <p class="text-muted">{{ (shop.description or '')|truncate(100) if shop.description else 'Aucune description' }}</p>
+        
+        <dl class="row">
+            <dt class="col-sm-4">Statut</dt>
+            <dd class="col-sm-8">
+                <span class="badge bg-{{ 'success' if shop.is_active else 'secondary' }}">
+                    {{ 'Active' if shop.is_active else 'Inactive' }}
+                </span>
+            </dd>
                             
                             <dt class="col-sm-4">Email boutique</dt>
-                            <dd class="col-sm-8">{{ shop.contact_email }}</dd>
+                            <dd class="col-sm-8">{{ shop.contact_email or 'Non renseigné' }}</dd>
                             
                             <dt class="col-sm-4">Téléphone boutique</dt>
                             <dd class="col-sm-8">{{ shop.contact_phone or 'Non renseigné' }}</dd>
@@ -376,7 +383,7 @@
                             <i class="bi bi-shop display-4 text-muted mb-3"></i>
                             <h5>Pas encore de boutique</h5>
                             <p class="text-muted">Cet utilisateur n'a pas encore créé de boutique.</p>
-                            <a href="{{ url_for('admin_users.create_shop') }}vendor_id={{ user.id }}" 
+                            <a href="{{ url_for('admin_users.create_shop', vendor_id=user.id) }}" 
                                class="btn btn-success">
                                 <i class="bi bi-plus-circle"></i> Créer une boutique
                             </a>
@@ -419,6 +426,7 @@
                             <input type="email" class="form-control" id="email" name="email" value="{{ user.email }}" required>
                         </div>
                         
+                        {% if user.role != 'vendor' %}
                         <div class="col-md-6">
                             <label for="full_name" class="form-label">Nom complet</label>
                             <input type="text" class="form-control" id="full_name" name="full_name" value="{{ user.full_name or '' }}">
@@ -432,6 +440,13 @@
                             <label for="address" class="form-label">Adresse</label>
                             <textarea class="form-control" id="address" name="address" rows="2">{{ user.address or '' }}</textarea>
                         </div>
+                        {% else %}
+                        <div class="col-12">
+                            <div class="alert alert-light border mb-0">
+                                Les informations de contact et d'adresse du vendeur sont gérées depuis la boutique.
+                            </div>
+                        </div>
+                        {% endif %}
                         
                         <div class="col-md-6">
                             <label for="role" class="form-label">Rôle</label>

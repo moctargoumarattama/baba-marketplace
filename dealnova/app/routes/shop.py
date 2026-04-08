@@ -10,15 +10,17 @@ from ..extensions import db
 from ..models.featured_item import FeaturedItem
 from ..models.product import Product
 from ..models.shop import Shop  # NOUVEAU
-from ..models.promo import Promo
 from ..models.review import Review
-from ..models.rental import RentalListing, RentalMedia
+from ..models.rental import RentalListing
 from ..services.pricing import prix_final, get_active_promo, get_active_promos_for_products
 from ..services.cache import cache, get_categories, get_catalog_cache
-from ..services.marketplace_feed import build_marketplace_feed, should_use_curated_marketplace_feed
+from ..services.marketplace_feed import (
+    build_marketplace_feed,
+    build_standard_marketplace_page,
+    should_use_curated_marketplace_feed,
+)
 from ..services.featured_items import featured_rank_expr, location_featured_exists_expr, product_featured_exists_expr, shop_featured_exists_expr
 from ..services.pagination import SimplePagination, page_from_args
-from ..services.rentals import rental_existing_video_poster_rel_path
 
 bp = Blueprint("shop", __name__)
 
@@ -42,18 +44,25 @@ def safe_int(value, default=None):
         return default
 
 
-def _safe_float(value, default: float = 0.0) -> float:
-    try:
-        return float(value or 0)
-    except (TypeError, ValueError):
-        return default
-
-
 def _safe_session_rollback() -> None:
     try:
         db.session.rollback()
     except Exception:
         pass
+
+
+def _dynamic_shop_status_cache_key(shop_ids) -> str:
+    normalized_ids = sorted(
+        {
+            int(shop_id)
+            for shop_id in (shop_ids or [])
+            if safe_int(shop_id) is not None
+        }
+    )
+    if not normalized_ids:
+        return "shop_filters_dynamic_status:empty"
+    digest = hashlib.sha1(",".join(str(shop_id) for shop_id in normalized_ids).encode("utf-8")).hexdigest()[:16]
+    return f"shop_filters_dynamic_status:{len(normalized_ids)}:{digest}"
 
 
 def _wants_json_response() -> bool:
@@ -62,6 +71,14 @@ def _wants_json_response() -> bool:
         or "application/json" in (request.headers.get("Accept") or "")
         or request.is_json
     )
+
+
+def _wants_shop_listing_fragment(template_name: str) -> bool:
+    if template_name != "shop/home.html":
+        return False
+    if (request.args.get("_fragment") or "").strip().lower() != "listing":
+        return False
+    return request.headers.get("X-Requested-With") in ("fetch", "XMLHttpRequest")
 
 
 def _render_shop_home(
@@ -106,265 +123,32 @@ def _render_shop_home(
                 in_stock=in_stock,
                 shop_id=shop_id,
             )
-
-        now = datetime.utcnow()
-
-        promo_value_sq = (
-            db.session.query(Promo.value)
-            .filter(
-                Promo.product_id == Product.id,
-                Promo.end_date >= now,
-            )
-            .order_by(Promo.end_date.asc())
-            .limit(1)
-            .correlate(Product)
-            .scalar_subquery()
+        return build_standard_marketplace_page(
+            page=page,
+            per_page=per_page,
+            category_id=cat,
+            search_q=search_q,
+            sort=sort,
+            kind=kind,
+            min_price=min_price,
+            max_price=max_price,
+            promo_only=promo_only,
+            in_stock=in_stock,
+            shop_id=shop_id,
         )
-        promo_type_sq = (
-            db.session.query(Promo.type)
-            .filter(
-                Promo.product_id == Product.id,
-                Promo.end_date >= now,
-            )
-            .order_by(Promo.end_date.asc())
-            .limit(1)
-            .correlate(Product)
-            .scalar_subquery()
-        )
-        promo_exists_sq = (
-            db.session.query(Promo.id)
-            .filter(
-                Promo.product_id == Product.id,
-                Promo.end_date >= now,
-            )
-            .exists()
-        )
-
-        promo_value = db.func.coalesce(promo_value_sq, 0.0)
-        fixed_price_expr = case(
-            ((Product.price - promo_value) > 0, Product.price - promo_value),
-            else_=0.0,
-        )
-        final_price_expr = case(
-            (promo_type_sq == "percentage", Product.price - (Product.price * promo_value / 100.0)),
-            (promo_type_sq == "fixed", fixed_price_expr),
-            else_=Product.price,
-        )
-
-        query = Product.query.filter(Product.is_active == True)
-        product_feature_rank = featured_rank_expr(product_featured_exists_expr(Product.id, Product.shop_id, now))
-
-        if search_q:
-            query = query.filter(Product.name.ilike(f"%{search_q}%"))
-
-        if cat:
-            query = query.filter(Product.category_id == cat)
-
-        if shop_id:
-            query = query.filter(Product.shop_id == shop_id)
-
-        if kind:
-            query = query.filter(Product.kind == kind)
-
-        if in_stock == "1":
-            # Le filtre "en stock" n'a pas de sens pour les services => ils restent visibles
-            query = query.filter((Product.kind == "service") | (Product.stock > 0))
-
-        if promo_only == "1":
-            query = query.filter(promo_exists_sq)
-
-        if min_price is not None:
-            query = query.filter(final_price_expr >= min_price)
-        if max_price is not None:
-            query = query.filter(final_price_expr <= max_price)
-
-        if sort == "new":
-            query = query.order_by(product_feature_rank.desc(), Product.created_at.desc())
-        elif sort == "low":
-            query = query.order_by(product_feature_rank.desc(), final_price_expr.asc(), Product.created_at.desc())
-        elif sort == "high":
-            query = query.order_by(product_feature_rank.desc(), final_price_expr.desc(), Product.created_at.desc())
-        else:
-            query = query.order_by(product_feature_rank.desc(), Product.created_at.desc())
-
-        pagination = query.paginate(page=page, per_page=per_page, error_out=False)
-        products = pagination.items
-
-        product_ids = [p.id for p in products]
-        if product_ids:
-            try:
-                promos = (
-                    Promo.query
-                    .filter(
-                        Promo.product_id.in_(product_ids),
-                        Promo.end_date >= now,
-                    )
-                    .order_by(Promo.product_id.asc(), Promo.end_date.asc())
-                    .all()
-                )
-            except Exception:
-                _safe_session_rollback()
-                promos = []
-        else:
-            promos = []
-        promo_map = {}
-        for pr in promos:
-            promo_map.setdefault(pr.product_id, pr)
-
-        data = []
-        for product in products:
-            try:
-                promo = promo_map.get(product.id)
-                safe_price = _safe_float(getattr(product, "price", 0), 0.0)
-                final_price = _safe_float(prix_final(product, promo), safe_price)
-                discount = _safe_float(getattr(promo, "value", 0), 0.0) if promo and promo.type == "percentage" else 0.0
-                product_dict = {
-                    "id": product.id,
-                    "name": product.name,
-                    "price": safe_price,
-                    "stock": product.stock or 0,
-                    "kind": (product.kind or "physical"),
-                    "image_file": product.image_file,
-                    "promo_active": bool(promo),
-                    "promo_type": (promo.type if promo else ""),
-                    "promo_value": _safe_float(getattr(promo, "value", 0), 0.0) if promo else 0.0,
-                }
-                data.append((product_dict, final_price, discount))
-            except Exception:
-                continue
-
-        if not kind and page == 1:
-            location_query = (
-                RentalListing.query
-                .join(Shop, Shop.id == RentalListing.shop_id)
-                .filter(
-                    RentalListing.is_active == True,
-                    RentalListing.status.in_(["active", "reserved"]),
-                    RentalListing.expires_at > now,
-                    Shop.is_active == True,
-                    Shop.sql_allows_clause("location"),
-                )
-            )
-
-            if search_q:
-                like = f"%{search_q}%"
-                location_query = location_query.filter(
-                    (RentalListing.title.ilike(like))
-                    | (RentalListing.city.ilike(like))
-                    | (RentalListing.area.ilike(like))
-                    | (RentalListing.description.ilike(like))
-                )
-
-            if shop_id:
-                location_query = location_query.filter(RentalListing.shop_id == shop_id)
-
-            if min_price is not None:
-                location_query = location_query.filter(RentalListing.rent_cents >= int(round(min_price * 100)))
-            if max_price is not None:
-                location_query = location_query.filter(RentalListing.rent_cents <= int(round(max_price * 100)))
-
-            if sort == "new":
-                location_feature_rank = featured_rank_expr(
-                    location_featured_exists_expr(RentalListing.id, RentalListing.shop_id, now)
-                )
-                location_query = location_query.order_by(location_feature_rank.desc(), RentalListing.created_at.desc())
-            elif sort == "low":
-                location_feature_rank = featured_rank_expr(
-                    location_featured_exists_expr(RentalListing.id, RentalListing.shop_id, now)
-                )
-                location_query = location_query.order_by(location_feature_rank.desc(), RentalListing.rent_cents.asc())
-            elif sort == "high":
-                location_feature_rank = featured_rank_expr(
-                    location_featured_exists_expr(RentalListing.id, RentalListing.shop_id, now)
-                )
-                location_query = location_query.order_by(location_feature_rank.desc(), RentalListing.rent_cents.desc())
-            else:
-                location_feature_rank = featured_rank_expr(
-                    location_featured_exists_expr(RentalListing.id, RentalListing.shop_id, now)
-                )
-                location_query = location_query.order_by(location_feature_rank.desc(), RentalListing.created_at.desc())
-
-            active_locations = location_query.limit(max(6, per_page // 3)).all()
-            listing_ids = [listing.id for listing in active_locations]
-            location_cover_map = {}
-            location_video_map = {}
-            location_video_poster_map = {}
-            if listing_ids:
-                media_rows = (
-                    db.session.query(RentalMedia.listing_id, RentalMedia.kind, RentalMedia.file_path)
-                    .filter(
-                        RentalMedia.listing_id.in_(listing_ids),
-                        RentalMedia.kind.in_(("image", "video")),
-                    )
-                    .order_by(RentalMedia.listing_id.asc(), RentalMedia.id.asc())
-                    .all()
-                )
-                for listing_id, media_kind, file_path in media_rows:
-                    if not file_path:
-                        continue
-                    if media_kind == "image" and listing_id not in location_cover_map:
-                        location_cover_map[listing_id] = str(file_path)
-                    elif media_kind == "video" and listing_id not in location_video_map:
-                        location_video_map[listing_id] = str(file_path)
-                        poster_rel = rental_existing_video_poster_rel_path(str(file_path))
-                        if poster_rel:
-                            location_video_poster_map[listing_id] = poster_rel
-
-            location_entries = []
-            for listing in active_locations:
-                rent_dh = float((listing.rent_cents or 0) / 100)
-                location_entries.append((
-                    {
-                        "id": listing.id,
-                        "slug": listing.slug,
-                        "name": listing.title,
-                        "price": rent_dh,
-                        "stock": None,
-                        "kind": "location",
-                        "image_file": location_cover_map.get(listing.id, ""),
-                        "cover_video_file": location_video_map.get(listing.id, ""),
-                        "cover_video_poster_file": location_video_poster_map.get(listing.id, ""),
-                        "city": listing.city,
-                        "area": listing.area,
-                        "listing_type": listing.listing_type,
-                    },
-                    rent_dh,
-                    0,
-                ))
-
-            if location_entries:
-                mixed = []
-                max_len = max(len(data), len(location_entries))
-                for idx in range(max_len):
-                    if idx < len(data):
-                        mixed.append(data[idx])
-                    if idx < len(location_entries):
-                        mixed.append(location_entries[idx])
-                data = mixed[:per_page]
-
-        if sort == "low":
-            data.sort(key=lambda x: x[1])
-        elif sort == "high":
-            data.sort(key=lambda x: x[1], reverse=True)
-
-        return {
-            "data": data,
-            "total": pagination.total,
-            "per_page": per_page,
-        }
 
     cache_key = f"shop_home:v2:{page}:{cat}:{search_q}:{sort}:{kind}:{min_price}:{max_price}:{promo_only}:{in_stock}:{shop_id}"
     try:
         payload = get_catalog_cache(cache_key, build_products_payload, timeout=60)
     except Exception as exc:
         _safe_session_rollback()
-        current_app.logger.error("shop home cache/build error: %s", exc)
+        current_app.logger.exception("shop home cache/build error")
         try:
             payload = build_products_payload()
         except Exception as inner_exc:
             _safe_session_rollback()
-            current_app.logger.error("shop home fallback build error: %s", inner_exc)
-            payload = {"data": [], "total": 0, "per_page": per_page}
+            current_app.logger.exception("shop home fallback build error")
+            raise inner_exc from exc
     data = payload.get("data", [])
     pagination = SimplePagination(page, payload.get("per_page", per_page), payload.get("total", 0))
 
@@ -389,6 +173,7 @@ def _render_shop_home(
             )
         except Exception:
             _safe_session_rollback()
+            current_app.logger.exception("shop category counts build error")
             return {
                 "all": {},
                 "physical": {},
@@ -506,33 +291,47 @@ def _render_shop_home(
         shop_payload = get_catalog_cache("shop_filters", build_shop_filters, timeout=120)
     except Exception as exc:
         _safe_session_rollback()
-        current_app.logger.error("shop filters cache/build error: %s", exc)
+        current_app.logger.exception("shop filters cache/build error")
         try:
             shop_payload = build_shop_filters()
         except Exception as inner_exc:
             _safe_session_rollback()
-            current_app.logger.error("shop filters fallback build error: %s", inner_exc)
-            shop_payload = {"shops": [], "shop_counts": {}}
+            current_app.logger.exception("shop filters fallback build error")
+            raise inner_exc from exc
     shops = shop_payload.get("shops", [])
 
     # keep shop_filters cache stable while recomputing volatile open/closed status per-request
     shop_ids = [int(shop.get("id")) for shop in shops if shop.get("id") is not None]
     dynamic_status = {}
     if shop_ids:
-        dynamic_status_cache_key = "shop_filters_dynamic_status"
+        dynamic_status_cache_key = _dynamic_shop_status_cache_key(shop_ids)
         try:
             cached_dynamic_status = cache.get(dynamic_status_cache_key)
         except Exception:
+            current_app.logger.exception("shop filters dynamic status cache read failed")
             cached_dynamic_status = None
 
         if isinstance(cached_dynamic_status, dict):
-            dynamic_status = cached_dynamic_status
-        else:
-            status_rows = (
-                db.session.query(Shop.id, Shop.is_active, Shop.is_open, Shop.closed_until)
-                .filter(Shop.id.in_(shop_ids))
-                .all()
-            )
+            normalized_cached_dynamic_status = {}
+            for key, value in cached_dynamic_status.items():
+                sid = safe_int(key)
+                if sid is None or not isinstance(value, dict):
+                    continue
+                normalized_cached_dynamic_status[sid] = value
+            if all(shop_id in normalized_cached_dynamic_status for shop_id in shop_ids):
+                dynamic_status = normalized_cached_dynamic_status
+
+        if not dynamic_status:
+            try:
+                status_rows = (
+                    db.session.query(Shop.id, Shop.is_active, Shop.is_open, Shop.closed_until)
+                    .filter(Shop.id.in_(shop_ids))
+                    .all()
+                )
+            except Exception:
+                _safe_session_rollback()
+                current_app.logger.exception("shop filters dynamic status query error")
+                status_rows = []
             for row in status_rows:
                 dynamic_status[int(row.id)] = {
                     "id": int(row.id),
@@ -541,9 +340,10 @@ def _render_shop_home(
                     "closed_until": row.closed_until,
                 }
             try:
-                cache.set(dynamic_status_cache_key, dynamic_status, timeout=15)
+                if dynamic_status:
+                    cache.set(dynamic_status_cache_key, dynamic_status, timeout=15)
             except Exception:
-                pass
+                current_app.logger.exception("shop filters dynamic status cache write failed")
 
     for shop in shops:
         sid = int(shop.get("id") or 0)
@@ -551,14 +351,13 @@ def _render_shop_home(
         if row:
             shop["is_open_now"] = _shop_is_currently_open(SimpleNamespace(**row))
         else:
-            shop["is_open_now"] = False
+            shop["is_open_now"] = _shop_is_currently_open(None)
 
     shop_counts = dict(shop_payload.get("shop_counts", {}))
     for shop in shops:
         shop_counts.setdefault(shop.get("id"), 0)
 
-    return render_template(
-        template_name,
+    context = dict(
         data=data,
         categories=categories,
         shops=shops,
@@ -577,6 +376,9 @@ def _render_shop_home(
         promo_only=promo_only,
         in_stock=in_stock,
     )
+    if _wants_shop_listing_fragment(template_name):
+        return render_template("shop/_home_listing_fragment.html", **context)
+    return render_template(template_name, **context)
 
 
 @bp.route("/")

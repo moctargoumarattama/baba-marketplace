@@ -28,6 +28,7 @@ def _booking_product_query():
             Product.name,
             Product.description,
             Product.price,
+            Product.price_cents_value,
             Product.is_active,
             Product.shop_id,
         ),
@@ -61,6 +62,7 @@ def _booking_track_query():
             Product.name,
             Product.description,
             Product.price,
+            Product.price_cents_value,
         ),
         joinedload(Booking.shop).load_only(
             Shop.id,
@@ -205,10 +207,13 @@ def book(pid):
         recent = _recent_booking_url(product.id)
         if recent:
             return render_template(
-                "booking/open_whatsapp.html",
+                "support/open_whatsapp.html",
                 wa_url=recent,
-                booking=None,
-                reused=True,
+                support_scope="Rendez-vous",
+                support_title="WhatsApp deja pret",
+                support_copy="Votre lien de rendez-vous est deja prepare. Ouvrez WhatsApp pour continuer.",
+                back_url=url_for("shop.home"),
+                back_label="Revenir au catalogue",
             )
 
         number = _whatsapp_number_from_shop(product)
@@ -234,20 +239,26 @@ def book(pid):
             pass
 
         return render_template(
-            "booking/open_whatsapp.html",
+            "support/open_whatsapp.html",
             wa_url=wa_url,
-            booking=None,
-            reused=False,
+            support_scope="Rendez-vous",
+            support_title="Demande de rendez-vous prete",
+            support_copy="Votre message WhatsApp est pret pour contacter la boutique.",
+            back_url=url_for("shop.home"),
+            back_label="Revenir au catalogue",
         )
 
     if request.method == "POST":
         recent = _recent_booking_url(product.id)
         if recent:
             return render_template(
-                "booking/open_whatsapp.html",
+                "support/open_whatsapp.html",
                 wa_url=recent,
-                booking=None,
-                reused=True,
+                support_scope="Rendez-vous",
+                support_title="WhatsApp deja pret",
+                support_copy="Votre lien de rendez-vous est deja prepare. Ouvrez WhatsApp pour continuer.",
+                back_url=url_for("shop.home"),
+                back_label="Revenir au catalogue",
             )
 
         full_name = (request.form.get("full_name") or "").strip()[:100]
@@ -341,10 +352,16 @@ def book(pid):
             pass
 
         return render_template(
-            "booking/open_whatsapp.html",
+            "support/open_whatsapp.html",
             wa_url=wa_url,
-            booking=booking,
-            reused=False,
+            support_scope="Rendez-vous",
+            support_title="Reservation prete",
+            support_copy="Votre demande est prete dans WhatsApp. Vous pouvez aussi suivre votre reservation.",
+            back_url=url_for("shop.home"),
+            back_label="Revenir au catalogue",
+            secondary_url=url_for("booking.track", token=booking.token),
+            secondary_label="Suivre ma reservation",
+            secondary_icon="bi-calendar-check",
         )
 
     remembered_phone = session.get("track_phone", "")

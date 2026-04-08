@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import re
+from logging.handlers import RotatingFileHandler
 from datetime import datetime, timedelta
 from flask import current_app, request
 from ..extensions import db
@@ -123,24 +124,52 @@ class LoggingService:
         logs_dir = os.path.join(current_app.root_path, '..', 'logs')
         os.makedirs(logs_dir, exist_ok=True)
 
-        logger = logging.getLogger('dealnova')
+        logger = current_app.logger
         if getattr(logger, "_configured", False):
             return logger
-        logger.setLevel(logging.INFO)
+        level_name = str(current_app.config.get("LOG_LEVEL", "INFO") or "INFO").strip().upper()
+        level = getattr(logging, level_name, logging.INFO)
+        logger.setLevel(level)
+        logger.propagate = False
 
         formatter = logging.Formatter(
             '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
         )
 
         log_file = os.path.join(logs_dir, 'dealnova.log')
-        file_handler = logging.FileHandler(log_file)
+        file_handler = RotatingFileHandler(
+            log_file,
+            maxBytes=max(1024, int(current_app.config.get("LOG_FILE_MAX_BYTES", 5 * 1024 * 1024) or (5 * 1024 * 1024))),
+            backupCount=max(1, int(current_app.config.get("LOG_FILE_BACKUP_COUNT", 7) or 7)),
+            encoding="utf-8",
+        )
         file_handler.setFormatter(formatter)
-        logger.addHandler(file_handler)
+        file_handler.setLevel(level)
+        if not any(
+            isinstance(handler, RotatingFileHandler)
+            and getattr(handler, "baseFilename", None) == file_handler.baseFilename
+            for handler in logger.handlers
+        ):
+            logger.addHandler(file_handler)
 
         if current_app.config.get('DEBUG', False):
-            console_handler = logging.StreamHandler()
-            console_handler.setFormatter(formatter)
-            logger.addHandler(console_handler)
+            has_console_handler = any(
+                isinstance(handler, logging.StreamHandler) and not isinstance(handler, RotatingFileHandler)
+                for handler in logger.handlers
+            )
+            if not has_console_handler:
+                console_handler = logging.StreamHandler()
+                console_handler.setFormatter(formatter)
+                console_handler.setLevel(level)
+                logger.addHandler(console_handler)
+
+        service_logger = logging.getLogger('dealnova')
+        service_logger.setLevel(level)
+        service_logger.handlers = []
+        for handler in logger.handlers:
+            service_logger.addHandler(handler)
+        service_logger.propagate = False
+        service_logger._configured = True
 
         logger._configured = True
         return logger

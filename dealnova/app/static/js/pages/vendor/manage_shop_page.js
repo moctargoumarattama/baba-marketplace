@@ -196,6 +196,10 @@
           setExactStatus(cfg.unsupportedGeolocationText, "danger");
           return;
         }
+        if (!window.isSecureContext && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
+          setExactStatus("La geolocalisation demande HTTPS. Ouvre la page en HTTPS ou saisis la position manuellement.", "danger");
+          return;
+        }
 
         captureBtn.disabled = true;
         captureBtn.innerHTML = '<i class="bi bi-hourglass-split me-2"></i> ' + cfg.locatingText;
@@ -213,9 +217,12 @@
             captureBtn.innerHTML = '<i class="bi bi-crosshair me-2"></i> ' + cfg.updatePositionLabel;
           },
           function (error) {
-            const message = error && error.code === 1
-              ? cfg.allowLocationMessage
-              : cfg.locateFailedMessage;
+            let message = cfg.locateFailedMessage;
+            if (error && error.code === 1) {
+              message = cfg.allowLocationMessage;
+            } else if (error && error.code === 3) {
+              message = "La detection de position a pris trop de temps. Reessaie ou saisis la position manuellement.";
+            }
             setExactStatus(message, "danger");
             captureBtn.disabled = false;
             captureBtn.innerHTML = '<i class="bi bi-crosshair me-2"></i> ' + cfg.sharePositionLabel;

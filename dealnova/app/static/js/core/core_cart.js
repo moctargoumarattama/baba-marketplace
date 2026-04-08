@@ -9,20 +9,13 @@
     return;
   }
 
+  const domApi = window.BMCoreDom || {};
+  const createRequestSeq =
+    typeof domApi.makeRequestSeq === "function"
+      ? domApi.makeRequestSeq
+      : window.BMAjaxGuard.makeRequestSeq.bind(window.BMAjaxGuard);
+  const escapeHtml = domApi.escapeHtml;
   const initializedBodies = typeof WeakSet !== "undefined" ? new WeakSet() : null;
-
-  function createLocalRequestSeq() {
-    let latest = 0;
-    return {
-      next() {
-        latest += 1;
-        return latest;
-      },
-      isLatest(id) {
-        return Number(id) === latest;
-      },
-    };
-  }
 
   function shouldRunNotifyPolling(body) {
     if (!body || !body.dataset) return false;
@@ -49,43 +42,10 @@
       pageId.includes("courier.panel_deliveries")
     );
   }
-
-  async function fallbackRequestJSON(url, options) {
-    const opts = Object.assign({}, options || {});
-    const response = await fetch(url, opts);
-    let data = null;
-    try {
-      data = await response.json();
-    } catch (_parseError) {
-      data = null;
-    }
-    return {
-      ok: response.ok,
-      status: response.status,
-      data,
-      error: response.ok ? null : (response.statusText || ("HTTP " + response.status)),
-      aborted: false,
-      timedOut: false,
-    };
-  }
-
-  async function requestJSON(url, options) {
-    if (window.BMAjaxFetch && typeof window.BMAjaxFetch.requestJSON === "function") {
-      return window.BMAjaxFetch.requestJSON(url, options || {});
-    }
-    try {
-      return await fallbackRequestJSON(url, options);
-    } catch (error) {
-      return {
-        ok: false,
-        status: 0,
-        data: null,
-        error: String((error && error.message) || "network_error"),
-        aborted: !!(error && error.name === "AbortError"),
-        timedOut: false,
-      };
-    }
-  }
+  const requestJSON =
+    typeof domApi.requestJSON === "function"
+      ? domApi.requestJSON
+      : window.BMAjaxFetch.requestJSON.bind(window.BMAjaxFetch);
 
   function initOrderNotifications(context) {
     const ctx = context || {};
@@ -126,12 +86,7 @@
     let soundEnabled = localStorage.getItem("adminOrderSound") !== "0";
     let toastTimer = null;
     let activePollController = null;
-    const pollRequestSeq = (
-      window.BMAjaxGuard &&
-      typeof window.BMAjaxGuard.makeRequestSeq === "function"
-    )
-      ? window.BMAjaxGuard.makeRequestSeq()
-      : createLocalRequestSeq();
+    const pollRequestSeq = createRequestSeq();
 
     function updateSoundToggle() {
       if (!soundToggle) return;
@@ -171,12 +126,6 @@
           t += 0.12;
         });
       } catch (_error) {}
-    }
-
-    function escapeHtml(value) {
-      const div = document.createElement("div");
-      div.textContent = value == null ? "" : String(value);
-      return div.innerHTML;
     }
 
     function buildItemsText(items) {

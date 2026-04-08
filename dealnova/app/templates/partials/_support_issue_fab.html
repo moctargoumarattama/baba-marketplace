@@ -1,0 +1,125 @@
+{% if report_issue_endpoint %}
+{% set report_issue_page_name = report_issue_page_name if report_issue_page_name is defined and report_issue_page_name else (request.path or request.endpoint or 'Page') %}
+{% set report_issue_item = report_issue_item if report_issue_item is defined and report_issue_item else '' %}
+{% set report_issue_back = request.full_path if request.query_string else request.path %}
+{% set report_issue_scope_label = report_issue_scope_label if report_issue_scope_label is defined and report_issue_scope_label else 'Support' %}
+{% set report_issue_scope_key = report_issue_scope_key if report_issue_scope_key is defined and report_issue_scope_key else ('courier' if report_issue_endpoint == 'courier.support_whatsapp' else 'location' if report_issue_endpoint == 'rentals.owner_support_whatsapp' else 'client' if report_issue_endpoint == 'auth.support_whatsapp' else 'vendor') %}
+{% set report_issue_storage_key = report_issue_storage_key if report_issue_storage_key is defined and report_issue_storage_key else report_issue_scope_key %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/support_issue_fab.css', v=app_static_version) }}">
+<div class="support-issue-widget"
+     data-support-fab
+     data-support-storage-key="bm-support-fab-{{ report_issue_storage_key }}">
+  <button type="button"
+          class="support-issue-fab"
+          data-support-open
+          aria-label="Signaler un probleme sur WhatsApp">
+    <i class="bi bi-exclamation-circle"></i>
+    <span>Signaler</span>
+  </button>
+
+  <div class="support-issue-backdrop" data-support-backdrop hidden></div>
+
+  <div class="support-issue-dialog" data-support-dialog hidden>
+    <div class="support-issue-card" role="dialog" aria-modal="true" aria-labelledby="supportIssueTitle">
+      <div class="support-issue-chip">
+        <i class="bi bi-whatsapp"></i>
+        <span>{{ report_issue_scope_label }}</span>
+      </div>
+
+      <div class="support-issue-head">
+        <div>
+          <h2 class="support-issue-title" id="supportIssueTitle">Signaler un probleme</h2>
+          <p class="support-issue-copy">Expliquez en peu de mots. Le reste est deja pre rempli.</p>
+        </div>
+        <button type="button" class="support-issue-close" data-support-close aria-label="Fermer">
+          <i class="bi bi-x-lg"></i>
+        </button>
+      </div>
+
+      <form class="support-issue-form"
+            data-support-form
+            method="get"
+            action="{{ url_for(report_issue_endpoint) }}">
+        <input type="hidden" name="page" value="{{ report_issue_page_name }}">
+        <input type="hidden" name="item" value="{{ report_issue_item }}">
+        <input type="hidden" name="source" value="{{ request.endpoint or '' }}">
+        <input type="hidden" name="page_url" value="{{ request.url }}">
+        <input type="hidden" name="back" value="{{ report_issue_back }}">
+
+        <div class="support-issue-context">
+          <div><strong>Page:</strong> {{ report_issue_page_name }}</div>
+          {% if report_issue_item %}
+          <div><strong>Element:</strong> {{ report_issue_item }}</div>
+          {% endif %}
+        </div>
+
+        <div class="support-issue-field">
+          <label for="supportIssueType-{{ report_issue_scope_key }}">Sujet</label>
+          <select class="support-issue-select" id="supportIssueType-{{ report_issue_scope_key }}" name="issue_type">
+            {% if report_issue_scope_key == 'location' %}
+            <option value="Annonce">Annonce</option>
+            <option value="Photo ou video">Photo ou video</option>
+            <option value="Prix ou reservation">Prix ou reservation</option>
+            <option value="Calendrier">Calendrier</option>
+            <option value="Affichage">Affichage</option>
+            <option value="Autre">Autre</option>
+            {% elif report_issue_scope_key == 'courier' %}
+            <option value="Livraison">Livraison</option>
+            <option value="Statut">Statut</option>
+            <option value="Paiement">Paiement</option>
+            <option value="Compte">Compte</option>
+            <option value="Affichage">Affichage</option>
+            <option value="Autre">Autre</option>
+            {% elif report_issue_scope_key == 'client' %}
+            <option value="Commande ou panier">Commande ou panier</option>
+            <option value="Paiement">Paiement</option>
+            <option value="Livraison">Livraison</option>
+            <option value="Compte">Compte</option>
+            <option value="Affichage">Affichage</option>
+            <option value="Autre">Autre</option>
+            {% else %}
+            <option value="Produit ou service">Produit ou service</option>
+            <option value="Photo ou video">Photo ou video</option>
+            <option value="Prix ou promo">Prix ou promo</option>
+            <option value="Commande">Commande</option>
+            <option value="Affichage">Affichage</option>
+            <option value="Autre">Autre</option>
+            {% endif %}
+          </select>
+        </div>
+
+        <div class="support-issue-field">
+          <label for="supportIssueDetails-{{ report_issue_scope_key }}">Ce qui ne va pas</label>
+          <textarea class="support-issue-textarea"
+                    id="supportIssueDetails-{{ report_issue_scope_key }}"
+                    name="details"
+                    placeholder="Ex: le bouton ne reagit pas, l'image ne charge pas, la promo ne s'applique pas."></textarea>
+        </div>
+
+        <div class="support-issue-field">
+          <label for="supportIssueExpected-{{ report_issue_scope_key }}">Ce que vous vouliez faire</label>
+          <input class="support-issue-input"
+                 id="supportIssueExpected-{{ report_issue_scope_key }}"
+                 name="expected"
+                 type="text"
+                 placeholder="Ex: ouvrir la page, valider la commande, enregistrer la promo.">
+        </div>
+
+        <p class="support-issue-hint">Le message WhatsApp contiendra aussi votre page actuelle et votre compte.</p>
+
+        <div class="support-issue-actions">
+          <button type="button" class="support-issue-btn secondary" data-support-close>
+            <i class="bi bi-arrow-left"></i>
+            <span>Fermer</span>
+          </button>
+          <button type="submit" class="support-issue-btn primary">
+            <i class="bi bi-whatsapp"></i>
+            <span>Continuer</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<script src="{{ url_for('static', filename='js/support_issue_fab.js', v=app_static_version) }}"></script>
+{% endif %}

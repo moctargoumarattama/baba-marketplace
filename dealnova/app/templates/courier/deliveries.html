@@ -607,6 +607,11 @@
 
 {% block scripts %}
 {{ super() }}
+{% set report_issue_endpoint = 'courier.support_whatsapp' %}
+{% set report_issue_page_name = 'Mes livraisons' %}
+{% set report_issue_scope_label = 'Support livreur' %}
+{% set report_issue_scope_key = 'courier' %}
+{% include "partials/_support_issue_fab.html" %}
 <script>
 (function () {
   if (typeof window === "undefined" || typeof history === "undefined") return;

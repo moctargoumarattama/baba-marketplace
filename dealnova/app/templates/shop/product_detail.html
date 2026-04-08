@@ -1,9 +1,31 @@
 {% extends "base.html" %}
+{% set product_imgs = (product.image_file.split('|') if product.image_file else []) %}
+{% set product_valid_imgs = product_imgs|select|list %}
+{% set product_main_img = (product_valid_imgs[0] if product_valid_imgs and product_valid_imgs[0] else None) %}
+{% set product_share_url = url_for('shop.product_detail', pid=product.id, _external=True) %}
+{% set product_share_title = product.name ~ " | " ~ (product.shop.name if product.shop else "BabaMarket") ~ " | BabaMarket" %}
+{% set product_share_description = (product.description or ("Découvrez " ~ product.name ~ " sur BabaMarket."))|striptags|trim %}
+{% set product_share_image_rel = ('uploads/' ~ image_variant(product_main_img, 'large')) if product_main_img else (('uploads/' ~ product.shop.logo) if product.shop and product.shop.logo else 'images/produit.jpeg') %}
+{% set product_share_image_url = request.url_root.rstrip('/') ~ url_for('static', filename=product_share_image_rel) %}
 
 {% block title %}{{ product.name }} | DealNova{% endblock %}
 
 {% block head %}
 {{ super() }}
+<meta name="description" content="{{ product_share_description[:160] }}">
+<link rel="canonical" href="{{ product_share_url }}">
+<meta property="og:locale" content="fr_MA">
+<meta property="og:site_name" content="BabaMarket">
+<meta property="og:type" content="product">
+<meta property="og:title" content="{{ product_share_title }}">
+<meta property="og:description" content="{{ product_share_description[:200] }}">
+<meta property="og:url" content="{{ product_share_url }}">
+<meta property="og:image" content="{{ product_share_image_url }}">
+<meta property="og:image:alt" content="{{ product.name }}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{ product_share_title }}">
+<meta name="twitter:description" content="{{ product_share_description[:200] }}">
+<meta name="twitter:image" content="{{ product_share_image_url }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/product_detail_page.css', v=app_static_version) }}">
 {% endblock %}
 {% block content %}
@@ -113,9 +135,9 @@
     {% endif %}
 </div>
         <!-- Image Principale -->
-        {% set imgs = (product.image_file.split('|') if product.image_file else []) %}
-        {% set valid_imgs = imgs|select|list %}
-        {% set main_img = (valid_imgs[0] if valid_imgs and valid_imgs[0] else None) %}
+        {% set valid_imgs = product_valid_imgs %}
+        {% set main_img = product_main_img %}
+        {% set product_video_poster = (url_for('static', filename='uploads/' + image_variant(main_img, 'large')) if main_img else '') %}
         {% set product_video = (product.video_file if product.video_file else None) %}
         {% set product_video_ext = (product_video.rsplit('.', 1)[1]|lower if product_video and '.' in product_video else '') %}
         {% set product_video_mime = {
@@ -157,10 +179,14 @@
                     playsinline
                     webkit-playsinline="true"
                     class="product-main-image"
-                    style="height:auto; max-height:560px; background:#0f172a;">
+                    style="height:auto; max-height:560px; background:#0f172a;"{% if product_video_poster %} poster="{{ product_video_poster }}"{% endif %}>
               <source src="{{ url_for('static', filename=product_video) }}"{% if product_video_mime.get(product_video_ext) %} type="{{ product_video_mime.get(product_video_ext) }}"{% endif %}>
               Votre navigateur ne peut pas lire cette video.
             </video>
+            <div class="product-video-badge" aria-hidden="true">
+              <i class="bi bi-play-fill"></i>
+              <span>Video</span>
+            </div>
             <div class="product-video-fallback" id="productVideoFallback" hidden>
               <div class="product-video-fallback-inner">
                 <i class="bi bi-play-btn"></i>
@@ -196,13 +222,14 @@
                   class="photo-cart-cta-form"
                   data-ajax="true"
                   data-action="add-to-cart"
-                  data-success-message="Produit ajoute au panier"
-                  aria-label="Ajouter au panier depuis la photo">
+                  data-success-message="Ouverture du panier"
+                  aria-label="Commander directement depuis la photo">
               {% include "partials/_csrf.html" %}
-              <button type="submit" class="photo-cart-cta" title="Ajouter au panier">
-                <i class="bi bi-cart-plus"></i>
+              <input type="hidden" name="post_add_redirect" value="cart">
+              <button type="submit" class="photo-cart-cta photo-cart-cta--direct" title="Commander maintenant">
+                <i class="bi bi-lightning-charge-fill"></i>
               </button>
-              <span class="photo-cart-cta-chip">Ajouter</span>
+              <span class="photo-cart-cta-chip">Commander</span>
             </form>
             {% endif %}
           {% else %}
@@ -360,8 +387,17 @@
               </button>
             {% endif %}
             
-            {% if not is_vendor_view %}
-            <div class="d-flex gap-2">
+             {% if not is_vendor_view %}
+             <div class="d-flex gap-2">
+              <button type="button"
+                      class="btn btn-outline-primary btn-lg flex-fill btn-share-entity"
+                      data-share-button
+                      data-share-title="{{ product_share_title }}"
+                      data-share-text="{{ product_share_description[:180] }}"
+                      data-share-url="{{ product_share_url }}"
+                      data-share-copied-message="Lien du produit copie">
+                <i class="bi bi-share me-2"></i>Partager ce produit
+              </button>
               <a href="{{ url_for('shop.home', kind='service' if product.kind == 'service' else 'physical') }}" class="btn btn-outline-secondary flex-fill">
                 <i class="bi bi-house"></i>
                 <span class="d-none d-md-inline">Accueil</span>
@@ -499,12 +535,14 @@
     </div>
   </div>
   {% endif %}
+
 </div>
 
 
 {% endblock %}
 {% block scripts %}
 {{ super() }}
+<script src="{{ url_for('static', filename='js/core/core_share.js', v=app_static_version) }}" defer></script>
 <script src="{{ url_for('static', filename='js/pages/product_detail_page.js', v=app_static_version) }}" defer></script>
 {% endblock %}
 

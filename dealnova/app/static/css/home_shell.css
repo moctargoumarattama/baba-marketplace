@@ -1,6 +1,6 @@
 ﻿ /* ===== HERO TOP GAP FIX (home only) ===== */
 main.has-home-tabs {
-  padding-top: 3.82rem !important;
+  padding-top: calc(3.82rem + var(--bm-safe-top, env(safe-area-inset-top, 0px))) !important;
 }
 
 main.has-home-tabs > .container-fluid {
@@ -237,7 +237,7 @@ main.has-home-tabs > .container-fluid > #pageContent {
 
   @media (max-width: 768px) {
     main.has-home-tabs {
-      padding-top: 3.72rem !important;
+      padding-top: calc(3.72rem + var(--bm-safe-top, env(safe-area-inset-top, 0px))) !important;
     }
 
     .hero-background,
@@ -326,6 +326,29 @@ main.has-home-tabs > .container-fluid > #pageContent {
     transform: translateY(-1px);
     box-shadow: 0 18px 34px rgba(16, 185, 129, 0.26);
     filter: saturate(1.04);
+  }
+
+  .products-more-btn-secondary {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.94);
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    box-shadow: 0 14px 28px rgba(15, 23, 42, 0.08);
+  }
+
+  .products-more-btn-secondary:hover {
+    color: var(--text-primary);
+    box-shadow: 0 18px 34px rgba(15, 23, 42, 0.12);
+  }
+
+  .products-footer-action {
+    display: flex;
+    justify-content: center;
+    margin-top: 1.1rem;
+  }
+
+  .products-footer-action .products-more-btn {
+    justify-content: center;
+    min-width: 220px;
   }
 
   .products-more-btn i {
@@ -991,6 +1014,10 @@ main.has-home-tabs > .container-fluid > #pageContent {
     .products-more-btn {
       width: 100%;
       justify-content: center;
+    }
+
+    .products-footer-action {
+      width: 100%;
     }
 
     .hero-background {
@@ -2000,6 +2027,38 @@ main.has-home-tabs > .container-fluid > #pageContent {
   .hero-card-image {
     display: block;
     max-width: 100%;
+  }
+
+  @media (max-width: 767.98px) {
+    .btn-hero,
+    .products-more-btn,
+    .universe-card,
+    .shop-card,
+    .product-card,
+    .btn-detail,
+    .btn-cart,
+    .btn-book {
+      touch-action: manipulation;
+      transition:
+        transform 60ms ease,
+        opacity 60ms ease,
+        background-color 120ms ease,
+        box-shadow 120ms ease,
+        border-color 120ms ease,
+        filter 120ms ease;
+    }
+
+    .btn-hero:active,
+    .products-more-btn:active,
+    .universe-card:active,
+    .shop-card:active,
+    .product-card:active,
+    .btn-detail:active,
+    .btn-cart:active,
+    .btn-book:active {
+      transform: scale(0.96);
+      opacity: 0.84;
+    }
   }
 
 

@@ -17,6 +17,12 @@ from ..services.audit import log_access
 from ..services.marketplace_feed import CURATED_PAGE_LIMIT, build_location_feed
 from ..services.pagination import SimplePagination, page_from_args
 from ..services.shop_access import ensure_shop_allows, ensure_vendor_allows
+from ..services.support_whatsapp import (
+    append_support_request,
+    build_support_whatsapp_url,
+    safe_support_back_target,
+    support_user_label,
+)
 from ..services.rentals import (
     MAX_IMAGE_BYTES,
     MAX_IMAGE_COUNT,
@@ -123,6 +129,51 @@ def _owner_required():
     return None
 
 
+@bp.route("/owner/support/whatsapp")
+@login_required
+def owner_support_whatsapp():
+    guard = _owner_required()
+    if guard:
+        return guard
+
+    page_name = (request.args.get("page") or "Page owner location").strip()[:120]
+    page_url = (request.args.get("page_url") or "").strip()[:400]
+    source = (request.args.get("source") or "").strip()[:160]
+    item_name = (request.args.get("item") or "").strip()[:160]
+    back_url = safe_support_back_target(request.args.get("back"), url_for("rentals.owner_locations"))
+    shop = Shop.query.filter_by(vendor_id=current_user.id).first()
+
+    lines = [
+        "Bonjour, je signale un probleme sur mon espace location.",
+        f"Compte: {support_user_label(current_user)} (id: {current_user.id})",
+    ]
+    if shop and getattr(shop, "name", None):
+        lines.append(f"Espace: {shop.name}")
+    lines.append(f"Page: {page_name}")
+    if item_name:
+        lines.append(f"Annonce: {item_name}")
+    if source:
+        lines.append(f"Route: {source}")
+    if page_url:
+        lines.append(f"URL: {page_url}")
+    append_support_request(
+        lines,
+        issue_type=request.args.get("issue_type"),
+        details=request.args.get("details"),
+        expected=request.args.get("expected"),
+    )
+
+    return render_template(
+        "support/open_whatsapp.html",
+        wa_url=build_support_whatsapp_url(lines),
+        support_scope="Support location",
+        support_title="Signaler un probleme location",
+        support_copy="Votre message est pret avec la page, l'annonce et votre compte owner.",
+        back_url=back_url,
+        back_label="Retour a la page",
+    )
+
+
 def _admin_required():
     if not current_user.is_authenticated:
         return redirect(url_for("auth.login"))
@@ -137,6 +188,105 @@ def _owner_shops(owner_id: int, location_only: bool = False):
     if location_only:
         query = query.filter(Shop.sql_allows_clause("location"))
     return query.order_by(Shop.name.asc()).all()
+
+
+def _media_name_sample(names: list[str], limit: int = 2) -> str:
+    cleaned = [str(name or "").strip() for name in names if str(name or "").strip()]
+    if not cleaned:
+        return ""
+    sample = cleaned[:limit]
+    suffix = ""
+    if len(cleaned) > limit:
+        suffix = f" +{len(cleaned) - limit}"
+    return ", ".join(sample) + suffix
+
+
+def _save_uploaded_rental_images(
+    files,
+    *,
+    remaining_slots: int,
+    saved_files: list[str],
+):
+    saved_rel_paths: list[str] = []
+    skipped_invalid: list[str] = []
+    skipped_overflow: list[str] = []
+    slots_left = max(0, int(remaining_slots))
+
+    for file_obj in files or []:
+        if not file_obj or not (getattr(file_obj, "filename", "") or "").strip():
+            continue
+        original_name = str(getattr(file_obj, "filename", "") or "").strip()
+
+        if len(saved_rel_paths) >= slots_left:
+            skipped_overflow.append(original_name)
+            continue
+
+        try:
+            image_rel = save_rental_image(file_obj)
+            saved_rel_paths.append(image_rel)
+            saved_files.append(image_rel)
+        except ValueError as exc:
+            current_app.logger.warning(
+                "rental.image_rejected owner_id=%s filename=%s reason=%s",
+                getattr(current_user, "id", None),
+                original_name,
+                exc,
+            )
+            skipped_invalid.append(original_name)
+
+    return saved_rel_paths, skipped_invalid, skipped_overflow
+
+
+def _save_uploaded_rental_video(
+    file_obj,
+    *,
+    has_existing_video: bool,
+    saved_files: list[str],
+):
+    if not file_obj or not (getattr(file_obj, "filename", "") or "").strip():
+        return None, None
+
+    original_name = str(getattr(file_obj, "filename", "") or "").strip()
+    if has_existing_video:
+        return None, f"video ignoree ({original_name}) : supprimez la video actuelle avant d'en ajouter une nouvelle"
+
+    try:
+        video_rel = save_rental_video(file_obj)
+        saved_files.append(video_rel)
+        return video_rel, None
+    except ValueError as exc:
+        current_app.logger.warning(
+            "rental.video_rejected owner_id=%s filename=%s reason=%s",
+            getattr(current_user, "id", None),
+            original_name,
+            exc,
+        )
+        return None, f"video ignoree ({original_name}) : {exc}"
+
+
+def _flash_rental_media_notice(
+    *,
+    skipped_invalid_images: list[str],
+    skipped_overflow_images: list[str],
+    video_notice: str | None,
+):
+    notes: list[str] = []
+    if skipped_invalid_images:
+        sample = _media_name_sample(skipped_invalid_images)
+        detail = f" ({sample})" if sample else ""
+        notes.append(
+            f"{len(skipped_invalid_images)} photo(s) rejetee(s) car invalides, trop lourdes ou illisibles{detail}"
+        )
+    if skipped_overflow_images:
+        sample = _media_name_sample(skipped_overflow_images)
+        detail = f" ({sample})" if sample else ""
+        notes.append(
+            f"{len(skipped_overflow_images)} photo(s) ignoree(s) car la limite est de {MAX_IMAGE_COUNT}{detail}"
+        )
+    if video_notice:
+        notes.append(video_notice)
+    if notes:
+        flash("Medias partiellement acceptes : " + " ; ".join(notes) + ".", "warning")
 
 
 def _listing_owner_view(listing: RentalListing):
@@ -305,9 +455,17 @@ def location_inquiry(slug: str):
         wa_number = _support_whatsapp_number()
         wa_url = f"https://wa.me/{wa_number}?text={quote(chr(10).join(lines))}"
         return render_template(
-            "locations/open_whatsapp.html",
+            "support/open_whatsapp.html",
             wa_url=wa_url,
-            listing=listing,
+            support_scope="Visite location",
+            support_title="Demande de visite prete",
+            support_copy="Votre message WhatsApp est pret avec l'annonce et vos coordonnees.",
+            support_hint="Le proprietaire recevra aussi le lien de l'annonce.",
+            back_url=url_for("rentals.location_inquiry", slug=listing.slug),
+            back_label="Retour au formulaire",
+            secondary_url=url_for("rentals.location_detail", slug=listing.slug),
+            secondary_label="Voir l'annonce",
+            secondary_icon="bi-house-door",
         )
 
     return render_template(
@@ -610,18 +768,21 @@ def owner_location_new():
             db.session.flush()
 
             image_files = [f for f in request.files.getlist("images") if f and f.filename]
-            if len(image_files) > MAX_IMAGE_COUNT:
-                raise ValueError(f"Maximum {MAX_IMAGE_COUNT} images.")
-
-            for image_file in image_files:
-                image_rel = save_rental_image(image_file)
-                saved_files.append(image_rel)
+            new_images, skipped_invalid_images, skipped_overflow_images = _save_uploaded_rental_images(
+                image_files,
+                remaining_slots=MAX_IMAGE_COUNT,
+                saved_files=saved_files,
+            )
+            for image_rel in new_images:
                 db.session.add(RentalMedia(listing_id=listing.id, kind="image", file_path=image_rel))
 
             video_file = request.files.get("video")
-            if video_file and video_file.filename:
-                video_rel = save_rental_video(video_file)
-                saved_files.append(video_rel)
+            video_rel, video_notice = _save_uploaded_rental_video(
+                video_file,
+                has_existing_video=False,
+                saved_files=saved_files,
+            )
+            if video_rel:
                 db.session.add(RentalMedia(listing_id=listing.id, kind="video", file_path=video_rel))
 
             db.session.commit()
@@ -633,6 +794,11 @@ def owner_location_new():
                 changes={"shop_id": listing.shop_id, "listing_type": listing.listing_type},
             )
             flash("Annonce location créée.", "success")
+            _flash_rental_media_notice(
+                skipped_invalid_images=skipped_invalid_images,
+                skipped_overflow_images=skipped_overflow_images,
+                video_notice=video_notice,
+            )
             return redirect(url_for("rentals.owner_locations"))
         except ValueError as exc:
             db.session.rollback()
@@ -751,26 +917,28 @@ def owner_location_edit(listing_id: int):
             existing_videos = [m for m in listing.media if m.kind == "video" and m.id not in remove_media_ids]
 
             image_files = [f for f in request.files.getlist("images") if f and f.filename]
-            if len(existing_images) + len(image_files) > MAX_IMAGE_COUNT:
-                raise ValueError(f"Maximum {MAX_IMAGE_COUNT} images.")
-
+            remaining_slots = max(0, MAX_IMAGE_COUNT - len(existing_images))
             new_video = request.files.get("video")
-            if new_video and new_video.filename and existing_videos:
-                raise ValueError("Supprimez la vidéo actuelle avant d'en ajouter une nouvelle.")
 
             for media_row in list(listing.media):
                 if media_row.id in remove_media_ids:
                     delete_static_file(media_row.file_path)
                     db.session.delete(media_row)
 
-            for image_file in image_files:
-                image_rel = save_rental_image(image_file)
-                saved_files.append(image_rel)
+            new_images, skipped_invalid_images, skipped_overflow_images = _save_uploaded_rental_images(
+                image_files,
+                remaining_slots=remaining_slots,
+                saved_files=saved_files,
+            )
+            for image_rel in new_images:
                 db.session.add(RentalMedia(listing_id=listing.id, kind="image", file_path=image_rel))
 
-            if new_video and new_video.filename:
-                video_rel = save_rental_video(new_video)
-                saved_files.append(video_rel)
+            video_rel, video_notice = _save_uploaded_rental_video(
+                new_video,
+                has_existing_video=bool(existing_videos),
+                saved_files=saved_files,
+            )
+            if video_rel:
                 db.session.add(RentalMedia(listing_id=listing.id, kind="video", file_path=video_rel))
 
             db.session.commit()
@@ -782,6 +950,11 @@ def owner_location_edit(listing_id: int):
                 changes={"shop_id": listing.shop_id, "status": listing.status},
             )
             flash("Annonce location mise à jour.", "success")
+            _flash_rental_media_notice(
+                skipped_invalid_images=skipped_invalid_images,
+                skipped_overflow_images=skipped_overflow_images,
+                video_notice=video_notice,
+            )
             return redirect(url_for("rentals.owner_location_edit", listing_id=listing.id))
         except ValueError as exc:
             db.session.rollback()

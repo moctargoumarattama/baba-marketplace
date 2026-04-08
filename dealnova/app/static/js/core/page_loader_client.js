@@ -84,6 +84,11 @@
     "vendor.security": [[ASSETS.coreLive], [ASSETS.liveShim, ASSETS.featureForms]]
   };
 
+  var QUIET_PAGES = new Set([
+    "rentals.owner_location_new",
+    "rentals.owner_location_edit"
+  ]);
+
   function normalize(value) {
     return String(value || "").trim().toLowerCase();
   }
@@ -297,7 +302,7 @@
       if (!conn) return true;
       if (conn.saveData) return false;
       var type = String(conn.effectiveType || "").toLowerCase();
-      if (type === "2g" || type === "slow-2g") return false;
+      if (type === "2g" || type === "slow-2g" || type === "3g") return false;
     } catch (_error) {}
     return true;
   }
@@ -443,6 +448,10 @@
     var pageId = getPageId();
     var assets = resolveAssets(pageId);
     if (!assets.length) {
+      if (QUIET_PAGES.has(pageId)) {
+        markPageInteractive({ pageId: pageId, assets: [], mapped: true, inline: true });
+        return;
+      }
       // eslint-disable-next-line no-console
       console.info("[page_loader_client] page not mapped", pageId || "(empty)");
       markPageInteractive({ pageId: pageId, assets: [], mapped: false });

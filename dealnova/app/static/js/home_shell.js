@@ -1,25 +1,35 @@
 document.addEventListener("DOMContentLoaded", () => {
+  const coreUI = window.BMCoreUI || {};
+
+  function navigateToUrl(url) {
+    const targetUrl = String(url || "").trim();
+    if (!targetUrl) return;
+    if (window.BMPageNav && typeof window.BMPageNav.navigate === "function") {
+      window.BMPageNav.navigate(targetUrl);
+      return;
+    }
+    window.location.assign(targetUrl);
+  }
 
   /* =======================
      TOAST
   ======================= */
   function showToast(message, type = "success") {
-    const toast = document.getElementById("toast");
-    const msg = document.getElementById("toast-message");
-    const icon = document.getElementById("toast-icon");
-
-    if (!toast || !msg) return;
-
-    toast.className = `toast ${type}`;
-    if (icon) {
-      icon.className = type === "error" ? "bi bi-x-circle" : "bi bi-check-circle";
+    if (typeof coreUI.showInlineToast === "function") {
+      coreUI.showInlineToast({
+        message,
+        type,
+        toastId: "toast",
+        messageId: "toast-message",
+        closeId: "toast-close",
+        iconId: "toast-icon",
+        durationMs: 3000,
+      });
+      return;
     }
-    msg.textContent = message;
-    toast.style.display = "flex";
-
-    window.setTimeout(() => {
-      toast.style.display = "none";
-    }, 3000);
+    if (typeof coreUI.showToast === "function") {
+      coreUI.showToast(message, type);
+    }
   }
 
   /* =======================
@@ -98,7 +108,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (e.target.closest("a, button, .add-to-cart, .badge")) return;
 
     const link = card.querySelector(".btn-detail");
-    if (link) window.location.href = link.href;
+    if (link) navigateToUrl(link.href);
   });
 
   /* =======================

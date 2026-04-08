@@ -17,6 +17,16 @@
     return Array.prototype.slice.call((root || document).querySelectorAll(selector));
   }
 
+  function hardNavigate(url) {
+    var targetUrl = String(url || "").trim();
+    if (!targetUrl) return;
+    if (window.BMPageNav && typeof window.BMPageNav.navigate === "function") {
+      window.BMPageNav.navigate(targetUrl);
+      return;
+    }
+    window.location.assign(targetUrl);
+  }
+
   function normalizeKind(value) {
     var kind = String(value || "").trim().toLowerCase();
     if (kind === "physical" || kind === "service" || kind === "location") return kind;
@@ -248,7 +258,7 @@
       window.AjaxPagination.navigate(url, { push: push !== false, triggerEl: triggerEl || null });
       return;
     }
-    window.location.href = url;
+    hardNavigate(url);
   }
 
   function applyAndNavigate(partial, push, triggerEl) {
@@ -356,4 +366,3 @@
     initShopsPage();
   }
 })();
-

@@ -1,5 +1,5 @@
-# app/routes/admin_users.py
-from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
+﻿# app/routes/admin_users.py
+from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, current_app
 from flask_login import login_required, current_user
 from ..extensions import db
 from ..models.user import User
@@ -28,11 +28,12 @@ from ..services.traffic_stats import get_live_traffic_metrics
 from datetime import datetime, timedelta
 from sqlalchemy.orm import selectinload, load_only
 from sqlalchemy import or_, and_
+from sqlalchemy.exc import SQLAlchemyError  # âœ… AJOUT
 import secrets
 import re
 import string
-from flask import current_app
 from slugify import slugify
+
 bp = Blueprint("admin_users", __name__, url_prefix="/admin")
 
 _MEMORABLE_PASSWORD_WORDS = [
@@ -114,7 +115,7 @@ def _cache_get_or_build(key: str, timeout: int, builder, use_lock: bool = False)
                     return cached
             except Exception:
                 pass
-            
+
             value = builder()
             try:
                 cache.set(key, value, timeout=max(1, int(timeout)))
@@ -175,7 +176,7 @@ def _hidden_user_response():
 
 
 def _forbidden_sensitive_admin_response():
-    message = "Acces reserve aux administrateurs principaux."
+    message = "Accès réservé aux administrateurs principaux."
     if _is_ajax_request():
         return jsonify(success=False, message=message), 403
     flash(message, "danger")
@@ -196,6 +197,63 @@ def _sanitize_shop_slug(raw_value: str | None, fallback_name: str | None = None)
     if not candidate and fallback_name:
         candidate = slugify((fallback_name or "").strip())
     return candidate
+
+
+def _build_unique_shop_slug(name: str, *, exclude_shop_id: int | None = None) -> str:
+    base_slug = _sanitize_shop_slug(None, fallback_name=name) or "boutique"
+    slug = base_slug
+    counter = 1
+
+    while True:
+        query = Shop.query.filter_by(slug=slug)
+        if exclude_shop_id is not None:
+            query = query.filter(Shop.id != exclude_shop_id)
+        if not query.first():
+            return slug
+
+        slug = f"{base_slug}-{counter}"
+        counter += 1
+        if counter > 999:
+            slug = f"{base_slug}-{int(datetime.utcnow().timestamp())}"
+
+
+def _create_shop_for_vendor(
+    vendor: User,
+    *,
+    name: str,
+    description: str = "",
+    contact_email: str = "",
+    contact_phone: str = "",
+    address: str = "",
+    primary_type: str = "products",
+    allowed_types: list[str] | None = None,
+) -> Shop:
+    normalized_primary = normalize_shop_type(primary_type) or "products"
+    normalized_allowed = normalize_allowed_shop_types(allowed_types, primary_type=normalized_primary)
+
+    shop = Shop(
+        vendor_id=vendor.id,
+        name=name.strip(),
+        slug=_build_unique_shop_slug(name),
+        description=(description or "").strip() or None,
+        contact_email=(contact_email or "").strip() or vendor.email or None,
+        contact_phone=(contact_phone or "").strip() or vendor.phone or None,
+        address=(address or "").strip() or vendor.address or None,
+        primary_type=normalized_primary,
+        is_active=True,
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+    )
+    shop.set_allowed_types(normalized_allowed)
+
+    db.session.add(shop)
+    db.session.flush()
+
+    Product.query.filter_by(vendor_id=vendor.id).update(
+        {"shop_id": shop.id},
+        synchronize_session=False,
+    )
+    return shop
 
 
 def _generate_memorable_password() -> str:
@@ -226,10 +284,10 @@ def _order_period_choices(limit: int | None = 100) -> list[OrderPeriod]:
         OrderPeriod.opened_at.desc(),
         OrderPeriod.id.desc(),
     )
-    
+
     if limit is not None:
         query = query.limit(max(1, limit))
-    
+
     return query.all()
 
 
@@ -306,13 +364,13 @@ def _courier_delivered_counts(user_ids: list[int]) -> dict[int, int]:
 def restrict_to_admin():
     """Vérifie que l'utilisateur est admin"""
     role = _current_admin_role()
-    
+
     if role in {ADMIN_ROLE, MANAGER_ROLE}:
         return None
-    
+
     if role == "courier":
         return render_template("errors/403.html"), 403
-    
+
     flash("Accès réservé aux administrateurs", "danger")
     return redirect(url_for("shop.home"))
 
@@ -471,10 +529,10 @@ def admin_dashboard():
     total_products = int(cards.get("total_products", 0) or 0)
     total_orders = int(period_scope.count() or 0)
     vendors_without_shop = int(cards.get("vendors_without_shop", 0) or 0)
-    
+
     # Commandes récentes
     recent_orders = Order.query.order_by(Order.created_at.desc()).limit(10).all()
-    
+
     # Utilisateurs récents
     recent_users = (
         _users_query_visible_to_current_user()
@@ -482,12 +540,12 @@ def admin_dashboard():
         .limit(10)
         .all()
     )
-    
+
     # Boutiques récentes
     recent_shops = Shop.query.order_by(Shop.created_at.desc()).limit(10).all()
     activity_snapshot = _dashboard_activity_snapshot()
     live_traffic = get_live_traffic_metrics()
-    
+
     return render_template(
         "admin/dashboard.html",
         total_users=total_users,
@@ -504,7 +562,6 @@ def admin_dashboard():
         live_traffic=live_traffic,
         **activity_snapshot,
     )
-
 
 @bp.route("/audience")
 def audience_dashboard():
@@ -531,17 +588,17 @@ def manage_users():
     page = page_from_args(request.args)
     role_filter = _normalize_user_role(request.args.get('role', ''))
     search = request.args.get('search', '')
-    
+
     visible_roles = _visible_user_roles_for_current_user()
     if role_filter and role_filter not in visible_roles:
         role_filter = ''
 
     query = _users_query_visible_to_current_user()
-    
+
     # Filtres
     if role_filter:
         query = query.filter_by(role=role_filter)
-    
+
     if search:
         query = query.filter(
             db.or_(
@@ -550,19 +607,19 @@ def manage_users():
                 User.full_name.ilike(f'%{search}%')
             )
         )
-    
+
     # Pagination
     pagination = query.order_by(User.created_at.desc()).paginate(
         page=page, per_page=50, error_out=False
     )
-    
+
     users = pagination.items
     courier_ids = [user.id for user in users if user.role == "courier"]
     delivered_counts = _courier_delivered_counts(courier_ids)
     for user in users:
         if user.role == "courier":
             user.courier_delivered_count = delivered_counts.get(user.id, 0)
-    
+
     # Statistiques par rôle
     roles_stats = {
         'vendor': User.query.filter_by(role='vendor').count(),
@@ -570,7 +627,7 @@ def manage_users():
         'manager': User.query.filter_by(role=MANAGER_ROLE).count() if _is_full_admin() else 0,
         'courier': User.query.filter_by(role='courier').count(),
     }
-    
+
     return render_template(
         "admin/users.html",
         users=users,
@@ -586,12 +643,12 @@ def user_detail(user_id):
     user = User.query.get_or_404(user_id)
     if _manager_hidden_user(user):
         return _hidden_user_response()
-    
+
     # Boutique de l'utilisateur (si vendeur)
     shop = None
     if user.role == 'vendor':
         shop = Shop.query.filter_by(vendor_id=user.id).first()
-    
+
     product_count = 0
     if user.role == 'vendor':
         product_count = Product.query.filter_by(vendor_id=user.id).count()
@@ -609,7 +666,7 @@ def user_detail(user_id):
             .filter(Order.courier_id == user.id, Order.delivery_status.in_(COURIER_IN_PROGRESS_STATUSES))
             .count()
         )
-    
+
     return render_template(
         "admin/user_detail.html",
         user=user,
@@ -624,7 +681,7 @@ def user_detail(user_id):
 
 @bp.route("/user/<int:user_id>/update", methods=["POST"])
 def update_user(user_id):
-    """Mettre ? jour un utilisateur"""
+    """Mettre à jour un utilisateur"""
     user = User.query.get_or_404(user_id)
     if _manager_hidden_user(user):
         return _hidden_user_response()
@@ -638,19 +695,29 @@ def update_user(user_id):
         "role": user.role,
     }
 
-    # Mettre ? jour les informations
+    # Mettre à jour les informations
     username = (request.form.get('username') or '').strip()
     if username:
         if not re.fullmatch(r"[a-zA-Z0-9_]{3,50}", username):
-            flash("Nom d’utilisateur invalide. Utilisez 3 à 50 caractères.", "danger")
+            flash("Nom d'utilisateur invalide. Utilisez 3 à 50 caractères.", "danger")
             return redirect(url_for('admin_users.user_detail', user_id=user.id))
         existing = User.query.filter(User.username == username, User.id != user.id).first()
         if existing:
-            flash("Nom d’utilisateur déjà utilisé.", "danger")
+            flash("Nom d'utilisateur déjà utilisé.", "danger")
             return redirect(url_for('admin_users.user_detail', user_id=user.id))
         user.username = username
 
-    if request.form.get('full_name'):
+    effective_role = user.role
+    requested_role = None
+    if request.form.get('role'):
+        requested_role = _normalize_user_role(request.form.get('role'))
+        allowed_roles = _manageable_user_roles_for_current_user()
+        if not requested_role or requested_role not in allowed_roles:
+            flash(f"Rôle invalide. Rôles autorisés : {', '.join(allowed_roles)}.", "danger")
+            return redirect(url_for('admin_users.user_detail', user_id=user.id))
+        effective_role = requested_role
+
+    if effective_role != "vendor" and request.form.get('full_name'):
         user.full_name = request.form['full_name']
 
     if request.form.get('email'):
@@ -661,18 +728,18 @@ def update_user(user_id):
             return redirect(url_for('admin_users.user_detail', user_id=user.id))
         user.email = email
 
-    if request.form.get('phone'):
+    if effective_role != "vendor" and request.form.get('phone'):
         user.phone = request.form['phone']
 
-    if request.form.get('address'):
+    if effective_role != "vendor" and request.form.get('address'):
         user.address = request.form['address']
 
-    if request.form.get('role'):
-        requested_role = _normalize_user_role(request.form.get('role'))
-        allowed_roles = _manageable_user_roles_for_current_user()
-        if not requested_role or requested_role not in allowed_roles:
-            flash(f"Rôle invalide. Rôles autorisés : {', '.join(allowed_roles)}.", "danger")
-            return redirect(url_for('admin_users.user_detail', user_id=user.id))
+    if effective_role == "vendor":
+        user.full_name = None
+        user.phone = None
+        user.address = None
+
+    if requested_role:
         user.role = requested_role
         if requested_role == "courier":
             user.courier_is_active = bool(user.courier_is_active)
@@ -688,7 +755,7 @@ def update_user(user_id):
             success=True,
             changes={"fields": changed_fields}
         )
-    flash(f"Utilisateur {user.username} mis ? jour", "success")
+    flash(f"Utilisateur {user.username} mis à jour", "success")
     return redirect(url_for('admin_users.user_detail', user_id=user.id))
 
 @bp.route("/user/<int:user_id>/reset-password", methods=["POST"])
@@ -704,7 +771,7 @@ def reset_user_password(user_id):
     else:
         alphabet = string.ascii_letters + string.digits
         temp_password = ''.join(secrets.choice(alphabet) for i in range(12))
-    
+
     user.set_password(temp_password)
     db.session.commit()
 
@@ -714,7 +781,7 @@ def reset_user_password(user_id):
         user.id,
         success=True
     )
-    
+
     if _is_ajax_request():
         return jsonify(success=True, user_id=user.id, temp_password=temp_password)
 
@@ -736,11 +803,11 @@ def set_user_password_change_window(user_id):
     if enable:
         user.password_change_allowed_until = datetime.utcnow() + timedelta(minutes=PASSWORD_CHANGE_WINDOW_MINUTES)
         message = (
-            f"Changement mot de passe active {PASSWORD_CHANGE_WINDOW_MINUTES} min pour {user.username}."
+            f"Changement mot de passe activé {PASSWORD_CHANGE_WINDOW_MINUTES} min pour {user.username}."
         )
     else:
         user.password_change_allowed_until = None
-        message = f"Changement mot de passe desactive pour {user.username}."
+        message = f"Changement mot de passe désactivé pour {user.username}."
 
     db.session.commit()
     log_access(
@@ -788,16 +855,16 @@ def toggle_user_active(user_id):
             return jsonify(success=False, message="Vous ne pouvez pas désactiver votre propre compte."), 400
         flash("Vous ne pouvez pas désactiver votre propre compte.", "danger")
         return redirect(url_for('admin_users.user_detail', user_id=user.id))
-    
+
     # Inverser le statut
     user.is_active = not user.is_active
-    
+
     # Si c'est un livreur, mettre à jour sa disponibilité
     if user.role == "courier" and not user.is_active:
         user.courier_is_available = False
-    
+
     db.session.commit()
-    
+
     # Log de l'action
     log_access(
         "toggle_user_active",
@@ -806,16 +873,16 @@ def toggle_user_active(user_id):
         success=True,
         changes={"is_active": user.is_active}
     )
-    
+
     # Réponse AJAX ou redirection
     if _is_ajax_request():
         return jsonify(
-            success=True, 
-            user_id=user.id, 
+            success=True,
+            user_id=user.id,
             is_active=user.is_active,
             message=f"Utilisateur {'activé' if user.is_active else 'désactivé'}"
         )
-    
+
     status = "activé" if user.is_active else "désactivé"
     flash(f"Utilisateur {user.username} {status}", "success")
     return redirect(url_for('admin_users.user_detail', user_id=user.id))
@@ -952,7 +1019,7 @@ def delete_user(user_id):
                 return jsonify(success=False, message="Suppression impossible : cet utilisateur a une boutique."), 400
             flash("Suppression impossible : cet utilisateur a une boutique.", "danger")
             return redirect(url_for('admin_users.user_detail', user_id=user.id))
-    
+
     log_access(
         "delete_user",
         "user",
@@ -962,11 +1029,11 @@ def delete_user(user_id):
     )
     db.session.delete(user)
     db.session.commit()
-    
+
     if _is_ajax_request():
         return jsonify(success=True, user_id=user.id, redirect_url=url_for('admin_users.manage_users'))
 
-    flash(f"Utilisateur {user.username} supprime", "success")
+    flash(f"Utilisateur {user.username} supprimé", "success")
     return redirect(url_for('admin_users.manage_users'))
 
 # ==================== CRÉATION UTILISATEUR ====================
@@ -982,78 +1049,76 @@ def create_user():
             role = _normalize_user_role(request.form.get('role'))
             full_name = request.form.get('full_name', '').strip()
             phone = request.form.get('phone', '').strip()
+            address = request.form.get('address', '').strip()
             allowed_roles = _manageable_user_roles_for_current_user()
-            
+            shop = None
+            shop_name = ""
+            primary_type = "products"
+            allowed_types = ["products"]
+
             # Validation rôle
             if not role or role not in allowed_roles:
                 flash("Rôle invalide. Rôles autorisés: admin, vendor, courier.", "danger")
                 return redirect(url_for('admin_users.create_user'))
-            
+
             # Validation mot de passe
             if len(password) < 8:
                 flash("Le mot de passe doit contenir au moins 8 caractères.", "danger")
                 return redirect(url_for('admin_users.create_user'))
-            
+
             # Validation email basique
             if '@' not in email or '.' not in email:
                 flash("Email invalide.", "danger")
                 return redirect(url_for('admin_users.create_user'))
-            
+
             # Vérifier si l'utilisateur existe déjà
             if User.query.filter_by(username=username).first():
                 flash("Nom d'utilisateur déjà utilisé", "danger")
                 return redirect(url_for('admin_users.create_user'))
-            
+
             if User.query.filter_by(email=email).first():
                 flash("Email déjà utilisé", "danger")
                 return redirect(url_for('admin_users.create_user'))
-            
+
             # Créer l'utilisateur
+
+            if role == "vendor":
+                shop_name = request.form.get("shop_name", "").strip()
+                if not shop_name:
+                    flash("Le nom de la boutique est obligatoire pour un vendeur.", "danger")
+                    return redirect(url_for('admin_users.create_user'))
+                try:
+                    primary_type, allowed_types = _shop_types_from_form()
+                except Exception:
+                    current_app.logger.exception("create_user.shop_types_error")
+                    flash("Type de boutique invalide.", "danger")
+                    return redirect(url_for('admin_users.create_user'))
+                full_name = ""
+                phone = ""
+                address = ""
+
             user = User(
                 username=username,
                 email=email,
                 role=role,
                 full_name=full_name,
                 phone=phone,
+                address=address,
                 created_at=datetime.utcnow()
             )
             user.set_password(password)
-            
+
             db.session.add(user)
             db.session.flush()  # Pour obtenir l'ID
-            
-            # Si c'est un vendeur, créer automatiquement une boutique
-            if role == 'vendor':
-                from slugify import slugify
-                
-                shop_name = (request.form.get('shop_name') or '').strip()
-                if not shop_name:
-                    shop_name = f"Boutique de {username}"
-                
-                shop_description = (request.form.get('shop_description') or '').strip()
-                if not shop_description:
-                    shop_description = f"Boutique officielle de {username}"
-                
-                slug = slugify(shop_name)
-                counter = 1
-                original_slug = slug
-                while Shop.query.filter_by(slug=slug).first():
-                    slug = f"{original_slug}-{counter}"
-                    counter += 1
-                
-                shop = Shop(
-                    vendor_id=user.id,
+
+            if role == "vendor":
+                shop = _create_shop_for_vendor(
+                    user,
                     name=shop_name,
-                    slug=slug,
-                    description=shop_description,
-                    contact_email=email,
-                    contact_phone=phone,
-                    is_active=True,
-                    created_at=datetime.utcnow(),
-                    updated_at=datetime.utcnow()
+                    primary_type=primary_type,
+                    allowed_types=allowed_types,
                 )
-                db.session.add(shop)
-            
+
             db.session.commit()
 
             # Logger la création d'utilisateur
@@ -1072,9 +1137,29 @@ def create_user():
                 changes={"role": role, "username": username}
             )
 
-            flash(f"Utilisateur {username} créé avec succès", "success")
+            if shop is not None:
+                try:
+                    log_access(
+                        "create_shop",
+                        "shop",
+                        shop.id,
+                        success=True,
+                        changes={"name": shop.name, "vendor_id": user.id, "source": "create_user"}
+                    )
+                except Exception:
+                    current_app.logger.warning(
+                        "create_user.shop_audit_log_failed",
+                        extra={"user_id": user.id, "shop_id": shop.id},
+                    )
+                flash(f"Utilisateur {username} et boutique {shop.name} créés avec succès.", "success")
+                return redirect(url_for('admin_users.user_detail', user_id=user.id))
+
+            if role == "vendor" and shop is None:
+                flash(f"Utilisateur {username} créé avec succès. La boutique doit être créée séparément.", "success")
+            else:
+                flash(f"Utilisateur {username} créé avec succès", "success")
             return redirect(url_for('admin_users.user_detail', user_id=user.id))
-            
+
         except Exception as e:
             db.session.rollback()
             # Ne pas exposer les détails techniques en production
@@ -1082,10 +1167,12 @@ def create_user():
                 flash(f"Erreur: {str(e)}", "danger")
             else:
                 flash("Erreur lors de la création de l'utilisateur.", "danger")
-    
+
     return render_template(
         "admin/create_user.html",
         manageable_roles=_manageable_user_roles_for_current_user(),
+        shop_type_order=SHOP_TYPE_ORDER,
+        shop_type_labels=SHOP_TYPE_LABELS,
     )
 # ==================== GESTION BOUTIQUES ====================
 @bp.route("/shops")
@@ -1094,15 +1181,15 @@ def manage_shops():
     page = page_from_args(request.args)
     status_filter = request.args.get('status', '')
     search = request.args.get('search', '')
-    
+
     query = Shop.query
-    
+
     # Filtres
     if status_filter == 'active':
         query = query.filter_by(is_active=True)
     elif status_filter == 'inactive':
         query = query.filter_by(is_active=False)
-    
+
     if search:
         query = query.filter(
             db.or_(
@@ -1111,17 +1198,17 @@ def manage_shops():
                 Shop.contact_email.ilike(f'%{search}%')
             )
         )
-    
+
     # Jointure avec utilisateur pour obtenir le nom du vendeur
     query = query.join(User, Shop.vendor_id == User.id).add_entity(User)
-    
+
     # Pagination
     pagination = query.order_by(Shop.created_at.desc()).paginate(
         page=page, per_page=50, error_out=False
     )
-    
+
     shops_with_vendors = pagination.items
-    
+
     return render_template(
         "admin/shops.html",
         shops_with_vendors=shops_with_vendors,
@@ -1132,7 +1219,7 @@ def manage_shops():
 
 @bp.route("/shop/<int:shop_id>")
 def shop_detail(shop_id):
-    """Detail d'une boutique"""
+    """Détail d'une boutique"""
     shop = Shop.query.get_or_404(shop_id)
     vendor = User.query.get(shop.vendor_id)
 
@@ -1160,7 +1247,7 @@ def update_shop(shop_id):
         "primary_type": shop.primary_type,
         "allowed_types_json": shop.allowed_types_json,
     }
-    
+
     if request.form.get('name'):
         shop.name = request.form['name'].strip()
 
@@ -1170,7 +1257,7 @@ def update_shop(shop_id):
         flash("Slug invalide.", "warning")
         return redirect(url_for('admin_users.shop_detail', shop_id=shop.id))
     if new_slug in RESERVED_ROOT_SHOP_SLUGS:
-        flash("Ce slug est reserve. Choisissez un autre slug.", "warning")
+        flash("Ce slug est réservé. Choisissez un autre slug.", "warning")
         return redirect(url_for('admin_users.shop_detail', shop_id=shop.id))
     if new_slug != shop.slug:
         counter = 1
@@ -1179,16 +1266,16 @@ def update_shop(shop_id):
             new_slug = f"{original_slug}-{counter}"
             counter += 1
         shop.slug = new_slug
-    
+
     if request.form.get('description'):
         shop.description = request.form['description']
-    
+
     if request.form.get('contact_email'):
         shop.contact_email = request.form['contact_email']
-    
+
     if request.form.get('contact_phone'):
         shop.contact_phone = request.form['contact_phone']
-    
+
     if request.form.get('address'):
         shop.address = request.form['address']
 
@@ -1196,7 +1283,7 @@ def update_shop(shop_id):
         primary_type, allowed_types = _shop_types_from_form()
         shop.primary_type = primary_type
         shop.set_allowed_types(allowed_types)
-    
+
     shop.updated_at = datetime.utcnow()
     db.session.commit()
     bump_catalog_version()
@@ -1210,17 +1297,17 @@ def update_shop(shop_id):
             success=True,
             changes={"fields": changed_fields}
         )
-    
+
     flash(f"Boutique {shop.name} mise à jour", "success")
     return redirect(url_for('admin_users.shop_detail', shop_id=shop.id))
 
 @bp.route("/shop/<int:shop_id>/toggle", methods=["POST"])
 def toggle_shop(shop_id):
-    """Activer/d?sactiver une boutique"""
+    """Activer/désactiver une boutique"""
     shop = Shop.query.get_or_404(shop_id)
     shop.is_active = not shop.is_active
 
-    # D?sactiver aussi les produits si la boutique est d?sactiv?e
+    # Désactiver aussi les produits si la boutique est désactivée
     if not shop.is_active:
         products = Product.query.filter_by(shop_id=shop.id).all()
         for product in products:
@@ -1236,7 +1323,7 @@ def toggle_shop(shop_id):
         changes={"is_active": shop.is_active}
     )
 
-    status = "activ?e" if shop.is_active else "d?sactiv?e"
+    status = "activée" if shop.is_active else "désactivée"
     if _is_ajax_request():
         return jsonify(success=True, shop_id=shop.id, is_active=shop.is_active)
 
@@ -1278,87 +1365,119 @@ def delete_shop(shop_id):
     flash(f"Boutique {shop.name} supprimée", "success")
     return redirect(url_for('admin_users.manage_shops'))
 
+
 @bp.route("/shop/create", methods=["GET", "POST"])
 def create_shop():
     """Créer une nouvelle boutique pour un vendeur existant"""
-    if request.method == 'POST':
+    if request.method == "POST":
         try:
-            vendor_id = request.form['vendor_id']
-            name = request.form['name'].strip()
-            description = request.form.get('description', '').strip()
-            contact_email = request.form.get('contact_email', '').strip()
-            contact_phone = request.form.get('contact_phone', '').strip()
-            address = request.form.get('address', '').strip()
-            primary_type, allowed_types = _shop_types_from_form()
-            
+            # ✅ Conversion explicite en int (évite les erreurs de type silencieuses)
+            try:
+                vendor_id = int(request.form["vendor_id"])
+            except (KeyError, ValueError, TypeError):
+                flash("Vendeur invalide.", "danger")
+                return redirect(url_for("admin_users.create_shop"))
+
+            name = request.form.get("name", "").strip()
+            description = request.form.get("description", "").strip()
+            contact_email = request.form.get("contact_email", "").strip()
+            contact_phone = request.form.get("contact_phone", "").strip()
+            address = request.form.get("address", "").strip()
+
+            # Validation du nom
+            if not name:
+                flash("Le nom de la boutique est obligatoire.", "danger")
+                return redirect(url_for("admin_users.create_shop"))
+
+            # Récupération et validation du type de boutique
+            try:
+                primary_type, allowed_types = _shop_types_from_form()
+            except Exception:
+                current_app.logger.exception(
+                    "create_shop.shop_types_error — vendor_id=%s", vendor_id
+                )
+                flash("Type de boutique invalide.", "danger")
+                return redirect(url_for("admin_users.create_shop"))
+
             # Vérifier si le vendeur existe
-            vendor = User.query.get(vendor_id)
-            if not vendor or vendor.role != 'vendor':
-                flash("Vendeur invalide", "danger")
-                return redirect(url_for('admin_users.create_shop'))
-            
+            vendor = db.session.get(User, vendor_id)
+            if not vendor or vendor.role != "vendor":
+                flash("Vendeur introuvable ou rôle invalide.", "danger")
+                return redirect(url_for("admin_users.create_shop"))
+
             # Vérifier si le vendeur a déjà une boutique
             existing_shop = Shop.query.filter_by(vendor_id=vendor_id).first()
             if existing_shop:
-                flash("Ce vendeur a déjà une boutique", "warning")
-                return redirect(url_for('admin_users.shop_detail', shop_id=existing_shop.id))
-            
-            # Créer le slug
-            from slugify import slugify
-            slug = slugify(name)
-            
-            counter = 1
-            original_slug = slug
-            while Shop.query.filter_by(slug=slug).first():
-                slug = f"{original_slug}-{counter}"
-                counter += 1
-            
-            # Créer la boutique
-            shop = Shop(
-                vendor_id=vendor_id,
+                flash("Ce vendeur a déjà une boutique.", "warning")
+                return redirect(url_for("admin_users.shop_detail", shop_id=existing_shop.id))
+
+            shop = _create_shop_for_vendor(
+                vendor,
                 name=name,
-                slug=slug,
                 description=description,
-                contact_email=contact_email or vendor.email,
-                contact_phone=contact_phone or vendor.phone,
-                address=address or vendor.address,
+                contact_email=contact_email,
+                contact_phone=contact_phone,
+                address=address,
                 primary_type=primary_type,
-                is_active=True,
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow()
+                allowed_types=allowed_types,
             )
-            shop.set_allowed_types(allowed_types)
-            
-            db.session.add(shop)
-            db.session.flush()
-            
-            # Associer les produits existants du vendeur
-            products = Product.query.filter_by(vendor_id=vendor_id).all()
-            for product in products:
-                product.shop_id = shop.id
-            
+
             db.session.commit()
 
-            log_access(
-                "create_shop",
-                "shop",
-                shop.id,
-                success=True,
-                changes={"name": shop.name, "vendor_id": vendor_id}
+            # Log d'audit (non bloquant)
+            try:
+                log_access(
+                    "create_shop",
+                    "shop",
+                    shop.id,
+                    success=True,
+                    changes={"name": shop.name, "vendor_id": vendor_id},
+                )
+            except Exception:
+                current_app.logger.warning(
+                    "create_shop.audit_log_failed — shop_id=%s", shop.id
+                )
+
+            current_app.logger.info(
+                "create_shop.success — shop_id=%s vendor_id=%s name=%s",
+                shop.id, vendor_id, name,
             )
-            
-            flash(f"Boutique {name} créée pour {vendor.username}", "success")
-            return redirect(url_for('admin_users.shop_detail', shop_id=shop.id))
-            
-        except Exception as e:
+            flash(f"Boutique « {name} » créée pour {vendor.username}.", "success")
+            return redirect(url_for("admin_users.shop_detail", shop_id=shop.id))
+
+        except SQLAlchemyError:
             db.session.rollback()
-            flash(f"Erreur lors de la création: {str(e)}", "danger")
-    
-    # Récupérer tous les vendeurs sans boutique
-    vendors_without_shop = User.query.filter_by(role='vendor').filter(
-        ~User.id.in_(db.session.query(Shop.vendor_id))
-    ).all()
-    
+            current_app.logger.exception(
+                "create_shop.db_error — vendor_id=%s name=%s",
+                request.form.get("vendor_id"),
+                request.form.get("name"),
+            )
+            flash("Erreur base de données. Merci de réessayer.", "danger")
+            return redirect(url_for("admin_users.create_shop"))
+
+        except Exception:
+            db.session.rollback()
+            current_app.logger.exception(
+                "create_shop.unexpected_error — vendor_id=%s",
+                request.form.get("vendor_id"),
+            )
+            flash("Une erreur inattendue s'est produite. Merci de réessayer.", "danger")
+            return redirect(url_for("admin_users.create_shop"))
+
+    # GET — Récupérer tous les vendeurs sans boutique
+    try:
+        vendors_without_shop = (
+            User.query
+            .filter_by(role="vendor")
+            .filter(~User.id.in_(db.session.query(Shop.vendor_id).filter(Shop.vendor_id.isnot(None))))
+            .order_by(User.username.asc())
+            .all()
+        )
+    except Exception:
+        current_app.logger.exception("create_shop.vendors_load_error")
+        vendors_without_shop = []
+        flash("Impossible de charger la liste des vendeurs.", "warning")
+
     return render_template(
         "admin/create_shop.html",
         vendors_without_shop=vendors_without_shop,
@@ -1450,13 +1569,13 @@ def view_logs():
 @bp.route("/audit")
 def audit_logs():
     """Voir les logs d'audit"""
-    flash("La page audit a ete retiree.", "info")
+    flash("La page audit a été retirée.", "info")
     return redirect(url_for("admin.dashboard"))
 
 @bp.route("/activity")
 def activity_log():
-    """Vue activite marketplace (ops)."""
-    flash("L activite marketplace est maintenant sur le dashboard.", "info")
+    """Vue activité marketplace (ops)."""
+    flash("L'activité marketplace est maintenant sur le dashboard.", "info")
     return redirect(url_for("admin.dashboard"))
 
 
@@ -1646,6 +1765,7 @@ def subscription_free_vendor(user_id):
 
     flash("Mode free activé pour ce vendeur", "success")
     return redirect(request.referrer or url_for("admin_users.reconciliation"))
+
 
 
 @bp.route("/reconciliation/settings", methods=["POST"])
@@ -2090,19 +2210,19 @@ def api_stats():
     total_shops = Shop.query.count()
     total_products = Product.query.count()
     total_orders = Order.query.count()
-    
+
     # Commandes aujourd'hui
     today = datetime.utcnow().date()
     orders_today = Order.query.filter(
         db.func.date(Order.created_at) == today
     ).count()
-    
+
     # Revenus aujourd'hui
     revenue_today = Order.query.filter(
         db.func.date(Order.created_at) == today,
         Order.status == 'delivered'
     ).with_entities(db.func.sum(Order.total)).scalar() or 0
-    
+
     return jsonify({
         'total_users': total_users,
         'total_vendors': total_vendors,
@@ -2117,7 +2237,7 @@ def api_stats():
 def api_user_quick_info(user_id):
     """Info rapide sur un utilisateur"""
     user = User.query.get_or_404(user_id)
-    
+
     info = {
         'id': user.id,
         'username': user.username,
@@ -2125,7 +2245,7 @@ def api_user_quick_info(user_id):
         'role': user.role,
         'created_at': user.created_at.isoformat() if user.created_at else None
     }
-    
+
     if user.role == 'vendor':
         shop = Shop.query.filter_by(vendor_id=user.id).first()
         if shop:
@@ -2134,5 +2254,5 @@ def api_user_quick_info(user_id):
                 'name': shop.name,
                 'is_active': shop.is_active
             }
-    
+
     return jsonify(info)

@@ -21,6 +21,7 @@ from ..models.rental import RentalListing
 from ..services.audit import log_access
 from sqlalchemy.orm import selectinload
 from sqlalchemy import case, or_
+from sqlalchemy.exc import SQLAlchemyError  # ✅ AJOUT
 from ..services.cache import bump_catalog_version
 from ..services.featured_items import (
     disable_featured_item,
@@ -33,11 +34,13 @@ from ..models.platform_settings import PlatformSettings
 from ..services.maintenance import (
     DB_SIZE_MB_DANGER,
     DB_SIZE_MB_WARNING,
+    ERROR_LOG_RETENTION_DAYS_DEFAULT,
     EXPIRED_LOCATIONS_GT_DAYS_DANGER,
     EXPIRED_LOCATIONS_GT_DAYS_WARNING,
     ORPHAN_MEDIA_COUNT_DANGER,
     ORPHAN_MEDIA_COUNT_WARNING,
     collect_system_health,
+    localize_http_error_message,
     UPLOADS_SIZE_GB_DANGER,
     UPLOADS_SIZE_GB_WARNING,
     create_pre_reset_backup,
@@ -78,6 +81,7 @@ from ..services.delivery_context import (
     normalize_phone_for_wa,
 )
 from ..services.traffic_stats import get_live_traffic_metrics
+
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
 MAINTENANCE_PANEL_SESSION_KEY = "maintenance_panel_unlock_until"
@@ -586,6 +590,7 @@ def _maintenance_view_context(days: int, reset_result=None, errors_page: int = 1
 
     errors_block = {
         "available": True,
+        "window_days": ERROR_LOG_RETENTION_DAYS_DEFAULT,
         "total_500_last_24h": "N/A",
         "items": [],
         "page": max(1, int(errors_page or 1)),
@@ -594,7 +599,7 @@ def _maintenance_view_context(days: int, reset_result=None, errors_page: int = 1
         "note": "",
     }
     try:
-        since = datetime.utcnow() - timedelta(hours=24)
+        since = datetime.utcnow() - timedelta(days=ERROR_LOG_RETENTION_DAYS_DEFAULT)
         errors_query = (
             ErrorLog.query
             .filter(ErrorLog.status_code == 500, ErrorLog.created_at >= since)
@@ -607,6 +612,14 @@ def _maintenance_view_context(days: int, reset_result=None, errors_page: int = 1
         )
         errors_block["total_500_last_24h"] = int(errors_pagination.total)
         errors_block["items"] = errors_pagination.items
+        for err in errors_block["items"]:
+            try:
+                err.display_short_message = (
+                    localize_http_error_message(getattr(err, "status_code", None), getattr(err, "short_message", None))
+                    or getattr(err, "short_message", None)
+                )
+            except Exception:
+                err.display_short_message = getattr(err, "short_message", None)
         errors_block["pagination"] = errors_pagination
         errors_block["page"] = int(errors_pagination.page)
     except Exception:
@@ -1670,6 +1683,7 @@ def finance():
 
     selected_period_id = selected_period.id if selected_period else None
 
+    # ✅ CORRECTION : période_stats calculé par SQL au lieu de charger tout en mémoire
     period_stats = {
         int(period.id): {
             "delivery_total_cents": 0,
@@ -1683,36 +1697,75 @@ def finance():
         }
         for period in periods
     }
-    all_entries = FinancialEntry.query.filter(FinancialEntry.deleted_at.is_(None)).all()
-    for period in periods:
-        start_at, end_at = period_bounds(period)
-        if start_at is None:
-            continue
-        stats = period_stats.get(int(period.id))
-        if not stats:
-            continue
-        for entry in all_entries:
-            entry_created_at = getattr(entry, "created_at", None)
-            if entry_created_at is None or entry_created_at < start_at:
-                continue
-            if end_at is not None and entry_created_at >= end_at:
-                continue
-            amount = int(getattr(entry, "amount_cents", 0) or 0)
-            stats["entry_count"] += 1
-            if entry.entry_type == ENTRY_TYPE_DELIVERY_FEE:
-                stats["delivery_total_cents"] += amount
-                stats["delivery_count"] += 1
-            elif entry.entry_type == ENTRY_TYPE_SUBSCRIPTION:
-                stats["subscription_total_cents"] += amount
-                stats["subscription_count"] += 1
-            elif entry.entry_type == ENTRY_TYPE_RENTAL_COMMISSION:
-                stats["rental_total_cents"] += amount
-                stats["rental_count"] += 1
-        stats["total_cents"] = int(
-            stats["delivery_total_cents"]
-            + stats["subscription_total_cents"]
-            + stats["rental_total_cents"]
-        )
+
+    if periods:
+        try:
+            from sqlalchemy import case as sa_case, func
+
+            rows = (
+                db.session.query(
+                    FinancialEntry.entry_type,
+                    func.count(FinancialEntry.id).label("cnt"),
+                    func.coalesce(func.sum(FinancialEntry.amount_cents), 0).label("total"),
+                )
+                .filter(FinancialEntry.deleted_at.is_(None))
+                .group_by(FinancialEntry.entry_type)
+                .all()
+            )
+            # Totaux globaux (toutes périodes confondues) par type
+            global_by_type = {row.entry_type: {"cnt": int(row.cnt), "total": int(row.total)} for row in rows}
+
+            # Pour chaque période, on fait une requête SQL ciblée
+            for period in periods:
+                start_at, end_at = period_bounds(period)
+                if start_at is None:
+                    continue
+                stats = period_stats.get(int(period.id))
+                if not stats:
+                    continue
+
+                q = (
+                    db.session.query(
+                        FinancialEntry.entry_type,
+                        func.count(FinancialEntry.id).label("cnt"),
+                        func.coalesce(func.sum(FinancialEntry.amount_cents), 0).label("total"),
+                    )
+                    .filter(
+                        FinancialEntry.deleted_at.is_(None),
+                        FinancialEntry.created_at >= start_at,
+                    )
+                )
+                if end_at is not None:
+                    q = q.filter(FinancialEntry.created_at < end_at)
+
+                period_rows = q.group_by(FinancialEntry.entry_type).all()
+
+                for row in period_rows:
+                    cnt = int(row.cnt or 0)
+                    total = int(row.total or 0)
+                    stats["entry_count"] += cnt
+                    if row.entry_type == ENTRY_TYPE_DELIVERY_FEE:
+                        stats["delivery_total_cents"] = total
+                        stats["delivery_count"] = cnt
+                    elif row.entry_type == ENTRY_TYPE_SUBSCRIPTION:
+                        stats["subscription_total_cents"] = total
+                        stats["subscription_count"] = cnt
+                    elif row.entry_type == ENTRY_TYPE_RENTAL_COMMISSION:
+                        stats["rental_total_cents"] = total
+                        stats["rental_count"] = cnt
+
+                stats["total_cents"] = (
+                    stats["delivery_total_cents"]
+                    + stats["subscription_total_cents"]
+                    + stats["rental_total_cents"]
+                )
+
+        except Exception:
+            # ✅ Fallback : si la requête SQL échoue, la page reste affichable
+            # avec des zéros plutôt que de planter
+            current_app.logger.exception("finance.period_stats_error")
+
+    # --- Tout ce qui suit est IDENTIQUE à l'original ---
 
     selected_totals = {
         "delivery_total_cents": 0,
@@ -1807,7 +1860,6 @@ def finance():
         entry_type_labels=entry_type_labels,
         retention_days=ORDER_DELETE_RETENTION_DAYS,
     )
-
 
 @bp.route("/finance/periods/open", methods=["POST"])
 def finance_period_open():
@@ -2077,53 +2129,71 @@ def deliveries_archives():
     period_id = request.args.get("period_id", type=int)
     page = page_from_args(request.args)
 
-    base_archived = _archived_orders_query()
-    if period_id:
-        base_archived = base_archived.filter(Order.period_id == period_id)
-    if source_filter:
-        base_archived = base_archived.filter(Order.delivery_source == source_filter)
+    try:
+        base_archived = _archived_orders_query()
+        if period_id:
+            base_archived = base_archived.filter(Order.period_id == period_id)
+        if source_filter:
+            base_archived = base_archived.filter(Order.delivery_source == source_filter)
 
-    history_query = _apply_delivery_filters(
-        base_archived,
-        status_filter=status_filter,
-        source_filter=source_filter,
-        city_filter=city_filter,
-        client_filter=client_filter,
-        phone_filter=phone_filter,
-        date_from=date_from,
-        date_to=date_to,
-        product_filter=product_filter,
-        shop_filter=shop_filter,
-    ).options(
-        selectinload(Order.items).selectinload(OrderItem.product).selectinload(Product.shop),
-        selectinload(Order.period),
-    )
+        history_query = _apply_delivery_filters(
+            base_archived,
+            order_status_filter=status_filter,  # ✅ CORRECTION : était status_filter=
+            source_filter=source_filter,
+            city_filter=city_filter,
+            client_filter=client_filter,
+            phone_filter=phone_filter,
+            date_from=date_from,
+            date_to=date_to,
+            product_filter=product_filter,
+            shop_filter=shop_filter,
+        ).options(
+            selectinload(Order.items).selectinload(OrderItem.product).selectinload(Product.shop),
+            selectinload(Order.period),
+        )
 
-    pagination = history_query.order_by(Order.created_at.desc()).paginate(
-        page=page, per_page=30, error_out=False
-    )
-    history_orders = enrich_orders(pagination.items)
-    enrich_orders_delivery_context(history_orders)
+        pagination = history_query.order_by(Order.created_at.desc()).paginate(
+            page=page, per_page=30, error_out=False
+        )
+        history_orders = enrich_orders(pagination.items)
+        enrich_orders_delivery_context(history_orders)
 
-    closed_periods = (
-        OrderPeriod.query
-        .filter(OrderPeriod.status == CLOSED_STATUS)
-        .order_by(OrderPeriod.closed_at.desc(), OrderPeriod.id.desc())
-        .all()
-    )
+        closed_periods = (
+            OrderPeriod.query
+            .filter(OrderPeriod.status == CLOSED_STATUS)
+            .order_by(OrderPeriod.closed_at.desc(), OrderPeriod.id.desc())
+            .all()
+        )
 
-    now = datetime.utcnow()
-    delete_guards = {}
-    for order in history_orders:
-        allowed, message, available_at = order_delete_guard(order, now=now)
-        if allowed and (order.status or "").lower() not in FINAL_DELIVERY_ORDER_STATUSES:
-            allowed = False
-            message = f"Suppression refusee: livraison non finalisee (statut {order.status})."
-        delete_guards[order.id] = {
-            "allowed": allowed,
-            "message": message,
-            "available_at": available_at,
-        }
+        now = datetime.utcnow()
+        delete_guards = {}
+        for order in history_orders:
+            allowed, message, available_at = order_delete_guard(order, now=now)
+            if allowed and (order.status or "").lower() not in FINAL_DELIVERY_ORDER_STATUSES:
+                allowed = False
+                message = f"Suppression refusee: livraison non finalisee (statut {order.status})."
+            delete_guards[order.id] = {
+                "allowed": allowed,
+                "message": message,
+                "available_at": available_at,
+            }
+
+    except SQLAlchemyError:
+        db.session.rollback()
+        current_app.logger.exception(
+            "deliveries_archives.db_error — period_id=%s source=%s page=%s",
+            period_id, source_filter, page,
+        )
+        flash("Erreur lors du chargement des archives. Merci de réessayer.", "danger")
+        return redirect(url_for("admin.deliveries"))
+
+    except Exception:
+        current_app.logger.exception(
+            "deliveries_archives.unexpected_error — period_id=%s source=%s page=%s",
+            period_id, source_filter, page,
+        )
+        flash("Une erreur inattendue s'est produite.", "danger")
+        return redirect(url_for("admin.deliveries"))
 
     return render_template(
         "admin/deliveries_archives.html",
@@ -2534,6 +2604,7 @@ def maintenance():
             "live_traffic": {"available": False},
             "errors_block": {
                 "available": False,
+                "window_days": ERROR_LOG_RETENTION_DAYS_DEFAULT,
                 "total_500_last_24h": "Masqué",
                 "items": [],
                 "page": errors_page,
@@ -2599,17 +2670,17 @@ def maintenance_errors_purge():
     if not _maintenance_panel_is_unlocked():
         return _maintenance_protected_redirect(days=days, errors_page=errors_page)
     try:
-        since = datetime.utcnow() - timedelta(hours=24)
+        since = datetime.utcnow() - timedelta(days=ERROR_LOG_RETENTION_DAYS_DEFAULT)
         purged = (
             ErrorLog.query
             .filter(ErrorLog.status_code == 500, ErrorLog.created_at >= since)
             .delete(synchronize_session=False)
         )
         db.session.commit()
-        flash(f"Erreurs 500 (24h) supprimees: {int(purged or 0)}.", "success")
+        flash(f"Erreurs 500 ({ERROR_LOG_RETENTION_DAYS_DEFAULT} jours) supprimees: {int(purged or 0)}.", "success")
     except Exception as exc:
         db.session.rollback()
-        flash(f"Echec purge erreurs 500 (24h): {exc}", "danger")
+        flash(f"Echec purge erreurs 500 ({ERROR_LOG_RETENTION_DAYS_DEFAULT} jours): {exc}", "danger")
     return redirect(url_for("admin.maintenance", days=days, errors_page=errors_page))
 
 

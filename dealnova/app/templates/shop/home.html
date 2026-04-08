@@ -1,10 +1,10 @@
 <!-- templates/shop/home.html -->
 {% extends "base.html" %}
-{% block title %}BABA Market — Produits & Boutiques{% endblock %}
+{% block title %}{{ t('BABA Market — Produits & Boutiques') }}{% endblock %}
 
 {% block head %}
-{% set seo_title = "BabaMarket Shop | Produits, services et locations à Rabat, Salé, Kénitra et Témara" %}
-{% set seo_description = "Découvrez sur BabaMarket des produits, services et locations disponibles à Rabat, Salé, Kénitra et Témara avec livraison rapide et paiement à la livraison." %}
+{% set seo_title = t('BabaMarket Shop | Produits, services et locations à Rabat, Salé, Kénitra et Témara') %}
+{% set seo_description = t('Découvrez sur BabaMarket des produits, services et locations disponibles à Rabat, Salé, Kénitra et Témara avec livraison rapide et paiement à la livraison.') %}
 {% set canonical_url = "https://www.babamarket.ma" ~ url_for('shop.home') %}
 {% set og_image_url = "https://www.babamarket.ma" ~ url_for('static', filename='images/produit.jpeg') %}
 <meta name="description" content="{{ seo_description }}">
@@ -66,11 +66,11 @@
 <div class="shop-container">
   <!-- En-tête -->
   <div class="shop-header">
-    <p class="shop-subtitle">Des milliers de produits et boutiques à découvrir</p>
+    <p class="shop-subtitle">{{ t('Des milliers de produits et boutiques à découvrir') }}</p>
     <div class="shop-header-actions">
-      <a href="{{ url_for('shop.promotions') }}" class="btn-promotions-home">
+      <a href="{{ url_for('shop.promotions') }}" class="btn-promotions-home" id="homePromotionsBtn" data-stop-nav="hard">
         <i class="bi bi-stars"></i>
-        <span>Promotions du moment</span>
+        <span>{{ t('Promotions du moment') }}</span>
       </a>
     </div>
   </div>
@@ -82,14 +82,14 @@
         <input type="text" 
                name="q" 
                value="{{ q }}" 
-               placeholder="Rechercher un produit, une catégorie..."
+               placeholder="{{ t('Rechercher un produit, une catégorie...') }}"
                class="search-input"
                autocomplete="off"
                id="searchInput">
-        <button type="submit" class="search-btn" id="searchButton" aria-label="Lancer la recherche">
+        <button type="submit" class="search-btn" id="searchButton" aria-label="{{ t('Lancer la recherche') }}">
           <i class="bi bi-search"></i>
-          <span class="btn-text">Rechercher</span>
-          <span class="btn-badge d-none d-lg-inline-flex">Rapide</span>
+          <span class="btn-text">{{ t('Rechercher') }}</span>
+          <span class="btn-badge d-none d-lg-inline-flex">{{ t('Rapide') }}</span>
           <span class="btn-spinner" aria-hidden="true"></span>
         </button>
       </div>
@@ -99,46 +99,46 @@
         <div class="live-suggest-col">
           <div class="live-suggest-title">
             <i class="bi bi-box"></i>
-            <span>Produits & Services</span>
+            <span>{{ t('Produits & Services') }}</span>
           </div>
           <div class="live-suggest-list" id="liveProducts"></div>
-          <div class="live-suggest-empty" id="liveProductsEmpty">Aucun article</div>
+          <div class="live-suggest-empty" id="liveProductsEmpty">{{ t('Aucun article') }}</div>
         </div>
         <div class="live-suggest-col">
           <div class="live-suggest-title">
             <i class="bi bi-shop"></i>
-            <span>Boutiques</span>
+            <span>{{ t('Boutiques') }}</span>
           </div>
           <div class="live-suggest-list" id="liveShops"></div>
-          <div class="live-suggest-empty" id="liveShopsEmpty">Aucune boutique</div>
+          <div class="live-suggest-empty" id="liveShopsEmpty">{{ t('Aucune boutique') }}</div>
         </div>
         <div class="live-suggest-col">
           <div class="live-suggest-title">
             <i class="bi bi-house-door"></i>
-            <span>Locations</span>
+            <span>{{ t('Locations') }}</span>
           </div>
           <div class="live-suggest-list" id="liveLocations"></div>
-          <div class="live-suggest-empty" id="liveLocationsEmpty">Aucune location</div>
+          <div class="live-suggest-empty" id="liveLocationsEmpty">{{ t('Aucune location') }}</div>
         </div>
       </div>
       <div class="live-suggest-footer">
-        <span>Recherche instantanee : les resultats se mettent a jour pendant la saisie.</span>
+        <span>{{ t('Recherche instantanée : les résultats se mettent à jour pendant la saisie.') }}</span>
       </div>
     </div>
   </div>
 
-  <div class="mode-intro" id="modeIntro" aria-label="Choix principal">
+  <div class="mode-intro" id="modeIntro" aria-label="{{ t('Choix principal') }}">
     <div class="mode-intro-top">
       <span class="mode-intro-dot" aria-hidden="true"></span>
-      <span>Que cherchez-vous </span>
+      <span>{{ t('Que cherchez-vous ?') }}</span>
       <span class="mode-intro-arrow" aria-hidden="true"><i class="bi bi-arrow-down"></i></span>
     </div>
-    <div class="mode-intro-line">Utilisez les 4 boutons ci-dessous.</div>
+    <div class="mode-intro-line">{{ t('Utilisez les 4 boutons ci-dessous.') }}</div>
   </div>
 
   <!-- Mode: Produits / Services / Locations / Livraison -->
   <div class="mode-switch-wrap" id="modeSwitchWrap">
-    <div class="mode-switch" role="group" aria-label="Filtre Produits / Services / Locations / Livraison">
+    <div class="mode-switch" role="group" aria-label="{{ t('Filtre Produits / Services / Locations / Livraison') }}">
       <button type="button"
               class="mode-btn mode-products {% if kind == 'physical' %}active{% endif %}"
               data-filter="kind"
@@ -146,8 +146,8 @@
               aria-pressed="{{ 'true' if kind == 'physical' else 'false' }}">
         <div class="mode-icon"><i class="bi bi-box-seam"></i></div>
         <div class="mode-text">
-          <div class="mode-title">Produits</div>
-          <div class="mode-sub">Livraison</div>
+          <div class="mode-title">{{ t('Produits') }}</div>
+          <div class="mode-sub">{{ t('Livraison') }}</div>
         </div>
       </button>
       <button type="button"
@@ -157,30 +157,30 @@
               aria-pressed="{{ 'true' if kind == 'service' else 'false' }}">
         <div class="mode-icon"><i class="bi bi-calendar-check"></i></div>
         <div class="mode-text">
-          <div class="mode-title">Services</div>
-          <div class="mode-sub">Rendez-vous</div>
+          <div class="mode-title">{{ t('Services') }}</div>
+          <div class="mode-sub">{{ t('Rendez-vous') }}</div>
         </div>
       </button>
       <a href="{{ url_for('rentals.locations_home') }}"
          class="mode-btn mode-locations mode-link"
-         aria-label="Voir les locations">
+         aria-label="{{ t('Voir les locations') }}">
         <div class="mode-icon"><i class="bi bi-house-door"></i></div>
         <div class="mode-text">
-          <div class="mode-title">Locations</div>
-          <div class="mode-sub">Immobilier</div>
+          <div class="mode-title">{{ t('Locations') }}</div>
+          <div class="mode-sub">{{ t('Immobilier') }}</div>
         </div>
       </a>
       <a href="{{ url_for('delivery_special.delivery_form') }}"
          class="mode-btn mode-delivery mode-link"
-         aria-label="Voir la livraison spéciale">
+         aria-label="{{ t('Voir la livraison spéciale') }}">
         <div class="mode-icon"><i class="bi bi-truck"></i></div>
         <div class="mode-text">
-          <div class="mode-title">Livraison</div>
-          <div class="mode-sub">Spéciale</div>
+          <div class="mode-title">{{ t('Livraison') }}</div>
+          <div class="mode-sub">{{ t('Spéciale') }}</div>
         </div>
       </a>
     </div>
-    <div class="mode-all-label {% if kind %}kind-hidden{% endif %}" id="modeAllLabel">Tout</div>
+    <div class="mode-all-label {% if kind %}kind-hidden{% endif %}" id="modeAllLabel">{{ t('Tout') }}</div>
   </div>
 
   <!-- Boutiques (style stories, swipe horizontal) -->

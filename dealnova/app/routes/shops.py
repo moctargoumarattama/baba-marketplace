@@ -15,6 +15,8 @@ from ..models.category import Category
 from ..models.rental import RentalListing
 from ..services.cache import get_catalog_cache
 from ..services.pagination import SimplePagination, page_from_args
+from ..services.rentals import cents_to_dh, rental_existing_video_poster_rel_path
+from ..services.shop_access import is_safe_public_shop_slug, normalize_public_shop_slug
 
 bp = Blueprint("shops", __name__)
 
@@ -78,7 +80,7 @@ def _safe_str_param(value: str, max_length: int = 100) -> str:
 
 def _validate_sort_param(sort: str) -> str:
     """Valide le paramètre de tri."""
-    valid_sorts = {'new', 'low', 'high'}
+    valid_sorts = {'new', 'low', 'high', 'promo'}
     return sort if sort in valid_sorts else ''
 
 
@@ -275,6 +277,7 @@ def list_shops():
                 )
             except Exception:
                 _safe_session_rollback()
+                current_app.logger.exception("shops list product counts build error")
                 product_count_rows = []
 
             physical_counts = {
@@ -308,6 +311,7 @@ def list_shops():
                 )
             except Exception:
                 _safe_session_rollback()
+                current_app.logger.exception("shops list location counts build error")
                 location_count_rows = []
 
             location_counts = {
@@ -374,10 +378,15 @@ def list_shops():
 
     try:
         payload = get_catalog_cache(cache_key, build_shops_payload, timeout=120)
-    except Exception as e:
+    except Exception as exc:
         _safe_session_rollback()
-        current_app.logger.error(f"Cache error: {e}")
-        payload = build_shops_payload()
+        current_app.logger.exception("shops list cache/build error")
+        try:
+            payload = build_shops_payload()
+        except Exception as inner_exc:
+            _safe_session_rollback()
+            current_app.logger.exception("shops list fallback build error")
+            raise inner_exc from exc
 
     shops = payload.get("shops", [])
     pagination = SimplePagination(
@@ -406,11 +415,11 @@ def shop_detail(shop_slug):
     # Validation du slug
     if not shop_slug or not isinstance(shop_slug, str):
         return render_template("errors/404.html"), 404
-    normalized_slug = shop_slug.strip().lower()
-    if not normalized_slug or "." in normalized_slug or normalized_slug in RESERVED_ROOT_SHOP_SLUGS:
+    normalized_slug = normalize_public_shop_slug(shop_slug)
+    if not is_safe_public_shop_slug(normalized_slug, reserved=RESERVED_ROOT_SHOP_SLUGS):
         return render_template("errors/404.html"), 404
 
-    shop = Shop.query.filter_by(slug=shop_slug, is_active=True).first_or_404()
+    shop = Shop.query.filter_by(slug=normalized_slug, is_active=True).first_or_404()
     
     shop_allows_products = shop.allows("products")
     shop_allows_services = shop.allows("services")
@@ -418,6 +427,14 @@ def shop_detail(shop_slug):
     service_location_url = shop.service_map_url if (shop_allows_services and not shop_allows_products) else ""
     shop_is_open_now = _shop_is_currently_open(shop)
     has_product_universe = shop_allows_products or shop_allows_services
+    supported_detail_modes = []
+    if shop_allows_products:
+        supported_detail_modes.append("physical")
+    if shop_allows_services:
+        supported_detail_modes.append("service")
+    if shop_allows_location:
+        supported_detail_modes.append("location")
+    supported_detail_mode_count = len(supported_detail_modes)
     
     # Validation des paramètres
     page = page_from_args(request.args)
@@ -427,15 +444,18 @@ def shop_detail(shop_slug):
     
     q = _safe_str_param(request.args.get("q", ""))
     sort = _validate_sort_param((request.args.get("sort") or "").strip())
-    kind = _validate_kind_param((request.args.get("kind") or "").strip().lower(), {'physical', 'service'})
-    
-    # Ajuster kind en fonction des permissions de la boutique
-    if kind == "physical" and not shop_allows_products:
+    kind = _validate_kind_param(
+        (request.args.get("kind") or "").strip().lower(),
+        set(supported_detail_modes)
+    )
+
+    if kind not in supported_detail_modes:
         kind = ""
-    if kind == "service" and not shop_allows_services:
-        kind = ""
+    if not kind and supported_detail_mode_count == 1:
+        kind = supported_detail_modes[0]
     
     ajax = request.args.get("ajax", type=int)
+    utc_now = datetime.utcnow()
     
     # Construction de la requête de base
     base_query = Product.query.filter(Product.shop_id == shop.id, Product.is_active == True)
@@ -448,47 +468,61 @@ def shop_detail(shop_slug):
         base_query = base_query.filter(False)  # Plus propre que Product.id == -1
     
     query = base_query
+    active_promo_products = (
+        db.session.query(Promo.product_id.label("product_id"))
+        .join(Product, Product.id == Promo.product_id)
+        .filter(
+            Product.shop_id == shop.id,
+            Product.is_active == True,
+            Promo.end_date >= utc_now,
+        )
+        .distinct()
+        .subquery()
+    )
 
-    if kind:
-        query = query.filter(Product.kind == kind)
-    
-    if q:
-        query = query.filter(Product.name.ilike(f"%{q}%"))
-    
-    if cat:
-        query = query.filter_by(category_id=cat)
-    
-    # Tri
-    if sort == "new":
-        query = query.order_by(Product.created_at.desc())
-    elif sort == "low":
-        query = query.order_by(Product.price.asc())
-    elif sort == "high":
-        query = query.order_by(Product.price.desc())
+    if kind == "location":
+        query = query.filter(False)
     else:
-        query = query.order_by(Product.created_at.desc())
+        if kind:
+            query = query.filter(Product.kind == kind)
+
+        if q:
+            query = query.filter(Product.name.ilike(f"%{q}%"))
+
+        if cat:
+            query = query.filter_by(category_id=cat)
+
+        # Tri
+        if sort == "new":
+            query = query.order_by(Product.created_at.desc())
+        elif sort == "low":
+            query = query.order_by(Product.price_cents_value.asc())
+        elif sort == "high":
+            query = query.order_by(Product.price_cents_value.desc())
+        elif sort == "promo":
+            promo_first_rank = case(
+                (active_promo_products.c.product_id.isnot(None), 0),
+                else_=1,
+            )
+            query = (
+                query
+                .outerjoin(active_promo_products, Product.id == active_promo_products.c.product_id)
+                .order_by(promo_first_rank.asc(), Product.created_at.desc())
+            )
+        else:
+            query = query.order_by(Product.created_at.desc())
     
     # Pagination
     per_page = 12
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
     promo_map = get_active_promos_for_products([product.id for product in pagination.items])
     try:
-        promo_product_ids = (
-            db.session.query(Product.id.label("id"))
-            .join(Promo, Promo.product_id == Product.id)
-            .filter(
-                Product.shop_id == shop.id,
-                Product.is_active == True,
-                Promo.end_date >= datetime.utcnow(),
-            )
-            .distinct()
-            .subquery()
-        )
         shop_promo_count = int(
-            db.session.query(func.count()).select_from(promo_product_ids).scalar() or 0
+            db.session.query(func.count()).select_from(active_promo_products).scalar() or 0
         )
     except Exception:
         _safe_session_rollback()
+        current_app.logger.exception("shop detail promo count build error")
         shop_promo_count = 0
     
     # Si requête AJAX, retourner JSON
@@ -592,6 +626,8 @@ def shop_detail(shop_slug):
         shop_allows_services=shop_allows_services,
         shop_allows_location=shop_allows_location,
         has_product_universe=has_product_universe,
+        supported_detail_modes=supported_detail_modes,
+        supported_detail_mode_count=supported_detail_mode_count,
         shop_promo_count=shop_promo_count,
         shop_has_promo=bool(shop_promo_count > 0),
         products=pagination.items,
@@ -608,6 +644,8 @@ def shop_detail(shop_slug):
         shop_total_items=shop_total_items,
         location_total=location_total,
         location_listings=location_listings,
+        cents_to_dh=cents_to_dh,
+        rental_video_poster_rel_path=rental_existing_video_poster_rel_path,
         service_location_url=service_location_url,
         q=q,
         cat=cat,
@@ -618,7 +656,7 @@ def shop_detail(shop_slug):
 
 @bp.route("/shop/<string:shop_slug>")
 def shop_detail_alias(shop_slug):
-    normalized_slug = (shop_slug or "").strip()
-    if not normalized_slug:
+    normalized_slug = normalize_public_shop_slug(shop_slug)
+    if not is_safe_public_shop_slug(normalized_slug, reserved=RESERVED_ROOT_SHOP_SLUGS):
         return render_template("errors/404.html"), 404
     return redirect(url_for("shops.shop_detail", shop_slug=normalized_slug, **request.args), code=301)

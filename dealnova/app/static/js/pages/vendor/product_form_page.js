@@ -98,6 +98,7 @@
 
   const removedExisting = new Set();
   let removedExistingVideo = false;
+  let currentVideoPreviewUrl = "";
   const selectedCategoryByKind = {
     physical: "",
     service: "",
@@ -345,6 +346,10 @@
 
     const files = getNewVideoFiles();
     videoPreviewGrid.innerHTML = "";
+    if (currentVideoPreviewUrl) {
+      URL.revokeObjectURL(currentVideoPreviewUrl);
+      currentVideoPreviewUrl = "";
+    }
 
     if (!files.length) {
       videoPreviewContainer.style.display = "none";
@@ -357,12 +362,33 @@
     if (newVideoCount) newVideoCount.textContent = "1";
 
     const card = document.createElement("div");
-    card.className = "image-card";
+    card.className = "image-card video-preview-card";
+
+    const frame = document.createElement("div");
+    frame.className = "video-preview-frame";
 
     const video = document.createElement("video");
     video.controls = true;
     video.preload = "metadata";
-    video.src = URL.createObjectURL(file);
+    video.muted = true;
+    video.playsInline = true;
+    currentVideoPreviewUrl = URL.createObjectURL(file);
+    video.src = currentVideoPreviewUrl;
+    video.addEventListener("loadedmetadata", function () {
+      try {
+        const targetTime = Number.isFinite(video.duration) && video.duration > 0.15 ? 0.15 : 0;
+        video.currentTime = targetTime;
+      } catch (_error) {}
+    });
+    video.addEventListener(
+      "seeked",
+      function () {
+        try {
+          video.pause();
+        } catch (_error) {}
+      },
+      { once: true }
+    );
 
     const btn = document.createElement("button");
     btn.type = "button";
@@ -371,15 +397,38 @@
     btn.title = "Retirer cette video";
     btn.addEventListener("click", function (event) {
       event.stopPropagation();
-      setNewVideoFiles([]);
-      if (videoInput) {
-        videoInput.value = "";
-      }
+        setNewVideoFiles([]);
+        if (videoInput) {
+          videoInput.value = "";
+        }
+      });
+
+    const meta = document.createElement("div");
+    meta.className = "video-preview-meta";
+
+    const title = document.createElement("div");
+    title.className = "video-preview-title";
+    title.textContent = String(file.name || "Video");
+
+    const note = document.createElement("div");
+    note.className = "video-preview-note";
+    note.textContent =
+      formatBytes(file.size) +
+      " - " +
+      String(file.type || "video").replace("video/", "").toUpperCase();
+
+    video.addEventListener("error", function () {
+      note.textContent = "Apercu limite pour ce format, mais l'envoi reste possible.";
     });
 
-    card.appendChild(video);
+    frame.appendChild(video);
+    meta.appendChild(title);
+    meta.appendChild(note);
+    card.appendChild(frame);
+    card.appendChild(meta);
     card.appendChild(btn);
     videoPreviewGrid.appendChild(card);
+    video.load();
   }
 
   function openImageLightbox(src, altText) {
@@ -740,5 +789,11 @@
   bindFormValidation();
   renderPreview();
   renderVideoPreview();
+  window.addEventListener("beforeunload", function () {
+    if (currentVideoPreviewUrl) {
+      URL.revokeObjectURL(currentVideoPreviewUrl);
+      currentVideoPreviewUrl = "";
+    }
+  });
 })();
 

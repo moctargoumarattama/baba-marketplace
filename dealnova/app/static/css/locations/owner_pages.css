@@ -1,11 +1,40 @@
 .owner-shell,
 .owner-archives-shell {
   max-width: 1180px;
+}
+
+.owner-shell,
+.owner-archives-shell,
+.owner-layout,
+.owner-main,
+.owner-side,
+.owner-card,
+.owner-card-body,
+.archives-card,
+.archives-body {
+  min-width: 0;
+}
+
+.owner-shell,
+.owner-archives-shell {
   margin: 0 auto;
   padding: 1rem;
   display: grid;
   gap: 1rem;
   transition: opacity 0.18s ease;
+}
+
+body.owner-locations-keyboard-open,
+body.owner-locations-keyboard-open main,
+body.owner-locations-keyboard-open #pageContent {
+  overflow-x: hidden;
+}
+
+body.owner-locations-keyboard-open .owner-shell,
+body.owner-locations-keyboard-open .owner-archives-shell {
+  width: 100%;
+  max-width: 100%;
+  margin-inline: auto;
 }
 
 .owner-shell.is-loading,
@@ -455,6 +484,74 @@
   margin: 0 0.15rem;
 }
 
+.owner-shell .owner-hero p {
+  opacity: 0.93;
+}
+
+.owner-shell .owner-stat {
+  border-radius: 14px;
+  padding: 0.75rem 0.85rem;
+}
+
+.owner-shell .owner-stat .value {
+  font-size: 1.15rem;
+}
+
+.owner-shell .listing-list {
+  gap: 0.65rem;
+}
+
+.owner-shell .listing-item {
+  border-radius: 14px;
+}
+
+.owner-shell .status-pill {
+  font-size: 0.73rem;
+}
+
+.owner-shell .shop-item {
+  background: #f8fafc;
+}
+
+.owner-shell .mini-list {
+  gap: 0.45rem;
+  margin-top: 0.7rem;
+}
+
+.owner-shell .mini-row {
+  color: #475569;
+  font-size: 0.83rem;
+  font-weight: 700;
+}
+
+.owner-shell .archive-teaser .hint {
+  color: #64748b;
+  font-size: 0.83rem;
+  font-weight: 700;
+}
+
+.owner-shell .pagination-wrap {
+  margin-top: 1rem;
+}
+
+.owner-archives-shell .sum-card {
+  padding: 0.78rem;
+}
+
+.owner-archives-shell .sum-card .value {
+  font-size: 1.08rem;
+  margin-top: 0.2rem;
+}
+
+.owner-archives-shell .archives-head {
+  padding: 0.85rem 1rem;
+}
+
+.owner-archives-shell .archive-item-mobile .line {
+  color: #475569;
+  font-weight: 700;
+}
+
 @media (max-width: 1024px) {
   .owner-layout {
     grid-template-columns: 1fr;
@@ -470,9 +567,12 @@
     grid-template-columns: 1fr;
   }
 
-  .archives-filter,
   .trace-details {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .owner-archives-shell .archives-filter {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -490,6 +590,15 @@
   .archives-filter,
   .trace-details {
     grid-template-columns: 1fr;
+  }
+
+  .owner-filter-form .form-control,
+  .owner-filter-form .form-select,
+  .archives-filter .form-control,
+  .archives-filter .form-select {
+    font-size: 16px;
+    line-height: 1.2;
+    -webkit-text-size-adjust: 100%;
   }
 
   .listing-actions .btn,
