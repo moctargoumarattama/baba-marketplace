@@ -1,0 +1,135 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Contacts produits | Admin{% endblock %}
+{% block page_title %}Contacts produits{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <div class="card mb-3">
+    <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+      <strong>Contacts WhatsApp produits</strong>
+      <span class="badge text-bg-light">{{ total_contacts }} demandes boutiques</span>
+    </div>
+    <div class="card-body">
+      <div class="alert alert-info mb-3">
+        Baba Market vous met en relation avec la boutique. La disponibilite, le paiement et la livraison sont a confirmer directement entre le client et le vendeur.
+      </div>
+
+      <form method="get" class="row g-2 align-items-end">
+        <div class="col-12 col-lg-3">
+          <label class="form-label mb-1" for="productContactsSearch">Recherche</label>
+          <input id="productContactsSearch" class="form-control" type="search" name="q" value="{{ search }}" placeholder="Client, boutique, produit">
+        </div>
+        <div class="col-12 col-md-3 col-lg-2">
+          <label class="form-label mb-1" for="productContactsPhone">Telephone client</label>
+          <input id="productContactsPhone" class="form-control" type="text" name="phone" value="{{ phone_filter }}" placeholder="Telephone">
+        </div>
+        <div class="col-12 col-md-3">
+          <label class="form-label mb-1" for="productContactsShop">Boutique</label>
+          <select id="productContactsShop" class="form-select" name="shop_id">
+            <option value="">Toutes</option>
+            {% for shop in shops %}
+            <option value="{{ shop.id }}" {% if shop_id_filter == shop.id %}selected{% endif %}>{{ shop.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12 col-md-2">
+          <label class="form-label mb-1" for="productContactsRange">Vue</label>
+          <select id="productContactsRange" class="form-select" name="range">
+            <option value="today" {% if range_filter == 'today' %}selected{% endif %}>Aujourd'hui</option>
+            <option value="month" {% if range_filter == 'month' %}selected{% endif %}>Ce mois</option>
+            <option value="year" {% if range_filter == 'year' %}selected{% endif %}>Cette annee</option>
+            <option value="custom" {% if range_filter == 'custom' %}selected{% endif %}>Dates</option>
+          </select>
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label mb-1" for="productContactsFrom">Du</label>
+          <input id="productContactsFrom" class="form-control" type="date" name="date_from" value="{{ date_from }}">
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label mb-1" for="productContactsTo">Au</label>
+          <input id="productContactsTo" class="form-control" type="date" name="date_to" value="{{ date_to }}">
+        </div>
+        <div class="col-12 col-lg-2 d-grid">
+          <button class="btn btn-primary" type="submit">Filtrer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Client</th>
+            <th>Telephone client</th>
+            <th>Boutique concernee</th>
+            <th>Produits demandes</th>
+            <th class="text-end">Total estime</th>
+            <th>Statut</th>
+            <th>Canal</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if leads %}
+            {% for lead in leads %}
+            <tr>
+              <td class="text-nowrap">{{ lead.created_at.strftime('%d/%m/%Y %H:%M') if lead.created_at else '-' }}</td>
+              <td>{{ lead.client_name or '-' }}</td>
+              <td>{{ lead.client_phone or '-' }}</td>
+              <td>
+                {% if lead.shop %}
+                  {{ lead.shop.name }}
+                {% else %}
+                  <span class="text-muted">Boutique indisponible</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if lead._product_summary %}
+                  <ul class="list-unstyled mb-0 small">
+                    {% for item in lead._product_summary %}
+                    <li>
+                      <span class="fw-semibold">{{ item.product_name or 'Produit' }}</span>
+                      <span class="text-muted">x{{ item.quantity or 0 }}</span>
+                      <span class="text-muted">- {{ '%.2f'|format((item.line_total_cents or 0) / 100) }} MAD</span>
+                    </li>
+                    {% endfor %}
+                  </ul>
+                {% else %}
+                  <span class="text-muted">Aucun detail</span>
+                {% endif %}
+              </td>
+              <td class="text-end fw-semibold">{{ '%.2f'|format((lead.estimated_total or 0) / 100) }} MAD</td>
+              <td><span class="badge text-bg-secondary">Contact genere</span></td>
+              <td><span class="badge text-bg-success">WhatsApp</span></td>
+            </tr>
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td colspan="8" class="text-center text-muted py-4">Aucun contact produit pour ce filtre.</td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {% if pagination and pagination.pages > 1 %}
+  <div class="mt-3">
+    <nav aria-label="Pagination contacts produits">
+      <ul class="pagination pagination-sm justify-content-center">
+        <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('admin.product_contacts', page=pagination.prev_num, q=search or None, phone=phone_filter or None, shop_id=shop_id_filter or None, range=range_filter, date_from=date_from or None, date_to=date_to or None) if pagination.has_prev else '#' }}">Precedent</a>
+        </li>
+        <li class="page-item disabled"><span class="page-link">{{ pagination.page }} / {{ pagination.pages }}</span></li>
+        <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('admin.product_contacts', page=pagination.next_num, q=search or None, phone=phone_filter or None, shop_id=shop_id_filter or None, range=range_filter, date_from=date_from or None, date_to=date_to or None) if pagination.has_next else '#' }}">Suivant</a>
+        </li>
+      </ul>
+    </nav>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

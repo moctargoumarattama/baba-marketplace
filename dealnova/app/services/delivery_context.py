@@ -251,29 +251,3 @@ def enrich_orders_delivery_context(orders, lang: str | None = None):
         enrich_order_delivery_context(order, lang=lang)
     return orders
 
-
-def build_courier_whatsapp_message(order) -> str:
-    order = enrich_order_delivery_context(order)
-    pickup = getattr(order, "_delivery_pickup", {}) or {}
-    dropoff = getattr(order, "_delivery_dropoff", {}) or {}
-
-    lines = [
-        f"Mission livraison #{order.id}",
-        f"Source: {getattr(order, '_delivery_source_label', 'Marketplace')}",
-        f"Prix livraison: {(int(getattr(order, 'delivery_price_cents', 0) or getattr(order, 'shipping', 0) or 0) / 100):.2f} MAD",
-        f"Part Baba: {(int(getattr(order, 'delivery_platform_fee_cents', 0) or 0) / 100):.2f} MAD",
-        f"Net livreur: {(int(getattr(order, 'delivery_courier_net_cents', 0) or 0) / 100):.2f} MAD",
-        "",
-        "PICKUP",
-        f"Boutique: {pickup.get('shop_name') or 'N/A'}",
-        f"Adresse: {pickup.get('address') or 'N/A'}",
-        f"Maps: {pickup.get('maps_url') or 'N/A'}",
-        "",
-        "DROPOFF",
-        f"Client: {dropoff.get('customer_name') or 'N/A'}",
-        f"Tel client: {dropoff.get('customer_phone') or 'N/A'}",
-        f"Ville: {dropoff.get('city') or 'N/A'}",
-        f"Adresse: {dropoff.get('address') or 'N/A'}",
-        f"Maps: {dropoff.get('maps_url') or 'N/A'}",
-    ]
-    return "\n".join(lines)

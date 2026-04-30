@@ -37,9 +37,7 @@
     return (
       pageId.includes("all_orders") ||
       pageId.includes("deliveries") ||
-      pageId.includes("fraud") ||
-      pageId.includes("courier.panel_orders") ||
-      pageId.includes("courier.panel_deliveries")
+      pageId.includes("fraud")
     );
   }
   const requestJSON =

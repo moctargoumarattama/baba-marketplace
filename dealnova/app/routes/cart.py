@@ -1,55 +1,28 @@
-import secrets
+import json
 import re
 import time
 from datetime import datetime, timedelta
 from functools import lru_cache
 from collections import OrderedDict
-# app/routes/cart.py - LIGNE 15
-from ..models.platform_settings import PlatformSettings
-from flask import Blueprint, render_template, redirect, url_for, flash, request, session, current_app, jsonify, make_response, g
+from flask import Blueprint, render_template, redirect, url_for, flash, request, session, current_app, jsonify, make_response
 from flask_login import current_user
 from urllib.parse import quote
 
 from ..extensions import db
-from sqlalchemy import and_, or_, update, exists
-from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import load_only, selectinload
 from ..models.category import Category
 from ..models.product import Product
-from ..models.order import Order, OrderItem
 from ..models.blocked import BlockedContact
 from ..models.shop import Shop
-from ..models.vendor_payout import VendorPayout
+from ..models.product_contact_lead import ProductContactLead
 from ..services.pricing import (
     cents_to_money,
     final_price_cents,
     get_active_promos_for_products,
     prix_final,
-    get_delivery_courier_net_cents,
-    get_delivery_platform_fee_cents,
-    get_delivery_price_cents,
     compute_shipping_by_city as pricing_shipping_by_city,
 )
-from ..services.delivery_context import (
-    DELIVERY_SOURCE_MARKETPLACE,
-    canonical_city_name,
-    make_maps_url,
-)
-from ..services.i18n_labels import (
-    delivery_status_labels_for_lang,
-    label_delivery_status,
-    label_order_status,
-    label_source,
-    normalize_lang,
-)
 from ..services.guest_session import GuestSessionManager
-from ..services.phone_remember import (
-    read_phone_cookie_digits,
-    set_phone_cookie,
-    get_order_phone_digits,
-    input_matches_order_phone,
-    cookie_matches_order_phone,
-)
 from ..middleware.rate_limit import rate_limit
 
 
@@ -120,11 +93,6 @@ def _get_cached_cart_data(cart_dict, include_shop=False, include_category=False)
     return product_map, promo_map
 
 
-def _delivery_whatsapp_number() -> str:
-    """Numro WhatsApp du livreur/commande (format international sans '+')."""
-    return (current_app.config.get("DELIVERY_WHATSAPP_NUMBER") or "").replace("+", "").replace(" ", "")
-
-
 def _digits_only(value: str) -> str:
     return re.sub(r"\D", "", value or "")
 
@@ -151,6 +119,257 @@ def normalize_phone(value: str) -> str:
     return digits
 
 
+def normalize_whatsapp_number(raw: str) -> str:
+    """Normalise un numero boutique pour wa.me, aligne sur le flux service."""
+    digits = _digits_only(raw)
+    if not digits:
+        return ""
+    if digits.startswith("00"):
+        digits = digits[2:]
+    if digits.startswith("0") and len(digits) == 10 and digits[1] in ("6", "7"):
+        return "212" + digits[1:]
+    if len(digits) == 9 and digits[0] in ("6", "7"):
+        return "212" + digits
+    return digits
+
+
+def _format_money(cents: int | float | None) -> str:
+    return f"{cents_to_money(int(cents or 0)):.2f} MAD"
+
+
+def _cart_item_product(item):
+    if isinstance(item, dict):
+        return item.get("product")
+    if isinstance(item, (tuple, list)) and item:
+        return item[0]
+    return getattr(item, "product", None)
+
+
+def _cart_item_quantity(item) -> int:
+    if isinstance(item, dict):
+        value = item.get("quantity", item.get("qty", 0))
+    elif isinstance(item, (tuple, list)) and len(item) > 1:
+        value = item[1]
+    else:
+        value = getattr(item, "quantity", getattr(item, "qty", 0))
+    return _safe_cart_quantity(value)
+
+
+def _cart_item_unit_price_cents(item) -> int:
+    if isinstance(item, dict):
+        value = item.get("unit_price_cents", item.get("price_cents", item.get("price", 0)))
+    elif isinstance(item, (tuple, list)) and len(item) > 2:
+        value = item[2]
+    else:
+        value = getattr(item, "unit_price_cents", getattr(item, "price_cents", getattr(item, "price", 0)))
+    try:
+        return max(0, int(value or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _cart_item_line_total_cents(item) -> int:
+    if isinstance(item, dict) and item.get("line_total_cents") is not None:
+        try:
+            return max(0, int(item.get("line_total_cents") or 0))
+        except (TypeError, ValueError):
+            return 0
+    return _cart_item_unit_price_cents(item) * _cart_item_quantity(item)
+
+
+def _shop_group_key(shop, product):
+    shop_id = getattr(shop, "id", None)
+    if shop_id is not None:
+        return ("shop", shop_id)
+    product_id = getattr(product, "id", id(product))
+    return ("missing_shop", product_id)
+
+
+def _shop_display_name(shop) -> str:
+    return (getattr(shop, "name", None) or "Boutique indisponible").strip()
+
+
+def _shop_phone_raw(shop) -> str:
+    if not shop:
+        return ""
+    return (
+        (getattr(shop, "contact_phone", None) or "").strip()
+        or (getattr(shop, "phone", None) or "").strip()
+    )
+
+
+def group_cart_items_by_shop(cart_items):
+    """Regroupe les articles physiques par boutique, en conservant l'ordre du panier."""
+    groups_by_key = OrderedDict()
+    for item in cart_items or []:
+        product = _cart_item_product(item)
+        if not product:
+            continue
+        shop = getattr(product, "shop", None)
+        key = _shop_group_key(shop, product)
+        if key not in groups_by_key:
+            groups_by_key[key] = {
+                "shop": shop,
+                "items": [],
+                "subtotal_cents": 0,
+            }
+        quantity = _cart_item_quantity(item)
+        unit_price_cents = _cart_item_unit_price_cents(item)
+        line_total_cents = _cart_item_line_total_cents(item)
+        if isinstance(item, dict):
+            normalized_item = item
+            normalized_item.setdefault("product", product)
+            normalized_item.setdefault("quantity", quantity)
+            normalized_item.setdefault("unit_price_cents", unit_price_cents)
+            normalized_item.setdefault("unit_price", cents_to_money(unit_price_cents))
+            normalized_item.setdefault("unit_price_label", _format_money(unit_price_cents))
+            normalized_item.setdefault("line_total_cents", line_total_cents)
+            normalized_item.setdefault("line_total", cents_to_money(line_total_cents))
+            normalized_item.setdefault("line_total_label", _format_money(line_total_cents))
+        else:
+            normalized_item = {
+                "product": product,
+                "quantity": quantity,
+                "unit_price_cents": unit_price_cents,
+                "unit_price": cents_to_money(unit_price_cents),
+                "unit_price_label": _format_money(unit_price_cents),
+                "line_total_cents": line_total_cents,
+                "line_total": cents_to_money(line_total_cents),
+                "line_total_label": _format_money(line_total_cents),
+            }
+        groups_by_key[key]["items"].append(normalized_item)
+        groups_by_key[key]["subtotal_cents"] += line_total_cents
+
+    groups = list(groups_by_key.values())
+    for group in groups:
+        group["subtotal"] = cents_to_money(group["subtotal_cents"])
+        group["subtotal_label"] = _format_money(group["subtotal_cents"])
+    return groups
+
+
+def generate_shop_whatsapp_message(shop, items, client_data):
+    """Construit le message WhatsApp d'une boutique, sans les produits des autres."""
+    item_lines = []
+    subtotal_cents = 0
+    for item in items or []:
+        product = _cart_item_product(item)
+        if not product:
+            continue
+        quantity = _cart_item_quantity(item)
+        line_total_cents = _cart_item_line_total_cents(item)
+        subtotal_cents += line_total_cents
+        product_name = (getattr(product, "name", None) or "Produit").strip()
+        item_lines.append(f"- {product_name} x{quantity} - {_format_money(line_total_cents)}")
+
+    client_name = (client_data or {}).get("name") or (client_data or {}).get("full_name") or ""
+    client_phone = (client_data or {}).get("phone") or ""
+    client_address = (client_data or {}).get("address") or ""
+
+    lines = [
+        "Bonjour, je souhaite commander les produits suivants :",
+        "",
+        f"🛍 Boutique : {_shop_display_name(shop)}",
+        "",
+        *(item_lines or ["- Aucun produit"]),
+        "",
+        f"💰 Total estimé : {_format_money(subtotal_cents)}",
+    ]
+
+    client_lines = []
+    if client_name:
+        client_lines.append(f"👤 Client : {client_name}")
+    if client_phone:
+        client_lines.append(f"📱 Téléphone : {client_phone}")
+    if client_address:
+        client_lines.append(f"📍 Adresse : {client_address}")
+    if client_lines:
+        lines.extend(["", *client_lines])
+
+    lines.extend([
+        "",
+        "Merci de me confirmer la disponibilité, le paiement et la livraison.",
+    ])
+    return "\n".join(lines)
+
+
+def build_whatsapp_link(phone, message):
+    number = normalize_whatsapp_number(phone)
+    if not number:
+        return ""
+    return f"https://wa.me/{number}?text={quote(message or '', safe='')}"
+
+
+def prepare_vendor_whatsapp_checkout(cart_items, client_data):
+    """Prepare les blocs WhatsApp vendeurs sans commande, livraison ni commission."""
+    shop_groups = group_cart_items_by_shop(cart_items)
+    total_cents = 0
+
+    for group in shop_groups:
+        subtotal_cents = int(group.get("subtotal_cents") or 0)
+        total_cents += subtotal_cents
+        shop = group.get("shop")
+        phone_raw = _shop_phone_raw(shop)
+        phone = normalize_whatsapp_number(phone_raw)
+        message = generate_shop_whatsapp_message(shop, group.get("items", []), client_data)
+        group.update({
+            "shop_name": _shop_display_name(shop),
+            "phone_raw": phone_raw,
+            "phone": phone,
+            "phone_available": bool(phone),
+            "whatsapp_message": message,
+            "whatsapp_url": build_whatsapp_link(phone_raw, message),
+            "items_count": sum(_cart_item_quantity(item) for item in group.get("items", [])),
+        })
+
+    return {
+        "shop_groups": shop_groups,
+        "client_data": client_data or {},
+        "total_cents": total_cents,
+        "total": cents_to_money(total_cents),
+        "total_label": _format_money(total_cents),
+        "multiple_shops": len(shop_groups) > 1,
+    }
+
+
+def record_product_contact_leads(checkout_data, client_data):
+    """Trace les contacts WhatsApp produits, sans bloquer le checkout."""
+    groups = (checkout_data or {}).get("shop_groups") or []
+    if not groups:
+        return 0
+
+    created = 0
+    try:
+        for group in groups:
+            shop = group.get("shop")
+            summary = []
+            for item in group.get("items", []):
+                product = _cart_item_product(item)
+                summary.append({
+                    "product_id": getattr(product, "id", None),
+                    "product_name": getattr(product, "name", None) or "Produit",
+                    "quantity": _cart_item_quantity(item),
+                    "unit_price_cents": _cart_item_unit_price_cents(item),
+                    "line_total_cents": _cart_item_line_total_cents(item),
+                })
+
+            db.session.add(ProductContactLead(
+                client_name=((client_data or {}).get("name") or "")[:100],
+                client_phone=((client_data or {}).get("phone") or "")[:30],
+                shop_id=getattr(shop, "id", None),
+                product_summary_json=json.dumps(summary, ensure_ascii=False),
+                estimated_total=int(group.get("subtotal_cents") or 0),
+                whatsapp_phone=(group.get("phone") or group.get("phone_raw") or "")[:30],
+                source="product_whatsapp",
+            ))
+            created += 1
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception("product_contact_lead_record_failed")
+        return 0
+    return created
+
+
 def _product_kind(product) -> str:
     return (getattr(product, "kind", None) or "physical").strip().lower()
 
@@ -160,7 +379,7 @@ def _is_service_product(product) -> bool:
 
 
 def _shop_open_message(product) -> str | None:
-    """Retourne un message si la boutique du produit est ferme/désactiver, sinon None."""
+    """Retourne un message si la boutique du produit est fermée/désactivée, sinon None."""
     shop = getattr(product, "shop", None)
     if not shop:
         return None
@@ -217,69 +436,6 @@ def _ajax_error(message, status=400, flash_category="danger", redirect_endpoint=
     return redirect(url_for(redirect_endpoint))
 
 
-def build_whatsapp_order_message(order: Order, map_link: str = "") -> str:
-    """Construit le message WhatsApp d'une commande."""
-
-    def section(title: str, rows: list[str]) -> str:
-        return f"*-- {title} --*\n" + "\n".join(rows)
-
-    def mad(cents: int) -> str:
-        return f"{cents / 100:.2f} MAD"
-
-    # ── Données de base ──────────────────────────────────────────────────────
-    shipping_cents = order.shipping or 0
-    subtotal_cents = max(0, (order.total or 0) - shipping_cents)
-    site_name      = current_app.config.get("SITE_NAME", "Baba Market Place")
-    track_url      = f"{request.host_url.rstrip('/')}/cart/track/{order.token}"
-
-    # ── Groupement par boutique ───────────────────────────────────────────────
-    shop_groups: dict = {}
-    for it in order.items:
-        shop = getattr(it.product, "shop", None)
-        key  = f"shop:{shop.id}" if (shop and shop.id) else f"product:{it.product.id}"
-        name = (shop.name if shop else None) or "Boutique inconnue"
-        shop_groups.setdefault(key, {"name": name, "shop": shop, "items": []})["items"].append(it)
-
-    # ── Section articles ──────────────────────────────────────────────────────
-    article_rows = []
-    for group in shop_groups.values():
-        shop = group["shop"]
-        article_rows.append(f"\n*{group['name']}*")
-        if shop:
-            if shop.contact_phone: article_rows.append(f"  Tel     : {shop.contact_phone}")
-            if shop.address:       article_rows.append(f"  Adresse : {shop.address}")
-        for it in group["items"]:
-            article_rows.append(f"  - {it.quantity} x {it.product.name}  ({mad(it.price * it.quantity)})")
-
-    # ── Section livraison ─────────────────────────────────────────────────────
-    delivery_rows = [
-        f"  Nom     : {order.full_name}",
-        f"  Tel     : {order.phone}",
-        f"  Ville   : {order.city}",
-        f"  Adresse : {order.address}",
-    ]
-    gps = (map_link or "").strip() or (getattr(order, "delivery_maps_url", None) or "").strip()
-    if gps:
-        delivery_rows.append(f"  GPS     : {gps}")
-
-    # ── Assemblage final ──────────────────────────────────────────────────────
-    parts = [
-        f"*{site_name} — Commande #{order.id}*",
-        f"Suivi : {track_url}",
-        "",
-        section("Articles",  article_rows),
-        "",
-        section("Livraison", delivery_rows),
-        "",
-        section("Paiement", [
-            f"  Sous-total : {mad(subtotal_cents)}",
-            f"  Livraison  : {mad(shipping_cents)}",
-            f"  *Total     : {mad(order.total)}*",
-        ]),
-    ]
-
-    return "\n".join(parts)
-
 # =====================================================
 # PANIER GUEST / UTILISATEUR
 # =====================================================
@@ -320,6 +476,7 @@ def _cart_product_map(cart_dict, include_shop=False, include_category=False):
             selectinload(Product.shop).load_only(
                 Shop.id,
                 Shop.name,
+                Shop.contact_phone,
                 Shop.is_active,
                 Shop.is_open,
                 Shop.closed_until,
@@ -489,55 +646,6 @@ def get_cart_summary(cart=None):
     }
 
 
-def _has_active_tracking() -> bool:
-    lookup_filters = []
-
-    if current_user.is_authenticated:
-        lookup_filters.append(Order.buyer_id == current_user.id)
-
-    cookie_digits = read_phone_cookie_digits()
-    if cookie_digits:
-        _normalized_cookie, _digits_cookie, cookie_candidates = _phone_candidates(cookie_digits)
-        cookie_matchers = [Order.phone_digits == cookie_digits]
-        if cookie_candidates:
-            cookie_matchers.append(Order.phone.in_(cookie_candidates))
-        lookup_filters.append(or_(*cookie_matchers))
-
-    tracked_phone = (session.get("track_phone_raw") or session.get("track_phone") or "").strip()
-    if tracked_phone:
-        _normalized, digits, candidates = _phone_candidates(tracked_phone)
-        phone_matchers = []
-        if digits:
-            phone_matchers.append(Order.phone_digits == digits)
-        if candidates:
-            phone_matchers.append(Order.phone.in_(candidates))
-        if phone_matchers:
-            lookup_filters.append(or_(*phone_matchers))
-
-    if not lookup_filters:
-        return False
-
-    active_delivery_statuses = ("new", "assigned", "picked_up", "delivering")
-    active_order_statuses = ("new", "pending", "confirmed", "paid", "processing", "shipping", "shipped")
-    cutoff = datetime.utcnow() - timedelta(days=45)
-
-    return db.session.query(
-        exists().where(
-            and_(
-                or_(*lookup_filters),
-                Order.created_at >= cutoff,
-                or_(
-                    Order.delivery_status.in_(active_delivery_statuses),
-                    and_(
-                        Order.delivery_status.is_(None),
-                        Order.status.in_(active_order_statuses),
-                    ),
-                )
-            )
-        )
-    ).scalar()
-
-
 def compute_shipping_by_city(city: str) -> int:
     return pricing_shipping_by_city(city)
 
@@ -600,7 +708,7 @@ def add(pid):
     post_add_redirect = (request.form.get("post_add_redirect") or request.args.get("post_add_redirect") or "").strip().lower()
 
     if _is_service_product(product):
-        message = "Ce service se reserve. Merci de passer par la reservation."
+        message = "Ce service se réserve. Merci de passer par la réservation."
         if is_ajax:
             return jsonify(
                 {
@@ -635,9 +743,9 @@ def add(pid):
         else None
     )
     success_message = (
-        "Produit ajoute. Verifiez vos articles avant de finaliser."
+        "Produit ajouté. Vérifiez vos articles avant de finaliser."
         if redirect_url
-        else "Produit ajoute au panier."
+        else "Produit ajouté au panier."
     )
 
     cart_count = 0
@@ -838,7 +946,7 @@ def remove_ajax(pid):
     
     return jsonify({
         'success': True,
-        'message': 'Produit retir du panier',
+        'message': 'Produit retiré du panier',
         'cart_count': summary['count'],
         'total': summary['total'],
         'product_id': pid
@@ -940,15 +1048,9 @@ def nav_status():
     except Exception:
         current_app.logger.exception("nav_status_summary_error")
         summary = {"count": 0}
-    track_active = False
-    try:
-        track_active = _has_active_tracking()
-    except Exception:
-        current_app.logger.exception("nav_status_error")
-
     response = jsonify({
         "cart_count": int(summary.get("count", 0) or 0),
-        "track_active": bool(track_active),
+        "track_active": False,
     })
     response.headers["Cache-Control"] = "no-store"
     return response
@@ -957,68 +1059,52 @@ def nav_status():
 # =====================================================
 # CHECKOUT
 # =====================================================
-@bp.route("/checkout", methods=["GET", "POST"])
-@rate_limit(limit=20, window_seconds=300, key_prefix="checkout", methods=("POST",))
-def checkout():
-    if request.method == "POST":
-        return whatsapp_checkout()
-
-    cart = get_cart()
-    product_map, promo_map = _get_cached_cart_data(cart, include_shop=True)
-
-    removed_services = _remove_service_items_from_cart(cart, product_map)
-    if removed_services:
-        set_cart(cart)
-        flash("Les services se réservent. Ils ont été retirés du panier.", "info")
-
-    if not cart:
-        if _is_ajax_request():
-            recent_url = _recent_checkout_url()
-            if recent_url:
-                return jsonify({"success": True, "wa_url": recent_url, "reused": True})
-            return jsonify({"success": False, "message": "Panier vide."}), 400
-        recent_url = _recent_checkout_url()
-        if recent_url:
-            return redirect(recent_url)
-        flash("Votre panier est vide.", "warning")
-        return redirect(url_for("shop.home"))
-
+def _physical_cart_items_for_checkout(cart, product_map, promo_map):
+    items = []
     subtotal_cents = 0
 
-    for pid_str, qty in cart.items():
+    for pid_str, raw_qty in cart.items():
         try:
             pid = int(pid_str)
         except ValueError:
             continue
 
+        qty = _safe_cart_quantity(raw_qty)
+        if qty <= 0:
+            continue
+
         product = product_map.get(pid)
-        if not product:
-            return _ajax_error("Produit supprime", status=404, flash_category="danger", redirect_endpoint="cart.view")
+        if not product or _is_service_product(product):
+            continue
 
         shop_msg = _shop_open_message(product)
         if shop_msg:
-            return _ajax_error(shop_msg, status=409, flash_category="info", redirect_endpoint="cart.view")
+            return None, subtotal_cents, shop_msg
 
         if hasattr(product, "stock") and product.stock < qty:
-            return _ajax_error(f"Stock insuffisant pour {product.name}", status=409, flash_category="danger", redirect_endpoint="cart.view")
+            return None, subtotal_cents, f"Stock insuffisant pour {product.name}"
 
         price_cents = final_price_cents(product, promo_map.get(pid))
-        subtotal_cents += price_cents * qty
+        line_total_cents = price_cents * qty
+        subtotal_cents += line_total_cents
+        items.append({
+            "product": product,
+            "quantity": qty,
+            "unit_price_cents": price_cents,
+            "unit_price": cents_to_money(price_cents),
+            "unit_price_label": _format_money(price_cents),
+            "line_total_cents": line_total_cents,
+            "line_total": cents_to_money(line_total_cents),
+            "line_total_label": _format_money(line_total_cents),
+        })
 
-    shipping_preview = 0
-    total_preview = subtotal_cents
+    return items, subtotal_cents, None
 
-    remembered_phone = (session.get("track_phone") or "").strip() or read_phone_cookie_digits()
 
-    return render_template(
-        "cart/checkout.html",
-        subtotal=subtotal_cents / 100,
-        shipping=shipping_preview / 100,
-        total=total_preview / 100,
-        cities=Order.CITIES,
-        remembered_phone=remembered_phone,
-        prix_final=prix_final
-    )
+@bp.route("/checkout", methods=["GET", "POST"])
+@rate_limit(limit=20, window_seconds=300, key_prefix="checkout", methods=("POST",))
+def checkout():
+    return whatsapp_checkout()
 
 
 @bp.route("/shipping/<city>")
@@ -1034,11 +1120,7 @@ def ajax_shipping(city):
 @rate_limit(limit=15, window_seconds=300, key_prefix="whatsapp", methods=("POST",))
 @log_performance
 def whatsapp_checkout():
-    """
-    - crée commande en DB
-    - mémorise le numéro
-    - redirige vers WhatsApp
-    """
+    """Prepare les demandes WhatsApp par boutique pour les produits physiques."""
     cart = get_cart()
     product_map, promo_map = _get_cached_cart_data(cart, include_shop=True)
     removed_services = _remove_service_items_from_cart(cart, product_map)
@@ -1047,14 +1129,9 @@ def whatsapp_checkout():
         flash("Les services se réservent. Ils ont été retirés du panier.", "info")
 
     if not cart:
-        recent_url = _recent_checkout_url()
-        if recent_url:
-            if _is_ajax_request():
-                return jsonify({"success": True, "wa_url": recent_url, "reused": True})
-            return redirect(recent_url)
         msg = "Panier vide"
         if removed_services:
-            msg = "Votre panier contenait uniquement des services. Merci de les rserver."
+            msg = "Votre panier contenait uniquement des services. Merci de les réserver."
         current_app.logger.warning(
             "checkout_post_rejected reason=empty_cart ajax=%s user_id=%s",
             _is_ajax_request(),
@@ -1062,473 +1139,51 @@ def whatsapp_checkout():
         )
         return _ajax_error(msg, status=400, flash_category="warning", redirect_endpoint="shop.home")
 
-    full_name = (request.form.get("full_name") or "").strip()
-    phone_raw = (request.form.get("phone") or "").strip()
-    city_input = (request.form.get("city") or "").strip()
-    city = canonical_city_name(city_input, Order.CITIES) or city_input
-    address = (request.form.get("address") or "").strip()
-    location_link = (request.form.get("location_link") or "").strip()
-    location_lat = (request.form.get("location_lat") or "").strip()
-    location_lng = (request.form.get("location_lng") or "").strip()
-
     current_app.logger.info(
-        "checkout_post_start user_id=%s ajax=%s city_input=%s has_location=%s",
+        "checkout_contact_start user_id=%s ajax=%s",
         current_user.id if current_user.is_authenticated else None,
         _is_ajax_request(),
-        city_input,
-        bool(location_link or location_lat or location_lng),
     )
 
-    phone = normalize_phone(phone_raw)
-    if not full_name or not phone or not city or not address:
-        current_app.logger.warning(
-            "checkout_post_rejected reason=missing_fields user_id=%s city=%s",
-            current_user.id if current_user.is_authenticated else None,
-            city,
-        )
-        return _ajax_error("Veuillez remplir toutes les informations de livraison.", status=400, flash_category="danger", redirect_endpoint="cart.checkout")
-
-    if len(_digits_only(phone)) < 6:
-        current_app.logger.warning(
-            "checkout_post_rejected reason=invalid_phone user_id=%s city=%s",
-            current_user.id if current_user.is_authenticated else None,
-            city,
-        )
-        return _ajax_error("Numero de telephone invalide.", status=400, flash_category="danger", redirect_endpoint="cart.checkout")
-
-    if city not in Order.CITIES:
-        current_app.logger.warning(
-            "checkout_post_rejected reason=invalid_city user_id=%s city=%s",
-            current_user.id if current_user.is_authenticated else None,
-            city,
-        )
-        return _ajax_error("Ville invalide", status=400, flash_category="danger", redirect_endpoint="cart.checkout")
-
-    phone_digits = _digits_only(phone)
     client_ip = _client_ip()
 
-    blocked_phone = None
     blocked_ip = None
-    if phone_digits:
-        blocked_phone = BlockedContact.query.filter_by(kind="phone", value=phone_digits, is_active=True).first()
     if client_ip:
         blocked_ip = BlockedContact.query.filter_by(kind="ip", value=client_ip, is_active=True).first()
 
-    if blocked_phone or blocked_ip:
+    if blocked_ip:
         current_app.logger.warning(
-            "checkout_post_rejected reason=blocked_contact user_id=%s city=%s",
+            "checkout_post_rejected reason=blocked_contact user_id=%s",
             current_user.id if current_user.is_authenticated else None,
-            city,
         )
-        return _ajax_error("Commande bloquee. Contactez le support.", status=403, flash_category="danger", redirect_endpoint="cart.checkout")
+        return _ajax_error("Demande bloquee. Contactez le support.", status=403, flash_category="danger", redirect_endpoint="cart.checkout")
 
-    lat_val = _safe_float(location_lat)
-    lng_val = _safe_float(location_lng)
-    map_link = make_maps_url(lat=lat_val, lng=lng_val, address=address, city=city)
-    if not map_link and location_link:
-        map_link = location_link[:300]
-
-    items = []
-    subtotal_cents = 0
-
-    for pid_str, qty in cart.items():
-        try:
-            pid = int(pid_str)
-        except ValueError:
-            continue
-
-        product = product_map.get(pid)
-        if not product:
-            continue
-
-        shop_msg = _shop_open_message(product)
-        if shop_msg:
-            return _ajax_error(shop_msg, status=409, flash_category="info", redirect_endpoint="cart.view")
-
-        if hasattr(product, "stock") and product.stock < qty:
-            return _ajax_error(f"Stock insuffisant pour {product.name}", status=409, flash_category="danger", redirect_endpoint="cart.view")
-
-        price_cents = final_price_cents(product, promo_map.get(pid))
-        subtotal_cents += price_cents * qty
-        items.append((product, qty, price_cents))
-
-    vendor_totals = {}
-    for product, qty, price_cents in items:
-        if not product or not product.vendor_id:
-            continue
-        key = (product.vendor_id, product.shop_id)
-        vendor_totals[key] = vendor_totals.get(key, 0) + (price_cents * qty)
-
+    items, _subtotal_cents, cart_error = _physical_cart_items_for_checkout(cart, product_map, promo_map)
+    if cart_error:
+        return _ajax_error(cart_error, status=409, flash_category="danger", redirect_endpoint="cart.view")
     if not items:
         return _ajax_error("Panier vide", status=400, flash_category="warning", redirect_endpoint="shop.home")
 
-    settings = PlatformSettings.get()
-    delivery_price_cents = get_delivery_price_cents(city, settings=settings)
-    delivery_platform_fee_cents = get_delivery_platform_fee_cents(settings=settings)
-    delivery_courier_net_cents = get_delivery_courier_net_cents(
-        delivery_price_cents,
-        settings=settings,
-    )
-    shipping_cents = delivery_price_cents
-
-    current_app.logger.info(
-        "checkout_post_pricing user_id=%s city=%s delivery_price_cents=%s delivery_platform_fee_cents=%s",
-        current_user.id if current_user.is_authenticated else None,
-        city,
-        delivery_price_cents,
-        delivery_platform_fee_cents,
-    )
-
-    commission_cents = 0
-    vendor_net_cents = subtotal_cents
-    total_cents = subtotal_cents + shipping_cents
-
-    number = _delivery_whatsapp_number()
-    if not number:
-        return _ajax_error("Numero WhatsApp de livraison non configure.", status=500, flash_category="danger", redirect_endpoint="cart.checkout")
-
-    token = secrets.token_urlsafe(16)
-    guest_token = None
-    if not current_user.is_authenticated:
-        guest_token = secrets.token_urlsafe(16)
-
-    try:
-        from ..services.order_periods import get_or_create_open_order_period
-
-        active_period, _created = get_or_create_open_order_period(
-            created_by=current_user.id if current_user.is_authenticated else None
-        )
-    except Exception:
-        current_app.logger.exception("Echec affectation periode commande")
-        return _ajax_error(
-            "Creation commande impossible: aucune periode ouverte disponible.",
-            status=503,
-            flash_category="danger",
-            redirect_endpoint="cart.checkout",
-        )
-
-    order = None
-    try:
-        order = Order(
-            token=token,
-            full_name=full_name,
-            phone=phone,
-            phone_digits=phone_digits,
-            customer_name=full_name,
-            customer_phone=phone,
-            order_ip=client_ip,
-            city=city,
-            address=address,
-            delivery_source=DELIVERY_SOURCE_MARKETPLACE,
-            delivery_city=city,
-            delivery_address=address,
-            delivery_lat=lat_val,
-            delivery_lng=lng_val,
-            delivery_maps_url=map_link or None,
-            total=total_cents,
-            shipping=shipping_cents,
-            delivery_price_cents=delivery_price_cents,
-            delivery_platform_fee_cents=delivery_platform_fee_cents,
-            delivery_courier_net_cents=delivery_courier_net_cents,
-            commission=commission_cents,
-            vendor_net=vendor_net_cents,
-            status="pending",
-            period_id=active_period.id,
-            buyer_id=current_user.id if current_user.is_authenticated else None,
-            guest_token=guest_token
-        )
-
-        db.session.add(order)
-        db.session.flush()
-
-        for product, qty, price_cents in items:
-            db.session.add(OrderItem(
-                order_id=order.id,
-                product_id=product.id,
-                quantity=qty,
-                price=price_cents
-            ))
-
-            if hasattr(product, "stock") and product.stock is not None:
-                result = db.session.execute(
-                    update(Product)
-                    .where(Product.id == product.id)
-                    .where(Product.stock >= qty)
-                    .values(stock=Product.stock - qty)
-                )
-                if result.rowcount == 0:
-                    raise ValueError("stock_insufficient")
-
-        for (vendor_id, shop_id), subtotal in vendor_totals.items():
-            comm = 0
-            amount = max(0, subtotal - comm)
-            db.session.add(VendorPayout(
-                order_id=order.id,
-                vendor_id=vendor_id,
-                shop_id=shop_id,
-                subtotal_cents=subtotal,
-                commission_cents=comm,
-                amount_cents=amount,
-                status="pending"
-            ))
-
-        db.session.commit()
-        try:
-            from ..services.traffic_stats import track_order_created
-            track_order_created()
-        except Exception as e:
-            current_app.logger.warning(f"track_order_created failed (non bloquant): {e}")
-    except ValueError:
-        db.session.rollback()
-        return _ajax_error("Stock insuffisant. Merci de verifier votre panier.", status=409, flash_category="danger", redirect_endpoint="cart.view")
-    except SQLAlchemyError:
-        db.session.rollback()
-        current_app.logger.exception("Erreur checkout")
-        return _ajax_error("Erreur serveur. Merci de reessayer.", status=500, flash_category="danger", redirect_endpoint="cart.checkout")
-
-    if guest_token:
-        GuestSessionManager.remember_order_token(guest_token)
-
-    from ..services.audit import log_access
-    try:
-        log_access(
-            "create_order",
-            "order",
-            order.id,
-            success=True,
-            changes={
-                "total_cents": order.total,
-                "city": order.city,
-                "items_count": len(items)
-            }
-        )
-    except Exception as e:
-        current_app.logger.exception("Audit create_order failed", extra={"order_id": order.id})
-
-    session["track_phone"] = phone
-    session["track_phone_raw"] = phone
-
-    message = build_whatsapp_order_message(order, map_link=map_link)
-    wa_url = f"https://wa.me/{number}?text={quote(message)}"
-    try:
-        from ..services.traffic_stats import track_custom_event
-        track_custom_event("whatsapp_open")
-    except Exception as e:
-        current_app.logger.warning(f"track_custom_event whatsapp_open failed (non bloquant): {e}")
-
-    session["last_checkout_url"] = wa_url
-    session["last_checkout_at"] = datetime.utcnow().isoformat()
-
-    _clear_cart_storage()
+    client_data = {}
+    checkout_data = prepare_vendor_whatsapp_checkout(items, client_data)
+    record_product_contact_leads(checkout_data, client_data)
 
     if _is_ajax_request():
-        response = jsonify({"success": True, "wa_url": wa_url})
-        return set_phone_cookie(response, phone_digits)
+        return jsonify({
+            "success": True,
+            "message": "Demandes WhatsApp boutique preparees.",
+            "requires_full_page": True,
+        })
 
-    response = redirect(wa_url)
-    return set_phone_cookie(response, phone_digits)
-
-
-# =====================================================
-# SUIVI PAR TOKEN
-# =====================================================
-@bp.route("/track/<token>", methods=["GET", "POST"])
-def track(token):
-    order = Order.query.filter_by(token=token).first_or_404()
-
-    from ..services.audit import log_view_order
-    log_view_order(order.id, source="track_token")
-
-    is_admin = bool(current_user.is_authenticated and current_user.role == "admin")
-    matched_cookie = False
-    matched_input = False
-
-    if order.buyer_id and not is_admin:
-        matched_cookie = cookie_matches_order_phone(order)
-        if not matched_cookie and request.method == "POST":
-            phone_input = (request.form.get("phone") or "").strip()
-            matched_input = input_matches_order_phone(order, phone_input)
-            if not matched_input:
-                flash("Numéro incorrect. Entrez votre numéro ou les 4 derniers chiffres.", "danger")
-
-        if not matched_cookie and not matched_input:
-            return render_template("cart/track_verify_phone.html", order=order), 403
-
-    current_delivery_status = (order.delivery_status or "").strip().lower()
-    if not current_delivery_status:
-        order_status = (order.status or "").strip().lower()
-        if order_status == "delivered":
-            current_delivery_status = "delivered"
-        elif order_status in {"cancelled", "canceled"}:
-            current_delivery_status = "canceled"
-        elif order_status in {"shipping", "shipped"}:
-            current_delivery_status = "delivering"
-        else:
-            current_delivery_status = "new"
-
-    if current_delivery_status == "delivered" and order.delivered_at:
-        if datetime.utcnow() > order.delivered_at + timedelta(hours=72):
-            flash("Commande expirée.", "info")
-            return redirect(url_for("shop.home"))
-
-    elapsed_hours = None
-    if order.delivered_at:
-        elapsed_hours = (datetime.utcnow() - order.delivered_at).total_seconds() / 3600
-
-    lang = normalize_lang(session.get("lang") or getattr(g, "lang", None))
-    status_labels = delivery_status_labels_for_lang(lang)
-    response = make_response(
-        render_template(
-            "shop/track_order.html",
-            order=order,
-            elapsed_hours=elapsed_hours,
-            current_delivery_status=current_delivery_status,
-            delivery_status_label=label_delivery_status(current_delivery_status, lang),
-            order_status_label=label_order_status(order.status, lang),
-            source_label=label_source(order.delivery_source, lang),
-            status_labels=status_labels,
-        )
-    )
-    if order.buyer_id and not is_admin and (matched_cookie or matched_input):
-        order_digits = get_order_phone_digits(order)
-        if order_digits:
-            response = set_phone_cookie(response, order_digits)
-            remembered_phone = (order.phone or order_digits).strip()
-            session["track_phone"] = remembered_phone
-            session["track_phone_raw"] = remembered_phone
+    response = make_response(render_template(
+        "cart/vendor_whatsapp_checkout.html",
+        checkout_data=checkout_data,
+        shop_groups=checkout_data["shop_groups"],
+        client_data=client_data,
+    ))
     return response
 
 
-@bp.route("/track/<token>/status")
-def track_status(token):
-    order = Order.query.filter_by(token=token).first_or_404()
-
-    if order.buyer_id:
-        is_admin = bool(current_user.is_authenticated and current_user.role == "admin")
-        if not is_admin and not cookie_matches_order_phone(order):
-            return jsonify({"error": "forbidden"}), 403
-    else:
-        if not GuestSessionManager.can_access_order(order):
-            return jsonify({"error": "forbidden"}), 403
-
-    lang = normalize_lang(session.get("lang") or getattr(g, "lang", None))
-    delivery_status = (order.delivery_status or "").strip().lower()
-    if not delivery_status:
-        order_status = (order.status or "").strip().lower()
-        if order_status == "delivered":
-            delivery_status = "delivered"
-        elif order_status in {"cancelled", "canceled"}:
-            delivery_status = "canceled"
-        elif order_status in {"shipping", "shipped"}:
-            delivery_status = "delivering"
-        else:
-            delivery_status = "new"
-    return jsonify({
-        "id": order.id,
-        "status": order.status,
-        "status_label": label_order_status(order.status, lang),
-        "delivery_status": delivery_status,
-        "delivery_status_label": label_delivery_status(delivery_status, lang),
-        "source_label": label_source(order.delivery_source, lang),
-        "assigned_at": order.assigned_at.isoformat() if order.assigned_at else None,
-        "picked_up_at": order.picked_up_at.isoformat() if order.picked_up_at else None,
-        "delivered_at": order.delivered_at.isoformat() if order.delivered_at else None,
-        "total": order.total,
-        "commission": order.commission,
-        "delivery_price_cents": order.delivery_price_cents or order.shipping or 0,
-        "delivery_platform_fee_cents": order.delivery_platform_fee_cents or 0,
-        "delivery_courier_net_cents": order.delivery_courier_net_cents or 0,
-        "lang": lang,
-    })
-
-
-# =====================================================
-# SUIVI PAR TELEPHONE
-# =====================================================
-@bp.route("/suivi", methods=["GET", "POST"])
-@rate_limit(limit=15, window_seconds=600, key_prefix="track_phone", methods=("POST",))
-def track_by_phone():
-    if request.method == "POST":
-        phone_raw = (request.form.get("phone") or "").strip()
-        country_code = (request.form.get("country_code") or "").strip()
-        phone_local = (request.form.get("phone_local") or "").strip()
-        custom_code = (request.form.get("custom_country_code") or "").strip()
-
-        if not phone_raw and phone_local:
-            code_raw = custom_code if country_code == "custom" else country_code
-            code_digits = _digits_only(code_raw)
-            code = f"+{code_digits}" if code_digits else ""
-            local_digits = _digits_only(phone_local)
-            if code_digits and local_digits.startswith(f"00{code_digits}"):
-                local_digits = local_digits[len(code_digits) + 2 :]
-            elif code_digits and local_digits.startswith(code_digits) and len(local_digits) > (len(code_digits) + 4):
-                local_digits = local_digits[len(code_digits) :]
-            if code_digits and local_digits.startswith("0"):
-                local_digits = local_digits.lstrip("0") or local_digits
-            phone_raw = f"{code}{local_digits}" if code else phone_local
-
-        if not phone_raw:
-            flash("Veuillez saisir votre numéro de téléphone.", "warning")
-            return redirect(url_for("cart.track_by_phone"))
-        normalized, digits, _ = _phone_candidates(phone_raw)
-        if not digits or len(digits) < 6:
-            flash("Numéro de téléphone invalide.", "danger")
-            return redirect(url_for("cart.track_by_phone"))
-
-        session["track_phone"] = normalized or digits or phone_raw
-        session["track_phone_raw"] = phone_raw
-        response = redirect(url_for("cart.my_orders"))
-        return set_phone_cookie(response, digits)
-
-    remembered = (session.get("track_phone_raw") or session.get("track_phone") or "").strip() or read_phone_cookie_digits()
-    return render_template("cart/track_phone.html", remembered=remembered)
-
-
-@bp.route("/mes-commandes")
-def my_orders():
-    cookie_digits = read_phone_cookie_digits()
-    if cookie_digits:
-        _, _, cookie_candidates = _phone_candidates(cookie_digits)
-        cookie_filters = [Order.phone_digits == cookie_digits]
-        if cookie_candidates:
-            cookie_filters.append(Order.phone.in_(cookie_candidates))
-        orders = (
-            Order.query
-            .filter(or_(*cookie_filters))
-            .order_by(Order.created_at.desc())
-            .all()
-        )
-        display_phone = f"***{cookie_digits[-4:]}" if len(cookie_digits) >= 4 else "***"
-        response = make_response(render_template("cart/my_orders.html", orders=orders, phone=display_phone))
-        return set_phone_cookie(response, cookie_digits)
-
-    phone_raw = (session.get("track_phone_raw") or session.get("track_phone") or "").strip()
-    if not phone_raw:
-        return redirect(url_for("cart.track_by_phone"))
-
-    _, digits, candidates = _phone_candidates(phone_raw)
-    query = Order.query
-
-    filters = []
-    if digits:
-        filters.append(Order.phone_digits == digits)
-    if candidates:
-        filters.append(Order.phone.in_(candidates))
-
-    if filters:
-        query = query.filter(or_(*filters))
-    else:
-        query = query.filter_by(phone=phone_raw)
-
-    orders = query.order_by(Order.created_at.desc()).all()
-    display_phone = phone_raw
-    response = make_response(render_template("cart/my_orders.html", orders=orders, phone=display_phone))
-    if digits and len(digits) >= 6:
-        response = set_phone_cookie(response, digits)
-    return response
-
-
-# =====================================================
 # VIDER PANIER
 # =====================================================
 @bp.route("/clear", methods=["POST"])

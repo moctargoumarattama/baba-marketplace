@@ -47,7 +47,6 @@
                                 <select class="form-select" id="role" name="role" required>
                                     <option value="">{{ 'Choisir un type de compte' if current_user.role == 'manager' else 'Sélectionner un rôle' }}</option>
                                     <option value="vendor" {% if selected_role == 'vendor' %}selected{% endif %}>Vendeur</option>
-                                    <option value="courier" {% if selected_role == 'courier' %}selected{% endif %}>Livreur</option>
                                     {% if 'manager' in manageable_roles %}
                                     <option value="manager" {% if selected_role == 'manager' %}selected{% endif %}>Gestionnaire</option>
                                     {% endif %}

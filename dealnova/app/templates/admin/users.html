@@ -221,7 +221,6 @@
   }
 
   .role-vendor { background-color: #198754; color: #fff; }
-  .role-courier { background-color: #0ea5e9; color: #fff; }
   .role-admin { background-color: #0d6efd; color: #fff; }
   .role-manager { background-color: #f59e0b; color: #1f2937; }
 
@@ -294,7 +293,7 @@
           <i class="bi bi-people"></i>
           {{ 'Comptes' if current_user.role == 'manager' else 'Gestion des utilisateurs' }}
         </h2>
-        <p class="users-subtitle">{{ 'Retrouvez ici les vendeurs et les livreurs.' if current_user.role == 'manager' else 'Centralisez les comptes et les acces utiles au quotidien.' }}</p>
+        <p class="users-subtitle">{{ 'Retrouvez ici les vendeurs.' if current_user.role == 'manager' else 'Centralisez les comptes et les acces utiles au quotidien.' }}</p>
       </div>
       <div class="users-cta">
         <a href="{{ url_for('admin_users.create_user') }}" class="btn btn-primary">
@@ -328,13 +327,6 @@
       </div>
     </div>
     {% endif %}
-    <div class="stat-card">
-      <div class="stat-icon"><i class="bi bi-truck"></i></div>
-      <div>
-        <div class="stat-label">Livreurs</div>
-        <div class="stat-value">{{ roles_stats.courier }}</div>
-      </div>
-    </div>
   </section>
 
   {% include "admin/partials/_users_filters.html" %}

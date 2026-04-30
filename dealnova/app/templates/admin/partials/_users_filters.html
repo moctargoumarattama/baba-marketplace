@@ -15,7 +15,6 @@
         <select class="form-select" id="role" name="role">
           <option value="">{{ 'Tous les comptes' if current_user.role == 'manager' else 'Tous les roles' }}</option>
           <option value="vendor" {% if role_filter == 'vendor' %}selected{% endif %}>Vendeur</option>
-          <option value="courier" {% if role_filter == 'courier' %}selected{% endif %}>Livreur</option>
           {% if current_user.role == 'admin' %}
           <option value="manager" {% if role_filter == 'manager' %}selected{% endif %}>Gestionnaire</option>
           <option value="admin" {% if role_filter == 'admin' %}selected{% endif %}>Admin</option>

@@ -25,7 +25,7 @@
         </div>
         <div class="title-text">
           <h1>{% if product %}Modifier le {{ base_label }}{% else %}Nouveau {{ base_label }}{% endif %}</h1>
-          <p class="subtitle">{% if product %}Mettez a jour l'essentiel de votre {{ base_label }}{% else %}Ajoutez un {{ base_label }} clair, propre et pret a publier{% endif %}</p>
+          <p class="subtitle">{% if product %}Mettez à jour l'essentiel de votre {{ base_label }}{% else %}Ajoutez un {{ base_label }} clair, propre et prêt à publier{% endif %}</p>
         </div>
       </div>
       <a class="btn-back" href="{{ url_for('vendor.dashboard') }}">
@@ -33,7 +33,7 @@
           <line x1="19" y1="12" x2="5" y2="12"></line>
           <polyline points="12 19 5 12 12 5"></polyline>
         </svg>
-        <span>Retour dashboard</span>
+        <span>Retour tableau de bord</span>
       </a>
     </div>
   </div>
@@ -46,8 +46,8 @@
       <div class="catalog-warning">
         <div class="catalog-warning-icon">!</div>
         <div>
-          <strong>Produit masque par l'admin</strong>
-          <p>Pour le reactiver, completez les elements suivants :</p>
+          <strong>Produit masqué par l'admin</strong>
+          <p>Pour le réactiver, complétez les éléments suivants :</p>
           <ul>
             {% for reason in catalog_block_reasons %}
             <li>{{ reason }}</li>
@@ -269,8 +269,8 @@
         <div class="section-header">
           <div class="section-number">05</div>
           <div class="section-title">
-            <h3>Video</h3>
-            <p>Une video courte pour mieux presenter votre {{ base_label }}</p>
+            <h3>Vidéo</h3>
+            <p>Une vidéo courte pour mieux présenter votre {{ base_label }}</p>
           </div>
         </div>
 
@@ -285,8 +285,8 @@
               </svg>
             </div>
             <div class="upload-text">
-              <p class="upload-title">Ajoutez une video</p>
-              <p class="upload-subtitle">1 video max - {{ max_video_mb or 30 }} MB - apercu direct</p>
+              <p class="upload-title">Ajoutez une vidéo</p>
+              <p class="upload-subtitle">1 vidéo max - {{ max_video_mb or 30 }} MB - aperçu direct</p>
             </div>
             <button type="button" class="btn-upload">Choisir une video</button>
           </div>
@@ -294,13 +294,13 @@
 
         <div class="preview-section" id="videoPreviewContainer" style="display: none;">
           <div class="preview-header">
-            <h4>Apercu video <span class="badge-count" id="newVideoCount">0</span></h4>
+            <h4>Aperçu vidéo <span class="badge-count" id="newVideoCount">0</span></h4>
             <button type="button" class="btn-text-danger" id="clearVideoBtn">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polyline points="3 6 5 6 21 6"></polyline>
                 <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
               </svg>
-              Retirer la video
+              Retirer la vidéo
             </button>
           </div>
           <div id="videoPreviewGrid" class="preview-grid video-preview-grid"></div>
@@ -309,7 +309,7 @@
         {% if product and product.video_file %}
         <div class="existing-images-section">
           <div class="preview-header">
-            <h4>Video actuelle <span class="badge-count">1</span></h4>
+            <h4>Vidéo actuelle <span class="badge-count">1</span></h4>
           </div>
           <input type="hidden" name="remove_video" id="removeVideoInput" value="">
           <div class="preview-grid existing video-preview-grid">
@@ -318,9 +318,9 @@
                 <source src="{{ url_for('static', filename=product.video_file) }}">
               </video>
               <div class="image-overlay">
-                <span class="existing-badge">Video</span>
+                <span class="existing-badge">Vidéo</span>
               </div>
-              <button type="button" class="remove-btn js-remove-existing-video" title="Retirer cette video"></button>
+              <button type="button" class="remove-btn js-remove-existing-video" title="Retirer cette vidéo"></button>
             </div>
           </div>
         </div>
@@ -336,18 +336,29 @@
             <polyline points="17 21 17 13 7 13 7 21"></polyline>
             <polyline points="7 3 7 8 15 8"></polyline>
           </svg>
-          {% if product %}Sauvegarder les modifications{% else %}Creez le {{ base_label }}{% endif %}
+          {% if product %}Enregistrer les modifications{% else %}Créer le {{ base_label }}{% endif %}
         </button>
       </div>
     </form>
   </div>
 </div>
 
+<div class="mobile-save-bar" aria-label="Enregistrement rapide">
+  <button type="submit" form="productForm" class="mobile-save-btn">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+      <polyline points="17 21 17 13 7 13 7 21"></polyline>
+      <polyline points="7 3 7 8 15 8"></polyline>
+    </svg>
+    <span>{% if product %}Enregistrer{% else %}Créer{% endif %}</span>
+  </button>
+</div>
+
 <div class="media-lightbox" id="mediaLightbox" hidden>
   <button type="button" class="media-lightbox-backdrop" id="mediaLightboxBackdrop" aria-label="Fermer l'aperçu"></button>
-  <div class="media-lightbox-dialog" role="dialog" aria-modal="true" aria-label="Apercu de l'image">
+  <div class="media-lightbox-dialog" role="dialog" aria-modal="true" aria-label="Aperçu de l'image">
     <button type="button" class="media-lightbox-close" id="mediaLightboxClose" aria-label="Fermer">x</button>
-    <img src="" alt="Apercu" class="media-lightbox-image" id="mediaLightboxImage">
+    <img src="" alt="Aperçu" class="media-lightbox-image" id="mediaLightboxImage">
   </div>
 </div>
 
@@ -974,7 +985,7 @@
   }
 
   .video-preview-frame::after {
-    content: "Apercu";
+    content: "Aperçu";
     position: absolute;
     left: 0.65rem;
     top: 0.65rem;
@@ -1056,9 +1067,29 @@
     transform: translateY(0);
   }
 
+  .mobile-save-bar {
+    display: none;
+  }
+
+  .mobile-save-btn {
+    align-items: center;
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    border: 0;
+    border-radius: 16px;
+    box-shadow: 0 18px 34px -20px rgba(79, 70, 229, 0.95);
+    color: #fff;
+    display: inline-flex;
+    font-weight: 800;
+    gap: 0.55rem;
+    justify-content: center;
+    min-height: 52px;
+    padding: 0.85rem 1rem;
+    width: 100%;
+  }
+
   @media (max-width: 768px) {
     .product-editor-container {
-      padding: 0.9rem 0.7rem;
+      padding: 0.9rem 0.7rem 5.75rem;
     }
 
     .product-form {
@@ -1085,6 +1116,19 @@
     .btn-submit, .btn-cancel {
       width: 100%;
       justify-content: center;
+    }
+
+    .mobile-save-bar {
+      background: rgba(255, 255, 255, 0.94);
+      border-top: 1px solid rgba(226, 232, 240, 0.9);
+      bottom: 0;
+      box-shadow: 0 -12px 28px rgba(15, 23, 42, 0.08);
+      display: block;
+      left: 0;
+      padding: 0.7rem 0.85rem calc(0.7rem + env(safe-area-inset-bottom, 0px));
+      position: fixed;
+      right: 0;
+      z-index: 1050;
     }
 
     .preview-grid {

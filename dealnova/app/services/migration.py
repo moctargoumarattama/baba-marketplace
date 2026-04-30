@@ -454,17 +454,6 @@ def ensure_user_vendor_history_pin_column():
         print(f"? Erreur lors de l'ajout de la colonne vendor_history_pin_hash : {e}")
 
 
-def ensure_vendor_period_table():
-    """Cree la table vendor_period si absente."""
-    print("?? Verification de la table vendor_period...")
-    try:
-        from ..models.vendor_period import VendorPeriod
-        VendorPeriod.__table__.create(db.engine, checkfirst=True)
-        print("? Table vendor_period verifiee")
-    except Exception as e:
-        print(f"? Erreur vendor_period: {e}")
-
-
 def ensure_vendor_receipt_table():
     """Cree la table vendor_receipt si absente."""
     print("?? Verification de la table vendor_receipt...")

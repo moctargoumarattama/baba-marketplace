@@ -29,6 +29,8 @@
     <meta name="theme-color" content="#10B981">
     <title>{% block title %}Admin Panel | BABA MARKET{% endblock %}</title>
     <link rel="icon" href="{{ url_for('favicon') }}" sizes="any">
+    <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='android-chrome-192x192.png') }}">
+    <link rel="icon" type="image/png" sizes="512x512" href="{{ url_for('static', filename='android-chrome-512x512.png') }}">
     <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='favicon-32x32.png', v=app_static_version) }}">
     <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename='favicon-16x16.png', v=app_static_version) }}">
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png', v=app_static_version) }}">
@@ -861,15 +863,14 @@
       data-page="{{ request.endpoint or '' }}"
       data-static-version="{{ app_static_version }}"
       data-static-root="{{ url_for('static', filename='') }}"
-      data-notify-url="{{ notify_url if notify_url is not none else url_for('admin.orders_notifications') }}"
+      data-notify-url="{{ notify_url if notify_url is defined and notify_url else '' }}"
       data-notify-interval="5000"
-      data-notify-pages="admin.all_orders,admin.deliveries,admin.deliveries_live,admin_users.fraud_monitor,courier.panel_orders,courier.panel_deliveries"
+      data-notify-pages="admin_users.fraud_monitor"
       {% block body_attrs %}{% endblock %}>
     {% set ep = request.endpoint or '' %}
-    {% set is_courier = current_user.is_authenticated and current_user.role == 'courier' %}
-    {% set admin_back_scope = 'courier' if is_courier else 'admin' %}
-    {% set admin_back_fallback = url_for('courier.panel_deliveries') if is_courier else url_for('admin_users.admin_dashboard') %}
-    {% set admin_back_is_root = ep in ['courier.panel_deliveries', 'courier.panel_orders'] if is_courier else ep == 'admin_users.admin_dashboard' %}
+    {% set admin_back_scope = 'admin' %}
+    {% set admin_back_fallback = url_for('admin_users.admin_dashboard') %}
+    {% set admin_back_is_root = ep == 'admin_users.admin_dashboard' %}
     <div class="pointer-glow" aria-hidden="true"></div>
 
     <nav class="sidebar" id="sidebar" role="navigation" aria-label="Menu principal">
@@ -884,23 +885,17 @@
         </div>
 
         <ul class="nav-menu">
-            {% if is_courier %}
-            <li class="nav-item">
-                <a class="nav-link {% if ep == 'courier.panel_orders' or ep == 'courier.panel_deliveries' %}active{% endif %}" href="{{ url_for('courier.panel_deliveries') }}">
-                    <i class="bi bi-truck"></i><span>Livraisons</span><span class="nav-badge is-hidden" id="sidebarPendingBadge">0</span>
-                </a>
-            </li>
-            {% else %}
             <li class="nav-item"><a class="nav-link {% if ep == 'admin_users.admin_dashboard' %}active{% endif %}" href="{{ url_for('admin_users.admin_dashboard') }}"><i class="bi bi-grid-fill"></i><span>Dashboard</span></a></li>
-            {% if current_user.role == 'admin' %}
+            {% if current_user.role in ['admin', 'manager'] %}
             <li class="nav-item"><a class="nav-link {% if ep == 'admin_users.audience_dashboard' %}active{% endif %}" href="{{ url_for('admin_users.audience_dashboard') }}"><i class="bi bi-broadcast-pin"></i><span>Audience</span></a></li>
             {% endif %}
             <li class="nav-item"><a class="nav-link {% if 'user' in ep %}active{% endif %}" href="{{ url_for('admin_users.manage_users') }}"><i class="bi bi-people-fill"></i><span>Utilisateurs</span></a></li>
             <li class="nav-item"><a class="nav-link {% if 'shop' in ep %}active{% endif %}" href="{{ url_for('admin_users.manage_shops') }}"><i class="bi bi-shop"></i><span>Boutiques</span></a></li>
             <li class="nav-item"><a class="nav-link {% if 'rentals.admin_locations' in ep or 'admin/locations' in request.path %}active{% endif %}" href="{{ url_for('rentals.admin_locations') }}"><i class="bi bi-house-door"></i><span>Locations</span></a></li>
+            <li class="nav-item"><a class="nav-link {% if ep.startswith('admin.deliver') or ep == 'admin.order_detail' %}active{% endif %}" href="{{ url_for('admin.deliveries') }}"><i class="bi bi-truck"></i><span>Livraisons</span></a></li>
             <li class="nav-item">
-                <a class="nav-link {% if 'order' in ep %}active{% endif %}" href="{{ url_for('admin.all_orders') }}">
-                    <i class="bi bi-bag-check-fill"></i><span>Commandes</span><span class="nav-badge is-hidden" id="sidebarPendingBadge">0</span>
+                <a class="nav-link {% if ep == 'admin.product_contacts' %}active{% endif %}" href="{{ url_for('admin.product_contacts') }}">
+                    <i class="bi bi-chat-dots-fill"></i><span>Contacts produits</span>
                 </a>
             </li>
             <li class="nav-item"><a class="nav-link {% if ep.startswith('admin.finance') %}active{% endif %}" href="{{ url_for('admin.finance') }}"><i class="bi bi-graph-up-arrow"></i><span>Finance</span></a></li>
@@ -913,14 +908,12 @@
             {% if current_user.role == 'admin' %}
             <li class="nav-item"><a class="nav-link {% if 'log' in ep %}active{% endif %}" href="{{ url_for('admin_users.view_logs') }}"><i class="bi bi-clock-history"></i><span>Logs</span></a></li>
             {% endif %}
-            <li class="nav-item"><a class="nav-link {% if ep == 'admin.deliveries' or ep == 'admin.deliveries_live' %}active{% endif %}" href="{{ url_for('admin.deliveries') }}"><i class="bi bi-truck"></i><span>Livraisons</span></a></li>
-            <li class="nav-item"><a class="nav-link {% if 'pricing' in ep or 'settings' in ep or ep == 'admin.order_archives' or ep == 'admin.order_periods' %}active{% endif %}" href="{{ url_for('admin.pricing_settings') }}"><i class="bi bi-sliders"></i><span>Parametres</span></a></li>
+            <li class="nav-item"><a class="nav-link {% if 'pricing' in ep or 'settings' in ep %}active{% endif %}" href="{{ url_for('admin.pricing_settings') }}"><i class="bi bi-sliders"></i><span>Parametres</span></a></li>
             {% if current_user.role == 'admin' %}
             <li class="nav-item"><a class="nav-link {% if 'admin.maintenance' in ep or 'run_maintenance' in ep or 'maintenance_reset_data' in ep %}active{% endif %}" href="{{ url_for('admin.maintenance') }}"><i class="bi bi-tools"></i><span>Maintenance systeme</span></a></li>
             {% endif %}
             <li class="nav-item"><a class="nav-link {% if 'admin_categories' in ep %}active{% endif %}" href="{{ url_for('admin_categories.index') }}"><i class="bi bi-tags-fill"></i><span>Categories</span></a></li>
             <li class="nav-item nav-item-site"><a class="nav-link" href="{{ url_for('shop.home') }}"><i class="bi bi-box-arrow-left"></i><span>Retour au site</span></a></li>
-            {% endif %}
         </ul>
 
         <div class="sidebar-footer">
@@ -928,7 +921,7 @@
                 <div class="user-avatar">{{ current_user.username[0].upper() }}</div>
                 <div class="user-meta">
                     <div class="user-name">{{ current_user.username }}</div>
-                    <div class="user-role">{{ 'Livreur' if is_courier else ('Gestionnaire' if current_user.role == 'manager' else 'Administrateur') }}</div>
+                    <div class="user-role">{{ 'Gestionnaire' if current_user.role == 'manager' else 'Administrateur' }}</div>
                 </div>
             </div>
         </div>
@@ -950,20 +943,15 @@
                 <h1 class="page-title">{% block page_title %}Dashboard{% endblock %}</h1>
             </div>
             <div class="actions">
-                {% if not is_courier %}
-                <a href="{{ url_for('admin.all_orders') }}" class="btn-custom btn-outline-custom" aria-label="Commandes">
-                    <i class="bi bi-bag-check-fill"></i><span>Commandes</span>
-                </a>
-                <a href="{{ url_for('admin.deliveries') }}" class="btn-custom btn-outline-custom" aria-label="Livraisons">
-                    <i class="bi bi-truck"></i><span>Livraisons</span>
+                <a href="{{ url_for('admin.product_contacts') }}" class="btn-custom btn-outline-custom" aria-label="Contacts produits">
+                    <i class="bi bi-chat-dots-fill"></i><span>Contacts produits</span>
                 </a>
                 <a href="{{ url_for('admin_users.reconciliation') }}" class="btn-custom btn-outline-custom" aria-label="Abonnements">
                     <i class="bi bi-cash-stack"></i><span>Abonnements</span>
                 </a>
-                {% endif %}
                 <button class="btn-custom btn-outline-custom btn-theme-toggle" type="button" id="adminThemeToggle" aria-label="Theme admin"></button>
                 <button class="btn-custom btn-outline-custom btn-sound" type="button" id="soundToggle" aria-label="Activer/Désactiver le son"></button>
-                <a href="{{ url_for('courier.panel_deliveries') if is_courier else url_for('admin_users.admin_dashboard') }}" class="btn-custom btn-outline-custom" aria-label="Accueil"><i class="bi bi-house-fill"></i></a>
+                <a href="{{ url_for('admin_users.admin_dashboard') }}" class="btn-custom btn-outline-custom" aria-label="Accueil"><i class="bi bi-house-fill"></i></a>
                 <form method="post" action="{{ url_for('auth.logout') }}" class="d-inline">
                     {% include "admin/partials/_csrf.html" %}
                     <button type="submit" class="btn-custom btn-primary-custom"><i class="bi bi-box-arrow-right"></i> Deconnexion</button>
@@ -989,8 +977,8 @@
     <div id="admin-order-toast" class="admin-order-toast" role="alert" aria-live="polite" aria-atomic="true">
         <div class="toast-icon" aria-hidden="true"><i class="bi bi-whatsapp"></i></div>
         <div>
-            <div class="toast-title">Nouvelle commande</div>
-            <div class="toast-text" id="admin-order-toast-text">1 commande en attente</div>
+            <div class="toast-title">Nouvelle livraison</div>
+            <div class="toast-text" id="admin-order-toast-text">1 livraison en attente</div>
         </div>
     </div>
 

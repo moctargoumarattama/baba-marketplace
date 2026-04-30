@@ -29,20 +29,16 @@
     featurePolling: "js/ajax/features/polling.js",
     shopHomePage: "js/pages/shop_home_page.js",
     shopsPage: "js/shops_page.js",
-    checkoutPage: "js/pages/checkout_page.js",
-    deliveryPricing: "js/delivery_pricing.js",
     locationsIndexPage: "js/pages/locations_index_page.js"
   };
 
   var CLIENT_MAP = {
     shop_home: [ASSETS.coreCart, ASSETS.ajaxPagination, ASSETS.shopHomePage],
-    checkout: [ASSETS.coreCart, ASSETS.deliveryPricing, ASSETS.checkoutPage],
     shops: [ASSETS.coreCart, ASSETS.ajaxPagination, ASSETS.shopsPage],
     locations_index: [ASSETS.coreCart, ASSETS.ajaxPagination, ASSETS.locationsIndexPage],
 
     // Compatibility aliases if templates still expose endpoint-like page ids.
     "shop.home": [ASSETS.coreCart, ASSETS.ajaxPagination, ASSETS.shopHomePage],
-    "cart.checkout": [ASSETS.coreCart, ASSETS.deliveryPricing, ASSETS.checkoutPage],
     "shops.list_shops": [ASSETS.coreCart, ASSETS.ajaxPagination, ASSETS.shopsPage],
     "rentals.locations_home": [ASSETS.coreCart, ASSETS.ajaxPagination, ASSETS.locationsIndexPage]
   };
@@ -59,11 +55,9 @@
   var VENDOR_MAP = {
     "vendor.dashboard": VENDOR_RUNTIME,
     "vendor.earnings": VENDOR_RUNTIME,
-    "vendor.periods": VENDOR_RUNTIME,
     "vendor.manage_shop": [ASSETS.coreLive, ASSETS.liveShim, ASSETS.featureForms],
     "vendor.product_new": [ASSETS.coreLive, ASSETS.liveShim, ASSETS.featureForms],
-    "vendor.product_edit": [ASSETS.coreLive, ASSETS.liveShim, ASSETS.featureForms],
-    "vendor.security": [ASSETS.coreLive, ASSETS.liveShim, ASSETS.featureForms]
+    "vendor.product_edit": [ASSETS.coreLive, ASSETS.liveShim, ASSETS.featureForms]
   };
 
   var LOAD_PLANS = {
@@ -73,15 +67,11 @@
     "shops.list_shops": [[ASSETS.shopsPage, ASSETS.coreCart, ASSETS.ajaxPagination]],
     locations_index: [[ASSETS.locationsIndexPage, ASSETS.coreCart, ASSETS.ajaxPagination]],
     "rentals.locations_home": [[ASSETS.locationsIndexPage, ASSETS.coreCart, ASSETS.ajaxPagination]],
-    checkout: [[ASSETS.deliveryPricing, ASSETS.coreCart], [ASSETS.checkoutPage]],
-    "cart.checkout": [[ASSETS.deliveryPricing, ASSETS.coreCart], [ASSETS.checkoutPage]],
     "vendor.dashboard": [[ASSETS.coreLive], [ASSETS.liveShim, ASSETS.ajaxPagination, ASSETS.featurePagination, ASSETS.featureForms, ASSETS.featurePolling]],
     "vendor.earnings": [[ASSETS.coreLive], [ASSETS.liveShim, ASSETS.ajaxPagination, ASSETS.featurePagination, ASSETS.featureForms, ASSETS.featurePolling]],
-    "vendor.periods": [[ASSETS.coreLive], [ASSETS.liveShim, ASSETS.ajaxPagination, ASSETS.featurePagination, ASSETS.featureForms, ASSETS.featurePolling]],
     "vendor.manage_shop": [[ASSETS.coreLive], [ASSETS.liveShim, ASSETS.featureForms]],
     "vendor.product_new": [[ASSETS.coreLive], [ASSETS.liveShim, ASSETS.featureForms]],
-    "vendor.product_edit": [[ASSETS.coreLive], [ASSETS.liveShim, ASSETS.featureForms]],
-    "vendor.security": [[ASSETS.coreLive], [ASSETS.liveShim, ASSETS.featureForms]]
+    "vendor.product_edit": [[ASSETS.coreLive], [ASSETS.liveShim, ASSETS.featureForms]]
   };
 
   var QUIET_PAGES = new Set([

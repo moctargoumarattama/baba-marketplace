@@ -1,13 +1,12 @@
+﻿import json
 import os
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, current_app, session
 from flask_login import login_required, current_user, logout_user
-from datetime import date, datetime, timedelta
-from urllib.parse import quote
+from datetime import datetime, timedelta
 from werkzeug.security import check_password_hash
 
 from ..extensions import db
-from ..models.order import Order, OrderItem
-from ..models.order_period import OrderPeriod
+from ..models.order import Order
 from ..models.financial import FinancialEntry
 from ..models.maintenance import ErrorLog, MaintenanceRun
 from ..models.product import Product
@@ -18,10 +17,12 @@ from ..models.vendor_fulfillment import VendorFulfillment
 from ..models.vendor_payout import VendorPayout
 from ..models.vendor_receipt import VendorReceipt
 from ..models.rental import RentalListing
+from ..models.product_contact_lead import ProductContactLead
+from ..models.subscription_payment import SubscriptionPayment
 from ..services.audit import log_access
 from sqlalchemy.orm import selectinload
 from sqlalchemy import case, or_
-from sqlalchemy.exc import SQLAlchemyError  # ✅ AJOUT
+from sqlalchemy.exc import SQLAlchemyError
 from ..services.cache import bump_catalog_version
 from ..services.featured_items import (
     disable_featured_item,
@@ -55,30 +56,18 @@ from ..services.maintenance_mode import (
     schedule_maintenance_mode,
 )
 from ..services.pagination import page_from_args
-from ..services.order_periods import (
-    CLOSED_STATUS,
-    OPEN_STATUS,
-    ORDER_DELETE_RETENTION_DAYS,
-    create_order_period,
-    close_order_period,
-    order_delete_guard,
-    period_bounds,
-)
-from ..services.financial_periods import (
+from ..services.date_filters import resolve_date_filter
+from ..services.finance_entries import (
     ENTRY_TYPE_DELIVERY_FEE,
     ENTRY_TYPE_RENTAL_COMMISSION,
     ENTRY_TYPE_SUBSCRIPTION,
-    ensure_financial_period_for_order_period,
     record_delivery_fee_entry,
 )
 from ..services.delivery_context import (
-    DELIVERY_SOURCE_MARKETPLACE,
     DELIVERY_SOURCE_SPECIAL,
-    build_courier_whatsapp_message,
     enrich_order_delivery_context,
     enrich_orders_delivery_context,
     normalize_delivery_source,
-    normalize_phone_for_wa,
 )
 from ..services.traffic_stats import get_live_traffic_metrics
 
@@ -88,12 +77,9 @@ MAINTENANCE_PANEL_SESSION_KEY = "maintenance_panel_unlock_until"
 MAINTENANCE_PANEL_DEFAULT_UNLOCK_MINUTES = 90
 
 FINAL_DELIVERY_ORDER_STATUSES = {"delivered", "cancelled", "archived"}
-COURIER_ASSIGNMENT_FILTERS = {"", "unassigned", "assigned", "delivered"}
-COURIER_DELIVERY_IN_PROGRESS = {"new", "assigned", "picked_up", "delivering"}
-COURIER_DELIVERY_COMPLETED = {"delivered", "canceled"}
-DELIVERY_SOURCE_FILTERS = {"", DELIVERY_SOURCE_MARKETPLACE, DELIVERY_SOURCE_SPECIAL}
+ACTIVE_DELIVERY_STATUSES = {"new"}
 ORDER_STATUS_FILTERS = {"", "pending", "delivered", "cancelled"}
-DELIVERY_STATUS_FILTERS = {"", "new", "assigned", "picked_up", "delivering", "delivered", "canceled"}
+DELIVERY_STATUS_FILTERS = {"", "new", "delivered", "canceled"}
 FEATURED_SEARCH_LIMIT = 18
 FEATURED_STATUS_FILTERS = {"all", "active", "expired", "stopped"}
 FEATURED_VIEW_FILTERS = {"overview", "history"}
@@ -143,146 +129,24 @@ def _parse_days(raw_value, default: int = 6, minimum: int = 1, maximum: int = 36
     return max(minimum, min(maximum, parsed))
 
 
-def _parse_iso_date(raw_value: str | None) -> date | None:
-    value = (raw_value or "").strip()
-    if not value:
-        return None
-    try:
-        return datetime.strptime(value, "%Y-%m-%d").date()
-    except ValueError:
-        return None
-
-
-def _bool_arg(value: str | None) -> bool:
-    return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
-
-
-def _order_period_choices() -> list[OrderPeriod]:
-    return (
-        OrderPeriod.query
-        .order_by(
-            db.case((OrderPeriod.status == OPEN_STATUS, 0), else_=1),
-            OrderPeriod.opened_at.desc(),
-            OrderPeriod.id.desc(),
-        )
-        .all()
-    )
-
-
-def _period_selection_from_request(default_to_open: bool = True) -> dict:
-    periods = _order_period_choices()
-    open_period = next((period for period in periods if period.status == OPEN_STATUS), None)
-
-    requested_period_id = request.args.get("period_id", type=int)
-    selected_period = None
-    selected_period_id = None
-
-    if requested_period_id:
-        selected_period = db.session.get(OrderPeriod, requested_period_id)
-        if selected_period is not None:
-            selected_period_id = selected_period.id
-    if selected_period is None and default_to_open and open_period is not None:
-        selected_period = open_period
-        selected_period_id = open_period.id
-
-    include_legacy = _bool_arg(request.args.get("include_legacy"))
-    read_only = bool(selected_period and selected_period.status == CLOSED_STATUS)
-    return {
-        "periods": periods,
-        "open_period": open_period,
-        "selected_period": selected_period,
-        "selected_period_id": selected_period_id,
-        "include_legacy": include_legacy,
-        "read_only": read_only,
-    }
-
-
-def _orders_query_for_period(*, selected_period_id: int | None, include_legacy: bool):
-    query = Order.query
-    if selected_period_id is not None:
-        if include_legacy:
-            return query.filter(or_(Order.period_id == selected_period_id, Order.period_id.is_(None)))
-        return query.filter(Order.period_id == selected_period_id)
-    if include_legacy:
-        return query.filter(Order.period_id.is_(None))
-    return query.filter(db.text("1=0"))
-
-
 def _archived_orders_query():
-    return (
-        Order.query
-        .join(OrderPeriod, Order.period_id == OrderPeriod.id)
-        .filter(OrderPeriod.status == CLOSED_STATUS)
+    return Order.query.filter(
+        Order.delivery_source == DELIVERY_SOURCE_SPECIAL,
+        or_(
+            Order.status.in_(tuple(FINAL_DELIVERY_ORDER_STATUSES)),
+            Order.delivery_status.in_(("delivered", "canceled")),
+        ),
     )
 
 
-def _archived_orders_context(source=None) -> dict:
-    source = source or request.args
-    archives_page = page_from_args(source, key="archives_page", default=1)
-    archive_period_id = source.get("archive_period_id", type=int)
-
-    query = _archived_orders_query().options(
-        selectinload(Order.items).selectinload(OrderItem.product),
-        selectinload(Order.period),
-    )
-    if archive_period_id:
-        query = query.filter(Order.period_id == archive_period_id)
-
-    archives_pagination = query.order_by(Order.created_at.desc()).paginate(
-        page=archives_page, per_page=50, error_out=False
-    )
-    archive_orders = archives_pagination.items
-
-    closed_periods = (
-        OrderPeriod.query
-        .filter(OrderPeriod.status == CLOSED_STATUS)
-        .order_by(OrderPeriod.closed_at.desc(), OrderPeriod.id.desc())
-        .all()
-    )
-
-    now = datetime.utcnow()
-    archive_delete_guards = {}
-    for order in archive_orders:
-        allowed, message, available_at = order_delete_guard(order, now=now)
-        archive_delete_guards[order.id] = {
-            "allowed": allowed,
-            "message": message,
-            "available_at": available_at,
-        }
-
-    return {
-        "archive_orders": archive_orders,
-        "archives_pagination": archives_pagination,
-        "archive_period_id": archive_period_id,
-        "closed_periods": closed_periods,
-        "archive_delete_guards": archive_delete_guards,
-        "retention_days": ORDER_DELETE_RETENTION_DAYS,
-    }
-
-
-def _order_periods_context() -> dict:
-    periods = (
-        OrderPeriod.query
-        .order_by(OrderPeriod.opened_at.desc(), OrderPeriod.id.desc())
-        .all()
-    )
-    open_period = next((period for period in periods if period.status == OPEN_STATUS), None)
-
-    period_counts = {
-        row.period_id: int(row.count)
-        for row in (
-            db.session.query(Order.period_id, db.func.count(Order.id).label("count"))
-            .group_by(Order.period_id)
-            .all()
-        )
-        if row.period_id is not None
-    }
-
-    return {
-        "periods": periods,
-        "open_period": open_period,
-        "period_counts": period_counts,
-    }
+def _delivery_delete_guard(order) -> tuple[bool, str, datetime | None]:
+    if order is None:
+        return False, "Livraison introuvable.", None
+    if not _is_express_delivery_order(order):
+        return False, "Suppression reservee aux livraisons express.", None
+    if (order.status or "").lower() not in FINAL_DELIVERY_ORDER_STATUSES:
+        return False, f"Suppression refusee: livraison non finalisee (statut {order.status}).", None
+    return True, "", None
 
 
 def _apply_delivery_filters(
@@ -294,10 +158,6 @@ def _apply_delivery_filters(
     city_filter: str = "",
     client_filter: str = "",
     phone_filter: str = "",
-    date_from: str = "",
-    date_to: str = "",
-    product_filter: str = "",
-    shop_filter: str = "",
 ):
     query = base_query
     if order_status_filter:
@@ -313,105 +173,7 @@ def _apply_delivery_filters(
     if phone_filter:
         query = query.filter(Order.phone.ilike(f"%{phone_filter}%"))
 
-    if date_from:
-        try:
-            start_dt = datetime.strptime(date_from, "%Y-%m-%d")
-            query = query.filter(Order.created_at >= start_dt)
-        except ValueError:
-            pass
-    if date_to:
-        try:
-            end_dt = datetime.strptime(date_to, "%Y-%m-%d") + timedelta(days=1)
-            query = query.filter(Order.created_at < end_dt)
-        except ValueError:
-            pass
-
-    if product_filter or shop_filter:
-        query = query.join(OrderItem, OrderItem.order_id == Order.id).join(
-            Product, OrderItem.product_id == Product.id
-        )
-        if shop_filter:
-            query = query.join(Shop, Product.shop_id == Shop.id)
-            query = query.filter(Shop.name.ilike(f"%{shop_filter}%"))
-        if product_filter:
-            query = query.filter(Product.name.ilike(f"%{product_filter}%"))
-        query = query.distinct()
     return query
-
-
-def _available_couriers() -> list[User]:
-    couriers = (
-        User.query
-        .filter(
-            User.role == "courier",
-            User.is_active.is_(True),
-            User.courier_is_active.is_(True),
-            User.courier_is_available.is_(True),
-        )
-        .order_by(User.username.asc())
-        .all()
-    )
-    return _attach_courier_delivery_counts(couriers)
-
-
-def _available_couriers_count() -> int:
-    return int(
-        User.query
-        .filter(
-            User.role == "courier",
-            User.is_active.is_(True),
-            User.courier_is_active.is_(True),
-            User.courier_is_available.is_(True),
-        )
-        .count()
-    )
-
-
-def _courier_filter_choices() -> list[User]:
-    couriers = (
-        User.query
-        .filter(User.role == "courier")
-        .order_by(User.username.asc())
-        .all()
-    )
-    return _attach_courier_delivery_counts(couriers)
-
-
-def _attach_courier_delivery_counts(couriers: list[User]) -> list[User]:
-    courier_ids = [courier.id for courier in couriers]
-    counts = {}
-    if courier_ids:
-        rows = (
-            db.session.query(
-                Order.courier_id.label("courier_id"),
-                db.func.count(Order.id).label("delivered_count"),
-            )
-            .filter(
-                Order.courier_id.in_(courier_ids),
-                Order.delivery_status == "delivered",
-            )
-            .group_by(Order.courier_id)
-            .all()
-        )
-        counts = {int(row.courier_id): int(row.delivered_count or 0) for row in rows if row.courier_id is not None}
-
-    for courier in couriers:
-        courier.delivered_count = counts.get(courier.id, 0)
-    return couriers
-
-
-def _normalize_courier_assignment_filter(raw_value: str | None) -> str:
-    value = (raw_value or "").strip().lower()
-    return value if value in COURIER_ASSIGNMENT_FILTERS else ""
-
-
-def _normalize_delivery_source_filter(raw_value: str | None) -> str:
-    value = (raw_value or "").strip().lower()
-    if value not in DELIVERY_SOURCE_FILTERS:
-        return ""
-    if not value:
-        return ""
-    return normalize_delivery_source(value)
 
 
 def _normalize_order_status_filter(raw_value: str | None) -> str:
@@ -424,35 +186,15 @@ def _normalize_delivery_status_filter(raw_value: str | None) -> str:
     return value if value in DELIVERY_STATUS_FILTERS else ""
 
 
-def _apply_courier_assignment_filter(query, assignment_filter: str):
-    if assignment_filter == "unassigned":
-        return query.filter(Order.courier_id.is_(None))
-    if assignment_filter == "assigned":
-        return query.filter(
-            Order.courier_id.isnot(None),
-            Order.delivery_status.in_(tuple(COURIER_DELIVERY_IN_PROGRESS)),
-        )
-    if assignment_filter == "delivered":
-        return query.filter(Order.delivery_status == "delivered")
-    return query
+def _is_express_delivery_order(order: Order) -> bool:
+    return normalize_delivery_source(getattr(order, "delivery_source", None)) == DELIVERY_SOURCE_SPECIAL
 
 
-def _sync_courier_availability(courier: User | None) -> None:
-    if courier is None:
-        return
-    if not courier.is_active or not courier.courier_is_active:
-        courier.courier_is_available = False
-        return
-    has_active_delivery = (
-        Order.query
-        .filter(
-            Order.courier_id == courier.id,
-            Order.delivery_status.in_(tuple(COURIER_DELIVERY_IN_PROGRESS)),
-        )
-        .first()
-        is not None
-    )
-    courier.courier_is_available = not has_active_delivery
+def _reject_product_delivery_action(message: str = "Les produits physiques sont geres directement entre client et boutique."):
+    if _is_ajax_request():
+        return jsonify(success=False, message=message), 410
+    flash(message, "warning")
+    return redirect(url_for("admin.product_contacts"))
 
 
 def _operational_deliveries_query(base_query, *, now: datetime | None = None, window_hours: int = 24):
@@ -460,7 +202,7 @@ def _operational_deliveries_query(base_query, *, now: datetime | None = None, wi
     cutoff = current_time - timedelta(hours=window_hours)
     return base_query.filter(
         or_(
-            Order.delivery_status.in_(tuple(COURIER_DELIVERY_IN_PROGRESS)),
+            Order.delivery_status.in_(tuple(ACTIVE_DELIVERY_STATUSES)),
             Order.created_at >= cutoff,
             Order.delivered_at >= cutoff,
         )
@@ -510,10 +252,10 @@ def _maintenance_status(value, warning: float, danger: float) -> dict:
     if numeric is None:
         return {"level": "na", "label": "N/A", "class_name": "status-na"}
     if numeric > danger:
-        return {"level": "danger", "label": "🔴 Danger", "class_name": "status-danger"}
+        return {"level": "danger", "label": "Danger", "class_name": "status-danger"}
     if numeric > warning:
-        return {"level": "warning", "label": "⚠️ A surveiller", "class_name": "status-warn"}
-    return {"level": "ok", "label": "✅ OK", "class_name": "status-ok"}
+        return {"level": "warning", "label": "âš ï¸ A surveiller", "class_name": "status-warn"}
+    return {"level": "ok", "label": "OK", "class_name": "status-ok"}
 
 
 def _maintenance_badges(health: dict) -> dict[str, dict]:
@@ -909,7 +651,7 @@ def _maintenance_protected_redirect(days: int | None = None, errors_page: int | 
             423,
         )
 
-    flash("Déverrouillez d'abord la page maintenance avec le mot de passe dédié.", "warning")
+        flash("Déverrouillez d'abord la page maintenance avec le mot de passe dédié.", "warning")
     route_args = {}
     if days is not None:
         route_args["days"] = days
@@ -960,10 +702,7 @@ def restrict_admin():
     if role in {ADMIN_ROLE, MANAGER_ROLE}:
         return None
 
-    if role == "courier":
-        return render_template("errors/403.html"), 403
-
-    flash("Accès réservé aux administrateurs", "danger")
+        flash("Accès réservé aux administrateurs", "danger")
     return redirect(url_for("shop.home"))
 
 
@@ -974,46 +713,84 @@ def restrict_sensitive_pages_for_manager():
 
 
 # ======================
-# 📦 LIVRAISONS
+# CONTACTS PRODUITS
+# ======================
+@bp.route("/product-contacts")
+def product_contacts():
+    page = page_from_args(request.args)
+    search = (request.args.get("q") or "").strip()
+    phone_filter = (request.args.get("phone") or "").strip()
+    shop_id_filter = request.args.get("shop_id", type=int)
+    date_filter = resolve_date_filter(request.args, default="month")
+
+    query = (
+        ProductContactLead.query
+        .outerjoin(Shop, ProductContactLead.shop_id == Shop.id)
+        .options(selectinload(ProductContactLead.shop))
+        .filter(ProductContactLead.source == "product_whatsapp")
+    )
+
+    if search:
+        like = f"%{search}%"
+        query = query.filter(or_(
+            ProductContactLead.client_name.ilike(like),
+            ProductContactLead.client_phone.ilike(like),
+            ProductContactLead.product_summary_json.ilike(like),
+            Shop.name.ilike(like),
+        ))
+    if phone_filter:
+        query = query.filter(ProductContactLead.client_phone.ilike(f"%{phone_filter}%"))
+    if shop_id_filter:
+        query = query.filter(ProductContactLead.shop_id == shop_id_filter)
+    query = query.filter(
+        ProductContactLead.created_at >= date_filter.start_at,
+        ProductContactLead.created_at < date_filter.end_at,
+    )
+
+    pagination = query.order_by(ProductContactLead.created_at.desc()).paginate(
+        page=page,
+        per_page=50,
+        error_out=False,
+    )
+
+    for lead in pagination.items:
+        try:
+            summary = json.loads(lead.product_summary_json or "[]")
+        except (TypeError, ValueError):
+            summary = []
+        lead._product_summary = summary if isinstance(summary, list) else []
+
+    shops = Shop.query.order_by(Shop.name.asc()).all()
+
+    return render_template("admin/product_contacts.html",
+        leads=pagination.items,
+        pagination=pagination,
+        shops=shops,
+        search=search,
+        phone_filter=phone_filter,
+        shop_id_filter=shop_id_filter,
+        range_filter=date_filter.range_filter,
+        date_range_label=date_filter.label,
+        date_from=date_filter.date_from,
+        date_to=date_filter.date_to,
+        total_contacts=pagination.total,
+    )
+
+
+# ======================
+# LIVRAISONS
 # ======================
 @bp.route("/deliveries")
 def deliveries():
     now = datetime.utcnow()
-    couriers = _available_couriers()
-    courier_filters = _courier_filter_choices()
-
-    def enrich_orders(orders):
-        for order in orders:
-            product_names = []
-            shop_names = []
-            for item in order.items:
-                if item.product:
-                    if item.product.name and item.product.name not in product_names:
-                        product_names.append(item.product.name)
-                    if item.product.shop and item.product.shop.name and item.product.shop.name not in shop_names:
-                        shop_names.append(item.product.shop.name)
-            order._product_names = product_names
-            order._shop_names = shop_names
-        return orders
-
-    selection = _period_selection_from_request(default_to_open=True)
-    selected_period_id = selection["selected_period_id"]
-    include_legacy = selection["include_legacy"]
-    read_only = selection["read_only"]
-    period_base = _orders_query_for_period(
-        selected_period_id=selected_period_id,
-        include_legacy=include_legacy,
-    )
-    source_filter = _normalize_delivery_source_filter(request.args.get("source"))
-    if source_filter:
-        period_base = period_base.filter(Order.delivery_source == source_filter)
-    delivery_scope = _normalize_courier_assignment_filter(request.args.get("delivery_scope"))
-    courier_id_filter = request.args.get("courier_id", type=int)
+    date_filter = resolve_date_filter(request.args, default="month")
+    read_only = False
+    base_query = Order.query
+    source_filter = DELIVERY_SOURCE_SPECIAL
+    base_query = base_query.filter(Order.delivery_source == DELIVERY_SOURCE_SPECIAL)
     order_status_filter = _normalize_order_status_filter(request.args.get("order_status") or request.args.get("status"))
     delivery_status_filter = _normalize_delivery_status_filter(request.args.get("delivery_status"))
-    scoped_base = _apply_courier_assignment_filter(period_base, delivery_scope)
-    if courier_id_filter:
-        scoped_base = scoped_base.filter(Order.courier_id == courier_id_filter)
+    scoped_base = base_query
     if order_status_filter:
         scoped_base = scoped_base.filter(Order.status == order_status_filter)
     if delivery_status_filter:
@@ -1021,14 +798,10 @@ def deliveries():
     operational_base = _operational_deliveries_query(scoped_base, now=now, window_hours=24)
 
     pending_query = (
-        operational_base.filter(Order.delivery_status.in_(tuple(COURIER_DELIVERY_IN_PROGRESS)))
-        .options(
-            selectinload(Order.courier),
-            selectinload(Order.items).selectinload(OrderItem.product).selectinload(Product.shop),
-        )
+        operational_base.filter(Order.delivery_status.in_(tuple(ACTIVE_DELIVERY_STATUSES)))
         .order_by(Order.created_at.desc())
     )
-    pending = enrich_orders(pending_query.limit(25).all())
+    pending = pending_query.limit(25).all()
 
     delivered_recent_query = (
         operational_base.filter(Order.delivery_status == "delivered")
@@ -1039,12 +812,8 @@ def deliveries():
             db.func.coalesce(db.func.sum(Order.delivery_platform_fee_cents), 0)
         ).scalar() or 0
     ) / 100
-    pending_count = operational_base.filter(Order.delivery_status.in_(tuple(COURIER_DELIVERY_IN_PROGRESS))).count()
+    pending_count = operational_base.filter(Order.delivery_status.in_(tuple(ACTIVE_DELIVERY_STATUSES))).count()
     delivered_recent_count = delivered_recent_query.count()
-    date_from = request.args.get("from", "")
-    date_to = request.args.get("to", "")
-    product_filter = request.args.get("product", "")
-    shop_filter = request.args.get("shop", "")
     city_filter = request.args.get("city", "")
     client_filter = request.args.get("client", "")
     phone_filter = request.args.get("phone", "")
@@ -1058,21 +827,16 @@ def deliveries():
         city_filter=city_filter,
         client_filter=client_filter,
         phone_filter=phone_filter,
-        date_from=date_from,
-        date_to=date_to,
-        product_filter=product_filter,
-        shop_filter=shop_filter,
     )
-
-    history_query = history_query.options(
-        selectinload(Order.courier),
-        selectinload(Order.items).selectinload(OrderItem.product).selectinload(Product.shop),
+    history_query = history_query.filter(
+        Order.created_at >= date_filter.start_at,
+        Order.created_at < date_filter.end_at,
     )
 
     pagination = history_query.order_by(Order.created_at.desc()).paginate(
         page=page, per_page=30, error_out=False
     )
-    history_orders = enrich_orders(pagination.items)
+    history_orders = pagination.items
     enrich_orders_delivery_context(pending)
     enrich_orders_delivery_context(history_orders)
 
@@ -1084,8 +848,8 @@ def deliveries():
         writer = csv.writer(output)
         writer.writerow([
             "ID", "Date", "Statut", "Source", "Client", "Telephone", "Ville",
-            "Produits", "Boutiques", "Livreur", "DeliveryStatus", "Total(MAD)",
-            "Livraison(MAD)", "PartBaba(MAD)", "NetLivreur(MAD)", "RemiseBaba"
+            "Objet", "Depart", "Arrivee", "DeliveryStatus", "Total(MAD)",
+            "Livraison(MAD)", "RevenuLivraisonBaba(MAD)", "RemiseBaba"
         ])
 
         for order in history_orders:
@@ -1093,18 +857,17 @@ def deliveries():
                 order.id,
                 order.created_at.strftime("%d/%m/%Y %H:%M") if order.created_at else "",
                 order.status,
-                order.delivery_source or DELIVERY_SOURCE_MARKETPLACE,
+                order.delivery_source or DELIVERY_SOURCE_SPECIAL,
                 order.full_name,
                 order.phone,
                 order.delivery_city or order.city,
-                " | ".join(order._product_names),
-                " | ".join(order._shop_names),
-                order.courier.username if order.courier else "",
+                order.special_item or "",
+                order.special_pickup_address or "",
+                order.special_dropoff_address or order.delivery_address or "",
                 order.delivery_status,
                 f"{(order.total or 0) / 100:.2f}",
                 f"{(order.delivery_price_cents or order.shipping or 0) / 100:.2f}",
                 f"{(order.delivery_platform_fee_cents or 0) / 100:.2f}",
-                f"{(order.delivery_courier_net_cents or 0) / 100:.2f}",
                 "remis" if order.baba_fee_settled_at else "a_remettre",
             ])
 
@@ -1119,7 +882,6 @@ def deliveries():
         "admin/deliveries.html",
         pending=pending,
         total_baba_fee=total_baba_fee,
-        total_commission=total_baba_fee,
         pending_count=pending_count,
         delivered_recent_count=delivered_recent_count,
         pagination=pagination,
@@ -1127,51 +889,26 @@ def deliveries():
         source_filter=source_filter,
         order_status_filter=order_status_filter,
         delivery_status_filter=delivery_status_filter,
-        date_from=date_from,
-        date_to=date_to,
-        product_filter=product_filter,
-        shop_filter=shop_filter,
+        range_filter=date_filter.range_filter,
+        date_range_label=date_filter.label,
+        date_from=date_filter.date_from,
+        date_to=date_filter.date_to,
         city_filter=city_filter,
         client_filter=client_filter,
         phone_filter=phone_filter,
-        delivery_scope=delivery_scope,
-        courier_id_filter=courier_id_filter,
-        couriers=couriers,
-        courier_filters=courier_filters,
-        available_couriers_count=_available_couriers_count(),
         cities=Order.CITIES,
-        periods=selection["periods"],
-        selected_period=selection["selected_period"],
-        selected_period_id=selected_period_id,
-        include_legacy=include_legacy,
         read_only=read_only,
-        notify_url=url_for(
-            "admin.orders_notifications",
-            period_id=selected_period_id,
-            include_legacy=1 if include_legacy else None,
-            source=source_filter or None,
-            delivery_scope=delivery_scope or None,
-            courier_id=courier_id_filter or None,
-            order_status=order_status_filter or None,
-            delivery_status=delivery_status_filter or None,
-        ),
     )
 
 
 @bp.route("/deliver/<int:oid>", methods=["POST"])
 def mark_delivered(oid):
     order = Order.query.get_or_404(oid)
-    if order.period_id is not None and order.period and order.period.status == CLOSED_STATUS:
-        message = "Cette commande est dans une periode fermee (archive)."
-        if _is_ajax_request():
-            return jsonify(success=False, message=message), 403
-        flash("Cette commande est dans une periode fermee (archive).", "warning")
-        return redirect(request.args.get("next") or url_for("admin.deliveries"))
+    if not _is_express_delivery_order(order):
+        return _reject_product_delivery_action("Baba ne marque plus les produits physiques comme livres.")
     order.status = "delivered"
     order.delivery_status = "delivered"
     order.delivered_at = datetime.utcnow()
-    if order.courier is not None:
-        _sync_courier_availability(order.courier)
     record_delivery_fee_entry(order, note="order delivered by admin")
     db.session.commit()
 
@@ -1189,7 +926,7 @@ def mark_delivered(oid):
 
     flash(
         (
-            f"Commande {oid} livree - part Baba: "
+            f"Livraison express #{oid} livree - revenu livraison Baba: "
             f"{(order.delivery_platform_fee_cents or 0) / 100:.2f} MAD"
         ),
         "success",
@@ -1205,19 +942,13 @@ def mark_delivered(oid):
 @bp.route("/order/<int:oid>/cancel", methods=["POST"])
 def cancel_order(oid):
     order = Order.query.get_or_404(oid)
-    if order.period_id is not None and order.period and order.period.status == CLOSED_STATUS:
-        message = "Cette commande est dans une periode fermee (archive)."
-        if _is_ajax_request():
-            return jsonify(success=False, message=message), 403
-        flash("Cette commande est dans une periode fermee (archive).", "warning")
-        return redirect(request.args.get("next") or url_for("admin.deliveries"))
+    if not _is_express_delivery_order(order):
+        return _reject_product_delivery_action("Baba ne modifie plus les demandes produits WhatsApp.")
     order.status = "cancelled"
     order.delivery_status = "canceled"
     order.delivered_at = None
     order.baba_fee_settled_at = None
     order.baba_fee_settled_by_user_id = None
-    if order.courier is not None:
-        _sync_courier_availability(order.courier)
     FinancialEntry.query.filter(
         FinancialEntry.entry_type == ENTRY_TYPE_DELIVERY_FEE,
         FinancialEntry.order_id == order.id,
@@ -1236,536 +967,53 @@ def cancel_order(oid):
         return jsonify(success=True, order_id=order.id, status=order.status)
 
 
-    flash(f"Commande {oid} annulee", "warning")
+    flash(f"Livraison express #{oid} annulee", "warning")
     next_url = request.args.get("next")
     if next_url and next_url.endswith("?"):
         next_url = next_url[:-1]
     if next_url and next_url.startswith("/"):
         return redirect(next_url)
-    return redirect(url_for("admin.all_orders"))
-
-
-@bp.route("/deliveries/<int:oid>/assign", methods=["POST"])
-def assign_courier(oid: int):
-    order = Order.query.options(
-        selectinload(Order.period),
-        selectinload(Order.courier),
-        selectinload(Order.assigned_by_user),
-    ).get_or_404(oid)
-    next_url = (request.args.get("next") or request.form.get("next") or "").strip()
-
-    def _redirect_default():
-        if next_url.startswith("/"):
-            return redirect(next_url)
-        return redirect(url_for("admin.deliveries"))
-
-    if order.period_id is not None and order.period and order.period.status == CLOSED_STATUS:
-        message = "Cette commande est dans une periode fermee (archive)."
-        if _is_ajax_request():
-            return jsonify(success=False, message=message), 403
-        flash(message, "warning")
-        return _redirect_default()
-    if order.delivery_status in COURIER_DELIVERY_COMPLETED:
-        message = "Cette livraison est deja finalisee."
-        if _is_ajax_request():
-            return jsonify(success=False, message=message), 400
-        flash(message, "warning")
-        return _redirect_default()
-
-    courier_id_raw = (request.form.get("courier_id") or "").strip()
-    courier = None
-    if courier_id_raw:
-        try:
-            courier_id = int(courier_id_raw)
-        except ValueError:
-            if _is_ajax_request():
-                return jsonify(success=False, message="Livreur invalide."), 400
-            flash("Livreur invalide.", "warning")
-            return _redirect_default()
-        courier = db.session.get(User, courier_id)
-        if courier is None or (courier.role or "").lower() != "courier":
-            if _is_ajax_request():
-                return jsonify(success=False, message="Livreur introuvable."), 404
-            flash("Livreur introuvable.", "warning")
-            return _redirect_default()
-        if not courier.is_active or not courier.courier_is_active:
-            if _is_ajax_request():
-                return jsonify(success=False, message="Ce livreur est inactif."), 400
-            flash("Ce livreur est inactif.", "warning")
-            return _redirect_default()
-        if (not courier.courier_is_available) and order.courier_id != courier.id:
-            if _is_ajax_request():
-                return jsonify(success=False, message="Ce livreur n'est pas disponible."), 400
-            flash("Ce livreur n'est pas disponible.", "warning")
-            return _redirect_default()
-
-    old_courier_id = order.courier_id
-    old_courier = order.courier
-    order.courier_id = courier.id if courier else None
-
-    if courier:
-        now = datetime.utcnow()
-        if order.delivery_status in {"new", ""}:
-            order.delivery_status = "assigned"
-        order.assigned_at = now
-        order.assigned_by_user_id = current_user.id if current_user.is_authenticated else None
-        courier.courier_last_seen_at = now
-    else:
-        if order.delivery_status in {"assigned", "picked_up", "delivering"}:
-            order.delivery_status = "new"
-            order.picked_up_at = None
-        order.assigned_by_user_id = None
-
-    if old_courier is not None and (courier is None or old_courier.id != courier.id):
-        _sync_courier_availability(old_courier)
-    if courier is not None:
-        _sync_courier_availability(courier)
-
-    db.session.commit()
-
-    message = (
-        f"Livraison #{order.id} assignee a {courier.username}."
-        if courier else
-        f"Livraison #{order.id} desassignee."
-    )
-    log_access(
-        "assign_courier",
-        "order",
-        order.id,
-        success=True,
-        changes={
-            "old_courier_id": old_courier_id,
-            "new_courier_id": order.courier_id,
-            "assigned_at": order.assigned_at.isoformat() if order.assigned_at else None,
-            "assigned_by_user_id": order.assigned_by_user_id,
-            "delivery_status": order.delivery_status,
-        },
-    )
-
-    if _is_ajax_request():
-        return jsonify(
-            success=True,
-            message=message,
-            order_id=order.id,
-            courier_id=order.courier_id,
-            courier_name=(courier.username if courier else ""),
-            delivery_status=order.delivery_status,
-        )
-
-    flash(message, "success")
-    return _redirect_default()
-
-
-@bp.route("/deliveries/<int:oid>/courier-whatsapp")
-def courier_whatsapp(oid: int):
-    next_url = (request.args.get("next") or request.referrer or "").strip()
-
-    def _redirect_default():
-        if next_url.startswith("/"):
-            return redirect(next_url)
-        return redirect(url_for("admin.deliveries"))
-
-    order = (
-        Order.query.options(
-            selectinload(Order.courier),
-            selectinload(Order.items).selectinload(OrderItem.product).selectinload(Product.shop),
-        ).filter(Order.id == oid).first()
-    )
-    if order is None:
-        return render_template("errors/404.html"), 404
-
-    courier = order.courier
-    courier_phone = normalize_phone_for_wa(getattr(courier, "phone", None))
-    if not courier_phone:
-        flash("Numero WhatsApp livreur indisponible.", "warning")
-        return _redirect_default()
-
-    message = build_courier_whatsapp_message(order)
-    wa_url = f"https://wa.me/{courier_phone}?text={quote(message)}"
-    return redirect(wa_url)
+    return redirect(url_for("admin.deliveries"))
 
 
 # ======================
-# 📋 COMMANDES
+# Redirections legacy produit / archives livraison express
 # ======================
 @bp.route("/orders")
 def all_orders():
-    page = page_from_args(request.args)
-    selection = _period_selection_from_request(default_to_open=True)
-    selected_period_id = selection["selected_period_id"]
-    include_legacy = selection["include_legacy"]
-    read_only = selection["read_only"]
-    couriers = _available_couriers()
-    courier_filters = _courier_filter_choices()
-    source_filter = _normalize_delivery_source_filter(request.args.get("source"))
-    courier_id_filter = request.args.get("courier_id", type=int)
-
-    period_base = _orders_query_for_period(
-        selected_period_id=selected_period_id,
-        include_legacy=include_legacy,
-    )
-    if source_filter:
-        period_base = period_base.filter(Order.delivery_source == source_filter)
-    scoped_base = period_base.filter(Order.delivery_status == "delivered")
-    if courier_id_filter:
-        scoped_base = scoped_base.filter(Order.courier_id == courier_id_filter)
-
-    pagination = scoped_base.options(
-        selectinload(Order.courier),
-        selectinload(Order.items).selectinload(OrderItem.product).selectinload(Product.shop),
-        selectinload(Order.period),
-    ).order_by(Order.created_at.desc()).paginate(
-        page=page, per_page=50, error_out=False
-    )
-    orders = pagination.items
-    enrich_orders_delivery_context(orders)
-    total_baba_fee = (
-        scoped_base.with_entities(
-            db.func.coalesce(db.func.sum(Order.delivery_platform_fee_cents), 0)
-        ).scalar() or 0
-    ) / 100
-    pending_count = pagination.total
-    latest_order = scoped_base.order_by(Order.created_at.desc()).first()
-    latest_order_id = latest_order.id if latest_order else 0
-
-    return render_template(
-        "admin/all_orders.html",
-        orders=orders,
-        total_baba_fee=total_baba_fee,
-        total_commission=total_baba_fee,
-        pagination=pagination,
-        pending_count=pending_count,
-        total_orders=pagination.total,
-        latest_order_id=latest_order_id,
-        periods=selection["periods"],
-        selected_period=selection["selected_period"],
-        selected_period_id=selected_period_id,
-        include_legacy=include_legacy,
-        source_filter=source_filter,
-        delivery_scope="",
-        courier_id_filter=courier_id_filter,
-        order_status_filter="delivered",
-        delivery_status_filter="delivered",
-        couriers=couriers,
-        courier_filters=courier_filters,
-        read_only=read_only,
-        notify_url=url_for(
-            "admin.orders_notifications",
-            period_id=selected_period_id,
-            include_legacy=1 if include_legacy else None,
-            source=source_filter or None,
-            courier_id=courier_id_filter or None,
-            order_status="delivered",
-            delivery_status="delivered",
-        ),
-    )
-
-
-@bp.route("/orders/notifications")
-def orders_notifications():
-    selection = _period_selection_from_request(default_to_open=True)
-    period_base = _orders_query_for_period(
-        selected_period_id=selection["selected_period_id"],
-        include_legacy=selection["include_legacy"],
-    )
-    source_filter = _normalize_delivery_source_filter(request.args.get("source"))
-    if source_filter:
-        period_base = period_base.filter(Order.delivery_source == source_filter)
-    courier_id_filter = request.args.get("courier_id", type=int)
-    scoped_base = period_base.filter(Order.delivery_status == "delivered")
-    if courier_id_filter:
-        scoped_base = scoped_base.filter(Order.courier_id == courier_id_filter)
-    latest_order = scoped_base.order_by(Order.created_at.desc()).first()
-    latest_order_id = latest_order.id if latest_order else 0
-    pending_count = scoped_base.count()
-    return jsonify(
-        latest_id=latest_order_id,
-        pending_count=pending_count
-    )
-
-
-@bp.route("/orders/live")
-def orders_live():
-    page = page_from_args(request.args)
-    selection = _period_selection_from_request(default_to_open=True)
-    selected_period_id = selection["selected_period_id"]
-    include_legacy = selection["include_legacy"]
-    source_filter = _normalize_delivery_source_filter(request.args.get("source"))
-    courier_id_filter = request.args.get("courier_id", type=int)
-
-    period_base = _orders_query_for_period(
-        selected_period_id=selected_period_id,
-        include_legacy=include_legacy,
-    )
-    if source_filter:
-        period_base = period_base.filter(Order.delivery_source == source_filter)
-    scoped_base = period_base.filter(Order.delivery_status == "delivered")
-    if courier_id_filter:
-        scoped_base = scoped_base.filter(Order.courier_id == courier_id_filter)
-
-    pagination = scoped_base.options(
-        selectinload(Order.courier),
-        selectinload(Order.items).selectinload(OrderItem.product).selectinload(Product.shop),
-        selectinload(Order.period),
-    ).order_by(Order.created_at.desc()).paginate(
-        page=page, per_page=50, error_out=False
-    )
-    orders = pagination.items
-    pending_count = pagination.total
-    total_orders = pagination.total
-    total_baba_fee = (
-        scoped_base.with_entities(
-            db.func.coalesce(db.func.sum(Order.delivery_platform_fee_cents), 0)
-        ).scalar() or 0
-    ) / 100
-
-    def format_order(o):
-        next_url = url_for(
-            "admin.all_orders",
-            period_id=selected_period_id,
-            include_legacy=1 if include_legacy else None,
-            source=source_filter or None,
-            courier_id=courier_id_filter or None,
-            order_status="delivered",
-            delivery_status="delivered",
-            page=page,
-        )
-        items = []
-        for item in o.items:
-            name = item.product.name if item.product and item.product.name else f"Produit #{item.product_id}"
-            items.append({
-                "name": name,
-                "price": round((item.price or 0) / 100, 2),
-                "qty": item.quantity or 0
-            })
-        return {
-            "id": o.id,
-            "full_name": o.full_name,
-            "phone": o.phone,
-            "city": o.delivery_city or o.city,
-            "delivery_source": o.delivery_source or DELIVERY_SOURCE_MARKETPLACE,
-            "total": round((o.total or 0) / 100, 2),
-            "delivery_price": round((o.delivery_price_cents or o.shipping or 0) / 100, 2),
-            "delivery_platform_fee": round((o.delivery_platform_fee_cents or 0) / 100, 2),
-            "delivery_courier_net": round((o.delivery_courier_net_cents or 0) / 100, 2),
-            "baba_fee_settled": bool(o.baba_fee_settled_at),
-            "items": items,
-            "status": o.status,
-            "delivery_status": o.delivery_status,
-            "courier_id": o.courier_id,
-            "courier_name": o.courier.username if o.courier else "",
-            "created_at": o.created_at.strftime("%d/%m/%Y %H:%M") if o.created_at else "",
-            "detail_url": url_for("admin.order_detail", oid=o.id, next=next_url),
-            "deliver_url": url_for("admin.mark_delivered", oid=o.id, next=next_url),
-            "cancel_url": url_for("admin.cancel_order", oid=o.id, next=next_url),
-            "assign_url": url_for("admin.assign_courier", oid=o.id, next=next_url),
-            "call_url": f"tel:{o.phone}"
-        }
-
-    return jsonify(
-        pending_count=pending_count,
-        total_orders=total_orders,
-        total_baba_fee=round(total_baba_fee, 2),
-        total_commission=round(total_baba_fee, 2),
-        read_only=selection["read_only"],
-        selected_period_id=selected_period_id,
-        include_legacy=include_legacy,
-        source_filter=source_filter,
-        delivery_scope="",
-        courier_id_filter=courier_id_filter,
-        order_status_filter="delivered",
-        delivery_status_filter="delivered",
-        orders=[format_order(o) for o in orders]
-    )
+    flash("Les produits physiques sont maintenant consultables dans Contacts produits.", "info")
+    return redirect(url_for("admin.product_contacts"))
 
 
 @bp.route("/orders/archives")
 def order_archives():
-    archives_page = page_from_args(request.args, key="page", default=1)
-    period_id = request.args.get("period_id", type=int)
-    return redirect(
-        url_for(
-            "admin.pricing_settings",
-            section="archives",
-            archive_period_id=period_id or None,
-            archives_page=archives_page if archives_page > 1 else None,
-        )
-    )
+    redirect_params = {}
+    range_filter = (request.args.get("range") or "").strip()
+    if range_filter:
+        redirect_params["range"] = range_filter
+
+    date_from = (request.args.get("date_from") or request.args.get("from") or "").strip()
+    if date_from:
+        redirect_params["date_from"] = date_from
+
+    date_to = (request.args.get("date_to") or request.args.get("to") or "").strip()
+    if date_to:
+        redirect_params["date_to"] = date_to
+
+    page = page_from_args(request.args, key="archives_page", default=1)
+    if page > 1:
+        redirect_params["page"] = page
+
+    return redirect(url_for("admin.deliveries_archives", **redirect_params))
 
 
-@bp.route("/order-periods")
-def order_periods():
-    return redirect(url_for("admin.pricing_settings", section="periods"))
-
-
-@bp.route("/order-periods/create", methods=["POST"])
-def order_period_create():
-    name = (request.form.get("name") or "").strip()
-    try:
-        period = create_order_period(
-            name=name or None,
-            created_by=current_user.id if current_user.is_authenticated else None,
-        )
-        ensure_financial_period_for_order_period(period, create_if_missing=True)
-        db.session.commit()
-        log_access(
-            "create_order_period",
-            "order_period",
-            period.id,
-            success=True,
-            changes={"name": period.name, "status": period.status},
-        )
-        flash(f"Periode creee: {period.name}", "success")
-    except ValueError as exc:
-        db.session.rollback()
-        flash(str(exc), "warning")
-    except Exception as exc:
-        db.session.rollback()
-        flash(f"Echec creation periode: {exc}", "danger")
-    return redirect(url_for("admin.pricing_settings", section="periods"))
-
-
-@bp.route("/order-periods/<int:period_id>/close", methods=["POST"])
-def order_period_close(period_id: int):
-    period = db.session.get(OrderPeriod, period_id)
-    if period is None:
-        return render_template("errors/404.html"), 404
-    if period.status == CLOSED_STATUS:
-        flash("Cette periode est deja fermee.", "info")
-        return redirect(url_for("admin.pricing_settings", section="periods"))
-
-    try:
-        close_order_period(period)
-        linked_financial_period = ensure_financial_period_for_order_period(period, create_if_missing=True)
-        db.session.commit()
-        log_access(
-            "close_order_period",
-            "order_period",
-            period.id,
-            success=True,
-            changes={
-                "closed_at": period.closed_at.isoformat() if period.closed_at else None,
-                "financial_period_id": getattr(linked_financial_period, "id", None),
-            },
-        )
-        flash(f"Periode fermee: {period.name}", "success")
-    except Exception as exc:
-        db.session.rollback()
-        flash(f"Echec fermeture periode: {exc}", "danger")
-    return redirect(url_for("admin.pricing_settings", section="periods"))
-
-
-@bp.route("/financial-periods")
 @bp.route("/finance")
 def finance():
     page = page_from_args(request.args)
-    requested_period_id = request.args.get("period_id", type=int)
+    date_filter = resolve_date_filter(request.args, default="month")
     entry_type = (request.args.get("entry_type") or "").strip().lower()
     if entry_type not in {ENTRY_TYPE_DELIVERY_FEE, ENTRY_TYPE_SUBSCRIPTION, ENTRY_TYPE_RENTAL_COMMISSION}:
         entry_type = ""
-
-    date_from_raw = (request.args.get("date_from") or request.args.get("from") or "").strip()
-    date_to_raw = (request.args.get("date_to") or request.args.get("to") or "").strip()
-    date_from = _parse_iso_date(date_from_raw)
-    date_to = _parse_iso_date(date_to_raw)
-
-    periods = _order_period_choices()
-    open_period = next((period for period in periods if period.status == OPEN_STATUS), None)
-
-    selected_period = None
-    if requested_period_id is not None:
-        selected_period = next((period for period in periods if period.id == requested_period_id), None)
-
-    if selected_period is None and open_period is not None:
-        selected_period = open_period
-    elif selected_period is None and periods:
-        selected_period = periods[0]
-
-    selected_period_id = selected_period.id if selected_period else None
-
-    # ✅ CORRECTION : période_stats calculé par SQL au lieu de charger tout en mémoire
-    period_stats = {
-        int(period.id): {
-            "delivery_total_cents": 0,
-            "subscription_total_cents": 0,
-            "rental_total_cents": 0,
-            "total_cents": 0,
-            "entry_count": 0,
-            "delivery_count": 0,
-            "subscription_count": 0,
-            "rental_count": 0,
-        }
-        for period in periods
-    }
-
-    if periods:
-        try:
-            from sqlalchemy import case as sa_case, func
-
-            rows = (
-                db.session.query(
-                    FinancialEntry.entry_type,
-                    func.count(FinancialEntry.id).label("cnt"),
-                    func.coalesce(func.sum(FinancialEntry.amount_cents), 0).label("total"),
-                )
-                .filter(FinancialEntry.deleted_at.is_(None))
-                .group_by(FinancialEntry.entry_type)
-                .all()
-            )
-            # Totaux globaux (toutes périodes confondues) par type
-            global_by_type = {row.entry_type: {"cnt": int(row.cnt), "total": int(row.total)} for row in rows}
-
-            # Pour chaque période, on fait une requête SQL ciblée
-            for period in periods:
-                start_at, end_at = period_bounds(period)
-                if start_at is None:
-                    continue
-                stats = period_stats.get(int(period.id))
-                if not stats:
-                    continue
-
-                q = (
-                    db.session.query(
-                        FinancialEntry.entry_type,
-                        func.count(FinancialEntry.id).label("cnt"),
-                        func.coalesce(func.sum(FinancialEntry.amount_cents), 0).label("total"),
-                    )
-                    .filter(
-                        FinancialEntry.deleted_at.is_(None),
-                        FinancialEntry.created_at >= start_at,
-                    )
-                )
-                if end_at is not None:
-                    q = q.filter(FinancialEntry.created_at < end_at)
-
-                period_rows = q.group_by(FinancialEntry.entry_type).all()
-
-                for row in period_rows:
-                    cnt = int(row.cnt or 0)
-                    total = int(row.total or 0)
-                    stats["entry_count"] += cnt
-                    if row.entry_type == ENTRY_TYPE_DELIVERY_FEE:
-                        stats["delivery_total_cents"] = total
-                        stats["delivery_count"] = cnt
-                    elif row.entry_type == ENTRY_TYPE_SUBSCRIPTION:
-                        stats["subscription_total_cents"] = total
-                        stats["subscription_count"] = cnt
-                    elif row.entry_type == ENTRY_TYPE_RENTAL_COMMISSION:
-                        stats["rental_total_cents"] = total
-                        stats["rental_count"] = cnt
-
-                stats["total_cents"] = (
-                    stats["delivery_total_cents"]
-                    + stats["subscription_total_cents"]
-                    + stats["rental_total_cents"]
-                )
-
-        except Exception:
-            # ✅ Fallback : si la requête SQL échoue, la page reste affichable
-            # avec des zéros plutôt que de planter
-            current_app.logger.exception("finance.period_stats_error")
-
-    # --- Tout ce qui suit est IDENTIQUE à l'original ---
 
     selected_totals = {
         "delivery_total_cents": 0,
@@ -1777,8 +1025,38 @@ def finance():
         "rental_count": 0,
         "entry_count": 0,
     }
-    if selected_period is not None:
-        selected_totals = dict(period_stats.get(int(selected_period.id), selected_totals))
+    rows = (
+        db.session.query(
+            FinancialEntry.entry_type,
+            db.func.count(FinancialEntry.id).label("cnt"),
+            db.func.coalesce(db.func.sum(FinancialEntry.amount_cents), 0).label("total"),
+        )
+        .filter(
+            FinancialEntry.deleted_at.is_(None),
+            FinancialEntry.created_at >= date_filter.start_at,
+            FinancialEntry.created_at < date_filter.end_at,
+        )
+        .group_by(FinancialEntry.entry_type)
+        .all()
+    )
+    for row in rows:
+        count = int(row.cnt or 0)
+        total = int(row.total or 0)
+        selected_totals["entry_count"] += count
+        if row.entry_type == ENTRY_TYPE_DELIVERY_FEE:
+            selected_totals["delivery_total_cents"] = total
+            selected_totals["delivery_count"] = count
+        elif row.entry_type == ENTRY_TYPE_SUBSCRIPTION:
+            selected_totals["subscription_total_cents"] = total
+            selected_totals["subscription_count"] = count
+        elif row.entry_type == ENTRY_TYPE_RENTAL_COMMISSION:
+            selected_totals["rental_total_cents"] = total
+            selected_totals["rental_count"] = count
+    selected_totals["total_cents"] = (
+        selected_totals["delivery_total_cents"]
+        + selected_totals["subscription_total_cents"]
+        + selected_totals["rental_total_cents"]
+    )
 
     entries_query = (
         FinancialEntry.query
@@ -1786,130 +1064,61 @@ def finance():
             selectinload(FinancialEntry.order),
             selectinload(FinancialEntry.rental_archive),
             selectinload(FinancialEntry.subscription_payment),
-            selectinload(FinancialEntry.courier),
+            selectinload(FinancialEntry.subscription_payment).selectinload(SubscriptionPayment.user),
+            selectinload(FinancialEntry.subscription_payment).selectinload(SubscriptionPayment.created_by),
         )
         .filter(FinancialEntry.deleted_at.is_(None))
     )
-    if selected_period is not None:
-        start_at, end_at = period_bounds(selected_period)
-        if start_at is not None:
-            entries_query = entries_query.filter(FinancialEntry.created_at >= start_at)
-        if end_at is not None:
-            entries_query = entries_query.filter(FinancialEntry.created_at < end_at)
-    else:
-        entries_query = entries_query.filter(FinancialEntry.id == -1)
+    entries_query = entries_query.filter(
+        FinancialEntry.created_at >= date_filter.start_at,
+        FinancialEntry.created_at < date_filter.end_at,
+    )
 
     if entry_type:
         entries_query = entries_query.filter(FinancialEntry.entry_type == entry_type)
-    if date_from is not None:
-        entries_query = entries_query.filter(
-            FinancialEntry.created_at >= datetime.combine(date_from, datetime.min.time())
-        )
-    if date_to is not None:
-        entries_query = entries_query.filter(
-            FinancialEntry.created_at < datetime.combine(date_to + timedelta(days=1), datetime.min.time())
-        )
-
     entries_pagination = entries_query.order_by(
         FinancialEntry.created_at.desc(),
         FinancialEntry.id.desc(),
     ).paginate(page=page, per_page=50, error_out=False)
 
-    unassigned_row = (
-        db.session.query(
-            db.func.coalesce(db.func.sum(FinancialEntry.amount_cents), 0).label("amount"),
-            db.func.count(FinancialEntry.id).label("count"),
-        )
-        .filter(
-            FinancialEntry.deleted_at.is_(None),
-            FinancialEntry.period_id.is_(None),
-        )
-        .first()
-    )
-    unassigned_total_cents = int((unassigned_row.amount if unassigned_row else 0) or 0)
-    unassigned_count = int((unassigned_row.count if unassigned_row else 0) or 0)
-
-    delete_allowed = False
-    delete_message = "La finance suit maintenant la periode globale admin. Ouvrez, fermez et archivez depuis Periodes commandes."
-    delete_available_at = None
-
     entry_type_labels = {
-        ENTRY_TYPE_DELIVERY_FEE: "Livraison (Part Baba)",
-        ENTRY_TYPE_SUBSCRIPTION: "Abonnement",
-        ENTRY_TYPE_RENTAL_COMMISSION: "Location (commission)",
+        ENTRY_TYPE_DELIVERY_FEE: "Livraison express",
+        ENTRY_TYPE_SUBSCRIPTION: "Abonnement vendeur",
+        ENTRY_TYPE_RENTAL_COMMISSION: "Commission location",
     }
 
     return render_template(
         "admin/finance.html",
-        periods=periods,
-        open_period=open_period,
-        selected_period=selected_period,
-        selected_period_id=selected_period_id,
-        period_stats=period_stats,
         selected_totals=selected_totals,
         entries=entries_pagination.items,
         entries_pagination=entries_pagination,
         entry_type=entry_type,
-        date_from=date_from_raw,
-        date_to=date_to_raw,
-        unassigned_total_cents=unassigned_total_cents,
-        unassigned_count=unassigned_count,
-        delete_allowed=delete_allowed,
-        delete_message=delete_message,
-        delete_available_at=delete_available_at,
+        range_filter=date_filter.range_filter,
+        date_range_label=date_filter.label,
+        date_from=date_filter.date_from,
+        date_to=date_filter.date_to,
         entry_type_labels=entry_type_labels,
-        retention_days=ORDER_DELETE_RETENTION_DAYS,
     )
-
-@bp.route("/finance/periods/open", methods=["POST"])
-def finance_period_open():
-    flash("La finance suit la periode globale admin. Ouvrez une periode depuis Periodes commandes.", "info")
-    return redirect(url_for("admin.pricing_settings", section="periods"))
-
-
-@bp.route("/finance/periods/<int:period_id>/close", methods=["POST"])
-def finance_period_close(period_id: int):
-    flash("La finance suit la periode globale admin. Fermez la periode depuis Periodes commandes.", "info")
-    return redirect(url_for("admin.pricing_settings", section="periods"))
-
-
-@bp.route("/finance/periods/<int:period_id>/delete", methods=["POST"])
-def finance_period_delete(period_id: int):
-    flash("La finance n'a plus de suppression separee. Gere la periode globale depuis Periodes commandes.", "info")
-    return redirect(url_for("admin.pricing_settings", section="periods"))
-
 
 @bp.route("/orders/<int:oid>/delete", methods=["POST"])
 def delete_archived_order(oid: int):
     next_url = (request.args.get("next") or request.form.get("next") or "").strip()
 
-    def _redirect_after_delete(default_endpoint: str = "admin.pricing_settings"):
+    def _redirect_after_delete(default_endpoint: str = "admin.deliveries_archives"):
         if next_url.startswith("/"):
             return redirect(next_url)
-        if default_endpoint == "admin.pricing_settings":
-            return redirect(url_for(default_endpoint, section="archives"))
         return redirect(url_for(default_endpoint))
 
     order = (
         Order.query
-        .options(selectinload(Order.period))
         .filter(Order.id == oid)
         .first()
     )
     if order is None:
         return render_template("errors/404.html"), 404
-    allowed, message, available_at = order_delete_guard(order)
+    allowed, message, _available_at = _delivery_delete_guard(order)
     if not allowed:
-        if not message and available_at:
-            message = f"Suppression possible a partir du {available_at.strftime('%d/%m/%Y %H:%M')}."
         flash(message or "Suppression refusee.", "warning")
-        return _redirect_after_delete()
-
-    if (order.status or "").lower() not in FINAL_DELIVERY_ORDER_STATUSES:
-        flash(
-            f"Suppression refusee: livraison non finalisee (statut {order.status}).",
-            "warning",
-        )
         return _redirect_after_delete()
 
     try:
@@ -1923,12 +1132,12 @@ def delete_archived_order(oid: int):
             "order",
             oid,
             success=True,
-            changes={"period_id": order.period_id},
+            changes={"status": order.status},
         )
-        flash(f"Commande #{oid} supprimee definitivement.", "success")
+        flash(f"Livraison express #{oid} supprimee definitivement.", "success")
     except Exception as exc:
         db.session.rollback()
-        flash(f"Echec suppression commande #{oid}: {exc}", "danger")
+        flash(f"Echec suppression livraison express #{oid}: {exc}", "danger")
 
     return _redirect_after_delete()
 
@@ -1936,44 +1145,19 @@ def delete_archived_order(oid: int):
 @bp.route("/deliveries/live")
 def deliveries_live():
     now = datetime.utcnow()
-    selection = _period_selection_from_request(default_to_open=True)
-    selected_period_id = selection["selected_period_id"]
-    include_legacy = selection["include_legacy"]
-    read_only = selection["read_only"]
-    source_filter = _normalize_delivery_source_filter(request.args.get("source"))
-    delivery_scope = _normalize_courier_assignment_filter(request.args.get("delivery_scope"))
-    courier_id_filter = request.args.get("courier_id", type=int)
+    date_filter = resolve_date_filter(request.args, default="month")
+    read_only = False
+    source_filter = DELIVERY_SOURCE_SPECIAL
     order_status_filter = _normalize_order_status_filter(request.args.get("order_status") or request.args.get("status"))
     delivery_status_filter = _normalize_delivery_status_filter(request.args.get("delivery_status"))
-    date_from = request.args.get("from", "")
-    date_to = request.args.get("to", "")
-    product_filter = request.args.get("product", "")
-    shop_filter = request.args.get("shop", "")
     city_filter = request.args.get("city", "")
     client_filter = request.args.get("client", "")
     phone_filter = request.args.get("phone", "")
     page = page_from_args(request.args)
 
-    def list_products_shops(order):
-        product_names = []
-        shop_names = []
-        for item in order.items:
-            if item.product:
-                if item.product.name and item.product.name not in product_names:
-                    product_names.append(item.product.name)
-                if item.product.shop and item.product.shop.name and item.product.shop.name not in shop_names:
-                    shop_names.append(item.product.shop.name)
-        return product_names, shop_names
-
-    period_base = _orders_query_for_period(
-        selected_period_id=selected_period_id,
-        include_legacy=include_legacy,
-    )
-    if source_filter:
-        period_base = period_base.filter(Order.delivery_source == source_filter)
-    scoped_base = _apply_courier_assignment_filter(period_base, delivery_scope)
-    if courier_id_filter:
-        scoped_base = scoped_base.filter(Order.courier_id == courier_id_filter)
+    base_query = Order.query
+    base_query = base_query.filter(Order.delivery_source == DELIVERY_SOURCE_SPECIAL)
+    scoped_base = base_query
     if order_status_filter:
         scoped_base = scoped_base.filter(Order.status == order_status_filter)
     if delivery_status_filter:
@@ -1981,11 +1165,7 @@ def deliveries_live():
     operational_base = _operational_deliveries_query(scoped_base, now=now, window_hours=24)
 
     pending_query = (
-        operational_base.filter(Order.delivery_status.in_(tuple(COURIER_DELIVERY_IN_PROGRESS)))
-        .options(
-            selectinload(Order.courier),
-            selectinload(Order.items).selectinload(OrderItem.product).selectinload(Product.shop),
-        )
+        operational_base.filter(Order.delivery_status.in_(tuple(ACTIVE_DELIVERY_STATUSES)))
         .order_by(Order.created_at.desc())
     )
     pending_orders = pending_query.limit(25).all()
@@ -2009,15 +1189,10 @@ def deliveries_live():
         city_filter=city_filter,
         client_filter=client_filter,
         phone_filter=phone_filter,
-        date_from=date_from,
-        date_to=date_to,
-        product_filter=product_filter,
-        shop_filter=shop_filter,
     )
-
-    history_query = history_query.options(
-        selectinload(Order.courier),
-        selectinload(Order.items).selectinload(OrderItem.product).selectinload(Product.shop),
+    history_query = history_query.filter(
+        Order.created_at >= date_filter.start_at,
+        Order.created_at < date_filter.end_at,
     )
 
     pagination = history_query.order_by(Order.created_at.desc()).paginate(
@@ -2025,20 +1200,13 @@ def deliveries_live():
     )
 
     def to_json(order):
-        product_names, shop_names = list_products_shops(order)
-        can_mutate = (not read_only) and (order.delivery_status in COURIER_DELIVERY_IN_PROGRESS)
+        can_mutate = (not read_only) and (order.delivery_status in ACTIVE_DELIVERY_STATUSES)
         next_params = {
-            "period_id": selected_period_id,
-            "include_legacy": 1 if include_legacy else None,
-            "source": source_filter or None,
-            "delivery_scope": delivery_scope or None,
-            "courier_id": courier_id_filter or None,
             "order_status": order_status_filter or None,
             "delivery_status": delivery_status_filter or None,
-            "from": date_from or None,
-            "to": date_to or None,
-            "product": product_filter or None,
-            "shop": shop_filter or None,
+            "range": date_filter.range_filter,
+            "date_from": date_filter.date_from or None,
+            "date_to": date_filter.date_to or None,
             "city": city_filter or None,
             "client": client_filter or None,
             "phone": phone_filter or None,
@@ -2053,39 +1221,32 @@ def deliveries_live():
             "full_name": order.full_name,
             "phone": order.phone,
             "city": order.delivery_city or order.city,
-            "delivery_source": order.delivery_source or DELIVERY_SOURCE_MARKETPLACE,
+            "delivery_source": order.delivery_source or DELIVERY_SOURCE_SPECIAL,
             "total": round((order.total or 0) / 100, 2),
             "delivery_price": round((order.delivery_price_cents or order.shipping or 0) / 100, 2),
             "delivery_platform_fee": round((order.delivery_platform_fee_cents or 0) / 100, 2),
-            "delivery_courier_net": round((order.delivery_courier_net_cents or 0) / 100, 2),
             "baba_fee_settled": bool(order.baba_fee_settled_at),
             "status": order.status,
             "delivery_status": order.delivery_status,
-            "courier_id": order.courier_id,
-            "courier_name": order.courier.username if order.courier else "",
             "can_mutate": can_mutate,
             "created_at": order.created_at.strftime("%d/%m/%Y %H:%M") if order.created_at else "",
-            "product_names": product_names,
-            "shop_names": shop_names,
+            "special_item": order.special_item or "",
+            "pickup_address": order.special_pickup_address or "",
+            "dropoff_address": order.special_dropoff_address or order.delivery_address or "",
             "detail_url": url_for("admin.order_detail", oid=order.id, next=next_url),
             "deliver_url": url_for("admin.mark_delivered", oid=order.id, next=next_url),
             "cancel_url": url_for("admin.cancel_order", oid=order.id, next=next_url),
-            "assign_url": url_for("admin.assign_courier", oid=order.id, next=next_url),
             "call_url": f"tel:{order.phone}"
         }
 
     return jsonify(
-        pending_count=operational_base.filter(Order.delivery_status.in_(tuple(COURIER_DELIVERY_IN_PROGRESS))).count(),
+        pending_count=operational_base.filter(Order.delivery_status.in_(tuple(ACTIVE_DELIVERY_STATUSES))).count(),
         delivered_recent_count=delivered_recent_count,
         total_baba_fee=round(total_baba_fee, 2),
-        total_commission=round(total_baba_fee, 2),
-        available_couriers_count=_available_couriers_count(),
         read_only=read_only,
-        selected_period_id=selected_period_id,
-        include_legacy=include_legacy,
+        range_filter=date_filter.range_filter,
+        date_range_label=date_filter.label,
         source_filter=source_filter,
-        delivery_scope=delivery_scope,
-        courier_id_filter=courier_id_filter,
         order_status_filter=order_status_filter,
         delivery_status_filter=delivery_status_filter,
         history_total=pagination.total,
@@ -2096,82 +1257,40 @@ def deliveries_live():
     )
 
 
-@bp.route("/deliveries/available-count")
-def deliveries_available_count():
-    return jsonify(available_couriers_count=_available_couriers_count())
-
-
 @bp.route("/deliveries/archives")
 def deliveries_archives():
-    def enrich_orders(orders):
-        for order in orders:
-            product_names = []
-            shop_names = []
-            for item in order.items:
-                if item.product:
-                    if item.product.name and item.product.name not in product_names:
-                        product_names.append(item.product.name)
-                    if item.product.shop and item.product.shop.name and item.product.shop.name not in shop_names:
-                        shop_names.append(item.product.shop.name)
-            order._product_names = product_names
-            order._shop_names = shop_names
-        return orders
-
     status_filter = request.args.get("status", "")
-    source_filter = _normalize_delivery_source_filter(request.args.get("source"))
-    date_from = request.args.get("from", "")
-    date_to = request.args.get("to", "")
-    product_filter = request.args.get("product", "")
-    shop_filter = request.args.get("shop", "")
+    source_filter = DELIVERY_SOURCE_SPECIAL
+    date_filter = resolve_date_filter(request.args, default="month")
     city_filter = request.args.get("city", "")
     client_filter = request.args.get("client", "")
     phone_filter = request.args.get("phone", "")
-    period_id = request.args.get("period_id", type=int)
     page = page_from_args(request.args)
 
     try:
         base_archived = _archived_orders_query()
-        if period_id:
-            base_archived = base_archived.filter(Order.period_id == period_id)
-        if source_filter:
-            base_archived = base_archived.filter(Order.delivery_source == source_filter)
 
         history_query = _apply_delivery_filters(
             base_archived,
-            order_status_filter=status_filter,  # ✅ CORRECTION : était status_filter=
+            order_status_filter=status_filter,
             source_filter=source_filter,
             city_filter=city_filter,
             client_filter=client_filter,
             phone_filter=phone_filter,
-            date_from=date_from,
-            date_to=date_to,
-            product_filter=product_filter,
-            shop_filter=shop_filter,
-        ).options(
-            selectinload(Order.items).selectinload(OrderItem.product).selectinload(Product.shop),
-            selectinload(Order.period),
+        ).filter(
+            Order.created_at >= date_filter.start_at,
+            Order.created_at < date_filter.end_at,
         )
 
         pagination = history_query.order_by(Order.created_at.desc()).paginate(
             page=page, per_page=30, error_out=False
         )
-        history_orders = enrich_orders(pagination.items)
+        history_orders = pagination.items
         enrich_orders_delivery_context(history_orders)
 
-        closed_periods = (
-            OrderPeriod.query
-            .filter(OrderPeriod.status == CLOSED_STATUS)
-            .order_by(OrderPeriod.closed_at.desc(), OrderPeriod.id.desc())
-            .all()
-        )
-
-        now = datetime.utcnow()
         delete_guards = {}
         for order in history_orders:
-            allowed, message, available_at = order_delete_guard(order, now=now)
-            if allowed and (order.status or "").lower() not in FINAL_DELIVERY_ORDER_STATUSES:
-                allowed = False
-                message = f"Suppression refusee: livraison non finalisee (statut {order.status})."
+            allowed, message, available_at = _delivery_delete_guard(order)
             delete_guards[order.id] = {
                 "allowed": allowed,
                 "message": message,
@@ -2181,16 +1300,16 @@ def deliveries_archives():
     except SQLAlchemyError:
         db.session.rollback()
         current_app.logger.exception(
-            "deliveries_archives.db_error — period_id=%s source=%s page=%s",
-            period_id, source_filter, page,
+            "deliveries_archives.db_error - source=%s page=%s",
+            source_filter, page,
         )
         flash("Erreur lors du chargement des archives. Merci de réessayer.", "danger")
         return redirect(url_for("admin.deliveries"))
 
     except Exception:
         current_app.logger.exception(
-            "deliveries_archives.unexpected_error — period_id=%s source=%s page=%s",
-            period_id, source_filter, page,
+            "deliveries_archives.unexpected_error - source=%s page=%s",
+            source_filter, page,
         )
         flash("Une erreur inattendue s'est produite.", "danger")
         return redirect(url_for("admin.deliveries"))
@@ -2201,45 +1320,31 @@ def deliveries_archives():
         history_orders=history_orders,
         source_filter=source_filter,
         status_filter=status_filter,
-        date_from=date_from,
-        date_to=date_to,
-        product_filter=product_filter,
-        shop_filter=shop_filter,
+        range_filter=date_filter.range_filter,
+        date_range_label=date_filter.label,
+        date_from=date_filter.date_from,
+        date_to=date_filter.date_to,
         city_filter=city_filter,
         client_filter=client_filter,
         phone_filter=phone_filter,
         cities=Order.CITIES,
-        period_id=period_id,
-        closed_periods=closed_periods,
         delete_guards=delete_guards,
     )
 
 
 @bp.route("/order/<int:oid>")
 def order_detail(oid):
-    order = Order.query.options(
-        selectinload(Order.items).selectinload(OrderItem.product).selectinload(Product.shop),
-        selectinload(Order.period),
-        selectinload(Order.courier),
-        selectinload(Order.assigned_by_user),
-    ).get_or_404(oid)
+    order = Order.query.get_or_404(oid)
+    if not _is_express_delivery_order(order):
+        flash("Les anciennes commandes produits sont remplacees par Contacts produits.", "info")
+        return redirect(url_for("admin.product_contacts"))
     enrich_order_delivery_context(order)
-    payouts = (
-        VendorPayout.query
-        .filter_by(order_id=order.id)
-        .options(
-            selectinload(VendorPayout.shop),
-            selectinload(VendorPayout.vendor)
-        )
-        .order_by(VendorPayout.id.asc())
-        .all()
-    )
     log_access("view_order", "order", order.id, success=True)
-    return render_template("admin/order_detail.html", order=order, payouts=payouts)
+    return render_template("admin/order_detail.html", order=order)
 
 
 # ======================
-# 💰 COMMISSIONS
+# Tarifs et finance
 # ======================
 
 
@@ -2249,9 +1354,27 @@ def order_detail(oid):
 # ======================
 @bp.route("/pricing", methods=["GET", "POST"])
 def pricing_settings():
+    if request.method == "GET" and (request.args.get("section") or "").strip().lower() == "archives":
+        redirect_params = {}
+        range_filter = (request.args.get("range") or "").strip()
+        if range_filter:
+            redirect_params["range"] = range_filter
+
+        date_from = (request.args.get("date_from") or request.args.get("from") or "").strip()
+        if date_from:
+            redirect_params["date_from"] = date_from
+
+        date_to = (request.args.get("date_to") or request.args.get("to") or "").strip()
+        if date_to:
+            redirect_params["date_to"] = date_to
+
+        page = page_from_args(request.args, key="archives_page", default=1)
+        if page > 1:
+            redirect_params["page"] = page
+
+        return redirect(url_for("admin.deliveries_archives", **redirect_params))
+
     settings = PlatformSettings.get()
-    archives_context = _archived_orders_context()
-    periods_context = _order_periods_context()
 
     if request.method == "POST":
         def _to_float(field_name: str, default_value: float = 0.0) -> float:
@@ -2299,7 +1422,7 @@ def pricing_settings():
             settings.rental_success_commission_mode = "percent"
         except ValueError:
             flash("Valeurs invalides. Vérifiez les nombres saisis.", "warning")
-            return render_template("admin/pricing.html", settings=settings, **archives_context, **periods_context)
+            return render_template("admin/pricing.html", settings=settings)
 
         db.session.commit()
         log_access(
@@ -2320,7 +1443,7 @@ def pricing_settings():
         )
         flash("Paramètres mis à jour", "success")
 
-    return render_template("admin/pricing.html", settings=settings, **archives_context, **periods_context)
+    return render_template("admin/pricing.html", settings=settings)
 
 
 @bp.route("/highlights", methods=["GET"])
@@ -2578,7 +1701,7 @@ def featured_items_delete(item_id: int):
 # MAINTENANCE SYSTEME
 # ======================
 from datetime import datetime, timedelta
-from ..models.maintenance import MaintenanceRun  # ← Import à ajouter en haut
+from ..models.maintenance import MaintenanceRun
 
 @bp.route("/maintenance", methods=["GET"])
 def maintenance():

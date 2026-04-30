@@ -211,52 +211,6 @@ body {
     color: var(--primary-dark);
 }
 
-.period-pill {
-    border-width: 2px;
-    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
-}
-
-.period-pill i {
-    font-size: 0.9rem;
-}
-
-.period-pill-open {
-    border-color: rgba(16, 185, 129, 0.35);
-    background: linear-gradient(135deg, rgba(16, 185, 129, 0.18), rgba(236, 253, 245, 0.98));
-    color: #065f46;
-}
-
-.period-pill-open i {
-    color: #059669;
-}
-
-.period-pill-closed {
-    border-color: rgba(245, 158, 11, 0.42);
-    background: linear-gradient(135deg, rgba(251, 191, 36, 0.24), rgba(255, 251, 235, 0.98));
-    color: #92400e;
-}
-
-.period-pill-closed i {
-    color: #d97706;
-}
-
-.period-pill-action {
-    text-decoration: none;
-    border-color: rgba(37, 99, 235, 0.32);
-    background: linear-gradient(135deg, rgba(59, 130, 246, 0.18), rgba(239, 246, 255, 0.98));
-    color: #1d4ed8;
-}
-
-.period-pill-action i {
-    color: #2563eb;
-}
-
-.period-pill-action:hover {
-    color: #1e40af;
-    border-color: rgba(37, 99, 235, 0.45);
-    transform: translateY(-1px);
-}
-
 .dashboard-welcome-orb {
     position: relative;
     width: 70px;
@@ -2036,7 +1990,6 @@ body {
     border-width: 1px;
 }
 
-.period-pill-action,
 .search-clear,
 .status-btn,
 .today-link,
@@ -2051,7 +2004,6 @@ body {
     transition: transform 0.12s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.12s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.12s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.12s cubic-bezier(0.4, 0, 0.2, 1), filter 0.12s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.12s cubic-bezier(0.4, 0, 0.2, 1), color 0.12s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.period-pill-action:active,
 .search-clear:active,
 .status-btn:active,
 .today-link:active,
@@ -2067,7 +2019,6 @@ body {
 }
 
 @media (max-width: 767.98px) {
-    .period-pill-action,
     .search-clear,
     .status-btn,
     .today-link,

@@ -3,7 +3,7 @@
 {% set report_issue_item = report_issue_item if report_issue_item is defined and report_issue_item else '' %}
 {% set report_issue_back = request.full_path if request.query_string else request.path %}
 {% set report_issue_scope_label = report_issue_scope_label if report_issue_scope_label is defined and report_issue_scope_label else 'Support' %}
-{% set report_issue_scope_key = report_issue_scope_key if report_issue_scope_key is defined and report_issue_scope_key else ('courier' if report_issue_endpoint == 'courier.support_whatsapp' else 'location' if report_issue_endpoint == 'rentals.owner_support_whatsapp' else 'client' if report_issue_endpoint == 'auth.support_whatsapp' else 'vendor') %}
+{% set report_issue_scope_key = report_issue_scope_key if report_issue_scope_key is defined and report_issue_scope_key else ('location' if report_issue_endpoint == 'rentals.owner_support_whatsapp' else 'client' if report_issue_endpoint == 'auth.support_whatsapp' else 'vendor') %}
 {% set report_issue_storage_key = report_issue_storage_key if report_issue_storage_key is defined and report_issue_storage_key else report_issue_scope_key %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/support_issue_fab.css', v=app_static_version) }}">
 <div class="support-issue-widget"
@@ -61,13 +61,6 @@
             <option value="Photo ou video">Photo ou video</option>
             <option value="Prix ou reservation">Prix ou reservation</option>
             <option value="Calendrier">Calendrier</option>
-            <option value="Affichage">Affichage</option>
-            <option value="Autre">Autre</option>
-            {% elif report_issue_scope_key == 'courier' %}
-            <option value="Livraison">Livraison</option>
-            <option value="Statut">Statut</option>
-            <option value="Paiement">Paiement</option>
-            <option value="Compte">Compte</option>
             <option value="Affichage">Affichage</option>
             <option value="Autre">Autre</option>
             {% elif report_issue_scope_key == 'client' %}

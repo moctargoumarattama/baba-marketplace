@@ -158,8 +158,6 @@ function initShopHomePage() {
   // ===== SCROLL TO TOP =====
   const scrollToTopBtn = document.getElementById('scrollToTop');
   let isScrollToTopVisible = false;
-  let lastPageBadgeText = "";
-  let isPageBadgeVisible = false;
   const floatingPaginationNav = document.getElementById('floatingPaginationNav');
   const floatingPrevBtn = document.getElementById('floatingPrevBtn');
   const floatingNextBtn = document.getElementById('floatingNextBtn');
@@ -659,7 +657,6 @@ function initShopHomePage() {
       startDeferredHomePrefetch();
     }
     updateLoadMoreButton();
-    updateClearButton();
   }
 
   function updateLoadMoreButton() {
@@ -707,66 +704,6 @@ function initShopHomePage() {
     btn.classList.toggle('loading', isLoading);
   }
 
-  let pageBadgeTimer = null;
-  function updatePageBadge(show = true) {
-    const badge = document.getElementById('pageBadge');
-    if (!badge || document.hidden || window.innerWidth > 768 || !userInteracted) return;
-    if (window.innerWidth <= 576 && floatingPaginationNav && floatingPaginationNav.classList.contains('show')) {
-      if (isPageBadgeVisible) {
-        badge.classList.remove('show');
-        isPageBadgeVisible = false;
-      }
-      return;
-    }
-    const total = totalPages || 1;
-    const current = parseInt(currentFilters.page || 1, 10);
-    const nextText = `Page ${current}/${total}`;
-    if (nextText !== lastPageBadgeText) {
-      badge.textContent = nextText;
-      lastPageBadgeText = nextText;
-    }
-    if (total <= 1) {
-      if (isPageBadgeVisible) {
-        badge.classList.remove('show');
-        isPageBadgeVisible = false;
-      }
-      if (pageBadgeTimer) {
-        window.clearTimeout(pageBadgeTimer);
-        pageBadgeTimer = null;
-      }
-      return;
-    }
-    if (show) {
-      if (!isPageBadgeVisible) {
-        badge.classList.add('show');
-        isPageBadgeVisible = true;
-      }
-      if (pageBadgeTimer) window.clearTimeout(pageBadgeTimer);
-      pageBadgeTimer = window.setTimeout(() => {
-        badge.classList.remove('show');
-        isPageBadgeVisible = false;
-        pageBadgeTimer = null;
-      }, 1200);
-    }
-  }
-
-  function hasActiveFilters() {
-    return !!(
-      currentFilters.q ||
-      currentFilters.cat ||
-      currentFilters.shop ||
-      currentFilters.sort ||
-      currentFilters.kind ||
-      currentFilters.promo
-    );
-  }
-
-  function updateClearButton() {
-    if (!mobileClearBtn) return;
-    const shouldShow = window.innerWidth <= 768 && userInteracted && hasActiveFilters();
-    mobileClearBtn.classList.toggle('show', shouldShow);
-  }
-
   function getFiltersFromUrl() {
     const params = new URLSearchParams(window.location.search);
     return {
@@ -787,9 +724,6 @@ function initShopHomePage() {
     currentFilters = getFiltersFromUrl();
     updateActiveFilters();
   }
-
-  // ===== FILTRES MOBILE =====
-  const mobileClearBtn = document.getElementById('mobileClearFloat');
 
   // ===== FILTRAGE AJAX =====
   function updateFilters(filterType, value, options = {}) {
@@ -991,7 +925,6 @@ function initShopHomePage() {
       attachPaginationEvents(document.getElementById('paginationContainer'));
       updateLoadMoreButton();
       updateFloatingPagination();
-      updatePageBadge(false);
       scheduleHomeIdlePrefetch();
       if (homeDeferredPrefetchStarted) {
         scheduleWarmVisiblePagination(document.getElementById('paginationContainer'));
@@ -1157,7 +1090,6 @@ function initShopHomePage() {
       const html = response.data || '';
       if (!append && publicUrl === lastProductsFetchUrl && html === lastProductsResponseHtml) {
         updateLoadMoreButton();
-        updatePageBadge(false);
         if (showState) {
           showUrlState('Filtres appliques');
         }
@@ -1289,7 +1221,7 @@ function initShopHomePage() {
   }
 
   function updateActiveFilters() {
-    // Mettre Ã  jour les boutons actifs
+    // Mettre à jour les boutons actifs
     document.querySelectorAll('[data-filter]').forEach(element => {
       const filterType = element.getAttribute('data-filter');
       const filterValue = element.getAttribute('data-value');
@@ -1309,7 +1241,7 @@ function initShopHomePage() {
       }
     });
     
-    // Mettre Ã  jour le select
+    // Mettre à jour le select
     const sortSelect = document.getElementById('sortSelect');
     if (sortSelect) {
       sortSelect.value = currentFilters.sort;
@@ -1332,7 +1264,6 @@ function initShopHomePage() {
     if (minPriceMobile) minPriceMobile.value = currentFilters.min_price || '';
     if (maxPriceMobile) maxPriceMobile.value = currentFilters.max_price || '';
 
-    updateClearButton();
     syncKindUI();
   }
 
@@ -1354,7 +1285,6 @@ function initShopHomePage() {
     });
     isInfiniteLoading = false;
     setLoadMoreLoading(false);
-    updatePageBadge(true);
   }
 
   function resetFilters(options = {}) {
@@ -1468,11 +1398,6 @@ function initShopHomePage() {
       });
     }
 
-    if (mobileClearBtn) {
-      mobileClearBtn.addEventListener('click', function() {
-        resetFilters({ triggerEl: this });
-      });
-    }
   }
 
   // ===== PAGINATION =====
@@ -1735,7 +1660,6 @@ function initShopHomePage() {
     updateActiveFilters();
     updateLoadMoreButton();
     updateFloatingPagination();
-    updatePageBadge(false);
     scheduleHomeIdlePrefetch();
     loadSuggestions(currentFilters.q || "");
   });
@@ -1878,7 +1802,7 @@ function initShopHomePage() {
       priceSpan.textContent = priceText ? `${priceText} DH` : '';
 
       const dot = document.createElement('span');
-      dot.textContent = priceText && p.shop_name ? ' â€¢ ' : '';
+      dot.textContent = priceText && p.shop_name ? ' • ' : '';
 
       const shopSpan = document.createElement('span');
       shopSpan.setAttribute('data-no-i18n', 'true');
@@ -1925,7 +1849,7 @@ function initShopHomePage() {
       const physicalCount = Number(s.physical_count || 0);
       const serviceCount = Number(s.service_count || 0);
       const locationCount = Number(s.location_count || 0);
-      meta.textContent = `${physicalCount} ${l.products} â€¢ ${serviceCount} ${l.services} â€¢ ${locationCount} ${l.locations}`;
+      meta.textContent = `${physicalCount} ${l.products} • ${serviceCount} ${l.services} • ${locationCount} ${l.locations}`;
 
       info.append(name, meta);
       link.append(img, info);
@@ -1964,7 +1888,7 @@ function initShopHomePage() {
       meta.className = 'live-suggest-meta';
       const price = Number(location.rent_dh || 0);
       const city = location.city || '';
-      meta.textContent = `${price.toFixed(2)} DH${city ? ` â€¢ ${city}` : ''}`;
+      meta.textContent = `${price.toFixed(2)} DH${city ? ` • ${city}` : ''}`;
 
       info.append(name, meta);
       link.append(img, info);
@@ -2296,10 +2220,6 @@ function initShopHomePage() {
   }
 
   function clearPageTimers() {
-    if (pageBadgeTimer) {
-      window.clearTimeout(pageBadgeTimer);
-      pageBadgeTimer = null;
-    }
     if (urlStateTimer) {
       window.clearTimeout(urlStateTimer);
       urlStateTimer = null;
@@ -2333,9 +2253,6 @@ function initShopHomePage() {
     window.requestAnimationFrame(() => {
       updateScrollToTopVisibility();
       updateFloatingPagination();
-      if (userInteracted && window.innerWidth <= 768 && totalPages > 1) {
-        updatePageBadge(true);
-      }
       scrollTicking = false;
     });
   }, { passive: true });
@@ -2356,7 +2273,6 @@ function initShopHomePage() {
   updateLoadMoreButton();
   updateFloatingPagination();
   updateScrollToTopVisibility();
-  updatePageBadge(false);
   queueInitialListingSnapshot(1400);
   queueDeferredHomePrefetch(1200);
   let resizeRafId = 0;

@@ -20,8 +20,6 @@ def restrict_admin():
     role = (getattr(current_user, "role", "") or "").lower()
     if role in {"admin", "manager"}:
         return None
-    if role == "courier":
-        return render_template("errors/403.html"), 403
     flash("Acces reserve aux administrateurs", "danger")
     return redirect(url_for("shop.home"))
 

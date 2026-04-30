@@ -1,141 +1,145 @@
-﻿{% extends "admin/base.html" %}
+{% extends "admin/base.html" %}
 
 {% block title %}{{ 'Paiements' if current_user.role == 'manager' else 'Finance' }} | Admin{% endblock %}
 {% block page_title %}{{ 'Paiements' if current_user.role == 'manager' else 'Finance' }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid px-0">
+  <div class="alert alert-light border mb-3" role="status">
+    <div class="fw-semibold mb-1"><i class="bi bi-info-circle me-1"></i>Comment lire cette page</div>
+    <div class="small text-muted">Cette page montre les revenus enregistres dans le systeme. Choisissez les dates et le type, puis verifiez les lignes en bas.</div>
+  </div>
+
   <div class="card mb-3">
     <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
       <strong>{{ 'Paiements' if current_user.role == 'manager' else 'Finance' }}</strong>
-      <a class="btn btn-primary btn-sm" href="{{ url_for('admin.pricing_settings', section='periods') }}">{{ 'Gerer les periodes' if current_user.role == 'manager' else 'Periodes globales' }}</a>
+      <span class="badge text-bg-light">{{ date_range_label }}</span>
     </div>
     <div class="card-body">
-      <div class="text-muted small">{{ 'La periode se choisit depuis la page Periodes.' if current_user.role == 'manager' else "La periode active se gere depuis le centre des periodes." }}</div>
-    </div>
-  </div>
-
-  <div class="row g-3 mb-3">
-    <div class="col-12 col-md-4">
-      <div class="card h-100">
-        <div class="card-body">
-          <div class="text-muted small">{{ 'Montants sans periode' if current_user.role == 'manager' else 'Entrees non assignees' }}</div>
-          <div class="h4 mb-1">{{ '%.2f'|format((unassigned_total_cents or 0) / 100) }} MAD</div>
-          <div class="small text-muted">{{ unassigned_count }} {{ 'ligne(s)' if current_user.role == 'manager' else 'entree(s)' }}</div>
-        </div>
-      </div>
-    </div>
-    <div class="col-12 col-md-8">
-      <div class="card h-100">
-        <div class="card-body d-flex align-items-center">
-          <span class="text-muted">{{ 'Les donnees affichees suivent la periode active choisie dans Periodes.' if current_user.role == 'manager' else 'Les donnees affichees suivent la periode active du centre des periodes.' }}</span>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  {% if selected_period %}
-  <div class="card mb-3">
-      <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
-        <strong>{{ 'Resume des paiements' if current_user.role == 'manager' else 'Detail finance' }}</strong>
-      </div>
-    <div class="card-body">
-      <div class="row g-2 mb-3">
-        <div class="col-6 col-md-3"><div class="p-2 border rounded"><div class="small text-muted">Livraison</div><div class="fw-bold">{{ '%.2f'|format((selected_totals.delivery_total_cents or 0) / 100) }} MAD</div><div class="small">{{ selected_totals.delivery_count }} {{ 'ligne(s)' if current_user.role == 'manager' else 'entree(s)' }}</div></div></div>
-        <div class="col-6 col-md-3"><div class="p-2 border rounded"><div class="small text-muted">Abonnements</div><div class="fw-bold">{{ '%.2f'|format((selected_totals.subscription_total_cents or 0) / 100) }} MAD</div><div class="small">{{ selected_totals.subscription_count }} {{ 'ligne(s)' if current_user.role == 'manager' else 'entree(s)' }}</div></div></div>
-        <div class="col-6 col-md-3"><div class="p-2 border rounded"><div class="small text-muted">Location</div><div class="fw-bold">{{ '%.2f'|format((selected_totals.rental_total_cents or 0) / 100) }} MAD</div><div class="small">{{ selected_totals.rental_count }} {{ 'ligne(s)' if current_user.role == 'manager' else 'entree(s)' }}</div></div></div>
-        <div class="col-6 col-md-3"><div class="p-2 border rounded bg-light"><div class="small text-muted">{{ 'Total' if current_user.role == 'manager' else 'Total global' }}</div><div class="fw-bold">{{ '%.2f'|format((selected_totals.total_cents or 0) / 100) }} MAD</div><div class="small">{{ selected_totals.entry_count }} {{ 'ligne(s)' if current_user.role == 'manager' else 'entree(s)' }}</div></div></div>
-      </div>
-
-      <form method="get" class="row g-2 align-items-end mb-3">
-        <input type="hidden" name="period_id" value="{{ selected_period.id }}">
-        <div class="col-12 col-md-3">
-          <label class="form-label mb-1">Type</label>
-          <select class="form-select" name="entry_type">
-            <option value="" {% if not entry_type %}selected{% endif %}>Tous</option>
-            <option value="delivery_fee" {% if entry_type == 'delivery_fee' %}selected{% endif %}>Livraison</option>
-            <option value="subscription" {% if entry_type == 'subscription' %}selected{% endif %}>Abonnement</option>
-            <option value="rental_commission" {% if entry_type == 'rental_commission' %}selected{% endif %}>Location</option>
+      <form method="get" class="row g-2 align-items-end">
+        <div class="col-12 col-md-2">
+          <label class="form-label mb-1">Dates</label>
+          <select class="form-select" name="range">
+            <option value="today" {% if range_filter == 'today' %}selected{% endif %}>Aujourd'hui</option>
+            <option value="month" {% if range_filter == 'month' %}selected{% endif %}>Ce mois</option>
+            <option value="year" {% if range_filter == 'year' %}selected{% endif %}>Cette annee</option>
+            <option value="custom" {% if range_filter == 'custom' %}selected{% endif %}>Dates</option>
           </select>
         </div>
-        <div class="col-6 col-md-3">
-          <label class="form-label mb-1">Du</label>
+        <div class="col-12 col-md-3">
+          <label class="form-label mb-1">Type de revenu</label>
+          <select class="form-select" name="entry_type">
+            <option value="" {% if not entry_type %}selected{% endif %}>Tous</option>
+            <option value="delivery_fee" {% if entry_type == 'delivery_fee' %}selected{% endif %}>Livraison express</option>
+            <option value="subscription" {% if entry_type == 'subscription' %}selected{% endif %}>Abonnements</option>
+            <option value="rental_commission" {% if entry_type == 'rental_commission' %}selected{% endif %}>Commission location</option>
+          </select>
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label mb-1">Date debut</label>
           <input class="form-control" type="date" name="date_from" value="{{ date_from }}">
         </div>
-        <div class="col-6 col-md-3">
-          <label class="form-label mb-1">Au</label>
+        <div class="col-6 col-md-2">
+          <label class="form-label mb-1">Date fin</label>
           <input class="form-control" type="date" name="date_to" value="{{ date_to }}">
         </div>
         <div class="col-12 col-md-3 d-grid">
-          <button class="btn btn-outline-primary" type="submit">{{ 'Afficher' if current_user.role == 'manager' else 'Filtrer' }}</button>
+          <button class="btn btn-primary" type="submit">Appliquer les filtres</button>
         </div>
       </form>
-
-      <div class="table-responsive mb-3">
-        <table class="table table-sm align-middle">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Type</th>
-              <th>Montant</th>
-              <th>Reference</th>
-              <th>Livreur</th>
-              <th>Note</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% if entries %}
-              {% for entry in entries %}
-              <tr>
-                <td>{{ entry.created_at.strftime('%Y-%m-%d %H:%M') if entry.created_at else '-' }}</td>
-                <td>{{ entry_type_labels.get(entry.entry_type, entry.entry_type) }}</td>
-                <td><strong>{{ '%.2f'|format((entry.amount_cents or 0) / 100) }} MAD</strong></td>
-                <td>
-                  {% if entry.order_id %}
-                    Commande #{{ entry.order_id }}
-                  {% elif entry.rental_archive_id %}
-                    Archive location #{{ entry.rental_archive_id }}
-                  {% elif entry.subscription_id %}
-                    Paiement abonnement #{{ entry.subscription_id }}
-                  {% else %}
-                    -
-                  {% endif %}
-                </td>
-                <td>{{ entry.courier.username if entry.courier else '-' }}</td>
-                <td class="small text-muted">{{ entry.note or '-' }}</td>
-              </tr>
-              {% endfor %}
-            {% else %}
-              <tr>
-                <td colspan="6" class="text-center text-muted py-3">{{ 'Aucune ligne pour ce choix.' if current_user.role == 'manager' else 'Aucune entree pour ce filtre.' }}</td>
-              </tr>
-            {% endif %}
-          </tbody>
-        </table>
-      </div>
-
-      {% if entries_pagination.pages > 1 %}
-      <nav aria-label="Pagination entries">
-        <ul class="pagination pagination-sm mb-3">
-          <li class="page-item {% if not entries_pagination.has_prev %}disabled{% endif %}">
-            <a class="page-link" href="{{ url_for('admin.finance', period_id=selected_period.id, entry_type=entry_type or None, date_from=date_from or None, date_to=date_to or None, page=entries_pagination.prev_num) if entries_pagination.has_prev else '#' }}">Precedent</a>
-          </li>
-          <li class="page-item disabled"><span class="page-link">{{ entries_pagination.page }} / {{ entries_pagination.pages }}</span></li>
-          <li class="page-item {% if not entries_pagination.has_next %}disabled{% endif %}">
-            <a class="page-link" href="{{ url_for('admin.finance', period_id=selected_period.id, entry_type=entry_type or None, date_from=date_from or None, date_to=date_to or None, page=entries_pagination.next_num) if entries_pagination.has_next else '#' }}">Suivant</a>
-          </li>
-        </ul>
-      </nav>
-      {% endif %}
-
-      <hr>
-      <h6 class="mb-2">{{ 'Suppression' if current_user.role == 'manager' else 'Suppression securisee' }}</h6>
-        <div class="alert alert-secondary mb-0">
-          {{ delete_message or ('Cette partie se gere depuis la page des periodes.' if current_user.role == 'manager' else 'Gestion centralisee via la page Periodes globales.') }}
-        </div>
     </div>
+  </div>
+
+  <div class="row g-2 mb-3">
+    <div class="col-6 col-md-3"><div class="p-2 border rounded"><div class="small text-muted">Revenu livraison express</div><div class="fw-bold">{{ '%.2f'|format((selected_totals.delivery_total_cents or 0) / 100) }} MAD</div><div class="small">{{ selected_totals.delivery_count }} ligne(s)</div></div></div>
+    <div class="col-6 col-md-3"><div class="p-2 border rounded"><div class="small text-muted">Revenu abonnements</div><div class="fw-bold">{{ '%.2f'|format((selected_totals.subscription_total_cents or 0) / 100) }} MAD</div><div class="small">{{ selected_totals.subscription_count }} ligne(s)</div></div></div>
+    <div class="col-6 col-md-3"><div class="p-2 border rounded"><div class="small text-muted">Revenu locations</div><div class="fw-bold">{{ '%.2f'|format((selected_totals.rental_total_cents or 0) / 100) }} MAD</div><div class="small">{{ selected_totals.rental_count }} ligne(s)</div></div></div>
+    <div class="col-6 col-md-3"><div class="p-2 border rounded bg-light"><div class="small text-muted">Total affiche</div><div class="fw-bold">{{ '%.2f'|format((selected_totals.total_cents or 0) / 100) }} MAD</div><div class="small">{{ selected_totals.entry_count }} ligne(s)</div></div></div>
+  </div>
+
+  <div class="card">
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Date enregistrement</th>
+            <th>Categorie</th>
+            <th>Montant</th>
+            <th>Reference</th>
+            <th>Explication</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if entries %}
+            {% for entry in entries %}
+            <tr>
+              <td>{{ entry.created_at.strftime('%Y-%m-%d %H:%M') if entry.created_at else '-' }}</td>
+              <td>{{ entry_type_labels.get(entry.entry_type, entry.entry_type) }}</td>
+              <td><strong>{{ '%.2f'|format((entry.amount_cents or 0) / 100) }} MAD</strong></td>
+              <td>
+                {% if entry.order_id %}
+                  Commande livraison #{{ entry.order_id }}
+                {% elif entry.rental_archive_id %}
+                  Archive location #{{ entry.rental_archive_id }}
+                {% elif entry.subscription_id %}
+                  Paiement abonnement #{{ entry.subscription_id }}
+                {% else %}
+                  -
+                {% endif %}
+              </td>
+              <td class="small text-muted">
+                {% set has_detail = false %}
+                {% if entry.note %}
+                  {% set has_detail = true %}
+                  {% set note_fr = entry.note %}
+                  {% if note_fr == 'subscription marked paid by admin' %}
+                    {% set note_fr = "Paiement d'abonnement enregistre par l'admin" %}
+                  {% elif note_fr == 'order delivered by admin' %}
+                    {% set note_fr = "Livraison marquee comme livree par l'admin" %}
+                  {% elif note_fr == 'rental listing closed as taken' %}
+                    {% set note_fr = 'Location finalisee (prise) et enregistree par le systeme' %}
+                  {% endif %}
+                  <div>{{ note_fr }}</div>
+                {% endif %}
+                {% if entry.subscription_payment %}
+                  {% set has_detail = true %}
+                  {% if entry.subscription_payment.user %}
+                    <div><strong>Compte:</strong> {{ entry.subscription_payment.user.username or entry.subscription_payment.user.email or ('#' ~ entry.subscription_payment.user_id) }}</div>
+                  {% endif %}
+                  {% if entry.subscription_payment.created_by %}
+                    <div><strong>Enregistre par:</strong> {{ entry.subscription_payment.created_by.username or entry.subscription_payment.created_by.email or ('#' ~ entry.subscription_payment.created_by_id) }}</div>
+                  {% elif entry.subscription_payment.created_by_id %}
+                    <div><strong>Enregistre par:</strong> #{{ entry.subscription_payment.created_by_id }}</div>
+                  {% endif %}
+                {% endif %}
+                {% if not has_detail %}-{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td colspan="5" class="text-center text-muted py-3">Aucune ligne trouvee pour les filtres choisis.</td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {% if entries_pagination.pages > 1 %}
+  <div class="mt-3">
+    <nav aria-label="Pagination finance">
+      <ul class="pagination pagination-sm justify-content-center">
+        <li class="page-item {% if not entries_pagination.has_prev %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('admin.finance', page=entries_pagination.prev_num, range=range_filter, entry_type=entry_type or None, date_from=date_from or None, date_to=date_to or None) if entries_pagination.has_prev else '#' }}">Page precedente</a>
+        </li>
+        <li class="page-item disabled"><span class="page-link">{{ entries_pagination.page }} / {{ entries_pagination.pages }}</span></li>
+        <li class="page-item {% if not entries_pagination.has_next %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('admin.finance', page=entries_pagination.next_num, range=range_filter, entry_type=entry_type or None, date_from=date_from or None, date_to=date_to or None) if entries_pagination.has_next else '#' }}">Page suivante</a>
+        </li>
+      </ul>
+    </nav>
   </div>
   {% endif %}
 </div>
 {% endblock %}
-

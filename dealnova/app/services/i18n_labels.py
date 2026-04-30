@@ -8,28 +8,19 @@ DELIVERY_STATUS_FALLBACK = {"fr": "En cours", "en": "In progress", "ary": "F ttr
 
 DELIVERY_STATUS_LABELS: Dict[str, Dict[str, str]] = {
     "fr": {
-        "new": "Nouveau",
-        "assigned": "Assignée",
-        "picked_up": "Récupérée",
-        "delivering": "En cours de livraison",
+        "new": "Nouvelle livraison",
         "delivered": "Livrée",
         "canceled": "Annulée",
         "cancelled": "Annulée",
     },
     "en": {
-        "new": "New",
-        "assigned": "Assigned",
-        "picked_up": "Picked up",
-        "delivering": "Delivering",
+        "new": "New delivery",
         "delivered": "Delivered",
         "canceled": "Canceled",
         "cancelled": "Canceled",
     },
     "ary": {
-        "new": "Jdida",
-        "assigned": "M3ayyana",
-        "picked_up": "Tt9abat",
-        "delivering": "F ttriq",
+        "new": "Twssila jdida",
         "delivered": "Tssalmat",
         "canceled": "Tlat",
         "cancelled": "Tlat",
@@ -39,10 +30,8 @@ DELIVERY_STATUS_LABELS: Dict[str, Dict[str, str]] = {
 ORDER_STATUS_LABELS: Dict[str, Dict[str, str]] = {
     "fr": {
         "new": "Nouveau",
-        "assigned": "Assignée",
-        "picked_up": "Récupérée",
-        "delivering": "En cours de livraison",
-        "pending": "En attente",
+        "draft": "Demande à confirmer",
+        "pending": "Commande confirmée",
         "paid": "Payée",
         "processing": "En préparation",
         "shipping": "En expédition",
@@ -50,13 +39,13 @@ ORDER_STATUS_LABELS: Dict[str, Dict[str, str]] = {
         "delivered": "Livrée",
         "canceled": "Annulée",
         "cancelled": "Annulée",
+        "expired": "Demande expirée",
+        "archived": "Archivée",
     },
     "en": {
         "new": "New",
-        "assigned": "Assigned",
-        "picked_up": "Picked up",
-        "delivering": "Delivering",
-        "pending": "Pending",
+        "draft": "Request to confirm",
+        "pending": "Order confirmed",
         "paid": "Paid",
         "processing": "Processing",
         "shipping": "Shipping",
@@ -64,19 +53,46 @@ ORDER_STATUS_LABELS: Dict[str, Dict[str, str]] = {
         "delivered": "Delivered",
         "canceled": "Canceled",
         "cancelled": "Canceled",
+        "expired": "Request expired",
+        "archived": "Archived",
     },
     "ary": {
         "new": "Jdida",
-        "assigned": "M3ayyana",
-        "picked_up": "Tt9abat",
-        "delivering": "F ttriq",
-        "pending": "Mtsennya",
+        "draft": "Khas ttsdeq",
+        "pending": "Ttsdeqat",
         "paid": "Tkhlsat",
         "processing": "Katwjjed",
         "shipping": "Mcha lttwsil",
         "shipped": "Mchrat",
         "delivered": "Tssalmat",
         "canceled": "Tlat",
+        "cancelled": "Tlat",
+        "expired": "Salat",
+        "archived": "Makhzona",
+    },
+}
+
+VENDOR_PAYOUT_STATUS_FALLBACK = {"fr": "En cours", "en": "In progress", "ary": "F ttriq"}
+VENDOR_PAYOUT_STATUS_LABELS: Dict[str, Dict[str, str]] = {
+    "fr": {
+        "pending": "Paiement bloqué",
+        "claimable": "Vendeur peut confirmer",
+        "claimed": "Réception confirmée",
+        "paid": "Vendeur payé",
+        "cancelled": "Annulé",
+    },
+    "en": {
+        "pending": "Payment locked",
+        "claimable": "Vendor can confirm",
+        "claimed": "Receipt confirmed",
+        "paid": "Vendor paid",
+        "cancelled": "Cancelled",
+    },
+    "ary": {
+        "pending": "Khlas mazal m7bous",
+        "claimable": "Lbay3 y9dr y2akked",
+        "claimed": "T2akked lwsoul",
+        "paid": "Lbay3 tkhlles",
         "cancelled": "Tlat",
     },
 }
@@ -134,6 +150,13 @@ def label_order_status(status: str | None, lang: str | None = None) -> str:
     key = normalize_status(status)
     labels = ORDER_STATUS_LABELS[current_lang]
     return labels.get(key) or DELIVERY_STATUS_FALLBACK[current_lang]
+
+
+def label_vendor_payout_status(status: str | None, lang: str | None = None) -> str:
+    current_lang = normalize_lang(lang)
+    key = normalize_status(status)
+    labels = VENDOR_PAYOUT_STATUS_LABELS[current_lang]
+    return labels.get(key) or VENDOR_PAYOUT_STATUS_FALLBACK[current_lang]
 
 
 def label_source(source: str | None, lang: str | None = None) -> str:

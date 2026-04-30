@@ -418,7 +418,7 @@
       <i class="bi bi-whatsapp" style="font-size:1.1rem;"></i> Demander via WhatsApp
     </button>
     <div class="dlv-sep">ou</div>
-    {% set wa = (config.get('SUPPORT_WHATSAPP_NUMBER') or config.get('ADMIN_PHONE') or '212770010264') %}
+    {% set wa = (config.get('SUPPORT_WHATSAPP_NUMBER') or config.get('ADMIN_PHONE') or '') %}
     <a class="dlv-btn dlv-btn-outline"
        href="https://wa.me/{{ wa|replace('+','')|replace(' ','') }}?text=Bonjour%20je%20veux%20une%20livraison%20sp%C3%A9ciale."
        target="_blank" rel="noopener">

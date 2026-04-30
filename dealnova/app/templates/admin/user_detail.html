@@ -165,68 +165,6 @@
                     </div>
                 </div>
 
-                {% if user.role == 'courier' %}
-                <div class="card admin-card">
-                    <div class="card-header">
-                        <h5 class="mb-0">
-                            <i class="bi bi-truck"></i> Espace livreur
-                        </h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="d-flex flex-wrap gap-2 mb-3">
-                            <span class="badge bg-{{ 'success' if user.courier_is_active else 'secondary' }}">
-                                Equipe: {{ 'Active' if user.courier_is_active else 'Inactive' }}
-                            </span>
-                            <span class="badge bg-{{ 'success' if user.courier_is_available else 'secondary' }}">
-                                Disponibilite: {{ 'Oui' if user.courier_is_available else 'Non' }}
-                            </span>
-                            <span class="badge bg-info text-dark">
-                                Livrees: {{ courier_delivered_count or 0 }}
-                            </span>
-                            <span class="badge bg-warning text-dark">
-                                En cours: {{ courier_in_progress_count or 0 }}
-                            </span>
-                        </div>
-                        <div class="small text-muted mb-3">
-                            Derniere activite:
-                            {% if user.courier_last_seen_at %}
-                                {{ user.courier_last_seen_at.strftime('%d/%m/%Y a %H:%M') }}
-                            {% else %}
-                                N/A
-                            {% endif %}
-                        </div>
-                        <div class="d-flex flex-wrap gap-2 mb-3">
-                            <form method="post" action="{{ url_for('admin_users.toggle_courier_active', user_id=user.id) }}" class="d-inline">
-                                {% include "admin/partials/_csrf.html" %}
-                                <button type="submit" class="btn btn-sm btn-outline-{{ 'danger' if user.courier_is_active else 'success' }}">
-                                    {{ 'Rendre inactif' if user.courier_is_active else 'Rendre actif' }}
-                                </button>
-                            </form>
-                            <form method="post" action="{{ url_for('admin_users.toggle_courier_availability', user_id=user.id) }}" class="d-inline">
-                                {% include "admin/partials/_csrf.html" %}
-                                <button type="submit" class="btn btn-sm btn-outline-primary">
-                                    {{ 'Passer indisponible' if user.courier_is_available else 'Passer disponible' }}
-                                </button>
-                            </form>
-                        </div>
-                        <form method="post" action="{{ url_for('admin_users.save_courier_admin_note', user_id=user.id) }}">
-                            {% include "admin/partials/_csrf.html" %}
-                            <label for="courier_admin_note" class="form-label fw-semibold">Note interne admin</label>
-                            <textarea
-                                class="form-control"
-                                id="courier_admin_note"
-                                name="courier_admin_note"
-                                rows="3"
-                                placeholder="Ex: zone preferentielle, contraintes horaires, fiabilite..."
-                            >{{ user.courier_admin_note or '' }}</textarea>
-                            <div class="mt-2">
-                                <button type="submit" class="btn btn-sm btn-primary">Enregistrer la note</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-                {% endif %}
-
                 <div class="card admin-card" id="actions-section">
                     <div class="card-header">
                         <h5 class="mb-0">
@@ -245,7 +183,7 @@
                                 </button>
                             </form>
 
-                            {% if user.role in ['vendor', 'courier'] %}
+                            {% if user.role == 'vendor' %}
                             <form method="post"
                                   action="{{ url_for('admin_users.set_user_password_change_window', user_id=user.id) }}"
                                   class="d-inline">
@@ -293,7 +231,7 @@
                         </div>
 
                         <!-- PANEL MOT DE PASSE TEMPORAIRE -->
-                        {% if user.role in ['vendor', 'courier'] %}
+                        {% if user.role == 'vendor' %}
                         <div class="small mt-1 {{ 'text-success' if password_change_window_active else 'text-muted' }}">
                             {% if password_change_window_active and password_change_allowed_until %}
                                 Fenetre changement mdp active jusqu'au {{ password_change_allowed_until.strftime('%d/%m/%Y %H:%M') }}.
@@ -452,7 +390,6 @@
                             <label for="role" class="form-label">Rôle</label>
                             <select class="form-select" id="role" name="role">
                                 <option value="vendor" {% if user.role == 'vendor' %}selected{% endif %}>Vendeur</option>
-                                <option value="courier" {% if user.role == 'courier' %}selected{% endif %}>Livreur</option>
                                 {% if current_user.role == 'admin' %}
                                 <option value="manager" {% if user.role == 'manager' %}selected{% endif %}>Gestionnaire</option>
                                 <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Administrateur</option>

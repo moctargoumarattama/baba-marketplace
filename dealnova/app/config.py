@@ -77,12 +77,13 @@ class Config:
     # =========================
     # Branding / Business rules
     # =========================
-    SITE_NAME = os.getenv("SITE_NAME", "Baba Market ")
+    SITE_NAME = os.getenv("SITE_NAME", "Baba Market")
     SITE_LOGO = os.getenv("SITE_LOGO", "")
     PUBLIC_BASE_URL = (os.getenv("PUBLIC_BASE_URL") or os.getenv("SITE_URL") or "").strip().rstrip("/")
     DELIVERY_WHATSAPP_NUMBER = os.getenv("DELIVERY_WHATSAPP_NUMBER", "212602908954")
     ADMIN_PHONE = os.getenv("ADMIN_PHONE", "+212770010264")
     SUPPORT_WHATSAPP_NUMBER = os.getenv("SUPPORT_WHATSAPP_NUMBER", ADMIN_PHONE)
+    RENTAL_VISIT_WHATSAPP_NUMBER = os.getenv("RENTAL_VISIT_WHATSAPP_NUMBER", "212602908954")
 
     # UPLOAD_FOLDER: rendre absolu si relatif (plus robuste)
     _upload_folder_env = os.getenv("UPLOAD_FOLDER", "app/static/uploads")
@@ -212,6 +213,6 @@ class Config:
         MAX_CONTENT_LENGTH = 80 * 1024 * 1024
 
 
-# Valeurs globales (je les laisse inchangees pour ne pas casser ton code)
-ADMIN_PHONE = os.getenv("ADMIN_PHONE", "+212770010264")
-DELIVERY_PHONE = os.getenv("DELIVERY_PHONE", "212602908954")
+# Compatibilite anciens imports: la source reste Config.
+ADMIN_PHONE = Config.ADMIN_PHONE
+DELIVERY_PHONE = Config.DELIVERY_WHATSAPP_NUMBER

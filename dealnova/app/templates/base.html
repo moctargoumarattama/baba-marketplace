@@ -3,21 +3,13 @@
 {% set home_tabs_enabled = config.get('UI_HOME_TABS_ENABLED', True) and request and base_endpoint in ['landing', 'shop.home'] %}
 {% set page_loader_enabled = base_endpoint in [
   'shop.home',
-  'cart.checkout',
   'shops.list_shops',
   'rentals.locations_home',
   'vendor.dashboard',
   'vendor.earnings',
-  'vendor.periods',
   'vendor.manage_shop',
   'vendor.product_new',
-  'vendor.product_edit',
-  'vendor.security'
-] %}
-{% set fontawesome_enabled = base_endpoint in [
-  'cart.track',
-  'cart.track_by_phone',
-  'cart.my_orders'
+  'vendor.product_edit'
 ] %}
 {% set i18n_runtime_enabled = (current_lang or 'fr')|lower != 'fr' %}
 {% set apple_startup_images = [
@@ -50,6 +42,8 @@
   <link rel="preconnect" href="https://www.babamarket.ma" crossorigin>
   <title>{% block title %}{{ config.SITE_NAME }}{% endblock %}</title>
   <link rel="icon" href="{{ url_for('favicon') }}" sizes="any">
+  <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='android-chrome-192x192.png') }}">
+  <link rel="icon" type="image/png" sizes="512x512" href="{{ url_for('static', filename='android-chrome-512x512.png') }}">
   <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='favicon-32x32.png', v=app_static_version) }}">
   <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename='favicon-16x16.png', v=app_static_version) }}">
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png', v=app_static_version) }}">
@@ -67,10 +61,6 @@
   <link href="{{ url_for('static', filename='vendor/bootstrap/5.3.3/css/bootstrap.min.css', v=app_static_version) }}" rel="stylesheet">
   <!-- Bootstrap Icons -->
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons/1.11.1/font/bootstrap-icons.css', v=app_static_version) }}">
-  <!-- Font Awesome -->
-  {% if fontawesome_enabled %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fontawesome/6.4.0/css/all.min.css', v=app_static_version) }}">
-  {% endif %}
   <!-- Google Fonts -->
   <link rel="stylesheet" href="{{ url_for('static', filename='fonts/public.css', v=app_static_version) }}">
 
@@ -405,10 +395,6 @@
     {% set back_fallback = url_for('vendor.dashboard') %}
     {% set back_is_root = ep == 'vendor.dashboard' %}
   {% endif %}
-{% elif current_user.is_authenticated and current_user.role == 'courier' %}
-  {% set back_scope = 'courier' %}
-  {% set back_fallback = url_for('courier.panel_deliveries') %}
-  {% set back_is_root = ep in ['courier.panel_deliveries', 'courier.panel_orders'] %}
 {% endif %}
 
   <!-- LOADER IMMÉDIAT (s'affiche tout de suite) -->
@@ -560,7 +546,6 @@
         'api',
         'booking',
         'cart',
-        'courier',
         'delivery',
         'health',
         'lang',
@@ -874,15 +859,6 @@
     </span>
   </a>
 
-  <a href="{{ url_for('cart.track_by_phone') }}"
-     class="icon-btn"
-     aria-label="{{ t('Suivi commande') }}"
-     data-track-icon
-     data-requires-online
-     data-offline-message="{{ t('Connexion requise pour suivre la commande.') }}">
-    <i class="bi bi-truck"></i>
-    <span class="track-badge d-none" data-track-badge data-track-active="0" aria-hidden="true"></span>
-  </a>
   <div id="navOfflineHint" class="nav-offline-hint" role="status" aria-live="polite"></div>
 </div>
 {% endif %}
@@ -926,14 +902,6 @@
                 <span class="qa-badge{% if (cart_count or 0)|int <= 0 %} d-none{% endif %}" data-drawer-cart-badge>
                   {{ (cart_count or 0)|int }}
                 </span>
-              </a>
-              <a class="qa-card qa-secondary"
-                 href="{{ url_for('cart.track_by_phone') }}"
-                 data-requires-online
-                 data-offline-message="{{ t('Connexion requise pour suivre la commande.') }}">
-                <span class="qa-icon"><i class="bi bi-truck"></i></span>
-                <span>{{ t('Suivi') }}</span>
-                <span class="qa-track-dot d-none" data-drawer-track-badge aria-hidden="true"></span>
               </a>
             </div>
           </div>
@@ -1009,16 +977,6 @@
               <li>
                 <a class="menu-link" href="{{ url_for('vendor.earnings') }}">
                   <i class="bi bi-wallet2"></i><span>{{ t('Encaissements') }}</span>
-                </a>
-              </li>
-              <li>
-                <a class="menu-link" href="{{ url_for('vendor.periods') }}">
-                  <i class="bi bi-calendar3"></i><span>{{ t('Périodes') }}</span>
-                </a>
-              </li>
-              <li>
-                <a class="menu-link" href="{{ url_for('vendor.security') }}">
-                  <i class="bi bi-shield-lock"></i><span>{{ t('Sécurité historique') }}</span>
                 </a>
               </li>
               {% endif %}
@@ -1180,16 +1138,6 @@
                    <i class="bi bi-currency-exchange text-success"></i> {{ t('Encaissements') }}
                  </a>
                </li>
-               <li>
-                 <a class="dropdown-item" href="{{ url_for('vendor.periods') }}">
-                   <i class="bi bi-calendar3 text-primary"></i> {{ t('Périodes') }}
-                 </a>
-               </li>
-               <li>
-                 <a class="dropdown-item" href="{{ url_for('vendor.security') }}">
-                   <i class="bi bi-shield-lock text-warning"></i> {{ t('Sécurité historique') }}
-                 </a>
-               </li>
                {% endif %}
                {% if vendor_allows_location %}
                <li><h6 class="dropdown-header">{{ t('Location') }}</h6></li>
@@ -1284,8 +1232,6 @@
                       <span class="badge bg-warning text-dark">{{ t('Gestionnaire') }}</span>
                     {% elif current_user.role == 'vendor' %}
                       <span class="badge bg-info">{{ t('Vendeur') }}</span>
-                    {% elif current_user.role == 'courier' %}
-                      <span class="badge bg-primary">{{ t('Livreur') }}</span>
                     {% else %}
                       <span class="badge bg-secondary">{{ t('Utilisateur') }}</span>
                     {% endif %}
@@ -1408,7 +1354,8 @@
             <a href="https://www.facebook.com/share/v/1Aokzj7kPg/" aria-label="Facebook" target="_blank" rel="noopener">
               <i class="bi bi-facebook"></i>
             </a>
-            <a href="https://wa.me/212602908954" aria-label="WhatsApp" target="_blank" rel="noopener">
+            {% set footer_wa = (config.get('DELIVERY_WHATSAPP_NUMBER') or config.get('SUPPORT_WHATSAPP_NUMBER') or config.get('ADMIN_PHONE') or '') %}
+            <a href="https://wa.me/{{ footer_wa|replace('+','')|replace(' ','')|replace('-','')|replace('(','')|replace(')','') }}" aria-label="WhatsApp" target="_blank" rel="noopener">
               <i class="bi bi-whatsapp"></i>
             </a>
           </div>
@@ -1518,14 +1465,11 @@
     'auth.login',
     'cart.view',
     'cart.checkout',
-    'cart.track',
-    'cart.track_by_phone',
-    'cart.my_orders',
     'delivery_special.delivery_form',
     'delivery_special.delivery_form_get',
     'delivery_special.delivery_form_post'
   ] %}
-  {% set has_special_role = current_user.is_authenticated and current_user.role in ['vendor', 'courier', 'admin', 'manager'] %}
+  {% set has_special_role = current_user.is_authenticated and current_user.role in ['vendor', 'admin', 'manager'] %}
   {% set client_support_visible = (
     current_user.is_authenticated and not has_special_role
   ) or (((request.endpoint or '') in public_support_endpoints) and not has_special_role) %}

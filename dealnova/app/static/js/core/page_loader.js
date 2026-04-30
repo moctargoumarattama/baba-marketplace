@@ -84,36 +84,14 @@
     ],
     "cart.view": [SHARED.coreCart, SHARED.coreLive, SHARED.liveShim, SHARED.featureForms],
     "cart.checkout": [SHARED.coreCart, SHARED.coreLive, SHARED.liveShim, SHARED.featureForms],
-    "cart.my_orders": [
-      SHARED.coreCart,
-      SHARED.coreLive,
-      SHARED.liveShim,
-      SHARED.ajaxPagination,
-      SHARED.featurePagination,
-      SHARED.featureForms,
-      SHARED.featurePolling,
-    ],
-    "cart.track_by_phone": [SHARED.coreCart, SHARED.coreLive, SHARED.liveShim, SHARED.featureForms],
-    "cart.track_verify_phone": [SHARED.coreCart, SHARED.coreLive, SHARED.liveShim, SHARED.featureForms],
-    "shop.track_order": [
-      SHARED.coreCart,
-      SHARED.coreLive,
-      SHARED.liveShim,
-      SHARED.featureForms,
-      SHARED.featurePolling,
-    ],
     "vendor.dashboard": VENDOR_STACK,
     "vendor.earnings": VENDOR_STACK,
     "vendor.manage_shop": [SHARED.coreLive, SHARED.liveShim, SHARED.featureForms],
     "vendor.product_new": [SHARED.coreLive, SHARED.liveShim, SHARED.featureForms],
     "vendor.product_edit": [SHARED.coreLive, SHARED.liveShim, SHARED.featureForms],
-    "vendor.security": [SHARED.coreLive, SHARED.liveShim, SHARED.featureForms],
-    "vendor.periods": VENDOR_STACK,
-    "admin.all_orders": ADMIN_STACK,
+    "admin.product_contacts": ADMIN_STACK,
     "admin.deliveries": ADMIN_STACK,
-    "admin.deliveries_live": ADMIN_STACK,
     "admin.deliveries_archives": ADMIN_STACK,
-    "admin.order_archives": ADMIN_STACK,
     "admin_users.fraud_monitor": ADMIN_STACK,
     "admin_users.catalog_quality": ADMIN_STACK,
     "admin_users.reconciliation": ADMIN_STACK,
@@ -122,8 +100,6 @@
     "admin_users.view_logs": ADMIN_STACK,
     "admin_categories.index": ADMIN_STACK,
     "rentals.admin_locations": ADMIN_STACK,
-    "courier.panel_orders": ADMIN_STACK,
-    "courier.panel_deliveries": ADMIN_STACK,
   };
 
   var ADM_PAGE_SCRIPT_MAP = {
@@ -195,10 +171,6 @@
 
     pushAssets(list, PAGE_SCRIPT_MAP[ctx.pageId]);
     pushAssets(list, ADM_PAGE_SCRIPT_MAP[ctx.admPageId]);
-
-    if (!list.length && ctx.isAdmin) {
-      pushAssets(list, ADMIN_STACK);
-    }
 
     if (!list.length && ctx.isVendor) {
       pushAssets(list, VENDOR_STACK);

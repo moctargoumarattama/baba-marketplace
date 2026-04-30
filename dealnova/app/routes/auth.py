@@ -33,10 +33,9 @@ def _admin_whatsapp_number() -> str:
     raw = (
         current_app.config.get("ADMIN_PHONE")
         or current_app.config.get("SUPPORT_WHATSAPP_NUMBER")
-        or "+212770010264"
     )
     digits = "".join(ch for ch in str(raw) if ch.isdigit())
-    return digits or "212770010264"
+    return digits
 
 
 def _mask_email(email: str | None) -> str:
@@ -62,7 +61,7 @@ def _email_fingerprint(email: str | None) -> str:
 @bp.route("/support/whatsapp")
 def support_whatsapp():
     role = (getattr(current_user, "role", "") or "").lower()
-    if getattr(current_user, "is_authenticated", False) and role in {"vendor", "courier", "admin", "manager"}:
+    if getattr(current_user, "is_authenticated", False) and role in {"vendor", "admin", "manager"}:
         flash("Interdit", "danger")
         return redirect(url_for("shop.home"))
 
@@ -163,12 +162,13 @@ def login():
 
             # 2) Sinon redirection selon rle
             role = (getattr(user, "role", "") or "").lower()
+            if role not in User.ALLOWED_ROLES:
+                logout_user()
+                flash("Compte non autorisé.", "danger")
+                return redirect(url_for("auth.login"))
 
             if role in {"admin", "manager"}:
                 return redirect("/admin/")  # dashboard admin
-
-            if role == "courier":
-                return redirect(url_for("courier.panel_home"))
 
             if role == "vendor":
                 vendor_shop = Shop.query.filter_by(vendor_id=user.id).first()

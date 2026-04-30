@@ -831,111 +831,6 @@
     };
   }
 
-  function initDeliveriesAvailableCountPolling(pageRoot) {
-    if (window.__ADM_DELIVERIES_POLL_INIT__) return null;
-    if (!pageRoot || !pageRoot.querySelector) return null;
-
-    var countEl =
-      pageRoot.querySelector(".adm-available-count") || document.getElementById("availableCouriersStat");
-    var countUrl = String(pageRoot.getAttribute("data-available-count-url") || "").trim();
-    if (!countEl || !countUrl) return null;
-
-    window.__ADM_DELIVERIES_POLL_INIT__ = true;
-
-    var activeController = null;
-    var timerId = null;
-    var stopped = false;
-    var okDelay = 15000;
-    var errorDelay = 30000;
-    var hiddenDelay = 45000;
-
-    function schedule(delayMs) {
-      if (timerId) window.clearTimeout(timerId);
-      var nextDelay = Number(delayMs || okDelay);
-      if (!Number.isFinite(nextDelay) || nextDelay < 2000) {
-        nextDelay = okDelay;
-      }
-      timerId = window.setTimeout(tick, nextDelay);
-    }
-
-    async function tick() {
-      if (stopped) return;
-
-      if (document.hidden) {
-        schedule(hiddenDelay);
-        return;
-      }
-
-      if (activeController && typeof activeController.abort === "function") {
-        try {
-          activeController.abort();
-        } catch (_err) {}
-      }
-      activeController = typeof AbortController !== "undefined" ? new AbortController() : null;
-
-      var response = await requestText(countUrl, {
-        cache: "no-store",
-        headers: {
-          "X-Requested-With": "XMLHttpRequest",
-          Accept: "application/json",
-        },
-        signal: activeController ? activeController.signal : undefined,
-      });
-
-      var nextDelay = okDelay;
-      if (response.ok) {
-        try {
-          var payload = JSON.parse(String(response.data || "{}"));
-          var count = Number(payload.available_couriers_count || 0);
-          if (Number.isFinite(count)) {
-            countEl.textContent = String(count);
-          }
-        } catch (_err) {
-          nextDelay = errorDelay;
-        }
-      } else if (!response.aborted) {
-        nextDelay = errorDelay;
-      }
-
-      schedule(nextDelay);
-    }
-
-    function onVisibilityChange() {
-      if (stopped) return;
-      if (document.hidden) {
-        if (activeController && typeof activeController.abort === "function") {
-          try {
-            activeController.abort();
-          } catch (_err) {}
-        }
-        schedule(hiddenDelay);
-        return;
-      }
-      schedule(1200);
-    }
-
-    function stop() {
-      stopped = true;
-      if (timerId) {
-        window.clearTimeout(timerId);
-        timerId = null;
-      }
-      if (activeController && typeof activeController.abort === "function") {
-        try {
-          activeController.abort();
-        } catch (_err) {}
-      }
-    }
-
-    document.addEventListener("visibilitychange", onVisibilityChange);
-    window.addEventListener("beforeunload", stop, { once: true });
-    schedule(300);
-
-    return {
-      stop: stop,
-    };
-  }
-
   function initDeliveriesPage(options) {
     var cfg = options || {};
     var pageName = "deliveries";
@@ -1106,7 +1001,6 @@
       });
     }
 
-    initDeliveriesAvailableCountPolling(pageRoot);
     return {
       pageName: pageName,
       pageRoot: pageRoot,
@@ -1580,7 +1474,6 @@
     initFraudPage: initFraudPage,
     initCatalogQualityPage: initCatalogQualityPage,
     initReconciliationPage: initReconciliationPage,
-    initDeliveriesAvailableCountPolling: initDeliveriesAvailableCountPolling,
     autoInit: autoInit,
   };
 })();

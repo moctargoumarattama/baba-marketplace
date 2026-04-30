@@ -98,21 +98,6 @@
     font-weight: 500;
   }
 
-  .dash-hero-period {
-    margin-top: 0.75rem;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.45rem 0.8rem;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.78);
-    border: 1px solid rgba(148, 163, 184, 0.28);
-    color: #0f172a;
-    font-size: 0.88rem;
-    font-weight: 700;
-    box-shadow: 0 10px 18px rgba(15, 23, 42, 0.08);
-  }
-
   .dash-hero-actions {
     display: flex;
     gap: 0.6rem;
@@ -359,9 +344,7 @@
   }
 
   .activity-hub {
-    display: grid;
-    grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.95fr);
-    gap: 1rem;
+    display: block;
   }
 
   .activity-hub-card {
@@ -388,36 +371,6 @@
     display: flex;
     flex-wrap: wrap;
     gap: 0.65rem;
-  }
-
-  .activity-hub-kpis {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.75rem;
-  }
-
-  .activity-hub-kpi {
-    border: 1px solid #EEF2F7;
-    border-radius: 16px;
-    padding: 0.9rem;
-    background: #fff;
-  }
-
-  .activity-hub-kpi .label {
-    display: block;
-    margin-bottom: 0.25rem;
-    color: #64748B;
-    font-size: 0.76rem;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-  }
-
-  .activity-hub-kpi .value {
-    display: block;
-    color: #0f172a;
-    font-size: 1.35rem;
-    font-weight: 800;
   }
 
   .activity-insights {
@@ -636,9 +589,6 @@
       justify-content: center;
     }
 
-    .activity-hub {
-      grid-template-columns: 1fr;
-    }
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -698,22 +648,25 @@
         </h2>
         <p class="dash-hero-subtitle">
           {% if current_user.role == 'manager' %}
-          Suivi simple des comptes, boutiques et commandes.
+          Suivi simple des comptes, boutiques et demandes produits.
           {% else %}
           Vue globale, actions rapides et activite recente.
           <span class="badge text-bg-secondary ms-1">Global</span>
           {% endif %}
         </p>
-        <div class="dash-hero-period">
-          <i class="bi bi-calendar3"></i>
-          {% if selected_period %}
-            Periode ouverte : #{{ selected_period.id }} - {{ selected_period.name }}
-          {% else %}
-            Aucune periode ouverte
-          {% endif %}
-        </div>
       </div>
       <div class="dash-hero-actions">
+        <form method="get" class="d-flex flex-wrap gap-2 align-items-center">
+          <select class="form-select" name="range" style="width: 150px;">
+            <option value="today" {% if range_filter == 'today' %}selected{% endif %}>Aujourd'hui</option>
+            <option value="month" {% if range_filter == 'month' %}selected{% endif %}>Ce mois</option>
+            <option value="year" {% if range_filter == 'year' %}selected{% endif %}>Cette annee</option>
+            <option value="custom" {% if range_filter == 'custom' %}selected{% endif %}>Dates</option>
+          </select>
+          <input class="form-control" type="date" name="date_from" value="{{ date_from }}" style="width: 145px;">
+          <input class="form-control" type="date" name="date_to" value="{{ date_to }}" style="width: 145px;">
+          <button class="btn btn-outline-primary" type="submit"><i class="bi bi-funnel"></i></button>
+        </form>
         <a href="{{ url_for('admin_users.create_user') }}" class="btn btn-primary">
           <i class="bi bi-person-plus"></i> Nouvel utilisateur
         </a>
@@ -758,17 +711,13 @@
     <article class="stat-tile is-danger" style="--i:3">
       <div class="stat-top">
         <div>
-          <div class="stat-label">Commandes</div>
-          <div class="stat-value">{{ total_orders }}</div>
+          <div class="stat-label">Demandes produits</div>
+          <div class="stat-value">{{ total_product_contacts }}</div>
         </div>
         <div class="stat-icon"><i class="bi bi-cart-check"></i></div>
       </div>
       <div class="stat-meta">
-        {% if selected_period %}
-          {{ 'Dans la periode ouverte' if current_user.role == 'manager' else 'Dans la periode en cours' }}
-        {% else %}
-          {{ 'Aucune periode ouverte' if current_user.role == 'manager' else 'Aucune periode ouverte' }}
-        {% endif %}
+        {{ 'Contacts WhatsApp produits' if current_user.role == 'manager' else 'Historique des contacts WhatsApp' }} - {{ date_range_label }}
       </div>
     </article>
   </section>
@@ -793,7 +742,7 @@
         <div class="live-value">{{ live_traffic.active_visitors_5m if live_traffic and live_traffic.active_visitors_5m is not none else 'N/A' }}</div>
       </article>
       <article class="live-metric">
-        <div class="live-label">Commandes / heure</div>
+        <div class="live-label">Demandes / heure</div>
         <div class="live-value">{{ live_traffic.orders_per_hour if live_traffic and live_traffic.orders_per_hour is not none else 'N/A' }}</div>
       </article>
     </div>
@@ -810,7 +759,7 @@
         <span class="action-icon"><i class="bi bi-person-plus"></i></span>
         <span class="action-text">
           <span>{{ 'Ajouter un compte' if current_user.role == 'manager' else 'Creer un utilisateur' }}</span>
-          <small>{% if current_user.role == 'admin' %}Compte vendeur, livreur, gestionnaire ou admin{% else %}Compte vendeur ou livreur{% endif %}</small>
+          <small>{% if current_user.role == 'admin' %}Compte vendeur, gestionnaire ou admin{% else %}Compte vendeur{% endif %}</small>
         </span>
       </a>
       <a href="{{ url_for('admin_users.create_shop') }}" class="action-card" style="--i:1">
@@ -852,23 +801,17 @@
     <div class="dash-panel is-wide" style="--i:2">
       <div class="panel-head">
         <h5><i class="bi bi-activity"></i> Activite marketplace</h5>
-        <span class="text-muted small">
-          {% if selected_period %}
-            Basee sur la periode ouverte
-          {% else %}
-            En attente d une periode ouverte
-          {% endif %}
-        </span>
+        <span class="text-muted small">Contacts produits et qualite catalogue - {{ date_range_label }}</span>
       </div>
       <div class="activity-hub">
         <div class="activity-hub-card">
           <div class="activity-hub-title">Ce qui demande votre attention</div>
           <p class="activity-hub-text">
-            Ces chiffres suivent la periode ouverte. Si la periode se ferme, ils suivent la suivante. Quand une nouvelle periode commence, les compteurs repartent de zero.
+            Ces chiffres suivent les demandes WhatsApp produits et les points de qualite catalogue utiles au quotidien.
           </p>
           <div class="activity-hub-actions">
-            <a href="{{ url_for('admin.all_orders') }}" class="btn btn-outline-secondary btn-sm">
-              <i class="bi bi-bag-check me-1"></i> Commandes
+            <a href="{{ url_for('admin.product_contacts') }}" class="btn btn-outline-secondary btn-sm">
+              <i class="bi bi-chat-dots me-1"></i> Contacts produits
             </a>
             <a href="{{ url_for('admin_users.manage_shops') }}" class="btn btn-outline-secondary btn-sm">
               <i class="bi bi-shop me-1"></i> Boutiques
@@ -878,46 +821,8 @@
             </a>
           </div>
         </div>
-        <div class="activity-hub-kpis">
-          <div class="activity-hub-kpi">
-            <span class="label">7 derniers jours</span>
-            <span class="value">{{ orders_count }}</span>
-          </div>
-          <div class="activity-hub-kpi">
-            <span class="label">Livrees sur 7 jours</span>
-            <span class="value">{{ delivered_count }}</span>
-          </div>
-          <div class="activity-hub-kpi">
-            <span class="label">En attente maintenant</span>
-            <span class="value">{{ pending_count }}</span>
-          </div>
-          <div class="activity-hub-kpi">
-            <span class="label">Montant livre sur 7 jours</span>
-            <span class="value">{{ '%.2f'|format((revenue_period or 0) / 100) }}</span>
-          </div>
-        </div>
       </div>
       <div class="activity-insights">
-        <div class="activity-insight-card">
-          <div class="activity-insight-head">
-            <h6>Commandes en attente</h6>
-            <span class="text-muted small">{{ pending_old_orders|length }}</span>
-          </div>
-          <div class="activity-mini-list">
-            {% for order in pending_old_orders %}
-            <div class="activity-mini-item">
-              <div>
-                <div class="activity-mini-title">#{{ order.id }} · {{ order.full_name }}</div>
-                <div class="activity-mini-meta">{{ order.created_at.strftime('%d/%m/%Y %H:%M') if order.created_at else '' }}</div>
-              </div>
-              <div class="activity-mini-side">{{ '%.2f'|format((order.total or 0) / 100) }} MAD</div>
-            </div>
-            {% else %}
-            <div class="empty-state">Aucune commande en retard.</div>
-            {% endfor %}
-          </div>
-        </div>
-
         <div class="activity-insight-card">
           <div class="activity-insight-head">
             <h6>Vendeurs sans boutique</h6>
@@ -944,20 +849,20 @@
 
         <div class="activity-insight-card">
           <div class="activity-insight-head">
-            <h6>Produits les plus vendus</h6>
-            <span class="text-muted small">{{ top_products|length }}</span>
+            <h6>Boutiques a completer</h6>
+            <span class="text-muted small">{{ unverified_shops|length }}</span>
           </div>
           <div class="activity-mini-list">
-            {% for product, qty in top_products %}
+            {% for shop in unverified_shops %}
             <div class="activity-mini-item">
               <div>
-                <div class="activity-mini-title">{{ product.name }}</div>
-                <div class="activity-mini-meta">{{ product.shop.name if product.shop else '' }}</div>
+                <div class="activity-mini-title">{{ shop.name }}</div>
+                <div class="activity-mini-meta">{{ shop.vendor.username if shop.vendor else '' }}</div>
               </div>
-              <div class="activity-mini-side">{{ qty or 0 }}</div>
+              <div class="activity-mini-side">{{ shop.created_at.strftime('%d/%m/%Y') if shop.created_at else '' }}</div>
             </div>
             {% else %}
-            <div class="empty-state">Aucune vente recente.</div>
+            <div class="empty-state">Aucune boutique incomplete.</div>
             {% endfor %}
           </div>
         </div>

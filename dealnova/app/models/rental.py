@@ -3,8 +3,11 @@
 from ..extensions import db
 
 
+RENTAL_LISTING_DURATION_DAYS = 15
+
+
 def _default_expires_at():
-    return datetime.utcnow() + timedelta(days=6)
+    return datetime.utcnow() + timedelta(days=RENTAL_LISTING_DURATION_DAYS)
 
 
 class RentalListing(db.Model):

@@ -1,4 +1,4 @@
-﻿{% if products %}
+{% if products %}
 <div class="products-grid">
     {% for p in products %}
     {% set product_images = p.image_file.split('|') if p.image_file and '|' in p.image_file else [p.image_file] if p.image_file else [] %}
@@ -46,7 +46,7 @@
             </a>
             {% else %}
             <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;">
-                <i class="fas fa-box-open" style="font-size: 2.5rem; color: rgba(16, 185, 129, 0.2);"></i>
+                <i class="bi bi-box-seam" style="font-size: 2.5rem; color: rgba(16, 185, 129, 0.2);"></i>
             </div>
             {% endif %}
         </div>
@@ -77,10 +77,10 @@
                 </div>
                 <div class="product-stock">
                     {% if p.kind == 'service' %}
-                        <i class="fas fa-calendar-check"></i>
+                        <i class="bi bi-calendar-check"></i>
                         <span class="stock-number stock-ok">Service</span>
                     {% else %}
-                        <i class="fas fa-cubes"></i>
+                        <i class="bi bi-boxes"></i>
                         <span class="stock-number 
                             {% if p.stock <= 0 %}stock-out
                             {% elif p.stock <= low_stock_threshold %}stock-low
@@ -95,18 +95,18 @@
                 <a href="{{ url_for('shop.product_detail', pid=p.id) }}"
                    class="btn-product edit"
                    style="background: linear-gradient(135deg, #0ea5e9, #2563eb);">
-                    <i class="fas fa-eye"></i>
+                    <i class="bi bi-eye"></i>
                     <span>Voir</span>
                 </a>
                 <a href="{{ url_for('vendor.product_edit', pid=p.id) }}" 
                    class="btn-product edit">
-                    <i class="fas fa-edit"></i>
+                    <i class="bi bi-pencil-square"></i>
                     <span>Modifier</span>
                 </a>
                 <a href="{{ url_for('vendor.product_promotion', pid=p.id) }}"
                    class="btn-product edit"
                    style="background: linear-gradient(135deg, #f59e0b, #f97316);">
-                    <i class="fas fa-tags"></i>
+                    <i class="bi bi-tags"></i>
                     <span>{{ 'Promo' if promo else 'Ajouter promo' }}</span>
                 </a>
                 
@@ -119,7 +119,7 @@
                       data-confirm-submit="Supprimer ce produit ?">
                     {% include "partials/_csrf.html" %}
                     <button type="submit" class="btn-product delete">
-                        <i class="fas fa-trash-alt"></i>
+                        <i class="bi bi-trash"></i>
                         <span>Supprimer</span>
                     </button>
                 </form>
@@ -131,7 +131,7 @@
 {% else %}
 <div class="empty-state">
     <div class="empty-icon">
-        <i class="fas fa-search"></i>
+        <i class="bi bi-search"></i>
     </div>
     <h2 class="empty-title">{{ catalog_empty_label or "Aucun produit trouve" }}</h2>
     <p class="empty-text">
@@ -142,7 +142,7 @@
         {% endif %}
     </p>
     <a href="{{ url_for('vendor.product_new') }}" class="btn-action primary" style="display: inline-flex; padding: 1rem 2rem; margin-top: 1rem;">
-        <i class="fas fa-plus-circle"></i>
+        <i class="bi bi-plus-circle"></i>
         <span>{{ catalog_create_label or "Nouveau produit" }}</span>
     </a>
 </div>

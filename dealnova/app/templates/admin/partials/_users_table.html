@@ -51,13 +51,6 @@
                   data-inactive-class="bg-secondary">
               {{ 'Actif' if user.is_active else 'Inactif' }}
             </span>
-            {% if user.role == 'courier' %}
-              <div class="user-meta mt-1">
-                {{ 'Disponible' if current_user.role == 'manager' else 'Disponibilite' }}: {{ 'Oui' if user.courier_is_available else 'Non' }} ·
-                {{ 'Actif' if current_user.role == 'manager' else 'Equipe active' }}: {{ 'Oui' if user.courier_is_active else 'Non' }} ·
-                {{ 'Livraisons finies' if current_user.role == 'manager' else 'Livrees' }}: {{ user.courier_delivered_count or 0 }}
-              </div>
-            {% endif %}
           </td>
           <td data-label="Inscription">
             {{ user.created_at.strftime('%d/%m/%Y') }}

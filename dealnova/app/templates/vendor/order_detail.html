@@ -341,19 +341,12 @@
           <i class="bi bi-telephone"></i> Appeler Admin
         </a>
       {% endif %}
-      {% if delivery_phone %}
-        <a class="od-btn od-btn-primary"
-           href="https://wa.me/{{ delivery_phone|replace('+','')|replace(' ','') }}"
-           target="_blank" rel="noopener">
-          <i class="bi bi-whatsapp"></i> WhatsApp Livreur
-        </a>
-      {% endif %}
       <button type="button"
               class="od-btn"
               style="cursor:pointer;"
               data-wa-issue
               data-order-id="{{ order.id }}"
-              data-order-url="{{ url_for('cart.track', token=order.token, _external=True) }}"
+              data-order-url="{{ request.url }}"
               title="Signaler un problème">
         <i class="bi bi-exclamation-triangle"></i> Signaler
       </button>
@@ -445,12 +438,8 @@
           <hr class="od-divider">
           <div class="od-list">
             <div class="od-row">
-              <div class="od-key">Part Baba</div>
+              <div class="od-key">Revenu livraison Baba</div>
               <div class="od-val">{{ ((order.delivery_platform_fee_cents or 0) / 100)|round(2) }} MAD</div>
-            </div>
-            <div class="od-row">
-              <div class="od-key">Net livreur</div>
-              <div class="od-val">{{ ((order.delivery_courier_net_cents or 0) / 100)|round(2) }} MAD</div>
             </div>
             <div class="od-row">
               <div class="od-key">Net vendeur</div>

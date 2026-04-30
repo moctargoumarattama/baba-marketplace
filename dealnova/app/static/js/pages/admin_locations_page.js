@@ -50,7 +50,9 @@
       q: String(pv.q || ""),
       status: String(pv.status || ""),
       owner: String(pv.owner_id || ""),
-      period: String(pv.period_id || ""),
+      range: String(pv.range || "month"),
+      dateFrom: String(pv.date_from || ""),
+      dateTo: String(pv.date_to || ""),
       lpage: Number.parseInt(String(pv.lpage || "1"), 10) || 1,
       apage: Number.parseInt(String(pv.apage || "1"), 10) || 1,
     };
@@ -58,7 +60,9 @@
     var fq = document.getElementById("fq");
     var fstatus = document.getElementById("fstatus");
     var fowner = document.getElementById("fowner");
-    var fperiod = document.getElementById("fperiod");
+    var frange = document.getElementById("frange");
+    var ffrom = document.getElementById("ffrom");
+    var fto = document.getElementById("fto");
     var btnReset = document.getElementById("btnReset");
     var searchInd = document.getElementById("searchInd");
 
@@ -92,7 +96,9 @@
       if (state.q) params.set("q", state.q);
       if (state.status) params.set("status", state.status);
       if (state.owner) params.set("owner_id", state.owner);
-      if (state.period) params.set("period_id", state.period);
+      if (state.range) params.set("range", state.range);
+      if (state.dateFrom) params.set("date_from", state.dateFrom);
+      if (state.dateTo) params.set("date_to", state.dateTo);
       params.set("page", String(lp || state.lpage || 1));
       params.set("apage", String(ap || state.apage || 1));
       return baseUrl + "?" + params.toString();
@@ -273,7 +279,9 @@
       state.q = fq ? String(fq.value || "").trim() : "";
       state.status = fstatus ? String(fstatus.value || "") : "";
       state.owner = fowner ? String(fowner.value || "") : "";
-      state.period = fperiod ? String(fperiod.value || "") : "";
+      state.range = frange ? String(frange.value || "month") : "month";
+      state.dateFrom = ffrom ? String(ffrom.value || "") : "";
+      state.dateTo = fto ? String(fto.value || "") : "";
       state.lpage = 1;
       state.apage = 1;
       setSearchIndicator(false);
@@ -308,8 +316,22 @@
       });
     }
 
-    if (fperiod) {
-      fperiod.addEventListener("change", function () {
+    if (frange) {
+      frange.addEventListener("change", function () {
+        if (debounceTimer) window.clearTimeout(debounceTimer);
+        applyFilters();
+      });
+    }
+
+    if (ffrom) {
+      ffrom.addEventListener("change", function () {
+        if (debounceTimer) window.clearTimeout(debounceTimer);
+        applyFilters();
+      });
+    }
+
+    if (fto) {
+      fto.addEventListener("change", function () {
         if (debounceTimer) window.clearTimeout(debounceTimer);
         applyFilters();
       });
@@ -320,7 +342,9 @@
         if (fq) fq.value = "";
         if (fstatus) fstatus.value = "";
         if (fowner) fowner.value = "";
-        if (fperiod) fperiod.value = String(pv.period_id || "");
+        if (frange) frange.value = "month";
+        if (ffrom) ffrom.value = "";
+        if (fto) fto.value = "";
         if (debounceTimer) window.clearTimeout(debounceTimer);
         applyFilters();
       });

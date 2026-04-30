@@ -1,40 +1,15 @@
-﻿{% extends "admin/base.html" %}
-{% block title %}Archives livraison par periode | Admin DealNova{% endblock %}
-{% block page_title %}Archives livraison par periode{% endblock %}
+{% extends "admin/base.html" %}
+{% block title %}Historique livraison express | Admin Baba Market{% endblock %}
+{% block page_title %}Historique livraison express{% endblock %}
 
 {% block head %}
 <style>
   .archives-wrap { display: grid; gap: 1rem; }
-  .card-shell {
-    background: #fff;
-    border: 1px solid #e5e7eb;
-    border-radius: 16px;
-    padding: 1rem;
-    box-shadow: 0 10px 22px rgba(2, 6, 23, .06);
-  }
-  .filter-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: .65rem;
-  }
+  .card-shell { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 1rem; box-shadow: 0 10px 22px rgba(2, 6, 23, .06); }
+  .filter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: .65rem; }
   .delete-note { font-size: .8rem; color: #92400e; margin-top: .25rem; }
-  .list-text {
-    max-width: 260px;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-  .status-pill {
-    padding: .3rem .65rem;
-    border-radius: 999px;
-    font-size: .74rem;
-    font-weight: 700;
-    display: inline-flex;
-    align-items: center;
-    gap: .3rem;
-  }
+  .list-text { max-width: 260px; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .status-pill { padding: .3rem .65rem; border-radius: 999px; font-size: .74rem; font-weight: 700; display: inline-flex; align-items: center; gap: .3rem; }
   .status-pending { background: rgba(247, 184, 1, 0.2); color: #92400E; }
   .status-delivered { background: rgba(16, 185, 129, 0.15); color: #065F46; }
   .status-cancelled { background: rgba(239, 68, 68, 0.15); color: #991B1B; }
@@ -46,50 +21,32 @@
   <section class="card-shell">
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
       <div>
-        <h5 class="mb-1">Archives livraisons</h5>
-        <small class="text-muted">Retrouvez ici les anciennes livraisons archivees.</small>
+        <h5 class="mb-1">Historique livraison express</h5>
+        <small class="text-muted">{{ date_range_label }} - livraisons finalisees ou annulees.</small>
       </div>
-      <div class="d-flex gap-2">
-        <a href="{{ url_for('admin.deliveries') }}" class="btn btn-sm btn-outline-primary">
-          <i class="bi bi-arrow-left"></i> Centre livraison
-        </a>
-        <a href="{{ url_for('admin.pricing_settings', section='archives') }}" class="btn btn-sm btn-outline-secondary">
-          <i class="bi bi-archive"></i> Archives commandes
-        </a>
-        <a href="{{ url_for('admin.pricing_settings', section='periods') }}" class="btn btn-sm btn-outline-secondary">
-          <i class="bi bi-calendar3"></i> Voir les periodes
-        </a>
-      </div>
+      <a href="{{ url_for('admin.deliveries') }}" class="btn btn-sm btn-outline-primary">
+        <i class="bi bi-arrow-left"></i> Centre livraison
+      </a>
     </div>
 
     <form method="get" class="mt-3">
       <div class="filter-grid">
         <div>
-          <label class="form-label">Archive</label>
-          <select name="period_id" class="form-select form-select-sm">
-            <option value="">Toutes les archives</option>
-            {% for p in closed_periods %}
-              <option value="{{ p.id }}" {% if period_id == p.id %}selected{% endif %}>
-                #{{ p.id }} - {{ p.name }}
-              </option>
-            {% endfor %}
+          <label class="form-label">Vue</label>
+          <select name="range" class="form-select form-select-sm">
+            <option value="today" {% if range_filter == 'today' %}selected{% endif %}>Aujourd'hui</option>
+            <option value="month" {% if range_filter == 'month' %}selected{% endif %}>Ce mois</option>
+            <option value="year" {% if range_filter == 'year' %}selected{% endif %}>Cette annee</option>
+            <option value="custom" {% if range_filter == 'custom' %}selected{% endif %}>Dates</option>
           </select>
         </div>
         <div>
           <label class="form-label">Statut</label>
           <select name="status" class="form-select form-select-sm">
             <option value="">Tous</option>
-            <option value="pending" {% if status_filter == 'pending' %}selected{% endif %}>En attente</option>
-            <option value="delivered" {% if status_filter == 'delivered' %}selected{% endif %}>Livree</option>
-            <option value="cancelled" {% if status_filter == 'cancelled' %}selected{% endif %}>Annulee</option>
-          </select>
-        </div>
-        <div>
-          <label class="form-label">Source</label>
-          <select name="source" class="form-select form-select-sm">
-            <option value="" {% if not source_filter %}selected{% endif %}>Toutes</option>
-            <option value="marketplace" {% if source_filter == 'marketplace' %}selected{% endif %}>Marketplace</option>
-            <option value="special" {% if source_filter == 'special' %}selected{% endif %}>Livraison speciale</option>
+            <option value="pending" {% if status_filter == 'pending' %}selected{% endif %}>{{ label_order_status('pending', current_lang) }}</option>
+            <option value="delivered" {% if status_filter == 'delivered' %}selected{% endif %}>{{ label_order_status('delivered', current_lang) }}</option>
+            <option value="cancelled" {% if status_filter == 'cancelled' %}selected{% endif %}>{{ label_order_status('cancelled', current_lang) }}</option>
           </select>
         </div>
         <div>
@@ -110,20 +67,12 @@
           <input type="text" name="phone" class="form-control form-control-sm" value="{{ phone_filter }}">
         </div>
         <div>
-          <label class="form-label">Produit</label>
-          <input type="text" name="product" class="form-control form-control-sm" value="{{ product_filter }}">
-        </div>
-        <div>
-          <label class="form-label">Boutique</label>
-          <input type="text" name="shop" class="form-control form-control-sm" value="{{ shop_filter }}">
-        </div>
-        <div>
           <label class="form-label">Du</label>
-          <input type="date" name="from" class="form-control form-control-sm" value="{{ date_from }}">
+          <input type="date" name="date_from" class="form-control form-control-sm" value="{{ date_from }}">
         </div>
         <div>
           <label class="form-label">Au</label>
-          <input type="date" name="to" class="form-control form-control-sm" value="{{ date_to }}">
+          <input type="date" name="date_to" class="form-control form-control-sm" value="{{ date_to }}">
         </div>
       </div>
       <div class="d-flex gap-2 mt-2">
@@ -142,11 +91,10 @@
               <th>#</th>
               <th>Client</th>
               <th>Ville</th>
-              <th>Produits</th>
-              <th>Boutiques</th>
+              <th>Objet</th>
+              <th>Depart</th>
               <th>Total</th>
               <th>Statut</th>
-              <th>Periode</th>
               <th>Suppression</th>
               <th>Action</th>
             </tr>
@@ -159,26 +107,22 @@
                 <td>
                   <div class="fw-semibold">{{ o.full_name }}</div>
                   <small class="text-muted">{{ o.phone }}</small>
-                  <div class="small mt-1">
-                    <span class="badge rounded-pill text-bg-info">{{ o._delivery_source_label if o._delivery_source_label else 'Marketplace' }}</span>
-                  </div>
+                  <div class="small mt-1"><span class="badge rounded-pill text-bg-info">Livraison express</span></div>
                 </td>
                 <td>{{ o.delivery_city or o.city }}</td>
-                <td><div class="list-text">{{ o._product_names|join(', ') }}</div></td>
-                <td><div class="list-text">{{ o._shop_names|join(', ') }}</div></td>
+                <td><div class="list-text">{{ o.special_item or 'Livraison express' }}</div></td>
+                <td><div class="list-text">{{ o.special_pickup_address or (o._delivery_pickup.address if o._delivery_pickup else 'N/A') }}</div></td>
                 <td>{{ "%.2f"|format((o.total or 0) / 100) }} MAD</td>
                 <td>
-                  {% if o.status == "pending" %}
-                    <span class="status-pill status-pending"><i class="bi bi-clock"></i> En attente</span>
-                  {% elif o.status == "delivered" %}
-                    <span class="status-pill status-delivered"><i class="bi bi-check-circle"></i> Livree</span>
-                  {% elif o.status == "cancelled" %}
-                    <span class="status-pill status-cancelled"><i class="bi bi-x-circle"></i> Annulee</span>
+                  {% set row_order_status = (o.status or '')|lower %}
+                  {% if row_order_status == "delivered" %}
+                    <span class="status-pill status-delivered"><i class="bi bi-check-circle"></i> {{ label_order_status(row_order_status, current_lang) }}</span>
+                  {% elif row_order_status == "cancelled" %}
+                    <span class="status-pill status-cancelled"><i class="bi bi-x-circle"></i> {{ label_order_status(row_order_status, current_lang) }}</span>
                   {% else %}
-                    <span class="status-pill status-pending">{{ o.status }}</span>
+                    <span class="status-pill status-pending">{{ label_order_status(row_order_status, current_lang) }}</span>
                   {% endif %}
                 </td>
-                <td>{{ o.period.name if o.period else 'N/A' }}</td>
                 <td>
                   {% if guard and guard.allowed %}
                     <span class="badge text-bg-success">Autorisee</span>
@@ -194,19 +138,14 @@
                     <a href="{{ url_for('admin.order_detail', oid=o.id, next=request.full_path) }}" class="btn btn-sm btn-outline-primary">
                       <i class="bi bi-eye"></i>
                     </a>
-                    {% if o.period_id %}
-                    <a href="{{ url_for('admin.deliveries', period_id=o.period_id) }}" class="btn btn-sm btn-outline-secondary" title="Voir la periode en consultation">
-                      <i class="bi bi-calendar-range"></i> Ouvrir
-                    </a>
-                    {% endif %}
                     <form method="post" action="{{ url_for('admin.delete_archived_order', oid=o.id) }}">
                       {% include "admin/partials/_csrf.html" %}
-                      <input type="hidden" name="next" value="{{ url_for('admin.deliveries_archives', period_id=period_id, source=source_filter, status=status_filter, city=city_filter, client=client_filter, phone=phone_filter, product=product_filter, shop=shop_filter, from=date_from, to=date_to) }}">
+                      <input type="hidden" name="next" value="{{ url_for('admin.deliveries_archives', range=range_filter, status=status_filter, city=city_filter, client=client_filter, phone=phone_filter, date_from=date_from, date_to=date_to) }}">
                       <button
                         type="submit"
                         class="btn btn-sm btn-outline-danger"
                         {% if not (guard and guard.allowed) %}disabled title="{{ guard.message if guard else 'Suppression refusee' }}"{% endif %}
-                        data-confirm-click="Supprimer definitivement la commande #{{ o.id }} et sa livraison archivee ?"
+                        data-confirm-click="Supprimer definitivement la livraison express #{{ o.id }} ?"
                       >
                         <i class="bi bi-trash3"></i>
                       </button>
@@ -222,7 +161,7 @@
       {% if pagination and pagination.pages > 1 %}
       <div class="mt-3">
         {% set endpoint = 'admin.deliveries_archives' %}
-        {% set params = {'period_id': period_id, 'source': source_filter, 'status': status_filter, 'from': date_from, 'to': date_to, 'product': product_filter, 'shop': shop_filter, 'city': city_filter, 'client': client_filter, 'phone': phone_filter} %}
+        {% set params = {'range': range_filter, 'status': status_filter, 'date_from': date_from, 'date_to': date_to, 'city': city_filter, 'client': client_filter, 'phone': phone_filter} %}
         {% set iter_args = {'left_edge': 1, 'right_edge': 1, 'left_current': 1, 'right_current': 1} %}
         {% set prev_label = '<i class=\"bi bi-chevron-left\"></i>' %}
         {% set next_label = '<i class=\"bi bi-chevron-right\"></i>' %}
@@ -232,10 +171,9 @@
     {% else %}
       <div class="text-center text-muted py-4">
         <i class="bi bi-inbox" style="font-size: 2rem;"></i>
-        <div class="mt-2">Aucune archive livraison trouvee pour ces filtres.</div>
+        <div class="mt-2">Aucune livraison trouvee pour ces filtres.</div>
       </div>
     {% endif %}
   </section>
 </div>
 {% endblock %}
-

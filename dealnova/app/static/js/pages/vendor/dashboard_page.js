@@ -1,4 +1,4 @@
-﻿(function() {
+(function() {
     'use strict';
 
     if (window.__BM_VENDOR_DASHBOARD_PAGE_INIT__ === true) return;
@@ -425,8 +425,8 @@
 
         pill.className = 'status-pill ' + (willOpen ? 'open' : 'closed');
         pill.innerHTML = willOpen
-            ? '<i class="fas fa-door-open"></i> OUVERT'
-            : '<i class="fas fa-door-closed"></i> FERME';
+            ? '<i class="bi bi-door-open"></i> OUVERT'
+            : '<i class="bi bi-door-closed"></i> FERME';
 
         button.className = 'status-btn ' + (willOpen ? 'closed' : 'open');
         button.textContent = willOpen ? 'Passer en mode ferme' : 'Reouvrir la boutique';
@@ -495,8 +495,8 @@
     function updateSoundToggle() {
         if (!soundToggle) return;
         soundToggle.innerHTML = soundEnabled
-            ? '<i class="fas fa-volume-up"></i>'
-            : '<i class="fas fa-volume-mute"></i>';
+            ? '<i class="bi bi-volume-up"></i>'
+            : '<i class="bi bi-volume-mute"></i>';
         soundToggle.classList.toggle('muted', !soundEnabled);
         soundToggle.title = soundEnabled ? 'Desactiver le son' : 'Activer le son';
     }
@@ -655,7 +655,7 @@
                     '</div>' +
                     '<div class="today-row-actions">' +
                         '<a class="today-outline" href="' + detailsUrl + '">' +
-                            '<i class="fas fa-receipt"></i> Details' +
+                            '<i class="bi bi-receipt"></i> Details' +
                         '</a>' +
                     '</div>' +
                 '</div>'
@@ -697,8 +697,8 @@
                     '</div>' +
                     '<div class="today-row-actions">' +
                         (callUrl
-                            ? ('<a class="today-outline" href="' + callUrl + '"><i class="fas fa-phone"></i> Appeler</a>')
-                            : '<span class="today-outline" aria-disabled="true"><i class="fas fa-phone"></i> Appeler</span>') +
+                            ? ('<a class="today-outline" href="' + callUrl + '"><i class="bi bi-telephone"></i> Appeler</a>')
+                            : '<span class="today-outline" aria-disabled="true"><i class="bi bi-telephone"></i> Appeler</span>') +
                     '</div>' +
                 '</div>'
             );
@@ -1063,7 +1063,7 @@
                         chip.className = 'category-chip';
                         chip.dataset.category = String(cat.id);
                         const icon = document.createElement('i');
-                        icon.className = 'fas fa-tag';
+                        icon.className = 'bi bi-tag';
                         const label = document.createElement('span');
                         label.textContent = String(cat.name || '');
                         const badge = document.createElement('span');
@@ -1156,7 +1156,7 @@
                 if (!searchRequestSeq.isLatest(requestId)) return;
                 productsContainer.innerHTML =
                     '<div class="empty-state">' +
-                    '<div class="empty-icon"><i class="fas fa-exclamation-triangle"></i></div>' +
+                    '<div class="empty-icon"><i class="bi bi-exclamation-triangle"></i></div>' +
                     '<h2 class="empty-title">Erreur</h2>' +
                     '<p class="empty-text">Impossible de charger les produits.</p>' +
                     '</div>';

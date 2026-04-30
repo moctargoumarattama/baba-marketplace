@@ -21,7 +21,8 @@ from .models.product import Product
 from .models.shop import Shop
 from .models.rental import RentalListing, RentalMedia
 from .models.featured_item import FeaturedItem
-from .routes import auth, shop, vendor, cart, booking, admin, admin_categories, admin_users, rentals, delivery, courier
+from .models.product_contact_lead import ProductContactLead
+from .routes import auth, shop, vendor, cart, booking, admin, admin_categories, admin_users, rentals, delivery
 from .services.logging_service import logging_service
 from .services.image import image_variant
 from .services.cache import cache
@@ -32,6 +33,7 @@ from .services.i18n_labels import (
     label_location_status,
     label_order_status,
     label_source,
+    label_vendor_payout_status,
 )
 from .services.maintenance import init_cli_commands  # ← IMPORT AJOUTÉ
 
@@ -346,7 +348,6 @@ def create_app(config_class=Config):
         "/admin",
         "/static",
         "/health",
-        "/cart/track",
         "/login",
         "/logout",
         "/moctar",
@@ -386,50 +387,6 @@ def create_app(config_class=Config):
             return None
 
         return None
-
-    @app.before_request
-    def enforce_courier_private_mode():
-        endpoint = request.endpoint or ""
-        path = request.path or "/"
-
-        if endpoint.endswith(".static") or path.startswith("/static/"):
-            return None
-
-        try:
-            from flask_login import current_user
-        except Exception:
-            return None
-
-        if not getattr(current_user, "is_authenticated", False):
-            return None
-
-        role = (getattr(current_user, "role", "") or "").lower()
-        if role != "courier":
-            return None
-
-        allowed_endpoints = {
-            "auth.logout",
-            "set_language_route",
-            "service_worker",
-            "health",
-            "maintenance_page",
-        }
-        if endpoint in allowed_endpoints:
-            return None
-
-        if endpoint.startswith("courier."):
-            return None
-
-        target_url = url_for("courier.panel_deliveries")
-        if request.path == target_url:
-            return None
-
-        is_ajax = request.headers.get("X-Requested-With") in ("XMLHttpRequest", "fetch")
-        wants_json = request.is_json or "application/json" in (request.headers.get("Accept") or "")
-        if is_ajax or wants_json:
-            return jsonify({"error": "courier_private_mode", "redirect_url": target_url}), 403
-
-        return redirect(target_url)
 
     @app.before_request
     def enforce_vendor_private_mode():
@@ -525,6 +482,10 @@ def create_app(config_class=Config):
             target_lang = lang or getattr(g, "lang", app.config.get("DEFAULT_LANG", "fr"))
             return label_location_status(value, target_lang)
 
+        def _label_vendor_payout_status(value, lang=None):
+            target_lang = lang or getattr(g, "lang", app.config.get("DEFAULT_LANG", "fr"))
+            return label_vendor_payout_status(value, target_lang)
+
         return {
             "current_lang": getattr(g, "lang", app.config.get("DEFAULT_LANG", "fr")),
             "supported_langs": app.config.get("LANGUAGES", ["fr", "en", "ary"]),
@@ -537,6 +498,7 @@ def create_app(config_class=Config):
             "label_order_status": _label_order,
             "label_source": _label_source,
             "label_location_status": _label_location_status,
+            "label_vendor_payout_status": _label_vendor_payout_status,
         }
 
     @app.route("/lang/<lang_code>", methods=["GET", "POST"])
@@ -796,7 +758,6 @@ def create_app(config_class=Config):
     app.register_blueprint(admin.bp)  # Blueprint deja prefixe /admin
     app.register_blueprint(admin_categories.bp)
     app.register_blueprint(admin_users.bp)  # Blueprint deja prefixe /admin
-    app.register_blueprint(courier.bp)
 
     #  ENREGISTRER LES AUTRES BLUEPRINTS
     if has_shops:

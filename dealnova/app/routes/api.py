@@ -92,7 +92,7 @@ def _active_promo_map(product_ids: list[int], now: datetime | None = None):
 
 
 def _legacy_cart_total(cart):
-    """Calcule le total du panier avec conversion centimes cohÃ©rente."""
+    """Calcule le total du panier avec conversion centimes cohérente."""
     if not isinstance(cart, dict) or not cart:
         return 0
 

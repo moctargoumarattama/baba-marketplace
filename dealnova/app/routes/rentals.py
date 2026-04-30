@@ -5,17 +5,17 @@ from flask import Blueprint, current_app, flash, jsonify, redirect, render_templ
 from flask_login import current_user, login_required
 from slugify import slugify
 from sqlalchemy import func
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import load_only, selectinload
 from sqlalchemy.exc import SQLAlchemyError
 from ..extensions import db
 from ..models.platform_settings import PlatformSettings
-from ..models.order_period import OrderPeriod
-from ..models.rental import RentalArchive, RentalListing, RentalMedia
+from ..models.rental import RENTAL_LISTING_DURATION_DAYS, RentalArchive, RentalListing, RentalMedia
 from ..models.shop import Shop
 from ..models.user import User
 from ..services.audit import log_access
 from ..services.marketplace_feed import CURATED_PAGE_LIMIT, build_location_feed
 from ..services.pagination import SimplePagination, page_from_args
+from ..services.date_filters import resolve_date_filter
 from ..services.shop_access import ensure_shop_allows, ensure_vendor_allows
 from ..services.support_whatsapp import (
     append_support_request,
@@ -35,7 +35,6 @@ from ..services.rentals import (
     save_rental_image,
     save_rental_video,
 )
-from ..services.order_periods import OPEN_STATUS, period_bounds
 
 
 bp = Blueprint("rentals", __name__)
@@ -52,9 +51,9 @@ def _is_ajax_request() -> bool:
 
 def _support_whatsapp_number() -> str:
     raw = (
-        current_app.config.get("SUPPORT_WHATSAPP_NUMBER")
+        current_app.config.get("RENTAL_VISIT_WHATSAPP_NUMBER")
+        or current_app.config.get("SUPPORT_WHATSAPP_NUMBER")
         or current_app.config.get("ADMIN_PHONE")
-        or "212770010264"
     )
     return "".join(ch for ch in str(raw) if ch.isdigit())
 
@@ -739,6 +738,7 @@ def owner_location_new():
             if len(owner_fee_text) > 255:
                 raise ValueError("Texte frais propriétaire trop long (max 255 caractères).")
 
+            created_at = datetime.utcnow()
             listing = RentalListing(
                 owner_id=current_user.id,
                 shop_id=shop_id,
@@ -761,8 +761,8 @@ def owner_location_new():
                 platform_commission_fixed_cents=0,
                 status="active",
                 is_active=True,
-                created_at=datetime.utcnow(),
-                expires_at=datetime.utcnow() + timedelta(days=6),
+                created_at=created_at,
+                expires_at=created_at + timedelta(days=RENTAL_LISTING_DURATION_DAYS),
             )
             db.session.add(listing)
             db.session.flush()
@@ -1149,31 +1149,11 @@ def admin_locations():
     q        = (request.args.get("q") or "").strip()
     status   = (request.args.get("status") or "").strip().lower()
     owner_id = request.args.get("owner_id", type=int)
-    requested_period_id = request.args.get("period_id", type=int)
+    date_filter = resolve_date_filter(request.args, default="month")
     page     = page_from_args(request.args, "page")
     a_page   = page_from_args(request.args, "apage")
     PER      = 25
     A_PER    = 20
-
-    periods = (
-        OrderPeriod.query
-        .order_by(
-            db.case((OrderPeriod.status == OPEN_STATUS, 0), else_=1),
-            OrderPeriod.opened_at.desc(),
-            OrderPeriod.id.desc(),
-        )
-        .all()
-    )
-    open_period = next((period for period in periods if period.status == OPEN_STATUS), None)
-    selected_period = None
-    if requested_period_id is not None:
-        selected_period = next((period for period in periods if period.id == requested_period_id), None)
-    if selected_period is None and open_period is not None:
-        selected_period = open_period
-    elif selected_period is None and periods:
-        selected_period = periods[0]
-
-    period_start, period_end = period_bounds(selected_period)
 
     #  Listings 
     lq = (
@@ -1195,12 +1175,10 @@ def admin_locations():
         lq = lq.filter(RentalListing.status == status)
     if owner_id:
         lq = lq.filter(RentalListing.owner_id == owner_id)
-    selected_period_is_open = bool(selected_period and selected_period.status == OPEN_STATUS)
-    if not selected_period_is_open:
-        if period_start is not None:
-            lq = lq.filter(RentalListing.created_at >= period_start)
-        if period_end is not None:
-            lq = lq.filter(RentalListing.created_at < period_end)
+    lq = lq.filter(
+        RentalListing.created_at >= date_filter.start_at,
+        RentalListing.created_at < date_filter.end_at,
+    )
 
     listings_pg = lq.order_by(RentalListing.created_at.desc()).paginate(
         page=page, per_page=PER, error_out=False
@@ -1214,15 +1192,21 @@ def admin_locations():
             selectinload(RentalArchive.owner),
         )
     )
-    if period_start is not None:
-        archives_query = archives_query.filter(RentalArchive.closed_at >= period_start)
-    if period_end is not None:
-        archives_query = archives_query.filter(RentalArchive.closed_at < period_end)
+    archives_query = archives_query.filter(
+        RentalArchive.closed_at >= date_filter.start_at,
+        RentalArchive.closed_at < date_filter.end_at,
+    )
     archives_pg = archives_query.order_by(RentalArchive.closed_at.desc()).paginate(
         page=a_page, per_page=A_PER, error_out=False
     )
 
-    owners          = User.query.filter_by(role="vendor").order_by(User.username.asc()).all()
+    owners          = (
+        User.query
+        .options(load_only(User.id, User.username))
+        .filter_by(role="vendor")
+        .order_by(User.username.asc())
+        .all()
+    )
     archives_count  = archives_query.order_by(None).count()
     active_count    = lq.order_by(None).count()
     expired_pending = lq.filter(RentalListing.expires_at <= datetime.utcnow()).order_by(None).count()
@@ -1238,10 +1222,10 @@ def admin_locations():
         q=q,
         status=status,
         owner_id=owner_id,
-        periods=periods,
-        open_period=open_period,
-        selected_period=selected_period,
-        selected_period_id=(selected_period.id if selected_period else None),
+        range_filter=date_filter.range_filter,
+        date_range_label=date_filter.label,
+        date_from=date_filter.date_from,
+        date_to=date_filter.date_to,
         a_page=a_page,
         archives_count=archives_count,
         active_count=active_count,

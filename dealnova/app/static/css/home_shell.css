@@ -1075,10 +1075,23 @@ main.has-home-tabs > .container-fluid > #pageContent {
     
     .product-actions {
       flex-direction: column;
+      align-items: stretch;
+      gap: 0.45rem;
+      margin-top: 0.65rem;
     }
-    
-    .btn-detail, .btn-cart {
+
+    .product-actions .add-to-cart-form {
+      display: flex !important;
       width: 100%;
+      margin: 0;
+    }
+
+    .product-actions .btn-detail,
+    .product-actions .btn-cart,
+    .product-actions .btn-book {
+      flex: 0 0 auto;
+      width: 100%;
+      min-height: 44px;
     }
     
     .floating-cart {

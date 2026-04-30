@@ -338,7 +338,7 @@ def book(pid):
             flash("Erreur serveur. Merci de réessayer.", "danger")
             return redirect(url_for("booking.book", pid=product.id))
 
-        session["track_phone"] = phone
+        session["booking_phone"] = phone
 
         message = build_whatsapp_booking_message(booking)
         wa_url = f"https://wa.me/{number}?text={quote(message)}"
@@ -364,7 +364,7 @@ def book(pid):
             secondary_icon="bi-calendar-check",
         )
 
-    remembered_phone = session.get("track_phone", "")
+    remembered_phone = session.get("booking_phone", "")
     return render_template(
         "booking/booking_form.html",
         product=product,

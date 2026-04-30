@@ -225,12 +225,5 @@ def get_delivery_platform_fee_cents(settings: PlatformSettings | None = None) ->
     return max(0, int(getattr(cfg, "delivery_platform_fee_fixed_cents", 0) or 0))
 
 
-def get_delivery_courier_net_cents(
-    delivery_price_cents: int,
-    settings: PlatformSettings | None = None,
-) -> int:
-    return max(0, int(delivery_price_cents or 0) - get_delivery_platform_fee_cents(settings=settings))
-
-
 def compute_shipping_by_city(city: str | None, settings: PlatformSettings | None = None) -> int:
     return get_delivery_price_cents(city, settings=settings)

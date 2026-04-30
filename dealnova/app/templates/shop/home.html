@@ -286,10 +286,6 @@
   {% endif %}
 
   
-  <button type="button" class="mobile-clear-float" id="mobileClearFloat">
-    <i class="bi bi-x-circle"></i>
-    <span>Supprimer</span>
-  </button>
 
 
   <div class="shop-layout">
@@ -313,7 +309,7 @@
           <div class="sort-container">
             <span class="sort-label">Trier :</span>
             <select class="sort-select" id="sortSelect">
-              <option value="" {% if not sort %}selected{% endif %}>choississez</option>
+              <option value="" {% if not sort %}selected{% endif %}>Choisissez</option>
               <option value="new" {% if sort == 'new' %}selected{% endif %}>Nouveautés</option>
               <option value="low" {% if sort == 'low' %}selected{% endif %}>Prix croissant</option>
               <option value="high" {% if sort == 'high' %}selected{% endif %}>Prix décroissant</option>
@@ -613,7 +609,6 @@
           <span>Charger plus</span>
         </button>
       </div>
-      <div class="page-badge" id="pageBadge">Page 1/1</div>
       <div class="floating-pagination-nav" id="floatingPaginationNav" aria-live="polite">
         <button type="button" class="floating-pagination-btn" id="floatingPrevBtn">
           <i class="bi bi-chevron-left"></i>

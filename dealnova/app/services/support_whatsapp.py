@@ -7,10 +7,9 @@ def support_whatsapp_number() -> str:
     raw = (
         current_app.config.get("SUPPORT_WHATSAPP_NUMBER")
         or current_app.config.get("ADMIN_PHONE")
-        or "212770010264"
     )
     digits = "".join(ch for ch in str(raw) if ch.isdigit())
-    return digits or "212770010264"
+    return digits
 
 
 def build_support_whatsapp_url(lines) -> str:

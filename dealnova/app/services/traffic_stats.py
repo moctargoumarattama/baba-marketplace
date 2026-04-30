@@ -48,7 +48,7 @@ ALLOWED_EVENTS = {
     "pwa_installed",
     "login_success",
 }
-INTERNAL_ROLES = {"admin", "manager", "vendor", "courier"}
+INTERNAL_ROLES = {"admin", "manager", "vendor"}
 
 _DIGITS_SEGMENT_RE = re.compile(r"/\d+(?=/|$)")
 _TOKEN_SEGMENT_RE = re.compile(r"/[A-Za-z0-9_-]{20,}(?=/|$)")
@@ -647,7 +647,7 @@ def track_request_hit(path: str | None = None, endpoint: str | None = None) -> N
         return
 
 
-def track_order_created(now: datetime | None = None) -> None:
+def track_delivery_request_created(now: datetime | None = None) -> None:
     try:
         _increment_counter_bucket(
             ORDERS_BUCKETS_KEY,

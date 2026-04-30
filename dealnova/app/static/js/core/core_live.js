@@ -89,10 +89,7 @@
   function inferLiveType(pageId, explicitType) {
     const liveType = String(explicitType || "").trim().toLowerCase();
     if (liveType) return liveType;
-    if (pageId === "admin.all_orders" || pageId === "courier.panel_orders") {
-      return "orders";
-    }
-    if (pageId === "admin.deliveries" || pageId === "courier.panel_deliveries") {
+    if (pageId === "admin.deliveries") {
       return "deliveries";
     }
     return "";
@@ -106,8 +103,7 @@
     if (!pageId) return true; // Legacy fallback if page flag is missing.
     return (
       pageId.startsWith("admin.") ||
-      pageId.startsWith("admin_users.") ||
-      pageId.startsWith("courier.")
+      pageId.startsWith("admin_users.")
     );
   }
 
@@ -381,85 +377,6 @@
     });
   }
 
-  function initOrdersLive() {
-    const body = currentBody();
-    if (!body) return;
-    const liveUrl = body.dataset.liveUrl;
-    if (!liveUrl) {
-      logMissingLiveUrl("orders", body);
-      return;
-    }
-
-    const ordersTableBody = document.querySelector(".orders-table-list tbody");
-    const totalOrdersStat = document.getElementById("totalOrdersStat");
-    const totalCommissionStat = document.getElementById("totalCommissionStat");
-    const ordersPageCount = document.getElementById("ordersPageCount");
-    const updatePending =
-      typeof window.updatePending === "function" ? window.updatePending : () => {};
-
-    function renderOrderRow(order) {
-      const rowClass = "";
-      const total = Number(order.total || 0).toFixed(2);
-      const deliveryPrice = Number(order.delivery_price || 0).toFixed(2);
-      const babaFee = Number(order.delivery_platform_fee || 0).toFixed(2);
-      const courierNet = Number(order.delivery_courier_net || 0).toFixed(2);
-      const productLines = (order.items || [])
-        .map((item) => {
-          const name = escapeHtml(item.name || "");
-          const price = Number(item.price || 0).toFixed(2);
-          const qty = Number(item.qty || 0);
-          return `<div class="product-line"><span>${name}</span><span class="text-muted">${price} MAD x${qty}</span></div>`;
-        })
-        .join("");
-      const productsCell = `<div class="product-lines">${
-        productLines || '<span class="text-muted">-</span>'
-      }</div>`;
-      const detailUrl = safeUrl(order.detail_url);
-      const callUrl = safeUrl(order.call_url);
-      const actionButtons = `<div class="d-flex gap-2 flex-wrap"><a href="${detailUrl}" class="btn btn-sm btn-primary"><i class="bi bi-eye"></i></a><a href="${callUrl}" class="btn btn-sm btn-outline-primary"><i class="bi bi-telephone"></i></a></div>`;
-      const fullName = escapeHtml(order.full_name || "");
-      const phone = escapeHtml(order.phone || "");
-      const city = escapeHtml(order.city || "");
-      const createdAt = escapeHtml(order.created_at || "");
-      const courierName = escapeHtml(order.courier_name || "");
-      const courierCell = courierName
-        ? `<div class="small fw-semibold">Livre par: ${courierName}</div>`
-        : '<div class="small text-muted">Aucun livreur enregistre</div>';
-      return `<tr class="${rowClass}"><td>${order.id}</td><td><div class="fw-semibold">${fullName}</div><small class="text-muted">${phone}</small></td><td>${city}</td><td>${productsCell}</td><td>${total} MAD</td><td>${deliveryPrice} MAD</td><td><span class="badge bg-warning text-dark">${babaFee} MAD</span></td><td>${courierNet} MAD</td><td>${courierCell}</td><td><span class="status-pill status-delivered"><i class="bi bi-check-circle"></i> Livree</span></td><td><small>${createdAt}</small></td><td class="order-actions">${actionButtons}</td></tr>`;
-    }
-
-    async function refreshOrdersPage() {
-      if (!ordersTableBody) return;
-      try {
-        const res = await fetch(liveUrl, { cache: "no-store" });
-        if (!res.ok) return;
-        const data = await res.json();
-        if (!data) return;
-        updatePending(data.pending_count || 0);
-        if (totalOrdersStat) {
-          totalOrdersStat.textContent = data.total_orders ?? totalOrdersStat.textContent;
-        }
-        if (totalCommissionStat) {
-          totalCommissionStat.textContent = `${Number(
-            data.total_baba_fee || data.total_commission || 0
-          ).toFixed(2)} MAD`;
-        }
-        if (ordersPageCount) {
-          ordersPageCount.textContent = `${(data.orders || []).length} commandes sur cette page`;
-        }
-        if (Array.isArray(data.orders)) {
-          ordersTableBody.innerHTML = data.orders.map(renderOrderRow).join("");
-        }
-      } catch (_error) {}
-    }
-
-    const interval = parseInt(body.dataset.interval || "15000", 10);
-    startAdaptivePoll("orders", refreshOrdersPage, {
-      activeInterval: interval,
-      inactiveInterval: Math.max(interval * 3, 30000),
-    });
-  }
-
   function initDeliveriesLive() {
     const body = currentBody();
     if (!body) return;
@@ -480,7 +397,6 @@
     const pendingStat = document.getElementById("pendingStat");
     const deliveredStat = document.getElementById("deliveredStat");
     const commissionStat = document.getElementById("commissionStat");
-    const availableCouriersStat = document.getElementById("availableCouriersStat");
 
     function getValue(name) {
       const el = document.querySelector(`[name="${name}"]`);
@@ -496,12 +412,11 @@
       params.set("page", page);
 
       const fields = [
-        "period_id",
-        "status",
-        "from",
-        "to",
-        "product",
-        "shop",
+        "range",
+        "order_status",
+        "delivery_status",
+        "date_from",
+        "date_to",
         "city",
         "client",
         "phone",
@@ -509,8 +424,6 @@
       fields.forEach((field) => {
         params.set(field, getValue(field) || "");
       });
-      const includeLegacy = document.querySelector('[name="include_legacy"]');
-      params.set("include_legacy", includeLegacy && includeLegacy.checked ? "1" : "");
       return params.toString();
     }
 
@@ -537,15 +450,6 @@
       if (orderStatus === "cancelled" || deliveryStatus === "canceled") {
         return '<span class="status-pill status-cancelled"><i class="bi bi-x-circle"></i> Annulee</span>';
       }
-      if (deliveryStatus === "delivering") {
-        return '<span class="status-pill status-pending"><i class="bi bi-truck"></i> En livraison</span><div class="small text-muted mt-1">Commande: En attente</div>';
-      }
-      if (deliveryStatus === "picked_up") {
-        return '<span class="status-pill status-pending"><i class="bi bi-box-seam"></i> Recuperee</span><div class="small text-muted mt-1">Commande: En attente</div>';
-      }
-      if (deliveryStatus === "assigned") {
-        return '<span class="status-pill status-pending"><i class="bi bi-person-check"></i> Assignee</span><div class="small text-muted mt-1">Commande: En attente</div>';
-      }
       if (orderStatus === "pending") {
         return '<span class="status-pill status-pending"><i class="bi bi-clock"></i> En attente</span><div class="small text-muted mt-1">Livraison: Nouvelle</div>';
       }
@@ -554,8 +458,8 @@
 
     function renderPendingRow(order) {
       const canMutate = !readOnly && !!order.can_mutate;
-      const products = (order.product_names || []).map(escapeHtml).join(", ");
-      const shops = (order.shop_names || []).map(escapeHtml).join(", ");
+      const item = escapeHtml(order.special_item || "Livraison express");
+      const pickup = escapeHtml(order.pickup_address || "");
       const fullName = escapeHtml(order.full_name || "");
       const phone = escapeHtml(order.phone || "");
       const city = escapeHtml(order.city || "");
@@ -563,13 +467,8 @@
       const callUrl = safeUrl(order.call_url);
       const deliverUrl = safeUrl(order.deliver_url);
       const cancelUrl = safeUrl(order.cancel_url);
-      const courierName = escapeHtml(order.courier_name || "");
-      const courierCell = courierName
-        ? `<div class="small fw-semibold">Assigne a: ${courierName}</div>`
-        : '<div class="small text-muted">Non assignee</div>';
       const deliveryPrice = Number(order.delivery_price || 0).toFixed(2);
       const babaFee = Number(order.delivery_platform_fee || 0).toFixed(2);
-      const courierNet = Number(order.delivery_courier_net || 0).toFixed(2);
       const babaSettled = !!order.baba_fee_settled;
       const csrfToken = getCsrfToken();
       const babaCell = `<span class="badge bg-warning text-dark">${babaFee} MAD</span>${
@@ -583,7 +482,7 @@
                   <i class="bi bi-check-circle me-1"></i>Livree
                 </button>
               </form>
-              <form method="POST" action="${cancelUrl}" class="d-inline" data-ajax="true" data-action="order-status" data-order-id="${order.id}" data-confirm="Annuler cette commande ?">
+              <form method="POST" action="${cancelUrl}" class="d-inline" data-ajax="true" data-action="order-status" data-order-id="${order.id}" data-confirm="Annuler cette livraison ?">
                 <input type="hidden" name="csrf_token" value="${csrfToken}">
                 <button class="btn btn-outline-danger btn-sm" type="submit">
                   <i class="bi bi-x-circle me-1"></i>Annuler
@@ -599,13 +498,11 @@
             <small class="text-muted">${phone}</small>
           </td>
           <td>${city}</td>
-          <td><div class="list-text">${products}</div></td>
-          <td><div class="list-text">${shops}</div></td>
+          <td><div class="list-text">${item}</div></td>
+          <td><div class="list-text">${pickup || "-"}</div></td>
           <td>${Number(order.total || 0).toFixed(2)} MAD</td>
           <td>${deliveryPrice} MAD</td>
           <td>${babaCell}</td>
-          <td>${courierNet} MAD</td>
-          <td>${courierCell}</td>
           <td class="order-actions">
             <div class="d-flex gap-2 flex-wrap">
               <a href="${detailUrl}" class="btn btn-sm btn-primary">
@@ -623,8 +520,8 @@
 
     function renderHistoryRow(order) {
       const canMutate = !readOnly && !!order.can_mutate;
-      const products = (order.product_names || []).map(escapeHtml).join(", ");
-      const shops = (order.shop_names || []).map(escapeHtml).join(", ");
+      const item = escapeHtml(order.special_item || "Livraison express");
+      const pickup = escapeHtml(order.pickup_address || "");
       const statusCell = renderDeliveryStatus(order);
       const fullName = escapeHtml(order.full_name || "");
       const phone = escapeHtml(order.phone || "");
@@ -634,20 +531,15 @@
       const callUrl = safeUrl(order.call_url);
       const deliverUrl = safeUrl(order.deliver_url);
       const cancelUrl = safeUrl(order.cancel_url);
-      const courierName = escapeHtml(order.courier_name || "");
-      const courierCell = courierName
-        ? `<div class="small fw-semibold">Assigne a: ${courierName}</div>`
-        : '<div class="small text-muted">Non assignee</div>';
       const deliveryPrice = Number(order.delivery_price || 0).toFixed(2);
       const babaFee = Number(order.delivery_platform_fee || 0).toFixed(2);
-      const courierNet = Number(order.delivery_courier_net || 0).toFixed(2);
       const babaSettled = !!order.baba_fee_settled;
       const csrfToken = getCsrfToken();
       const babaCell = `<span class="badge bg-warning text-dark">${babaFee} MAD</span>${
         babaSettled ? '<div class="small text-success">Remis</div>' : ""
       }`;
       const mutateActions =
-        ["new", "assigned", "picked_up", "delivering"].indexOf(String(order.delivery_status || "").toLowerCase()) !== -1 && canMutate
+        String(order.delivery_status || "").toLowerCase() === "new" && canMutate
           ? `
             <form method="POST" action="${deliverUrl}" class="d-inline" data-ajax="true" data-action="order-status" data-order-id="${order.id}">
               <input type="hidden" name="csrf_token" value="${csrfToken}">
@@ -655,7 +547,7 @@
                 <i class="bi bi-check-circle me-1"></i>Livree
               </button>
             </form>
-            <form method="POST" action="${cancelUrl}" class="d-inline" data-ajax="true" data-action="order-status" data-order-id="${order.id}" data-confirm="Annuler cette commande ?">
+            <form method="POST" action="${cancelUrl}" class="d-inline" data-ajax="true" data-action="order-status" data-order-id="${order.id}" data-confirm="Annuler cette livraison ?">
               <input type="hidden" name="csrf_token" value="${csrfToken}">
               <button class="btn btn-outline-danger btn-sm" type="submit">
                 <i class="bi bi-x-circle me-1"></i>Annuler
@@ -687,13 +579,11 @@
             <small class="text-muted">${phone}</small>
           </td>
           <td>${city}</td>
-          <td><div class="list-text">${products}</div></td>
-          <td><div class="list-text">${shops}</div></td>
+          <td><div class="list-text">${item}</div></td>
+          <td><div class="list-text">${pickup || "-"}</div></td>
           <td>${Number(order.total || 0).toFixed(2)} MAD</td>
           <td>${deliveryPrice} MAD</td>
           <td>${babaCell}</td>
-          <td>${courierNet} MAD</td>
-          <td>${courierCell}</td>
           <td data-order-status>${statusCell}</td>
           <td><small>${createdAt}</small></td>
           <td class="order-actions">${actions}</td>
@@ -718,13 +608,9 @@
         if (deliveredStat) deliveredStat.textContent = data.delivered_recent_count || 0;
         if (commissionStat) {
           commissionStat.textContent = `${Number(
-            data.total_baba_fee || data.total_commission || 0
+            data.total_baba_fee || 0
           ).toFixed(2)} MAD`;
         }
-        if (availableCouriersStat) {
-          availableCouriersStat.textContent = Number(data.available_couriers_count || 0);
-        }
-
         const pendingRows = data.pending || data.pending_orders || [];
         const historyRows = data.history || data.history_orders || [];
         if (pendingTableBody) {
@@ -748,10 +634,8 @@
     if (!body) return;
     const pageId = getPageId();
     const liveType = inferLiveType(pageId, body.dataset.live);
-    stopPoller("orders");
     stopPoller("deliveries");
     if (!canRunHeavyLive(pageId, liveType)) return;
-    if (liveType === "orders") initOrdersLive();
     if (liveType === "deliveries") initDeliveriesLive();
   }
 

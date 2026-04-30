@@ -86,9 +86,6 @@ def _render_shop_home(
     template_name: str = "shop/home.html",
     forced_promo_only: str | None = None,
 ):
-    if current_user.is_authenticated and getattr(current_user, "role", None) == "courier":
-        return redirect(url_for("courier.panel_deliveries"))
-
     page = page_from_args(request.args)
     cat = request.args.get("cat", type=int)
     q = (request.args.get("q") or "").strip()
@@ -409,9 +406,6 @@ def product_detail(pid):
     promo = get_active_promo(pid)
     final = prix_final(product, promo)
 
-    reviews = Review.query.filter_by(product_id=pid).order_by(Review.created_at.desc()).all()
-    avg = sum(r.rating for r in reviews) / len(reviews) if reviews else 0
-    
     # Produits/services similaires : mme type + mme catgorie ou boutique
     similar_products = (
         Product.query.filter(
@@ -434,8 +428,6 @@ def product_detail(pid):
         shop_is_open_now=shop_is_open_now,
         final=final,
         promo=promo,
-        reviews=reviews,
-        avg=avg,
         similar_products=similar_products,  # NOUVEAU
         related_products=similar_products,
         related_promos=related_promos,
@@ -459,15 +451,3 @@ def review(pid):
     db.session.commit()
     flash("Avis enregistr", "success")
     return redirect(url_for("shop.product_detail", pid=pid))
-
-
-@bp.route("/track/<token>", methods=["GET", "POST"])
-def track_order(token):
-    # Endpoint canonique: /cart/track/<token>.
-    # On garde /shop/track/<token> en compat pour les anciens liens.
-    return redirect(url_for("cart.track", token=token), code=307)
-
-
-@bp.route("/suivi")
-def suivi_redirect():
-    return redirect(url_for("cart.my_orders"))

@@ -948,7 +948,9 @@
                         <td data-label="Téléphone">{{ order.phone_digits }}</td>
                         <td data-label="IP">{{ order.order_ip }}</td>
                         <td data-label="Adresse" style="max-width:420px; word-break:break-word;">{{ order.address }}</td>
-                        <td data-label="Statut">{{ order.status }}</td>
+                        <td data-label="Statut">
+                            <span class="badge bg-secondary">{{ label_order_status(order.status, current_lang) }}</span>
+                        </td>
                         <td data-label="Date">{{ order.created_at.strftime('%Y-%m-%d %H:%M') if order.created_at else '' }}</td>
                         <td data-label="Blocage" class="fraud-actions">
                             <div class="d-flex gap-2 flex-wrap">

@@ -22,9 +22,6 @@
     if (!url || url.origin !== window.location.origin || samePage(url)) return false;
     var path = url.pathname || "/";
 
-    if (scope === "courier") {
-      return path.indexOf("/courier") === 0;
-    }
     if (scope === "admin") {
       return path.indexOf("/admin") === 0;
     }
@@ -144,7 +141,7 @@
       var text = String(node.textContent || "").trim().toLowerCase();
       var hasBackClass = /(^|\\s)(detail-back|back-link|btn-back|back-button|tp-back|vd-back|fp-back)(\\s|$)/i.test(className);
       var hasBackText = /(retour|back)/i.test(text);
-      var hasArrowIcon = Boolean(node.querySelector(".bi-arrow-left, .bi-arrow-left-circle, .fa-arrow-left, .fa-chevron-left"));
+      var hasArrowIcon = Boolean(node.querySelector(".bi-arrow-left, .bi-arrow-left-circle"));
       var relPrev = String(node.getAttribute("rel") || "").toLowerCase().indexOf("prev") >= 0;
       if (hasBackClass || hasBackText || hasArrowIcon || relPrev || node.hasAttribute("data-inline-back")) {
         return true;

@@ -158,29 +158,13 @@
       }
 
       if (data.total !== undefined) {
-        const subtotalEl = document.getElementById("subtotalAmount");
         const totalEl = document.getElementById("totalAmount");
-        if (subtotalEl && totalEl) {
+        if (totalEl) {
           const baseTotal = safeNumber(data.total, 0);
-          subtotalEl.textContent = baseTotal.toFixed(2) + " MAD";
-          totalEl.textContent = baseTotal.toFixed(2) + " MAD";
-
-          if (data.shipping !== undefined) {
-            const shippingEl = document.getElementById("shippingAmount");
-            const shipping = safeNumber(data.shipping, 0);
-            if (shippingEl) {
-              shippingEl.textContent = shipping.toFixed(2) + " MAD";
-              shippingEl.className = "";
-
-              if (shipping > 0) {
-                shippingEl.classList.add("text-info");
-              } else {
-                shippingEl.classList.add("text-success");
-                shippingEl.innerHTML = '<i class="bi bi-check-circle me-1"></i>Gratuite';
-              }
-            }
-            totalEl.textContent = (baseTotal + shipping).toFixed(2) + " MAD";
-          }
+          totalEl.textContent = baseTotal.toLocaleString("fr-FR", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          }) + " MAD";
         }
       }
 
@@ -245,7 +229,10 @@
             }
             if (subtotalEl && data.product_total !== undefined) {
               const productTotal = safeNumber(data.product_total, 0);
-              subtotalEl.textContent = productTotal.toFixed(2) + " MAD";
+              subtotalEl.textContent = productTotal.toLocaleString("fr-FR", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              }) + " MAD";
             }
             if (safeNumber(data.product_qty, 0) === 0) {
               freshItem.remove();
@@ -253,7 +240,7 @@
           }
 
           updateCartTotals(data);
-          showToast(data.message || "Panier mis a jour");
+          showToast(data.message || "Panier mis à jour");
         } else {
           showToast(data.message || result.error || "Erreur de connexion", "error");
         }
@@ -307,7 +294,7 @@
           }
 
           updateCartTotals(data);
-          showToast(data.message || "Produit supprime");
+          showToast(data.message || "Produit supprimé");
 
           if (safeNumber(data.cart_count, 0) === 0) {
             window.setTimeout(function () {
@@ -382,7 +369,7 @@
         if (currentValue < max) {
           updateQuantity(pid, currentValue + 1, this);
         } else {
-          showToast("Quantite maximale: " + max, "error");
+          showToast("Quantité maximale: " + max, "error");
         }
       });
     });
@@ -416,7 +403,7 @@
           updateQuantity(pid, newQty, this);
         } else if (newQty > max) {
           this.value = String(max);
-          showToast("Quantite maximale: " + max, "error");
+          showToast("Quantité maximale: " + max, "error");
         }
       });
     });

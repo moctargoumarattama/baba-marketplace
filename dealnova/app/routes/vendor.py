@@ -9,8 +9,6 @@ from ..models.promo import Promo
 from ..models.order import Order, OrderItem
 from ..models.booking import Booking
 from ..models.user import User
-from ..models.vendor_payout import VendorPayout
-from ..models.vendor_period import VendorPeriod
 from ..models.vendor_receipt import VendorReceipt
 from ..models.rental import RentalListing
 from ..models.platform_settings import PlatformSettings
@@ -19,7 +17,7 @@ from ..services.cache import bump_catalog_version
 from ..services.featured_items import active_featured_shop_notice
 from ..services.pricing import calculate_promo_price, cents_to_money, get_active_promos_for_products, set_product_price
 from sqlalchemy.orm import load_only, selectinload
-from sqlalchemy import or_, and_, text
+from sqlalchemy import or_, and_, case, text
 from ..services.audit import log_access
 from ..services.shop_access import ensure_shop_allows, ensure_vendor_allows, resolve_vendor_shop, shop_allows_any
 from ..services.pagination import page_from_args
@@ -703,10 +701,6 @@ def dashboard():
         flash("Non autorise pour votre type de boutique.", "warning")
         return redirect(url_for("vendor.manage_shop"))
 
-    open_period = None
-    if allows_products:
-                    open_period = _get_open_period(current_user.id)
-
     page = page_from_args(request.args)
     per_page = 20
     product_query = Product.query.filter_by(vendor_id=current_user.id)
@@ -748,19 +742,13 @@ def dashboard():
     total_products = pagination.total
     total_orders = 0
     total_revenue = 0.0
-    if allows_products and open_period:
-        start = open_period.start_at or datetime.utcnow()
-        end = open_period.end_at or datetime.utcnow()
-        if end <= start:
-            end = start + timedelta(days=1)
-
+    if allows_products:
         orders_query = (
             db.session.query(db.func.count(db.func.distinct(Order.id)))
             .join(OrderItem, OrderItem.order_id == Order.id)
             .join(Product, Product.id == OrderItem.product_id)
             .filter(Product.vendor_id == current_user.id)
             .filter(Product.kind != "service")
-            .filter(Order.created_at >= start, Order.created_at < end)
         )
         total_orders = int(orders_query.scalar() or 0)
 
@@ -770,7 +758,6 @@ def dashboard():
             .join(Product, Product.id == OrderItem.product_id)
             .filter(Product.vendor_id == current_user.id)
             .filter(Product.kind != "service")
-            .filter(Order.created_at >= start, Order.created_at < end)
         )
         total_revenue = float((revenue_query.scalar() or 0) / 100)
 
@@ -837,7 +824,6 @@ def dashboard():
         pagination=pagination,
         shop=shop,
         shops=[shop],
-        open_period=open_period,
         low_stock_threshold=low_stock_threshold,
         low_stock_products=low_stock_products,
         no_image_products=no_image_products,
@@ -1918,19 +1904,6 @@ def _product_delete_denied(message: str):
     return redirect(url_for("vendor.dashboard"))
 
 
-def _latest_closed_period(vendor_id: int):
-    return (
-        VendorPeriod.query
-        .filter(
-            VendorPeriod.vendor_id == vendor_id,
-            VendorPeriod.status == "closed",
-            VendorPeriod.closed_at.isnot(None),
-        )
-        .order_by(VendorPeriod.closed_at.desc())
-        .first()
-    )
-
-
 def _has_active_order_for_product(product_id: int) -> bool:
     return (
         db.session.query(OrderItem.id)
@@ -1955,28 +1928,6 @@ def product_delete(pid):
             return jsonify(success=False, message="Interdit"), 403
         flash("Interdit", "danger")
         return redirect(url_for("vendor.dashboard"))
-
-    if product.vendor_id:
-        has_open_period = (
-            db.session.query(VendorPeriod.id)
-            .filter(
-                VendorPeriod.vendor_id == product.vendor_id,
-                VendorPeriod.status == "open",
-            )
-            .first()
-            is not None
-        )
-        if has_open_period:
-            return _product_delete_denied(
-                "Suppression refusée : fermez d'abord la période ouverte avant de supprimer ce produit."
-            )
-
-        latest_closed_period = _latest_closed_period(product.vendor_id)
-        if not latest_closed_period or not latest_closed_period.closed_at:
-            return _product_delete_denied(
-                "Suppression refusée : aucune période fermée n'a été trouvée. "
-                "Fermez d'abord une période avant de supprimer ce produit."
-            )
 
     # Vérifier si le produit a déjà été commandé (peu importe le statut)
     a_deja_ete_vendu = db.session.query(OrderItem.id).filter(
@@ -2389,25 +2340,12 @@ def confirm_receipt(oid):
         )
         return redirect(request.referrer or url_for("vendor.earnings"))
 
-    # IMPORTANT :
-    # On ne crée plus de période automatiquement.
-    # Le vendeur doit ouvrir une période manuellement.
-    period = _get_open_period(vendor_id)
-    if not period:
-        flash(
-            "Aucune période de vente n'est actuellement ouverte. "
-            "Veuillez d'abord ouvrir une période avant de confirmer cet encaissement.",
-            "warning",
-        )
-        return redirect(url_for("vendor.periods"))
-
     note = (request.form.get("note") or "").strip()[:255] or None
 
     try:
         receipt = VendorReceipt(
             vendor_id=vendor_id,
             order_id=oid,
-            period_id=period.id,
             received_at=datetime.utcnow(),
             note=note,
             created_at=datetime.utcnow(),
@@ -2419,7 +2357,7 @@ def confirm_receipt(oid):
         db.session.rollback()
         current_app.logger.exception(
             "vendor.confirm_receipt.failed",
-            extra={"vendor_id": vendor_id, "order_id": oid, "period_id": period.id},
+            extra={"vendor_id": vendor_id, "order_id": oid},
         )
         flash(
             "Une erreur est survenue pendant la confirmation de l'encaissement. "
@@ -2429,7 +2367,7 @@ def confirm_receipt(oid):
         return redirect(request.referrer or url_for("vendor.earnings"))
 
     flash(
-        f"Encaissement confirmé et rattaché à la période ouverte : {period.name}.",
+        "Encaissement confirme.",
         "success",
     )
     return redirect(request.referrer or url_for("vendor.earnings"))
@@ -2539,60 +2477,7 @@ def order_detail(oid):
         delivery_phone=delivery_phone,
     )
 
-# ==================== PRIODES (LIVRE VENDEUR) ====================
-
-def _get_open_period(vendor_id: int):
-    return (
-        VendorPeriod.query
-        .filter_by(vendor_id=vendor_id, status="open")
-        .order_by(VendorPeriod.created_at.desc())
-        .first()
-    )
-
-
-def _require_open_sales_period(vendor_id: int, *, target: str = "page"):
-    period = _get_open_period(vendor_id)
-    if period:
-        return period
-
-    if target == "receipt":
-        flash(
-            "Vous devez d'abord creer une periode de vente avant de confirmer un encaissement.",
-            "warning",
-        )
-    else:
-        flash(
-            "Vous devez d'abord creer une periode de vente pour acceder a cette page.",
-            "warning",
-        )
-    return None
-
-
-def _get_or_create_open_period(vendor_id: int):
-    period = _get_open_period(vendor_id)
-    if period:
-        return period
-
-    earliest_order_at = (
-        db.session.query(db.func.min(Order.created_at))
-        .join(OrderItem)
-        .join(Product, Product.id == OrderItem.product_id)
-        .filter(Product.vendor_id == vendor_id)
-        .filter(Product.kind != "service")
-        .scalar()
-    )
-    start_at = earliest_order_at or datetime.utcnow()
-    period = VendorPeriod(
-        vendor_id=vendor_id,
-        name=f"Periode de vente {start_at.strftime('%Y-%m')}",
-        start_at=start_at,
-        status="open",
-        created_at=datetime.utcnow(),
-    )
-    db.session.add(period)
-    db.session.commit()
-    return period
-
+# ==================== ANCIENNES ROUTES VENDEUR ====================
 
 def _parse_date(value: str):
     try:
@@ -2601,255 +2486,18 @@ def _parse_date(value: str):
         return None
 
 
-@bp.route("/periods")
-@login_required
-def periods():
-    access_guard = _require_physical_vendor_access(strict_forbidden=True)
-    if access_guard:
-        return access_guard
-
-    vendor_id = current_user.id
-    open_period = _get_open_period(vendor_id)
-    periods = (
-        VendorPeriod.query
-        .filter_by(vendor_id=vendor_id)
-        .order_by(VendorPeriod.created_at.desc())
-        .all()
-    )
-    return render_template(
-        "vendor/periods.html",
-        open_period=open_period,
-        periods=periods,
-    )
-
-
-@bp.route("/periods/open", methods=["POST"])
-@login_required
-def open_period():
-    access_guard = _require_physical_vendor_access(strict_forbidden=True)
-    if access_guard:
-        return access_guard
-
-    vendor_id = current_user.id
-    if _get_open_period(vendor_id):
-        flash("Vous avez déjà une période de vente ouverte.", "warning")
-        return redirect(url_for("vendor.periods"))
-
-    name = (request.form.get("name") or "").strip()[:120]
-    start_raw = (request.form.get("start_date") or "").strip()
-    start_at = _parse_date(start_raw) or datetime.utcnow()
-    now = datetime.utcnow()
-    if start_at > now:
-        start_at = now
-
-    if not name:
-        name = f"Période de vente {start_at.strftime('%Y-%m')}"
-
-    period = VendorPeriod(
-        vendor_id=vendor_id,
-        name=name,
-        start_at=start_at,
-        status="open",
-        created_at=datetime.utcnow(),
-    )
-    db.session.add(period)
-    db.session.commit()
-    flash("Période de vente ouverte.", "success")
-    return redirect(url_for("vendor.periods"))
-
-
-@bp.route("/periods/close/<int:period_id>", methods=["POST"])
-@login_required
-def close_period(period_id):
-    access_guard = _require_physical_vendor_access(strict_forbidden=True)
-    if access_guard:
-        return access_guard
-
-    period = VendorPeriod.query.filter_by(id=period_id, vendor_id=current_user.id).first_or_404()
-    if period.status != "open":
-        flash("Cette période de vente est déjà fermée.", "info")
-        return redirect(url_for("vendor.periods"))
-
-    force = (request.form.get("force") or "").strip() == "1"
-    if not force:
-        start = period.start_at or datetime.utcnow()
-        end = datetime.utcnow()
-        if end <= start:
-            end = start + timedelta(days=1)
-
-        to_confirm_count = (
-            Order.query
-            .join(OrderItem, OrderItem.order_id == Order.id)
-            .join(Product, Product.id == OrderItem.product_id)
-            .filter(Product.vendor_id == current_user.id)
-            .filter(Product.kind != "service")
-            .filter(Order.created_at >= start, Order.created_at < end)
-            .filter(Order.status.in_(["shipped", "delivered"]))
-            .outerjoin(
-                VendorReceipt,
-                and_(VendorReceipt.order_id == Order.id, VendorReceipt.vendor_id == current_user.id),
-            )
-            .filter(VendorReceipt.id.is_(None))
-            .with_entities(Order.id)
-            .distinct()
-            .count()
-        )
-
-        if to_confirm_count > 0:
-            return render_template(
-                "vendor/period_close_confirm.html",
-                period=period,
-                to_confirm_count=to_confirm_count,
-            )
-
-    now = datetime.utcnow()
-    period.status = "closed"
-    period.end_at = now
-    period.closed_at = now
-    db.session.commit()
-    flash("Période fermée.", "success")
-    return redirect(url_for("vendor.periods"))
-
-
-# ==================== SCURIT HISTORIQUE (PIN + SUPPRESSION) ====================
-
-def _is_pin_valid(pin: str) -> bool:
-    if not pin:
-        return False
-    pin = pin.strip()
-    return pin.isdigit() and 4 <= len(pin) <= 6
-
-
 @bp.route("/security", methods=["GET"])
 @login_required
 def security():
-    access_guard = _require_physical_vendor_access(strict_forbidden=True)
-    if access_guard:
-        return access_guard
-
-    vendor_id = current_user.id
-    now = datetime.utcnow()
-
-    closed_periods = (
-        VendorPeriod.query
-        .filter_by(vendor_id=vendor_id, status="closed")
-        .order_by(VendorPeriod.id.desc())
-        .all()
-    )
-
-    eligible_ids = set()
-    cutoff = now - timedelta(days=21)
-    for p in closed_periods:
-        if p.closed_at and p.closed_at <= cutoff:
-            eligible_ids.add(p.id)
-
-    has_pin = bool(getattr(current_user, "vendor_history_pin_hash", None))
-
-    return render_template(
-        "vendor/security.html",
-        closed_periods=closed_periods,
-        eligible_ids=eligible_ids,
-        has_pin=has_pin,
-        cutoff_date=cutoff.date().isoformat(),
-    )
+    return redirect(url_for("vendor.earnings"), code=302)
 
 
 @bp.route("/security/pin", methods=["POST"])
 @login_required
 def set_security_pin():
-    access_guard = _require_physical_vendor_access(strict_forbidden=True)
-    if access_guard:
-        return access_guard
-
-    current_pin = (request.form.get("current_pin") or "").strip()
-    new_pin = (request.form.get("new_pin") or "").strip()
-    confirm_pin = (request.form.get("confirm_pin") or "").strip()
-
-    has_pin = bool(getattr(current_user, "vendor_history_pin_hash", None))
-    if has_pin and not current_user.check_vendor_history_pin(current_pin):
-        flash("PIN actuel incorrect.", "danger")
-        return redirect(url_for("vendor.security"))
-
-    if new_pin != confirm_pin:
-        flash("Les deux PIN ne correspondent pas.", "warning")
-        return redirect(url_for("vendor.security"))
-
-    if not _is_pin_valid(new_pin):
-        flash("PIN invalide. Utilisez 4 à 6 chiffres.", "warning")
-        return redirect(url_for("vendor.security"))
-
-    current_user.set_vendor_history_pin(new_pin)
-    db.session.commit()
-
-    flash("PIN historique mis à jour.", "success")
-    return redirect(url_for("vendor.security"))
+    return redirect(url_for("vendor.earnings"), code=302)
 
 
-@bp.route("/security/delete-period/<int:period_id>", methods=["POST"])
-@login_required
-def delete_period(period_id):
-    access_guard = _require_physical_vendor_access(strict_forbidden=True)
-    if access_guard:
-        return access_guard
-
-    pin = (request.form.get("pin") or "").strip()
-    if not getattr(current_user, "vendor_history_pin_hash", None):
-        flash("Créez d’abord un PIN pour la suppression.", "warning")
-        return redirect(url_for("vendor.security"))
-
-    if not current_user.check_vendor_history_pin(pin):
-        flash("PIN incorrect.", "danger")
-        return redirect(url_for("vendor.security"))
-
-    period = VendorPeriod.query.filter_by(id=period_id, vendor_id=current_user.id).first_or_404()
-    if period.status != "closed":
-        flash("Seules les périodes fermées peuvent être supprimées.", "warning")
-        return redirect(url_for("vendor.security"))
-
-    if not period.closed_at or datetime.utcnow() - period.closed_at < timedelta(days=21):
-        flash("Suppression possible après 21 jours seulement.", "warning")
-        return redirect(url_for("vendor.security"))
-
-    # Étape 1: Récupérer les IDs des produits qui ont été vendus PENDANT cette période
-    products_in_period = (
-        db.session.query(Product.id)
-        .join(OrderItem, OrderItem.product_id == Product.id)
-        .join(Order, Order.id == OrderItem.order_id)
-        .filter(
-            Order.created_at >= period.start_at,
-            Order.created_at < (period.end_at or datetime.utcnow()),
-            Product.vendor_id == current_user.id
-        )
-        .distinct()
-        .all()
-    )
-    
-    product_ids = [p[0] for p in products_in_period]
-    
-    # Étape 2: Supprimer les produits désactivés de cette période
-    if product_ids:
-        # Ne supprimer que les produits qui sont désactivés
-        deleted_count = Product.query.filter(
-            Product.id.in_(product_ids),
-            Product.is_active == False  # Seulement les produits désactivés
-        ).delete(synchronize_session=False)
-        
-        current_app.logger.info(
-            "Deleted %d inactive products from period %d",
-            deleted_count, period.id
-        )
-        
-        # Optionnel: message pour l'utilisateur
-        if deleted_count > 0:
-            flash(f"{deleted_count} produit(s) désactivé(s) supprimé(s) avec la période.", "info")
-
-    # Étape 3: Supprimer les reçus et la période (comme avant)
-    VendorReceipt.query.filter_by(vendor_id=current_user.id, period_id=period.id).delete(synchronize_session=False)
-    db.session.delete(period)
-    db.session.commit()
-
-    flash("Période supprimée définitivement.", "success")
-    return redirect(url_for("vendor.security"))
 # ==================== REVENUS ====================
 
 @bp.route("/earnings")
@@ -2860,57 +2508,51 @@ def earnings():
         return access_guard
 
     vendor_id = current_user.id
+    now = datetime.utcnow()
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    year_start = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
 
-    # IMPORTANT :
-    # Ne jamais recréer une période automatiquement ici.
-    open_period = _require_open_sales_period(vendor_id, target="page")
-    if not open_period:
-        return redirect(url_for("vendor.periods"))
+    if month_start.month == 12:
+        next_month = month_start.replace(year=month_start.year + 1, month=1)
+    else:
+        next_month = month_start.replace(month=month_start.month + 1)
+    next_year = year_start.replace(year=year_start.year + 1)
 
-    periods = (
-        VendorPeriod.query
-        .filter_by(vendor_id=vendor_id)
-        .order_by(VendorPeriod.created_at.desc())
-        .all()
-    )
-
-    period_id = request.args.get("period", type=int)
-    if period_id is None and open_period:
-        period_id = open_period.id
-
-    selected_period = None
-    if period_id is not None:
-        selected_period = next((p for p in periods if p.id == period_id), None)
-
-    if selected_period is None:
-        selected_period = open_period or (periods[0] if periods else None)
+    range_filter = (request.args.get("range") or "month").strip().lower()
+    if range_filter not in {"today", "month", "year", "custom"}:
+        range_filter = "month"
 
     date_from_raw = (request.args.get("from") or "").strip()
     date_to_raw = (request.args.get("to") or "").strip()
     date_from = _parse_date(date_from_raw) if date_from_raw else None
     date_to = _parse_date(date_to_raw) if date_to_raw else None
 
-    show = (request.args.get("show") or "all").strip().lower()  # all|pending|confirmed
-
-    # Aucune période disponible : on affiche la page vide proprement
-    if not selected_period:
-        return redirect(url_for("vendor.periods"))
-
-    start = selected_period.start_at or datetime.utcnow()
-    end = selected_period.end_at or datetime.utcnow()
-
-    if date_from and date_from > start:
-        start = date_from
-    if date_to:
-        end_to = date_to + timedelta(days=1)
-        if end_to < end:
-            end = end_to
+    if range_filter == "today":
+        start = today_start
+        end = today_start + timedelta(days=1)
+        date_range_label = "Aujourd'hui"
+    elif range_filter == "year":
+        start = year_start
+        end = next_year
+        date_range_label = "Cette année"
+    elif range_filter == "custom":
+        start = date_from or month_start
+        end = (date_to + timedelta(days=1)) if date_to else now + timedelta(days=1)
+        date_range_label = "Dates choisies"
+    else:
+        start = month_start
+        end = next_month
+        date_range_label = "Ce mois"
 
     if end <= start:
         end = start + timedelta(days=1)
 
-    # 1) Montant par commande (source: OrderItem.price * qty)
-    rows = (
+    show = (request.args.get("show") or "all").strip().lower()
+    if show not in {"all", "pending", "confirmed"}:
+        show = "all"
+
+    order_amounts_subquery = (
         db.session.query(
             OrderItem.order_id.label("order_id"),
             db.func.sum(OrderItem.price * OrderItem.quantity).label("amount_cents"),
@@ -2921,35 +2563,55 @@ def earnings():
         .filter(Product.kind != "service")
         .filter(Order.created_at >= start, Order.created_at < end)
         .group_by(OrderItem.order_id)
-        .all()
+        .subquery()
     )
-    order_amount_map = {r.order_id: int(r.amount_cents or 0) for r in rows}
-    order_ids = list(order_amount_map.keys())
 
-    confirmed_ids = set()
-    if order_ids:
-        confirmed_ids = {
-            int(order_id)
-            for (order_id,) in (
-                db.session.query(VendorReceipt.order_id)
-                .filter(
-                    VendorReceipt.vendor_id == vendor_id,
-                    VendorReceipt.order_id.in_(order_ids),
-                )
-                .all()
-            )
-            if order_id is not None
-        }
+    receipt_order_subquery = (
+        db.session.query(VendorReceipt.order_id.label("order_id"))
+        .filter(
+            VendorReceipt.vendor_id == vendor_id,
+            VendorReceipt.order_id.isnot(None),
+        )
+        .group_by(VendorReceipt.order_id)
+        .subquery()
+    )
 
-    total_confirmed = sum(order_amount_map.get(oid, 0) for oid in confirmed_ids)
-    total_pending = sum(amount for oid, amount in order_amount_map.items() if oid not in confirmed_ids)
-
-    # 2) Liste des commandes (avec pagination)
-    list_ids = order_ids
-    if show == "pending":
-        list_ids = [oid for oid in order_ids if oid not in confirmed_ids]
-    elif show == "confirmed":
-        list_ids = [oid for oid in order_ids if oid in confirmed_ids]
+    totals_row = (
+        db.session.query(
+            db.func.coalesce(
+                db.func.sum(
+                    case(
+                        (
+                            receipt_order_subquery.c.order_id.isnot(None),
+                            order_amounts_subquery.c.amount_cents,
+                        ),
+                        else_=0,
+                    )
+                ),
+                0,
+            ).label("confirmed_cents"),
+            db.func.coalesce(
+                db.func.sum(
+                    case(
+                        (
+                            receipt_order_subquery.c.order_id.is_(None),
+                            order_amounts_subquery.c.amount_cents,
+                        ),
+                        else_=0,
+                    )
+                ),
+                0,
+            ).label("pending_cents"),
+        )
+        .select_from(order_amounts_subquery)
+        .outerjoin(
+            receipt_order_subquery,
+            receipt_order_subquery.c.order_id == order_amounts_subquery.c.order_id,
+        )
+        .one()
+    )
+    total_confirmed = int(totals_row.confirmed_cents or 0)
+    total_pending = int(totals_row.pending_cents or 0)
 
     base_list_query = (
         Order.query.options(
@@ -2959,15 +2621,36 @@ def earnings():
             .selectinload(OrderItem.product)
             .load_only(Product.id, Product.vendor_id, Product.name),
         )
-        .filter(Order.id.in_(list_ids or [-1]))
-        .order_by(Order.created_at.desc())
+        .join(order_amounts_subquery, order_amounts_subquery.c.order_id == Order.id)
+        .outerjoin(receipt_order_subquery, receipt_order_subquery.c.order_id == Order.id)
     )
+    if show == "pending":
+        base_list_query = base_list_query.filter(receipt_order_subquery.c.order_id.is_(None))
+    elif show == "confirmed":
+        base_list_query = base_list_query.filter(receipt_order_subquery.c.order_id.isnot(None))
+    base_list_query = base_list_query.order_by(Order.created_at.desc(), Order.id.desc())
 
     page = page_from_args(request.args)
     pagination = base_list_query.paginate(page=page, per_page=30, error_out=False)
     orders = pagination.items
 
     page_order_ids = [int(order.id) for order in orders if getattr(order, "id", None) is not None]
+    order_amount_map = {}
+    if page_order_ids:
+        amount_rows = (
+            db.session.query(
+                order_amounts_subquery.c.order_id,
+                order_amounts_subquery.c.amount_cents,
+            )
+            .filter(order_amounts_subquery.c.order_id.in_(page_order_ids))
+            .all()
+        )
+        order_amount_map = {
+            int(order_id): int(amount_cents or 0)
+            for order_id, amount_cents in amount_rows
+            if order_id is not None
+        }
+
     receipt_map = {}
     if page_order_ids:
         page_receipts = (
@@ -2983,9 +2666,8 @@ def earnings():
 
     return render_template(
         "vendor/earnings.html",
-        periods=periods,
-        selected_period=selected_period,
-        open_period=open_period,
+        range_filter=range_filter,
+        date_range_label=date_range_label,
         date_from=date_from_raw,
         date_to=date_to_raw,
         show=show,
@@ -2997,6 +2679,7 @@ def earnings():
         total_pending=total_pending,
     )
 
+
 @bp.route("/earnings/history")
 @login_required
 def earnings_history():
@@ -3004,8 +2687,7 @@ def earnings_history():
     if access_guard:
         return access_guard
 
-    flash("L’historique a été remplacé par les périodes.", "info")
-    return redirect(url_for("vendor.periods"))
+    return redirect(url_for("vendor.earnings"), code=302)
 
 
 @bp.route("/earnings/history/export.csv")
@@ -3015,8 +2697,7 @@ def earnings_history_export_csv():
     if access_guard:
         return access_guard
 
-    flash("Export désactivé dans le nouveau livre vendeur.", "info")
-    return redirect(url_for("vendor.periods"))
+    return redirect(url_for("vendor.earnings"), code=302)
 
 
 @bp.route("/earnings/history/export.pdf")
@@ -3026,19 +2707,7 @@ def earnings_history_export_pdf():
     if access_guard:
         return access_guard
 
-    flash("Export désactivé dans le nouveau livre vendeur.", "info")
-    return redirect(url_for("vendor.periods"))
-
-
-@bp.route("/earnings/confirm/<int:payout_id>", methods=["POST"])
-@login_required
-def confirm_payout(payout_id):
-    access_guard = _require_physical_vendor_access(strict_forbidden=True)
-    if access_guard:
-        return access_guard
-
-    flash("Cette action a été remplacée par « Je suis payé » sur vos commandes.", "info")
-    return redirect(url_for("vendor.earnings"))
+    return redirect(url_for("vendor.earnings"), code=302)
 
 
 # ==================== ROUTES AJAX/API POUR VENDEURS ====================
@@ -3274,30 +2943,12 @@ def stats_live():
         vendor_flags = _vendor_type_flags(vendor_shop)
         allows_products = vendor_flags["allows_products"]
 
-    open_period = _get_open_period(current_user.id) if allows_products else None
-    if current_user.role != "admin" and allows_products and not open_period:
-        payload = {
-            "success": True,
-            "total_orders": 0,
-            "total_revenue": "0",
-            "low_stock": 0,
-        }
-        response = jsonify(payload)
-        response.headers["Cache-Control"] = f"private, max-age={int(LIVE_ENDPOINT_MICROCACHE_TTL_SECONDS)}"
-        _log_perf(
-            "vendor.stats_live",
-            started_at,
-            vendor_id=getattr(current_user, "id", None),
-            allows_products=allows_products,
-            cache="no_period",
-        )
-        return response
-
     now = datetime.utcnow()
-    start = (open_period.start_at if open_period else None) or now
-    end = (open_period.end_at if open_period else None) or now
-    if end <= start:
-        end = start + timedelta(days=1)
+    start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    if start.month == 12:
+        end = start.replace(year=start.year + 1, month=1)
+    else:
+        end = start.replace(month=start.month + 1)
 
     try:
         if current_user.role == "admin":

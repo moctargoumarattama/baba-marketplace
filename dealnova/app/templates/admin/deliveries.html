@@ -1,7 +1,7 @@
 ﻿{% extends "admin/base.html" %}
-{% block title %}Livraisons | Admin DealNova{% endblock %}
-{% block page_title %}Livraisons{% endblock %}
-{% block body_attrs %}data-live="" data-adm-page="deliveries" data-ajax-owner="admin"{% endblock %}
+{% block title %}Livraison express | Admin DealNova{% endblock %}
+{% block page_title %}Livraison express{% endblock %}
+{% block body_attrs %}data-live="deliveries" data-live-url="{{ url_for('admin.deliveries_live') }}" data-interval="15000" data-adm-page="deliveries" data-ajax-owner="admin"{% endblock %}
 
 {% block head %}
 <style>
@@ -518,7 +518,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="deliveries-wrap adm-page-stack" data-deliveries-page="true" data-adm-page="deliveries" data-page="{{ pagination.page if pagination else 1 }}" data-read-only="{{ 1 if read_only else 0 }}" data-available-count-url="{{ url_for('admin.deliveries_available_count') }}">
+<div class="deliveries-wrap adm-page-stack" data-deliveries-page="true" data-adm-page="deliveries" data-page="{{ pagination.page if pagination else 1 }}" data-read-only="{{ 1 if read_only else 0 }}">
   <!-- Loading overlay pour les filtres -->
   <div class="filter-loading" id="filterLoading">
     <div class="spinner"></div>
@@ -532,7 +532,7 @@
   <!-- Indicateur live -->
   <div class="live-indicator">
     <span class="pulse"></span>
-    <span>Mise a jour automatique toutes les 5 secondes</span>
+    <span>Mise a jour automatique toutes les 15 secondes</span>
   </div>
 
   <!-- Hero section avec statistiques -->
@@ -541,24 +541,24 @@
       <div>
         <h2 class="deliveries-title">
           <i class="bi bi-truck"></i>
-          {{ 'Livraisons du moment' if current_user.role == 'manager' else 'Centre livraison temps reel' }}
+          {{ 'Livraison express du moment' if current_user.role == 'manager' else 'Centre livraison express temps reel' }}
         </h2>
         <p class="deliveries-subtitle">
           {% if current_user.role == 'manager' %}
-          Suivi simple des commandes a livrer.
+          Suivi simple des livraisons express a traiter.
           {% else %}
-          Commandes non livrees et mouvements recents sur 24h.
+          Livraisons express non finalisees et mouvements recents sur 24h.
           {% endif %}
         </p>
         <div class="d-flex gap-2 flex-wrap mt-2">
           {% if read_only %}
             <span class="badge rounded-pill text-bg-secondary">{{ 'Consultation seulement' if current_user.role == 'manager' else 'Lecture seule' }}</span>
           {% endif %}
-          <a class="btn btn-sm btn-outline-primary" href="{{ url_for('admin.all_orders', period_id=selected_period_id, include_legacy=1 if include_legacy else None) }}">
-            <i class="bi bi-bag-check"></i> {{ 'Commandes' if current_user.role == 'manager' else 'Toutes les commandes' }}
+          <a class="btn btn-sm btn-outline-primary" href="{{ url_for('admin.product_contacts') }}">
+            <i class="bi bi-chat-dots"></i> Contacts produits
           </a>
-          <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('admin.pricing_settings', section='archives') }}">
-            <i class="bi bi-archive"></i> Archives commandes
+          <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('admin.deliveries_archives') }}">
+            <i class="bi bi-archive"></i> Archives livraison express
           </a>
         </div>
       </div>
@@ -582,19 +582,11 @@
         </div>
         <div class="deliveries-stat">
           <div>
-            <h6>Part Baba (24h)</h6>
+            <h6>Revenu livraison (24h)</h6>
             <div class="stat-value" id="commissionStat">{{ "%.2f"|format(total_baba_fee) }} MAD</div>
-            <div class="stat-note">Livraisons recentes</div>
+            <div class="stat-note">Livraisons express recentes</div>
           </div>
           <div class="stat-icon primary"><i class="bi bi-coin"></i></div>
-        </div>
-        <div class="deliveries-stat">
-          <div>
-            <h6>Disponibles maintenant</h6>
-            <div class="stat-value adm-available-count" id="availableCouriersStat">{{ available_couriers_count }}</div>
-            <div class="stat-note">Livreurs actifs + disponibles</div>
-          </div>
-          <div class="stat-icon success"><i class="bi bi-person-check"></i></div>
         </div>
       </div>
     </div>
@@ -608,7 +600,7 @@
         A traiter maintenant
         <span class="badge bg-warning" id="pendingCount">{{ pending|length }}</span>
       </h5>
-      <span id="pendingCountLabel">{{ pending|length }} commandes ouvertes</span>
+      <span id="pendingCountLabel">{{ pending|length }} livraisons express ouvertes</span>
     </div>
     {% if pending %}
     <div class="table-responsive">
@@ -618,13 +610,11 @@
             <th>#</th>
             <th>Client</th>
             <th>Ville</th>
-            <th>Produits</th>
-            <th>Boutiques</th>
+            <th>Objet</th>
+            <th>Depart</th>
             <th>Total</th>
             <th>Livraison</th>
-            <th>Part Baba</th>
-            <th>Net livreur</th>
-            <th>Livreur</th>
+            <th>Revenu livraison</th>
             <th>Action</th>
           </tr>
         </thead>
@@ -636,9 +626,8 @@
               <div class="fw-semibold">{{ o.full_name }}</div>
               <small class="text-muted">{{ o.phone }}</small>
               <div class="small mt-1">
-                <span class="badge rounded-pill text-bg-info">{{ o._delivery_source_label if o._delivery_source_label else 'Marketplace' }}</span>
+                <span class="badge rounded-pill text-bg-info">Livraison express</span>
               </div>
-              {% set is_special_delivery = o._delivery_source == 'special' %}
               <div class="small mt-1 d-flex gap-1 flex-wrap">
                 {% if o._delivery_dropoff and o._delivery_dropoff.is_complete %}
                   <span class="badge text-bg-success">Client OK</span>
@@ -646,74 +635,43 @@
                   <span class="badge text-bg-warning text-dark">Client incomplet</span>
                 {% endif %}
                 {% if o._delivery_pickup and o._delivery_pickup.status == 'na' %}
-                  <span class="badge text-bg-secondary">{{ 'Depart' if is_special_delivery else 'Boutique de depart' }}: N/A</span>
+                  <span class="badge text-bg-secondary">Depart: N/A</span>
                 {% elif o._delivery_pickup and o._delivery_pickup.is_complete %}
-                  <span class="badge text-bg-success">{{ 'Depart OK' if is_special_delivery else 'Boutique de depart OK' }}</span>
+                  <span class="badge text-bg-success">Depart OK</span>
                 {% else %}
-                  <span class="badge text-bg-warning text-dark">{{ 'Depart manquant' if is_special_delivery else 'Boutique de depart manquante' }}</span>
+                  <span class="badge text-bg-warning text-dark">Depart manquant</span>
                 {% endif %}
               </div>
               <div class="small text-muted mt-1">
-                <strong>{{ 'Depart:' if is_special_delivery else 'Boutique de depart:' }}</strong> {{ o._delivery_pickup.shop_name if o._delivery_pickup and o._delivery_pickup.shop_name else '' }}{% if o._delivery_pickup and o._delivery_pickup.shop_name %} - {% endif %}{{ o._delivery_pickup.address if o._delivery_pickup else 'N/A' }}
+                <strong>Depart:</strong> {{ o._delivery_pickup.address if o._delivery_pickup else 'N/A' }}
                 {% if o._delivery_pickup and o._delivery_pickup.coords_text and o._delivery_pickup.coords_text != 'N/A' %}
                   ({{ o._delivery_pickup.coords_text }})
                 {% endif %}
                 {% if o._delivery_pickup and o._delivery_pickup.maps_url %}
-                  · <a class="map-inline-link" data-stop-nav href="{{ o._delivery_pickup.maps_url }}" target="_blank" rel="noopener"><i class="bi bi-geo-alt"></i>{{ 'Carte depart' if is_special_delivery else 'Carte boutique' }}</a>
-                  · <button type="button" class="map-inline-copy" data-stop-nav data-copy-text="{{ o._delivery_pickup.maps_url }}">{{ 'Copier le lien depart' if is_special_delivery else 'Copier le lien boutique' }}</button>
+                  · <a class="map-inline-link" data-stop-nav href="{{ o._delivery_pickup.maps_url }}" target="_blank" rel="noopener"><i class="bi bi-geo-alt"></i>Carte depart</a>
+                  · <button type="button" class="map-inline-copy" data-stop-nav data-copy-text="{{ o._delivery_pickup.maps_url }}">Copier le lien depart</button>
                 {% endif %}
               </div>
               <div class="small text-muted">
-                <strong>{{ "Adresse d'arrivee:" if is_special_delivery else 'Adresse client:' }}</strong> {{ o._delivery_dropoff.address if o._delivery_dropoff else 'N/A' }}
+                <strong>Adresse d'arrivee:</strong> {{ o._delivery_dropoff.address if o._delivery_dropoff else 'N/A' }}
                 {% if o._delivery_dropoff and o._delivery_dropoff.coords_text and o._delivery_dropoff.coords_text != 'N/A' %}
                   ({{ o._delivery_dropoff.coords_text }})
                 {% endif %}
                 {% if o._delivery_dropoff and o._delivery_dropoff.maps_url %}
-                  · <a class="map-inline-link" data-stop-nav href="{{ o._delivery_dropoff.maps_url }}" target="_blank" rel="noopener"><i class="bi bi-geo"></i>{{ "Carte d'arrivee" if is_special_delivery else 'Carte client' }}</a>
-                  · <button type="button" class="map-inline-copy" data-stop-nav data-copy-text="{{ o._delivery_dropoff.maps_url }}">{{ "Copier le lien d'arrivee" if is_special_delivery else 'Copier le lien client' }}</button>
+                  · <a class="map-inline-link" data-stop-nav href="{{ o._delivery_dropoff.maps_url }}" target="_blank" rel="noopener"><i class="bi bi-geo"></i>Carte d'arrivee</a>
+                  · <button type="button" class="map-inline-copy" data-stop-nav data-copy-text="{{ o._delivery_dropoff.maps_url }}">Copier le lien d'arrivee</button>
                 {% endif %}
               </div>
             </td>
             <td data-label="Ville">{{ o.delivery_city or o.city }}</td>
-            <td data-label="Produits"><div class="list-text">{{ o._product_names|join(', ') }}</div></td>
-            <td data-label="Boutiques"><div class="list-text">{{ o._shop_names|join(', ') }}</div></td>
+            <td data-label="Objet"><div class="list-text">{{ o.special_item or 'Livraison express' }}</div></td>
+            <td data-label="Depart"><div class="list-text">{{ o.special_pickup_address or (o._delivery_pickup.address if o._delivery_pickup else 'N/A') }}</div></td>
             <td data-label="Total">{{ "%.2f"|format(o.total / 100) }} MAD</td>
             <td data-label="Livraison">{{ "%.2f"|format((o.delivery_price_cents or o.shipping or 0) / 100) }} MAD</td>
-            <td data-label="Part Baba">
+            <td data-label="Revenu livraison">
               <span class="badge bg-warning text-dark">{{ "%.2f"|format((o.delivery_platform_fee_cents or 0) / 100) }} MAD</span>
               {% if o.baba_fee_settled_at %}
                 <div class="small text-success">Remis</div>
-              {% endif %}
-            </td>
-            <td data-label="Net livreur">{{ "%.2f"|format((o.delivery_courier_net_cents or 0) / 100) }} MAD</td>
-            <td data-label="Livreur">
-              {% if o.courier %}
-                <div class="small fw-semibold">Assigne a: {{ o.courier.username }}</div>
-              {% else %}
-                <div class="small text-muted">Non assignee</div>
-              {% endif %}
-              {% if not read_only %}
-                <form method="POST" data-adm-disable-submit action="{{ url_for('admin.assign_courier', oid=o.id, next=request.full_path) }}" class="mt-1">
-                  {% include "admin/partials/_csrf.html" %}
-                  {% if couriers %}
-                    <div class="d-flex gap-1">
-                      <select name="courier_id" class="form-select form-select-sm">
-                        <option value="">--</option>
-                        {% for courier in couriers %}
-                          <option value="{{ courier.id }}" {% if o.courier_id == courier.id %}selected{% endif %}>
-                            {{ courier.username }} · {{ courier.delivered_count }} livrees
-                          </option>
-                        {% endfor %}
-                      </select>
-                      <button class="btn btn-sm btn-outline-primary" type="submit">Assigner</button>
-                    </div>
-                  {% else %}
-                    <div class="small text-muted">Aucun livreur disponible.</div>
-                    <a class="btn btn-sm btn-outline-secondary mt-1" href="{{ url_for('admin_users.manage_users', role='courier') }}">
-                      Voir tous les livreurs
-                    </a>
-                  {% endif %}
-                </form>
               {% endif %}
             </td>
             <td data-label="Action" class="order-actions">
@@ -721,14 +679,6 @@
                 <a href="{{ url_for('admin.order_detail', oid=o.id, next=request.full_path) }}" class="btn btn-sm btn-primary" title="Voir details" data-primary-action data-stop-nav>
                   <i class="bi bi-eye"></i><span class="d-none d-md-inline ms-1">Details</span>
                 </a>
-                {% if o.courier %}
-                <a href="{{ url_for('admin.courier_whatsapp', oid=o.id, next=request.full_path) }}"
-                   class="btn btn-sm btn-outline-success"
-                   title="WhatsApp livreur"
-                   data-secondary-action data-stop-nav>
-                  <i class="bi bi-whatsapp"></i><span class="d-none d-md-inline ms-1">WhatsApp</span>
-                </a>
-                {% endif %}
                 <div class="dropdown" data-actions-menu>
                   <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" data-stop-nav>
                     <i class="bi bi-three-dots"></i>
@@ -742,28 +692,28 @@
                     {% if o._delivery_pickup and o._delivery_pickup.maps_url %}
                     <li>
                       <a class="dropdown-item" data-stop-nav href="{{ o._delivery_pickup.maps_url }}" target="_blank" rel="noopener">
-                        <i class="bi bi-geo-alt"></i>{{ 'Ouvrir la carte du depart' if is_special_delivery else 'Ouvrir la carte de la boutique' }}
+                        <i class="bi bi-geo-alt"></i>Ouvrir la carte du depart
                       </a>
                     </li>
                     <li>
                       <button type="button" class="dropdown-item" data-stop-nav data-copy-text="{{ o._delivery_pickup.maps_url }}">
-                        <i class="bi bi-clipboard"></i>{{ 'Copier le lien du depart' if is_special_delivery else 'Copier le lien de la boutique' }}
+                        <i class="bi bi-clipboard"></i>Copier le lien du depart
                       </button>
                     </li>
                     {% endif %}
                     {% if o._delivery_dropoff and o._delivery_dropoff.maps_url %}
                     <li>
                       <a class="dropdown-item" data-stop-nav href="{{ o._delivery_dropoff.maps_url }}" target="_blank" rel="noopener">
-                        <i class="bi bi-geo"></i>{{ "Ouvrir la carte d'arrivee" if is_special_delivery else 'Ouvrir la carte du client' }}
+                        <i class="bi bi-geo"></i>Ouvrir la carte d'arrivee
                       </a>
                     </li>
                     <li>
                       <button type="button" class="dropdown-item" data-stop-nav data-copy-text="{{ o._delivery_dropoff.maps_url }}">
-                        <i class="bi bi-clipboard-check"></i>{{ "Copier le lien d'arrivee" if is_special_delivery else 'Copier le lien du client' }}
+                        <i class="bi bi-clipboard-check"></i>Copier le lien d'arrivee
                       </button>
                     </li>
                     {% endif %}
-                    {% if not read_only and o.delivery_status in ['new', 'assigned', 'picked_up', 'delivering'] %}
+                    {% if not read_only and o.delivery_status == 'new' %}
                     <li><hr class="dropdown-divider"></li>
                     <li class="px-2 py-1">
                       <form method="POST" data-adm-disable-submit action="{{ url_for('admin.mark_delivered', oid=o.id, next=request.full_path) }}" data-ajax="true" data-action="order-status" data-order-id="{{ o.id }}">
@@ -774,10 +724,10 @@
                       </form>
                     </li>
                     <li class="px-2 py-1">
-                      <form method="POST" data-adm-disable-submit action="{{ url_for('admin.cancel_order', oid=o.id, next=request.full_path) }}" data-ajax="true" data-action="order-status" data-order-id="{{ o.id }}" data-confirm="Annuler cette commande ?">
+                      <form method="POST" data-adm-disable-submit action="{{ url_for('admin.cancel_order', oid=o.id, next=request.full_path) }}" data-ajax="true" data-action="order-status" data-order-id="{{ o.id }}" data-confirm="Annuler cette livraison ?">
                         {% include "admin/partials/_csrf.html" %}
                         <button class="btn btn-outline-danger btn-sm w-100" type="submit">
-                          <i class="bi bi-x-circle me-1"></i>Annuler commande
+                          <i class="bi bi-x-circle me-1"></i>Annuler livraison
                         </button>
                       </form>
                     </li>
@@ -796,7 +746,7 @@
     {% else %}
       <div class="empty-state" id="pendingEmpty">
         <i class="bi bi-check-circle"></i>
-        <p>Aucune commande a livrer pour le moment.</p>
+        <p>Aucune livraison express a traiter pour le moment.</p>
       </div>
     {% endif %}
   </section>
@@ -806,8 +756,8 @@
     <div class="deliveries-section-header">
       <h5>
         <i class="bi bi-clock-history"></i>
-        {{ 'Suivi des livraisons' if current_user.role == 'manager' else 'Suivi operationnel (24h + non livrees)' }}
-        {% if source_filter or order_status_filter or delivery_status_filter or city_filter or date_from or date_to or product_filter or shop_filter or client_filter or phone_filter or delivery_scope or courier_id_filter %}
+        {{ 'Suivi des livraisons express' if current_user.role == 'manager' else 'Suivi operationnel express (24h + non finalisees)' }}
+        {% if order_status_filter or delivery_status_filter or city_filter or date_from or date_to or client_filter or phone_filter %}
           <span class="active-filters-badge">Filtres actifs</span>
         {% endif %}
       </h5>
@@ -816,56 +766,32 @@
 
     <!-- Formulaire de filtres avec soumission AJAX -->
       <form method="get" id="filterForm" class="filter-form adm-filters">
-        <input type="hidden" name="period_id" value="{{ selected_period_id or '' }}">
-        {% if include_legacy %}<input type="hidden" name="include_legacy" value="1">{% endif %}
         <div class="filter-grid">
-          <div>
-            <label class="form-label">Source</label>
-            <select name="source" class="form-select">
-            <option value="" {% if not source_filter %}selected{% endif %}>Toutes</option>
-            <option value="marketplace" {% if source_filter == 'marketplace' %}selected{% endif %}>Marketplace</option>
-            <option value="special" {% if source_filter == 'special' %}selected{% endif %}>Livraison speciale</option>
+        <div>
+          <label class="form-label">Vue</label>
+          <select name="range" class="form-select">
+            <option value="today" {% if range_filter == 'today' %}selected{% endif %}>Aujourd'hui</option>
+            <option value="month" {% if range_filter == 'month' %}selected{% endif %}>Ce mois</option>
+            <option value="year" {% if range_filter == 'year' %}selected{% endif %}>Cette annee</option>
+            <option value="custom" {% if range_filter == 'custom' %}selected{% endif %}>Dates</option>
           </select>
         </div>
         <div>
-          <label class="form-label">{{ 'Etat livraison' if current_user.role == 'manager' else 'Filtre livraison' }}</label>
-          <select name="delivery_scope" class="form-select">
-            <option value="" {% if not delivery_scope %}selected{% endif %}>Toutes</option>
-            <option value="unassigned" {% if delivery_scope == 'unassigned' %}selected{% endif %}>Non assignees</option>
-            <option value="assigned" {% if delivery_scope == 'assigned' %}selected{% endif %}>Assignees</option>
-            <option value="delivered" {% if delivery_scope == 'delivered' %}selected{% endif %}>Livrees</option>
-          </select>
-        </div>
-        <div>
-          <label class="form-label">Livreur</label>
-          <select name="courier_id" class="form-select">
-            <option value="">Tous</option>
-            {% for courier in courier_filters %}
-              <option value="{{ courier.id }}" {% if courier_id_filter == courier.id %}selected{% endif %}>
-                {{ courier.username }} · {{ courier.delivered_count }} livrees
-              </option>
-            {% endfor %}
-          </select>
-        </div>
-        <div>
-          <label class="form-label">Statut commande</label>
+          <label class="form-label">Statut dossier</label>
           <select name="order_status" class="form-select">
             <option value="" {% if not order_status_filter %}selected{% endif %}>Tous</option>
-            <option value="pending" {% if order_status_filter == 'pending' %}selected{% endif %}>En attente</option>
-            <option value="delivered" {% if order_status_filter == 'delivered' %}selected{% endif %}>Livree</option>
-            <option value="cancelled" {% if order_status_filter == 'cancelled' %}selected{% endif %}>Annulee</option>
+            <option value="pending" {% if order_status_filter == 'pending' %}selected{% endif %}>{{ label_order_status('pending', current_lang) }}</option>
+            <option value="delivered" {% if order_status_filter == 'delivered' %}selected{% endif %}>{{ label_order_status('delivered', current_lang) }}</option>
+            <option value="cancelled" {% if order_status_filter == 'cancelled' %}selected{% endif %}>{{ label_order_status('cancelled', current_lang) }}</option>
           </select>
         </div>
         <div>
           <label class="form-label">Statut livraison</label>
           <select name="delivery_status" class="form-select">
             <option value="" {% if not delivery_status_filter %}selected{% endif %}>Tous</option>
-            <option value="new" {% if delivery_status_filter == 'new' %}selected{% endif %}>Nouvelle</option>
-            <option value="assigned" {% if delivery_status_filter == 'assigned' %}selected{% endif %}>Assignee</option>
-            <option value="picked_up" {% if delivery_status_filter == 'picked_up' %}selected{% endif %}>Recuperee</option>
-            <option value="delivering" {% if delivery_status_filter == 'delivering' %}selected{% endif %}>En livraison</option>
-            <option value="delivered" {% if delivery_status_filter == 'delivered' %}selected{% endif %}>Livree</option>
-            <option value="canceled" {% if delivery_status_filter == 'canceled' %}selected{% endif %}>Annulee</option>
+            <option value="new" {% if delivery_status_filter == 'new' %}selected{% endif %}>{{ label_delivery_status('new', current_lang) }}</option>
+            <option value="delivered" {% if delivery_status_filter == 'delivered' %}selected{% endif %}>{{ label_delivery_status('delivered', current_lang) }}</option>
+            <option value="canceled" {% if delivery_status_filter == 'canceled' %}selected{% endif %}>{{ label_delivery_status('canceled', current_lang) }}</option>
           </select>
         </div>
         <div>
@@ -886,14 +812,6 @@
           <input type="date" name="to" class="form-control" value="{{ date_to }}">
         </div>
         <div>
-          <label class="form-label">Produit</label>
-          <input type="text" name="product" class="form-control" placeholder="Nom du produit" value="{{ product_filter }}">
-        </div>
-        <div>
-          <label class="form-label">Boutique</label>
-          <input type="text" name="shop" class="form-control" placeholder="Nom de la boutique" value="{{ shop_filter }}">
-        </div>
-        <div>
           <label class="form-label">Client</label>
           <input type="text" name="client" class="form-control" placeholder="Nom client" value="{{ client_filter }}">
         </div>
@@ -906,7 +824,7 @@
             <i class="bi bi-funnel"></i> {{ 'Afficher' if current_user.role == 'manager' else 'Filtrer' }}
           </button>
           <a class="btn btn-outline-success" id="exportCsv"
-             href="{{ url_for('admin.deliveries', period_id=selected_period_id, include_legacy=1 if include_legacy else None, source=source_filter, delivery_scope=delivery_scope, courier_id=courier_id_filter, order_status=order_status_filter, delivery_status=delivery_status_filter, from=date_from, to=date_to, product=product_filter, shop=shop_filter, city=city_filter, client=client_filter, phone=phone_filter, export='csv') }}">
+             href="{{ url_for('admin.deliveries', range=range_filter, order_status=order_status_filter, delivery_status=delivery_status_filter, date_from=date_from, date_to=date_to, city=city_filter, client=client_filter, phone=phone_filter, export='csv') }}">
             <i class="bi bi-filetype-csv"></i> {{ 'Exporter' if current_user.role == 'manager' else 'Export operationnel' }}
           </a>
           <a class="btn btn-outline-secondary" id="resetFilters" href="{{ url_for('admin.deliveries') }}">
@@ -925,13 +843,11 @@
             <th>#</th>
             <th>Client</th>
             <th>Ville</th>
-            <th>Produits</th>
-            <th>Boutiques</th>
+            <th>Objet</th>
+            <th>Depart</th>
             <th>Total</th>
             <th>Livraison</th>
-            <th>Part Baba</th>
-            <th>Net livreur</th>
-            <th>Livreur</th>
+            <th>Revenu livraison</th>
             <th>Statut</th>
             <th>Date</th>
             <th>Action</th>
@@ -939,15 +855,14 @@
         </thead>
         <tbody id="historyTableBody">
           {% for o in history_orders %}
-          <tr class="{% if o.delivery_status in ['new', 'assigned', 'picked_up', 'delivering'] %}order-row-pending{% endif %}" data-order-id="{{ o.id }}" data-order-section="history">
+          <tr class="{% if o.delivery_status == 'new' %}order-row-pending{% endif %}" data-order-id="{{ o.id }}" data-order-section="history">
             <td data-label="#">{{ o.id }}</td>
             <td data-label="Client">
               <div class="fw-semibold">{{ o.full_name }}</div>
               <small class="text-muted">{{ o.phone }}</small>
               <div class="small mt-1">
-                <span class="badge rounded-pill text-bg-info">{{ o._delivery_source_label if o._delivery_source_label else 'Marketplace' }}</span>
+                <span class="badge rounded-pill text-bg-info">Livraison express</span>
               </div>
-              {% set is_special_delivery = o._delivery_source == 'special' %}
               <div class="small mt-1 d-flex gap-1 flex-wrap">
                 {% if o._delivery_dropoff and o._delivery_dropoff.is_complete %}
                   <span class="badge text-bg-success">Client OK</span>
@@ -955,95 +870,57 @@
                   <span class="badge text-bg-warning text-dark">Client incomplet</span>
                 {% endif %}
                 {% if o._delivery_pickup and o._delivery_pickup.status == 'na' %}
-                  <span class="badge text-bg-secondary">{{ 'Depart' if is_special_delivery else 'Boutique de depart' }}: N/A</span>
+                  <span class="badge text-bg-secondary">Depart: N/A</span>
                 {% elif o._delivery_pickup and o._delivery_pickup.is_complete %}
-                  <span class="badge text-bg-success">{{ 'Depart OK' if is_special_delivery else 'Boutique de depart OK' }}</span>
+                  <span class="badge text-bg-success">Depart OK</span>
                 {% else %}
-                  <span class="badge text-bg-warning text-dark">{{ 'Depart manquant' if is_special_delivery else 'Boutique de depart manquante' }}</span>
+                  <span class="badge text-bg-warning text-dark">Depart manquant</span>
                 {% endif %}
               </div>
               <div class="small text-muted mt-1">
-                <strong>{{ 'Depart:' if is_special_delivery else 'Boutique de depart:' }}</strong> {{ o._delivery_pickup.shop_name if o._delivery_pickup and o._delivery_pickup.shop_name else '' }}{% if o._delivery_pickup and o._delivery_pickup.shop_name %} - {% endif %}{{ o._delivery_pickup.address if o._delivery_pickup else 'N/A' }}
+                <strong>Depart:</strong> {{ o._delivery_pickup.address if o._delivery_pickup else 'N/A' }}
                 {% if o._delivery_pickup and o._delivery_pickup.coords_text and o._delivery_pickup.coords_text != 'N/A' %}
                   ({{ o._delivery_pickup.coords_text }})
                 {% endif %}
                 {% if o._delivery_pickup and o._delivery_pickup.maps_url %}
-                  · <a class="map-inline-link" data-stop-nav href="{{ o._delivery_pickup.maps_url }}" target="_blank" rel="noopener"><i class="bi bi-geo-alt"></i>{{ 'Carte depart' if is_special_delivery else 'Carte boutique' }}</a>
-                  · <button type="button" class="map-inline-copy" data-stop-nav data-copy-text="{{ o._delivery_pickup.maps_url }}">{{ 'Copier le lien depart' if is_special_delivery else 'Copier le lien boutique' }}</button>
+                  · <a class="map-inline-link" data-stop-nav href="{{ o._delivery_pickup.maps_url }}" target="_blank" rel="noopener"><i class="bi bi-geo-alt"></i>Carte depart</a>
+                  · <button type="button" class="map-inline-copy" data-stop-nav data-copy-text="{{ o._delivery_pickup.maps_url }}">Copier le lien depart</button>
                 {% endif %}
               </div>
               <div class="small text-muted">
-                <strong>{{ "Adresse d'arrivee:" if is_special_delivery else 'Adresse client:' }}</strong> {{ o._delivery_dropoff.address if o._delivery_dropoff else 'N/A' }}
+                <strong>Adresse d'arrivee:</strong> {{ o._delivery_dropoff.address if o._delivery_dropoff else 'N/A' }}
                 {% if o._delivery_dropoff and o._delivery_dropoff.coords_text and o._delivery_dropoff.coords_text != 'N/A' %}
                   ({{ o._delivery_dropoff.coords_text }})
                 {% endif %}
                 {% if o._delivery_dropoff and o._delivery_dropoff.maps_url %}
-                  · <a class="map-inline-link" data-stop-nav href="{{ o._delivery_dropoff.maps_url }}" target="_blank" rel="noopener"><i class="bi bi-geo"></i>{{ "Carte d'arrivee" if is_special_delivery else 'Carte client' }}</a>
-                  · <button type="button" class="map-inline-copy" data-stop-nav data-copy-text="{{ o._delivery_dropoff.maps_url }}">{{ "Copier le lien d'arrivee" if is_special_delivery else 'Copier le lien client' }}</button>
+                  · <a class="map-inline-link" data-stop-nav href="{{ o._delivery_dropoff.maps_url }}" target="_blank" rel="noopener"><i class="bi bi-geo"></i>Carte d'arrivee</a>
+                  · <button type="button" class="map-inline-copy" data-stop-nav data-copy-text="{{ o._delivery_dropoff.maps_url }}">Copier le lien d'arrivee</button>
                 {% endif %}
               </div>
             </td>
             <td data-label="Ville">{{ o.delivery_city or o.city }}</td>
-            <td data-label="Produits"><div class="list-text">{{ o._product_names|join(', ') }}</div></td>
-            <td data-label="Boutiques"><div class="list-text">{{ o._shop_names|join(', ') }}</div></td>
+            <td data-label="Objet"><div class="list-text">{{ o.special_item or 'Livraison express' }}</div></td>
+            <td data-label="Depart"><div class="list-text">{{ o.special_pickup_address or (o._delivery_pickup.address if o._delivery_pickup else 'N/A') }}</div></td>
             <td data-label="Total">{{ "%.2f"|format(o.total / 100) }} MAD</td>
             <td data-label="Livraison">{{ "%.2f"|format((o.delivery_price_cents or o.shipping or 0) / 100) }} MAD</td>
-            <td data-label="Part Baba">
+            <td data-label="Revenu livraison">
               <span class="badge bg-warning text-dark">{{ "%.2f"|format((o.delivery_platform_fee_cents or 0) / 100) }} MAD</span>
               {% if o.baba_fee_settled_at %}
                 <div class="small text-success">Remis</div>
               {% endif %}
             </td>
-            <td data-label="Net livreur">{{ "%.2f"|format((o.delivery_courier_net_cents or 0) / 100) }} MAD</td>
-            <td data-label="Livreur">
-              {% if o.courier %}
-                <div class="small fw-semibold">Assigne a: {{ o.courier.username }}</div>
-              {% else %}
-                <div class="small text-muted">Non assignee</div>
-              {% endif %}
-              {% if not read_only and o.delivery_status in ['new', 'assigned', 'picked_up', 'delivering'] %}
-                <form method="POST" data-adm-disable-submit action="{{ url_for('admin.assign_courier', oid=o.id, next=request.full_path) }}" class="mt-1">
-                  {% include "admin/partials/_csrf.html" %}
-                  {% if couriers %}
-                    <div class="d-flex gap-1">
-                      <select name="courier_id" class="form-select form-select-sm">
-                        <option value="">--</option>
-                        {% for courier in couriers %}
-                          <option value="{{ courier.id }}" {% if o.courier_id == courier.id %}selected{% endif %}>
-                            {{ courier.username }} · {{ courier.delivered_count }} livrees
-                          </option>
-                        {% endfor %}
-                      </select>
-                      <button class="btn btn-sm btn-outline-primary" type="submit">Assigner</button>
-                    </div>
-                  {% else %}
-                    <div class="small text-muted">Aucun livreur disponible.</div>
-                    <a class="btn btn-sm btn-outline-secondary mt-1" href="{{ url_for('admin_users.manage_users', role='courier') }}">
-                      Voir tous les livreurs
-                    </a>
-                  {% endif %}
-                </form>
-              {% endif %}
-            </td>
             <td data-label="Statut" data-order-status>
-              {% if o.status == "delivered" or o.delivery_status == "delivered" %}
-                <span class="status-pill status-delivered"><i class="bi bi-check-circle"></i> Livree</span>
-              {% elif o.status == "cancelled" or o.delivery_status == "canceled" %}
-                <span class="status-pill status-cancelled"><i class="bi bi-x-circle"></i> Annulee</span>
-              {% elif o.delivery_status == "delivering" %}
-                <span class="status-pill status-pending"><i class="bi bi-truck"></i> En livraison</span>
-                <div class="small text-muted mt-1">Commande: En attente</div>
-              {% elif o.delivery_status == "picked_up" %}
-                <span class="status-pill status-pending"><i class="bi bi-box-seam"></i> Recuperee</span>
-                <div class="small text-muted mt-1">Commande: En attente</div>
-              {% elif o.delivery_status == "assigned" %}
-                <span class="status-pill status-pending"><i class="bi bi-person-check"></i> Assignee</span>
-                <div class="small text-muted mt-1">Commande: En attente</div>
-              {% elif o.status == "pending" %}
-                <span class="status-pill status-pending"><i class="bi bi-clock"></i> En attente</span>
-                <div class="small text-muted mt-1">Livraison: Nouvelle</div>
+              {% set row_order_status = (o.status or '')|lower %}
+              {% set row_delivery_status = (o.delivery_status or '')|lower %}
+              {% if row_order_status == "delivered" or row_delivery_status == "delivered" %}
+                <span class="status-pill status-delivered"><i class="bi bi-check-circle"></i> {{ label_order_status('delivered', current_lang) }}</span>
+              {% elif row_order_status == "cancelled" or row_delivery_status == "canceled" %}
+                <span class="status-pill status-cancelled"><i class="bi bi-x-circle"></i> {{ label_order_status('cancelled', current_lang) }}</span>
+              {% elif row_order_status == "pending" %}
+                <span class="status-pill status-pending"><i class="bi bi-clock"></i> {{ label_order_status(row_order_status, current_lang) }}</span>
+                <div class="small text-muted mt-1">Livraison: {{ label_delivery_status(row_delivery_status or 'new', current_lang) }}</div>
               {% else %}
-                <span class="status-pill status-pending">{{ o.status }}</span>
+                <span class="status-pill status-pending">{{ label_order_status(row_order_status, current_lang) }}</span>
               {% endif %}
             </td>
             <td data-label="Date"><small>{{ o.created_at.strftime('%d/%m/%Y %H:%M') if o.created_at else '' }}</small></td>
@@ -1052,14 +929,6 @@
                 <a href="{{ url_for('admin.order_detail', oid=o.id, next=request.full_path) }}" class="btn btn-sm btn-primary" title="Voir details" data-primary-action data-stop-nav>
                   <i class="bi bi-eye"></i><span class="d-none d-md-inline ms-1">Details</span>
                 </a>
-                {% if o.courier %}
-                <a href="{{ url_for('admin.courier_whatsapp', oid=o.id, next=request.full_path) }}"
-                   class="btn btn-sm btn-outline-success"
-                   title="WhatsApp livreur"
-                   data-secondary-action data-stop-nav>
-                  <i class="bi bi-whatsapp"></i><span class="d-none d-md-inline ms-1">WhatsApp</span>
-                </a>
-                {% endif %}
                 <div class="dropdown" data-actions-menu>
                   <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" data-stop-nav>
                     <i class="bi bi-three-dots"></i>
@@ -1073,28 +942,28 @@
                     {% if o._delivery_pickup and o._delivery_pickup.maps_url %}
                     <li>
                       <a class="dropdown-item" data-stop-nav href="{{ o._delivery_pickup.maps_url }}" target="_blank" rel="noopener">
-                        <i class="bi bi-geo-alt"></i>{{ 'Ouvrir la carte du depart' if is_special_delivery else 'Ouvrir la carte de la boutique' }}
+                        <i class="bi bi-geo-alt"></i>Ouvrir la carte du depart
                       </a>
                     </li>
                     <li>
                       <button type="button" class="dropdown-item" data-stop-nav data-copy-text="{{ o._delivery_pickup.maps_url }}">
-                        <i class="bi bi-clipboard"></i>{{ 'Copier le lien du depart' if is_special_delivery else 'Copier le lien de la boutique' }}
+                        <i class="bi bi-clipboard"></i>Copier le lien du depart
                       </button>
                     </li>
                     {% endif %}
                     {% if o._delivery_dropoff and o._delivery_dropoff.maps_url %}
                     <li>
                       <a class="dropdown-item" data-stop-nav href="{{ o._delivery_dropoff.maps_url }}" target="_blank" rel="noopener">
-                        <i class="bi bi-geo"></i>{{ "Ouvrir la carte d'arrivee" if is_special_delivery else 'Ouvrir la carte du client' }}
+                        <i class="bi bi-geo"></i>Ouvrir la carte d'arrivee
                       </a>
                     </li>
                     <li>
                       <button type="button" class="dropdown-item" data-stop-nav data-copy-text="{{ o._delivery_dropoff.maps_url }}">
-                        <i class="bi bi-clipboard-check"></i>{{ "Copier le lien d'arrivee" if is_special_delivery else 'Copier le lien du client' }}
+                        <i class="bi bi-clipboard-check"></i>Copier le lien d'arrivee
                       </button>
                     </li>
                     {% endif %}
-                    {% if not read_only and o.delivery_status in ['new', 'assigned', 'picked_up', 'delivering'] %}
+                    {% if not read_only and o.delivery_status == 'new' %}
                     <li><hr class="dropdown-divider"></li>
                     <li class="px-2 py-1">
                       <form method="POST" data-adm-disable-submit action="{{ url_for('admin.mark_delivered', oid=o.id, next=request.full_path) }}" data-ajax="true" data-action="order-status" data-order-id="{{ o.id }}">
@@ -1105,10 +974,10 @@
                       </form>
                     </li>
                     <li class="px-2 py-1">
-                      <form method="POST" data-adm-disable-submit action="{{ url_for('admin.cancel_order', oid=o.id, next=request.full_path) }}" data-ajax="true" data-action="order-status" data-order-id="{{ o.id }}" data-confirm="Annuler cette commande ?">
+                      <form method="POST" data-adm-disable-submit action="{{ url_for('admin.cancel_order', oid=o.id, next=request.full_path) }}" data-ajax="true" data-action="order-status" data-order-id="{{ o.id }}" data-confirm="Annuler cette livraison ?">
                         {% include "admin/partials/_csrf.html" %}
                         <button class="btn btn-outline-danger btn-sm w-100" type="submit">
-                          <i class="bi bi-x-circle me-1"></i>Annuler commande
+                          <i class="bi bi-x-circle me-1"></i>Annuler livraison
                         </button>
                       </form>
                     </li>
@@ -1129,7 +998,7 @@
     {% if pagination and pagination.pages > 1 %}
     <div class="mt-4 adm-pager" data-adm-pager="deliveries-history">
       {% set endpoint = 'admin.deliveries' %}
-      {% set params = {'period_id': selected_period_id, 'include_legacy': 1 if include_legacy else None, 'source': source_filter, 'delivery_scope': delivery_scope, 'courier_id': courier_id_filter, 'order_status': order_status_filter, 'delivery_status': delivery_status_filter, 'from': date_from, 'to': date_to, 'product': product_filter, 'shop': shop_filter, 'city': city_filter, 'client': client_filter, 'phone': phone_filter} %}
+      {% set params = {'range': range_filter, 'order_status': order_status_filter, 'delivery_status': delivery_status_filter, 'date_from': date_from, 'date_to': date_to, 'city': city_filter, 'client': client_filter, 'phone': phone_filter} %}
       {% set iter_args = {'left_edge': 1, 'right_edge': 1, 'left_current': 1, 'right_current': 1} %}
       {% set prev_label = '<i class="bi bi-chevron-left"></i>' %}
       {% set next_label = '<i class="bi bi-chevron-right"></i>' %}
@@ -1139,7 +1008,7 @@
     {% else %}
       <div class="empty-state">
         <i class="bi bi-inbox"></i>
-        <p>{{ 'Aucune commande trouvee pour ces choix.' if current_user.role == 'manager' else 'Aucune commande operationnelle trouvee pour ces filtres.' }}</p>
+        <p>{{ 'Aucune livraison trouvee pour ces choix.' if current_user.role == 'manager' else 'Aucune livraison express trouvee pour ces filtres.' }}</p>
       </div>
     {% endif %}
   </section>

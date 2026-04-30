@@ -1,7 +1,7 @@
 ﻿{% extends 'admin/base.html' %}
 
-{% block title %}{{ 'Paiements vendeurs' if current_user.role == 'manager' else 'Abonnements vendeurs' }} | DealNova{% endblock %}
-{% block page_title %}{{ 'Paiements vendeurs' if current_user.role == 'manager' else 'Abonnements vendeurs' }}{% endblock %}
+{% block title %}{{ 'Paiements abonnements' if current_user.role == 'manager' else 'Abonnements vendeurs' }} | DealNova{% endblock %}
+{% block page_title %}{{ 'Paiements abonnements' if current_user.role == 'manager' else 'Abonnements vendeurs' }}{% endblock %}
 {% block body_attrs %}data-adm-page="reconciliation"{% endblock %}
 
 {% block head %}
@@ -69,6 +69,54 @@
         border-radius: 16px; 
         box-shadow: 0 12px 26px rgba(0,0,0,0.06); 
         overflow: hidden; 
+    }
+
+    .subs-help {
+        background: #fff;
+        border: 1px solid #E5E7EB;
+        border-radius: 16px;
+        box-shadow: 0 12px 26px rgba(0,0,0,0.06);
+        padding: 1rem 1.25rem;
+    }
+
+    .subs-help h5 {
+        margin: 0 0 0.35rem;
+        font-size: 1.05rem;
+        font-weight: 700;
+    }
+
+    .subs-help .help-note {
+        color: #6B7280;
+        font-size: 0.9rem;
+        margin-bottom: 0.85rem;
+    }
+
+    .help-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 0.75rem;
+    }
+
+    .help-item {
+        border: 1px solid #E5E7EB;
+        border-radius: 12px;
+        padding: 0.75rem;
+        background: #F9FAFB;
+    }
+
+    .help-item .step {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #6B7280;
+        font-weight: 700;
+        margin-bottom: 0.2rem;
+    }
+
+    .help-item p {
+        margin: 0;
+        font-size: 0.9rem;
+        color: #111827;
     }
     
     .subs-card-header { 
@@ -159,6 +207,21 @@
     .note-input { 
         max-width: 150px; 
         min-width: 120px;
+    }
+
+    .action-field {
+        display: flex;
+        flex-direction: column;
+        gap: 0.2rem;
+    }
+
+    .action-label {
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: #6B7280;
+        margin: 0;
     }
     
     /* Version mobile */
@@ -363,19 +426,19 @@
     <section class="subs-stats">
         <div class="subs-stat">
             <div>
-                <h6>{{ 'Paiements enregistres' if current_user.role == 'manager' else 'Abonnements periode' }}</h6>
-                <div class="stat-value">{{ '%.2f'|format((period_subscription_total_cents or 0) / 100) }} MAD</div>
-                <div class="text-muted small">{{ period_subscription_count }} {{ 'paiement(s) comptes ici' if current_user.role == 'manager' else 'paiement(s) dans la periode' }}</div>
+                <h6>{{ 'Paiements enregistres' if current_user.role == 'manager' else 'Abonnements' }}</h6>
+                <div class="stat-value">{{ '%.2f'|format((subscription_total_cents or 0) / 100) }} MAD</div>
+                <div class="text-muted small">{{ subscription_count }} paiement(s) - {{ date_range_label }}</div>
             </div>
             <div class="stat-icon primary"><i class="bi bi-people"></i></div>
         </div>
         <div class="subs-stat">
             <div>
-                <h6>{{ 'Comptes a jour' if current_user.role == 'manager' else 'Abonnements actifs' }}</h6>
+                <h6>Vendeurs a jour</h6>
                 <div class="stat-value">{{ active_subs }}</div>
                 <div class="text-muted small">
                     {% if global_free_active %}
-                        <span class="badge-soft badge-ok">{{ 'Gratuite pour tous' if current_user.role == 'manager' else 'Free global' }}</span>
+                        <span class="badge-soft badge-ok">Gratuit pour tous</span>
                     {% else %}
                         À jour
                     {% endif %}
@@ -401,31 +464,50 @@
         </div>
     </section>
 
+    <section class="subs-help">
+        <h5><i class="bi bi-info-circle"></i> Comment utiliser cette page</h5>
+        <div class="help-note">Cette page sert a suivre les vendeurs et leurs paiements d'abonnement, simplement.</div>
+        <div class="help-grid">
+            <div class="help-item">
+                <div class="step">Etape 1</div>
+                <p>Reperez un vendeur dans le tableau (actif, en retard, ou bloque).</p>
+            </div>
+            <div class="help-item">
+                <div class="step">Etape 2</div>
+                <p>Cliquez sur <strong>Enregistrer paiement</strong> pour ajouter des mois d'abonnement.</p>
+            </div>
+            <div class="help-item">
+                <div class="step">Etape 3</div>
+                <p>Utilisez <strong>Offrir jours gratuits</strong> ou <strong>Bloquer/Reouvrir</strong> selon la situation.</p>
+            </div>
+        </div>
+    </section>
+
     <!-- Parametres abonnements -->
     <section class="subs-card adm-listing" id="subsListCard" data-adm-listing="reconciliation">
         <div class="subs-card-header">
             <div>
-                <h5 class="m-0">{{ 'Reglages des paiements' if current_user.role == 'manager' else 'Paramètres abonnements' }}</h5>
-                <small class="text-muted">{{ 'Montant mensuel et gratuite pour tous si besoin.' if current_user.role == 'manager' else 'Montant mensuel fixe + mode free global' }}</small>
+                <h5 class="m-0">{{ 'Reglages des paiements' if current_user.role == 'manager' else 'Parametres abonnements' }}</h5>
+                <small class="text-muted">Definir le prix mensuel et, si besoin, offrir des jours gratuits a tous les vendeurs.</small>
             </div>
         </div>
         <div class="p-3">
             <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.subscription_settings') }}" class="row g-3 align-items-end">
                 {% include "admin/partials/_csrf.html" %}
                 <div class="col-md-4">
-                    <label class="form-label">Montant mensuel (MAD)</label>
+                    <label class="form-label">Prix abonnement par mois (MAD)</label>
                     <input type="number" step="0.01" min="0" class="form-control" name="monthly_amount"
                            value="{{ '%.2f'|format((settings.vendor_subscription_monthly_cents or 0) / 100) }}">
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label">{{ 'Gratuite pour tous (jours)' if current_user.role == 'manager' else 'Mode free global (jours)' }}</label>
+                    <label class="form-label">Gratuite pour tous (jours)</label>
                     <input type="number" min="0" max="365" class="form-control" name="free_days_all"
-                           placeholder="{{ '0 = arreter' if current_user.role == 'manager' else '0 = désactiver' }}">
+                           placeholder="0 = desactiver">
                     <div class="form-text">
                         {% if global_free_until %}
-                            <i class="bi bi-calendar-check"></i> {{ 'Actif jusqu au' if current_user.role == 'manager' else "Actif jusqu'au" }} {{ global_free_until.strftime('%d/%m/%Y') }}
+                            <i class="bi bi-calendar-check"></i> Active jusqu'au {{ global_free_until.strftime('%d/%m/%Y') }}
                         {% else %}
-                            <i class="bi bi-calendar-x"></i> {{ 'Aucune gratuite pour tous' if current_user.role == 'manager' else 'Aucun mode free global' }}
+                            <i class="bi bi-calendar-x"></i> Aucun mode gratuit global actif
                         {% endif %}
                     </div>
                 </div>
@@ -442,31 +524,43 @@
     <section class="subs-card">
         <div class="subs-card-header">
             <div>
-                <h5 class="m-0">{{ 'Suivi des paiements vendeurs' if current_user.role == 'manager' else 'Gestion abonnements vendeurs' }}</h5>
+                <h5 class="m-0">{{ 'Suivi des paiements vendeurs' if current_user.role == 'manager' else 'Suivi des abonnements vendeurs' }}</h5>
                 <small class="text-muted">
                     <i class="bi bi-layout-text-window"></i> 
                     Page {{ pagination.page }} / {{ pagination.pages }} ({{ pagination.total }} vendeurs)
                 </small>
             </div>
             <div class="filter-links adm-filters">
+                <form method="get" class="d-flex flex-wrap gap-2 align-items-center">
+                   {% if status %}<input type="hidden" name="status" value="{{ status }}">{% endif %}
+                   <select class="form-select form-select-sm" name="range">
+                       <option value="today" {% if range_filter == 'today' %}selected{% endif %}>Aujourd'hui</option>
+                       <option value="month" {% if range_filter == 'month' %}selected{% endif %}>Ce mois</option>
+                       <option value="year" {% if range_filter == 'year' %}selected{% endif %}>Cette annee</option>
+                       <option value="custom" {% if range_filter == 'custom' %}selected{% endif %}>Dates</option>
+                   </select>
+                   <input class="form-control form-control-sm" type="date" name="date_from" value="{{ date_from }}">
+                   <input class="form-control form-control-sm" type="date" name="date_to" value="{{ date_to }}">
+                   <button class="btn btn-outline-primary btn-sm" type="submit"><i class="bi bi-funnel"></i></button>
+                </form>
                 <a class="btn btn-outline-secondary {% if not status %}active{% endif %}" 
                    data-adm-filter-link="1"
-                   href="{{ url_for('admin_users.reconciliation', period_id=selected_period_id or None) }}">
+                   href="{{ url_for('admin_users.reconciliation', range=range_filter, date_from=date_from or None, date_to=date_to or None) }}">
                     <i class="bi bi-list"></i> Tous
                 </a>
                 <a class="btn btn-outline-success {% if status == 'active' %}active{% endif %}" 
                    data-adm-filter-link="1"
-                   href="{{ url_for('admin_users.reconciliation', status='active', period_id=selected_period_id or None) }}">
+                   href="{{ url_for('admin_users.reconciliation', status='active', range=range_filter, date_from=date_from or None, date_to=date_to or None) }}">
                     <i class="bi bi-check-circle"></i> Actifs
                 </a>
                 <a class="btn btn-outline-warning {% if status == 'overdue' %}active{% endif %}" 
                    data-adm-filter-link="1"
-                   href="{{ url_for('admin_users.reconciliation', status='overdue', period_id=selected_period_id or None) }}">
+                   href="{{ url_for('admin_users.reconciliation', status='overdue', range=range_filter, date_from=date_from or None, date_to=date_to or None) }}">
                     <i class="bi bi-exclamation-triangle"></i> En retard
                 </a>
                 <a class="btn btn-outline-dark {% if status == 'blocked' %}active{% endif %}" 
                    data-adm-filter-link="1"
-                   href="{{ url_for('admin_users.reconciliation', status='blocked', period_id=selected_period_id or None) }}">
+                   href="{{ url_for('admin_users.reconciliation', status='blocked', range=range_filter, date_from=date_from or None, date_to=date_to or None) }}">
                     <i class="bi bi-shield-lock"></i> Bloqués
                 </a>
             </div>
@@ -479,8 +573,8 @@
                         <th>Vendeur</th>
                         <th>Boutique</th>
                         <th>Statut</th>
-                        <th>Expire le</th>
-                        <th>Jours restants</th>
+                        <th>Fin abonnement</th>
+                        <th>Temps restant</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -506,9 +600,9 @@
                             {% if not vendor.is_active %}
                                 <span class="badge-soft badge-block"><i class="bi bi-lock"></i> Bloqué</span>
                             {% elif global_free_active %}
-                        <span class="badge-soft badge-ok"><i class="bi bi-gift"></i> {{ 'Gratuite pour tous' if current_user.role == 'manager' else 'Free global' }}</span>
+                        <span class="badge-soft badge-ok"><i class="bi bi-gift"></i> Gratuit (tous)</span>
                             {% elif free_until and free_days_left is not none and free_days_left >= 0 %}
-                                <span class="badge-soft badge-ok"><i class="bi bi-gift"></i> {{ 'Gratuite vendeur' if current_user.role == 'manager' else 'Free vendeur' }}</span>
+                                <span class="badge-soft badge-ok"><i class="bi bi-gift"></i> Gratuit (vendeur)</span>
                             {% elif expires and days_left is not none and days_left >= 0 %}
                                 <span class="badge-soft badge-ok"><i class="bi bi-check-circle"></i> Actif</span>
                             {% elif expires %}
@@ -517,20 +611,20 @@
                                 <span class="badge-soft badge-bad"><i class="bi bi-x-circle"></i> Aucun paiement</span>
                             {% endif %}
                         </td>
-                        <td data-label="Expire le">
+                        <td data-label="Fin abonnement">
                             {{ expires.strftime('%d/%m/%Y') if expires else '--' }}
                             {% if free_until %}
                                 <div class="text-muted small">
-                                    <i class="bi bi-gift"></i> Free: {{ free_until.strftime('%d/%m/%Y') }}
+                                    <i class="bi bi-gift"></i> Gratuit jusqu'au: {{ free_until.strftime('%d/%m/%Y') }}
                                 </div>
                             {% endif %}
                             {% if vendor.subscription_last_paid_at %}
                                 <div class="text-muted small">
-                                    <i class="bi bi-credit-card"></i> Payé: {{ vendor.subscription_last_paid_at.strftime('%d/%m/%Y') }}
+                                    <i class="bi bi-credit-card"></i> Dernier paiement: {{ vendor.subscription_last_paid_at.strftime('%d/%m/%Y') }}
                                 </div>
                             {% endif %}
                         </td>
-                        <td data-label="Jours restants">
+                        <td data-label="Temps restant">
                             {% if days_left is not none %}
                                 {% if days_left >= 0 %}
                                     {% if days_left <= 7 %}
@@ -553,12 +647,18 @@
                                 <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.mark_subscription_paid', user_id=vendor.id) }}" 
                                       class="d-flex gap-2 align-items-center flex-wrap">
                                     {% include "admin/partials/_csrf.html" %}
-                                    <input class="form-control form-control-sm months-input" type="number" name="months" 
-                                           min="1" max="24" value="1" required>
-                                    <input class="form-control form-control-sm note-input" type="text" name="note" 
-                                           placeholder="Note">
+                                    <div class="action-field">
+                                        <p class="action-label">Mois</p>
+                                        <input class="form-control form-control-sm months-input" type="number" name="months" 
+                                               min="1" max="24" value="1" required title="Nombre de mois a ajouter" aria-label="Mois d'abonnement">
+                                    </div>
+                                    <div class="action-field">
+                                        <p class="action-label">Note interne</p>
+                                        <input class="form-control form-control-sm note-input" type="text" name="note" 
+                                               placeholder="Optionnelle" aria-label="Note interne">
+                                    </div>
                                     <button class="btn btn-success btn-sm" type="submit">
-                                        <i class="bi bi-cash-stack"></i> Encaisser
+                                        <i class="bi bi-cash-stack"></i> Enregistrer paiement
                                     </button>
                                 </form>
                                 
@@ -566,10 +666,13 @@
                                 <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.subscription_free_vendor', user_id=vendor.id) }}" 
                                       class="d-flex gap-2 align-items-center flex-wrap">
                                     {% include "admin/partials/_csrf.html" %}
-                                    <input class="form-control form-control-sm months-input" type="number" name="days" 
-                                           min="1" max="365" value="7" required>
+                                    <div class="action-field">
+                                        <p class="action-label">Jours gratuits</p>
+                                        <input class="form-control form-control-sm months-input" type="number" name="days" 
+                                               min="1" max="365" value="7" required title="Nombre de jours gratuits" aria-label="Nombre de jours gratuits">
+                                    </div>
                                     <button class="btn btn-outline-success btn-sm" type="submit">
-                                        <i class="bi bi-gift"></i> Free
+                                        <i class="bi bi-gift"></i> Offrir jours gratuits
                                     </button>
                                 </form>
                                 
@@ -578,14 +681,14 @@
                                 <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.subscription_block_vendor', user_id=vendor.id) }}">
                                     {% include "admin/partials/_csrf.html" %}
                                     <button class="btn btn-outline-danger btn-sm" type="submit">
-                                        <i class="bi bi-lock"></i> Bloquer
+                                        <i class="bi bi-lock"></i> Bloquer l'accès
                                     </button>
                                 </form>
                                 {% else %}
                                 <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.subscription_unblock_vendor', user_id=vendor.id) }}">
                                     {% include "admin/partials/_csrf.html" %}
                                     <button class="btn btn-outline-success btn-sm" type="submit">
-                                        <i class="bi bi-unlock"></i> Débloquer
+                                        <i class="bi bi-unlock"></i> Reouvrir l'accès
                                     </button>
                                 </form>
                                 {% endif %}
@@ -609,7 +712,7 @@
         {% if pagination.pages > 1 %}
         <div class="card-footer adm-pager" data-adm-pager="reconciliation">
             {% set endpoint = 'admin_users.reconciliation' %}
-            {% set params = {'status': status, 'period_id': selected_period_id} %}
+            {% set params = {'status': status, 'range': range_filter, 'date_from': date_from, 'date_to': date_to} %}
             {% set iter_args = {'left_edge': 2, 'left_current': 2, 'right_current': 3, 'right_edge': 2} %}
             {% include "admin/partials/_pagination.html" %}
         </div>

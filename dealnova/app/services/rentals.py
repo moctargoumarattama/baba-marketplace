@@ -11,7 +11,7 @@ from werkzeug.datastructures import FileStorage
 
 from ..extensions import db
 from ..models.rental import RentalArchive, RentalListing, RentalMedia
-from .financial_periods import record_rental_commission_entry
+from .finance_entries import record_rental_commission_entry
 
 
 RENTAL_UPLOAD_DIR = "uploads/rentals"

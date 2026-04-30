@@ -10,7 +10,6 @@ class VendorReceipt(db.Model):
 
     vendor_id = db.Column(db.Integer, db.ForeignKey("user.id", name="fk_vendorreceipt_vendor_id"), nullable=False, index=True)
     order_id = db.Column(db.Integer, db.ForeignKey("order.id", name="fk_vendorreceipt_order_id"), nullable=False, index=True)
-    period_id = db.Column(db.Integer, db.ForeignKey("vendor_period.id", name="fk_vendorreceipt_period_id"), nullable=False, index=True)
 
     received_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
     note = db.Column(db.String(255), nullable=True)
@@ -18,7 +17,6 @@ class VendorReceipt(db.Model):
 
     vendor = db.relationship("User", backref="vendor_receipts")
     order = db.relationship("Order", backref="vendor_receipts")
-    period = db.relationship("VendorPeriod", backref="vendor_receipts")
 
     __table_args__ = (
         db.UniqueConstraint("vendor_id", "order_id", name="uq_vendorreceipt_vendor_order"),

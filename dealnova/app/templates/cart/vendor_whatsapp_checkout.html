@@ -1,0 +1,382 @@
+{% extends "base.html" %}
+{% block title %}Commandes WhatsApp prêtes | {{ config.SITE_NAME }}{% endblock %}
+
+{% block content %}
+<section class="whatsapp-order-page py-4 py-lg-5">
+  <div class="container whatsapp-order-container">
+    <div class="whatsapp-order-head">
+      <h1>Finalisez votre commande</h1>
+      <p>Suivez les étapes et ouvrez WhatsApp pour chaque boutique.</p>
+    </div>
+
+    {% set contactable = namespace(count=0) %}
+    {% for group in shop_groups %}
+      {% if group["phone_available"] %}
+        {% set contactable.count = contactable.count + 1 %}
+      {% endif %}
+    {% endfor %}
+
+    <div class="whatsapp-progress" aria-live="polite">
+      <i class="bi bi-check2-circle"></i>
+      <span>
+        <strong id="whatsappContactedCount">0</strong>
+        sur
+        <strong id="whatsappTotalCount">{{ contactable.count }}</strong>
+        boutiques contactées
+      </span>
+    </div>
+
+    {% set contact_steps = namespace(value=0) %}
+    <div class="merchant-list">
+      {% for group in shop_groups %}
+        {% if group["phone_available"] %}
+          {% set contact_steps.value = contact_steps.value + 1 %}
+          {% set step_label = "Étape " ~ contact_steps.value ~ "/" ~ contactable.count ~ " : contacter ce vendeur" %}
+        {% else %}
+          {% set step_label = "Action impossible : WhatsApp indisponible" %}
+        {% endif %}
+        <article class="merchant-card" data-contact-card>
+          <div class="merchant-step">{{ step_label }}</div>
+          <div class="merchant-top">
+            <div class="merchant-icon">
+              <i class="bi bi-shop"></i>
+            </div>
+            <div class="merchant-identity">
+              <h2>{{ group["shop_name"] }}</h2>
+              {% if group["phone_raw"] %}
+                <p><i class="bi bi-telephone me-1"></i>{{ group["phone_raw"] }}</p>
+              {% else %}
+                <p class="text-warning"><i class="bi bi-exclamation-triangle me-1"></i>WhatsApp indisponible pour cette boutique.</p>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="merchant-products">
+            <div class="merchant-products-title">Produits :</div>
+            <ul>
+              {% for item in group["items"] %}
+                <li>
+                  <span>{{ item["product"].name }}</span>
+                  <strong>x{{ item["quantity"] }}</strong>
+                </li>
+              {% endfor %}
+            </ul>
+          </div>
+
+          <div class="merchant-total">
+            <span>Total estimé</span>
+            <strong>{{ group["subtotal_label"] }}</strong>
+          </div>
+
+          {% if group["phone_available"] %}
+            <a class="btn btn-success whatsapp-continue"
+               href="{{ group['whatsapp_url'] }}"
+               target="_blank"
+               rel="noopener noreferrer"
+               data-whatsapp-contact
+               data-sent-label="Étape validée">
+              <i class="bi bi-whatsapp me-2"></i>Ouvrir WhatsApp
+            </a>
+            <div class="sent-state d-none" data-sent-state>
+              <i class="bi bi-check2-circle me-1"></i>Message envoyé
+            </div>
+          {% else %}
+            <button type="button" class="btn btn-outline-secondary whatsapp-continue" disabled>
+              <i class="bi bi-whatsapp me-2"></i>WhatsApp indisponible
+            </button>
+          {% endif %}
+        </article>
+      {% endfor %}
+    </div>
+
+    <p class="direct-payment-note">
+      <i class="bi bi-info-circle me-1"></i>
+      Le paiement et la livraison se font directement avec la boutique.
+    </p>
+
+    <div class="whatsapp-order-actions">
+      <a href="{{ url_for('cart.view') }}" class="btn btn-outline-dark">
+        <i class="bi bi-cart me-1"></i>Retour au panier
+      </a>
+      <a href="{{ url_for('shop.home') }}" class="btn btn-primary">
+        <i class="bi bi-shop me-1"></i>Continuer mes achats
+      </a>
+    </div>
+  </div>
+</section>
+
+<style>
+  .whatsapp-order-page {
+    background: #f7f8fb;
+    min-height: 70vh;
+  }
+
+  .whatsapp-order-container {
+    max-width: 720px;
+  }
+
+  .whatsapp-order-head {
+    margin-bottom: 1rem;
+  }
+
+  .whatsapp-order-head h1 {
+    color: #0f172a;
+    font-size: clamp(1.65rem, 5vw, 2.4rem);
+    font-weight: 900;
+    line-height: 1.08;
+    margin-bottom: 0.45rem;
+  }
+
+  .whatsapp-order-head p {
+    color: #475569;
+    font-size: 1rem;
+    line-height: 1.45;
+    margin: 0;
+  }
+
+  .whatsapp-progress {
+    align-items: center;
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.24);
+    border-radius: 8px;
+    color: #0f766e;
+    display: flex;
+    gap: 0.5rem;
+    font-size: 0.95rem;
+    font-weight: 750;
+    margin-bottom: 1rem;
+    padding: 0.75rem 0.85rem;
+  }
+
+  .merchant-list {
+    display: grid;
+    gap: 0.85rem;
+  }
+
+  .merchant-card {
+    background: #ffffff;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    border-radius: 8px;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+    padding: 1rem;
+    transition: opacity 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
+  }
+
+  .merchant-card--sent {
+    background: #f8fafc;
+    border-color: rgba(16, 185, 129, 0.36);
+    opacity: 0.72;
+  }
+
+  .merchant-step {
+    background: rgba(15, 118, 110, 0.08);
+    border: 1px solid rgba(15, 118, 110, 0.16);
+    border-radius: 999px;
+    color: #0f766e;
+    display: inline-flex;
+    font-size: 0.84rem;
+    font-weight: 850;
+    margin-bottom: 0.75rem;
+    padding: 0.35rem 0.7rem;
+  }
+
+  .merchant-top {
+    display: flex;
+    gap: 0.75rem;
+    min-width: 0;
+  }
+
+  .merchant-icon {
+    align-items: center;
+    background: rgba(16, 185, 129, 0.12);
+    border-radius: 8px;
+    color: #059669;
+    display: flex;
+    flex: 0 0 42px;
+    height: 42px;
+    justify-content: center;
+    width: 42px;
+  }
+
+  .merchant-identity {
+    min-width: 0;
+  }
+
+  .merchant-identity h2 {
+    color: #0f172a;
+    font-size: 1.08rem;
+    font-weight: 850;
+    line-height: 1.2;
+    margin: 0 0 0.15rem;
+    overflow-wrap: anywhere;
+  }
+
+  .merchant-identity p {
+    color: #64748b;
+    font-size: 0.92rem;
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .merchant-products {
+    margin-top: 0.95rem;
+  }
+
+  .merchant-products-title {
+    color: #334155;
+    font-size: 0.9rem;
+    font-weight: 800;
+    margin-bottom: 0.35rem;
+  }
+
+  .merchant-products ul {
+    display: grid;
+    gap: 0.4rem;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .merchant-products li {
+    align-items: start;
+    background: #f8fafc;
+    border-radius: 8px;
+    color: #0f172a;
+    display: flex;
+    gap: 0.75rem;
+    justify-content: space-between;
+    min-width: 0;
+    padding: 0.55rem 0.65rem;
+  }
+
+  .merchant-products li span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .merchant-products li strong {
+    color: #059669;
+    flex: 0 0 auto;
+  }
+
+  .merchant-total {
+    align-items: center;
+    border-top: 1px solid rgba(148, 163, 184, 0.3);
+    display: flex;
+    gap: 0.75rem;
+    justify-content: space-between;
+    margin-top: 0.9rem;
+    padding-top: 0.85rem;
+  }
+
+  .merchant-total span {
+    color: #475569;
+    font-weight: 700;
+  }
+
+  .merchant-total strong {
+    color: #0f766e;
+    font-size: 1.08rem;
+    line-height: 1.1;
+    max-width: 55%;
+    overflow-wrap: anywhere;
+    text-align: right;
+  }
+
+  .whatsapp-continue {
+    border: 0;
+    border-radius: 8px;
+    display: inline-flex;
+    font-weight: 850;
+    justify-content: center;
+    margin-top: 1rem;
+    padding: 0.85rem 1rem;
+    width: 100%;
+  }
+
+  .whatsapp-continue.is-sent,
+  .whatsapp-continue[aria-disabled="true"] {
+    background: #64748b;
+    color: #ffffff;
+    cursor: default;
+    pointer-events: none;
+  }
+
+  .sent-state {
+    color: #0f766e;
+    font-size: 0.86rem;
+    font-weight: 800;
+    margin-top: 0.55rem;
+    text-align: center;
+  }
+
+  .direct-payment-note {
+    color: #475569;
+    font-size: 0.92rem;
+    line-height: 1.4;
+    margin: 1rem 0 0;
+  }
+
+  .whatsapp-order-actions {
+    display: grid;
+    gap: 0.6rem;
+    margin-top: 1rem;
+  }
+
+  @media (min-width: 576px) {
+    .whatsapp-order-actions {
+      display: flex;
+      flex-wrap: wrap;
+    }
+  }
+</style>
+
+<script>
+  (function () {
+    "use strict";
+
+    var contactedCount = document.getElementById("whatsappContactedCount");
+    var totalCount = document.getElementById("whatsappTotalCount");
+    var buttons = Array.prototype.slice.call(document.querySelectorAll("[data-whatsapp-contact]"));
+    var sentCount = 0;
+    var total = buttons.length;
+
+    if (totalCount) {
+      totalCount.textContent = String(total);
+    }
+
+    function updateCounter() {
+      if (contactedCount) {
+        contactedCount.textContent = String(sentCount);
+      }
+    }
+
+    buttons.forEach(function (button) {
+      button.addEventListener("click", function (event) {
+        if (button.getAttribute("aria-disabled") === "true") {
+          event.preventDefault();
+          return;
+        }
+
+        button.setAttribute("aria-disabled", "true");
+        button.classList.add("is-sent");
+        button.innerHTML = '<i class="bi bi-check2-circle me-2"></i>' + (button.getAttribute("data-sent-label") || "Envoyé");
+
+        var card = button.closest("[data-contact-card]");
+        if (card) {
+          card.classList.add("merchant-card--sent");
+          var sentState = card.querySelector("[data-sent-state]");
+          if (sentState) {
+            sentState.classList.remove("d-none");
+          }
+        }
+
+        sentCount += 1;
+        updateCounter();
+      });
+    });
+
+    updateCounter();
+  })();
+</script>
+{% endblock %}

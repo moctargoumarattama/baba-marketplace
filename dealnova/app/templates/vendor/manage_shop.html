@@ -228,7 +228,7 @@
                                            id="serviceRawMapUrl"
                                            class="form-control"
                                            readonly
-                                           value="{% if shop.has_precise_service_location %}https://www.google.com/mapsq={{ '%.6f'|format(shop.service_latitude) }},{{ '%.6f'|format(shop.service_longitude) }}{% endif %}">
+                                           value="{% if shop.has_precise_service_location %}https://www.google.com/maps?q={{ '%.6f'|format(shop.service_latitude) }},{{ '%.6f'|format(shop.service_longitude) }}{% endif %}">
                                     <div class="service-raw-link-actions">
                                         <button type="button"
                                                 class="btn btn-outline-secondary"

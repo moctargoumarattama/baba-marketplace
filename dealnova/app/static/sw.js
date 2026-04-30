@@ -8,6 +8,7 @@ const OFFLINE_PATH = "/static/offline.html";
 const OFFLINE_URL = `${OFFLINE_PATH}?v=${encodeURIComponent(SW_ASSET_VERSION)}`;
 const PAGE_CACHE_MAX_ENTRIES = 24;
 const IMAGE_CACHE_MAX_ENTRIES = 60;
+const UPLOAD_IMAGE_EXT_RE = /\.(?:avif|gif|jpe?g|png|svg|webp)$/i;
 const SW_DEBUG =
   SW_URL.searchParams.get("debug") === "1" ||
   SW_URL.hostname === "localhost" ||
@@ -58,7 +59,6 @@ const CRITICAL_STATIC_ASSETS = new Set([
 const NETWORK_ONLY_PREFIXES = [
   "/admin",
   "/api",
-  "/courier",
   "/vendor",
   "/cart",
   "/delivery",
@@ -67,8 +67,6 @@ const NETWORK_ONLY_PREFIXES = [
   "/register",
   "/lang",
   "/booking",
-  "/shop/track",
-  "/shop/suivi",
 ];
 
 const ROOT_PUBLIC_SHOP_RESERVED = new Set([
@@ -126,7 +124,7 @@ function isStaticAsset(pathname) {
 }
 
 function isUploadImage(pathname) {
-  return pathname.startsWith("/static/uploads/");
+  return pathname.startsWith("/static/uploads/") && UPLOAD_IMAGE_EXT_RE.test(pathname);
 }
 
 function isCriticalStaticAsset(pathname) {

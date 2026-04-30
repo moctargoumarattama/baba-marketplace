@@ -129,16 +129,15 @@
   <div class="lc">
     <div class="lc-hd">
       <h6><i class="bi bi-calendar3"></i> Organisation generale</h6>
-      <span class="sub">Les periodes se gerent depuis une seule page.</span>
+      <span class="sub">{{ date_range_label }}</span>
     </div>
     <div class="lc-body" style="display:flex;gap:.5rem;flex-wrap:wrap">
       <div class="cn" style="width:100%">
-        Les annonces suivent automatiquement les reglages de la page Periodes.
+        Les annonces et archives se consultent par dates.
       </div>
-      <a class="btn-r" href="{{ url_for('admin.pricing_settings', section='periods') }}"><i class="bi bi-calendar3"></i> Voir les periodes</a>
-      <a class="btn-r" href="{{ url_for('admin.all_orders', period_id=selected_period_id) if selected_period_id else url_for('admin.all_orders') }}"><i class="bi bi-bag-check"></i> Commandes</a>
-      <a class="btn-r" href="{{ url_for('admin.deliveries', period_id=selected_period_id) if selected_period_id else url_for('admin.deliveries') }}"><i class="bi bi-truck"></i> Livraisons</a>
-      <a class="btn-r" href="{{ url_for('admin.finance', period_id=selected_period_id) if selected_period_id else url_for('admin.finance') }}"><i class="bi bi-graph-up-arrow"></i> Paiements</a>
+      <a class="btn-r" href="{{ url_for('admin.product_contacts') }}"><i class="bi bi-chat-dots"></i> Contacts produits</a>
+      <a class="btn-r" href="{{ url_for('admin.deliveries') }}"><i class="bi bi-truck"></i> Livraison express</a>
+      <a class="btn-r" href="{{ url_for('admin.finance') }}"><i class="bi bi-graph-up-arrow"></i> Paiements</a>
     </div>
   </div>
 
@@ -153,6 +152,23 @@
     </div>
     <div class="lc-body">
         <div class="fbar" id="fbar">
+        <div class="fg">
+          <label>Vue</label>
+          <select class="fs" id="frange">
+            <option value="today" {{ 'selected' if range_filter=='today' }}>Aujourd'hui</option>
+            <option value="month" {{ 'selected' if range_filter=='month' }}>Ce mois</option>
+            <option value="year" {{ 'selected' if range_filter=='year' }}>Cette annee</option>
+            <option value="custom" {{ 'selected' if range_filter=='custom' }}>Dates</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label>Du</label>
+          <input class="fc" type="date" id="ffrom" value="{{ date_from }}">
+        </div>
+        <div class="fg">
+          <label>Au</label>
+          <input class="fc" type="date" id="fto" value="{{ date_to }}">
+        </div>
         <div class="fg">
           <label>Recherche</label>
           <input class="fc" type="text" id="fq" value="{{ q }}" placeholder="Titre, ville..." autocomplete="off">
@@ -240,7 +256,7 @@
                   <div class="cn">Est.: {{ cents_to_dh(ac) }}</div>
                 </td>
                 <td class="hide-sm" style="color:var(--muted)">{{ listing.view_count }}</td>
-                <td><span class="bs bs-{{ listing.status }}">{{ listing.status }}</span></td>
+                <td><span class="bs bs-{{ listing.status }}">{{ label_location_status(listing.status, current_lang) }}</span></td>
                 <td class="hide-sm" style="font-size:.72rem;color:var(--muted);white-space:nowrap">{{ format_dt(listing.expires_at) }}</td>
                 <td>
                   <div style="display:flex;gap:.28rem;">
@@ -282,7 +298,7 @@
   <div class="lc" id="archivesCard">
     <div class="lc-hd">
       <h6><i class="bi bi-archive"></i> Archives</h6>
-      <span class="sub" id="archivesSub">{{ archives_pg.total }} archives · page {{ archives_pg.page }}/{{ [archives_pg.pages,1]|max }}{% if selected_period %} · periode #{{ selected_period.id }}{% endif %}</span>
+      <span class="sub" id="archivesSub">{{ archives_pg.total }} archives · page {{ archives_pg.page }}/{{ [archives_pg.pages,1]|max }}</span>
     </div>
     <div class="tbl-wrap">
       <div class="tbl-mask" id="archivesMask"><div class="spinner"></div></div>
@@ -317,7 +333,7 @@
                     <div class="cn" style="color:var(--muted)">N/A</div>
                   {% endif %}
                 </td>
-                <td><span class="bs bs-{{ archive.closed_reason if archive.closed_reason in ['taken','expired'] else 'taken' }}">{{ archive.closed_reason }}</span></td>
+                <td><span class="bs bs-{{ archive.closed_reason if archive.closed_reason in ['taken','expired'] else 'taken' }}">{{ label_location_status(archive.closed_reason, current_lang) }}</span></td>
                 <td class="hide-sm" style="color:var(--muted)">{{ archive.archived_view_count }}</td>
                 <td class="hide-sm" style="font-size:.72rem;color:var(--muted);white-space:nowrap">{{ format_dt(archive.closed_at) }}</td>
               </tr>
@@ -355,7 +371,9 @@
   "q":        {{ q|tojson }},
   "status":   {{ status|tojson }},
   "owner_id": {{ (owner_id or '')|tojson }},
-  "period_id": {{ (selected_period_id or '')|tojson }},
+  "range":    {{ range_filter|tojson }},
+  "date_from": {{ date_from|tojson }},
+  "date_to":  {{ date_to|tojson }},
   "lpage":    {{ listings_pg.page }},
   "apage":    {{ archives_pg.page }},
   "base_url": {{ url_for('rentals.admin_locations')|tojson }}

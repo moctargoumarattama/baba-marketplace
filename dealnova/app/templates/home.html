@@ -1,21 +1,22 @@
 ﻿{% extends "base.html" %}
-{% block title %}BabaMarket | Livraison, services, locations et repas à Rabat, Salé, Kénitra et Témara{% endblock %}
+{% block title %}Baba Market | Livraison, services, locations et repas à Rabat, Salé, Kénitra et Témara{% endblock %}
 
 {% block head %}
-{% set seo_title = "BabaMarket | Livraison, services, locations et repas à Rabat, Salé, Kénitra et Témara" %}
-{% set seo_description = "BabaMarket est une marketplace locale pour Rabat, Salé, Kénitra et Témara. Commandez repas, produits, services et locations avec livraison rapide et paiement à la livraison." %}
+{% set brand_name = "Baba Market" %}
+{% set seo_title = "Baba Market | Livraison, services, locations et repas à Rabat, Salé, Kénitra et Témara" %}
+{% set seo_description = "Baba Market est une marketplace locale pour Rabat, Salé, Kénitra et Témara. Commandez repas, produits, services et locations avec livraison rapide et paiement à la livraison." %}
 {% set seo_og_description = "Marketplace locale pour commander repas, produits, services et locations avec livraison rapide." %}
 {% set seo_twitter_description = "Marketplace locale avec livraison rapide pour repas, produits, services et locations." %}
 {% set canonical_url = "https://www.babamarket.ma/" %}
 {% set og_image_url = "https://www.babamarket.ma" ~ url_for('static', filename='images/produit.jpeg') %}
-{% set logo_path = config.get('SITE_LOGO') or 'logo.png' %}
+{% set logo_path = "android-chrome-512x512.png" %}
 {% set logo_url = logo_path if logo_path.startswith('http') else ("https://www.babamarket.ma" ~ url_for('static', filename=logo_path)) %}
 {% set facebook_url = "https://www.facebook.com/share/v/1Aokzj7kPg/" %}
 <meta name="description" content="{{ seo_description }}">
 <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
 <link rel="canonical" href="{{ canonical_url }}">
 <meta property="og:locale" content="fr_MA">
-<meta property="og:site_name" content="BabaMarket">
+<meta property="og:site_name" content="{{ brand_name }}">
 <meta property="og:title" content="{{ seo_title }}">
 <meta property="og:description" content="{{ seo_og_description }}">
 <meta property="og:type" content="website">
@@ -32,11 +33,21 @@
       "@context": "https://schema.org",
       "@graph": [
         {
-          "@type": "Organization",
+          "@type": "OnlineStore",
           "@id": canonical_url ~ "#organization",
-          "name": "BabaMarket",
+          "name": brand_name,
+          "alternateName": ["BabaMarket", "Baba Market Maroc"],
           "url": canonical_url,
-          "logo": logo_url,
+          "logo": {
+            "@type": "ImageObject",
+            "url": logo_url,
+            "contentUrl": logo_url,
+            "width": 512,
+            "height": 512,
+            "caption": brand_name
+          },
+          "image": logo_url,
+          "description": seo_description,
           "sameAs": [facebook_url],
           "areaServed": [
             "Rabat",
@@ -46,19 +57,13 @@
           ]
         },
         {
-          "@type": "LocalBusiness",
-          "@id": canonical_url ~ "#localbusiness",
-          "name": "BabaMarket",
+          "@type": "WebSite",
+          "@id": canonical_url ~ "#website",
+          "name": brand_name,
+          "alternateName": ["BabaMarket", "Baba Market Maroc"],
           "url": canonical_url,
-          "image": og_image_url,
-          "logo": logo_url,
-          "description": seo_description,
-          "areaServed": [
-            "Rabat",
-            "Salé",
-            "Kénitra",
-            "Témara"
-          ]
+          "publisher": {"@id": canonical_url ~ "#organization"},
+          "inLanguage": "fr-MA"
         }
       ]
     }|tojson

@@ -183,7 +183,6 @@
   const ONLINE_ONLY_PREFIXES = [
     "/admin",
     "/api",
-    "/courier",
     "/vendor",
     "/cart",
     "/delivery",
@@ -192,8 +191,6 @@
     "/register",
     "/lang",
     "/booking",
-    "/shop/track",
-    "/shop/suivi",
   ];
 
   function safePath(input) {
@@ -721,13 +718,6 @@
             nextCartCount > 0 ? `Panier (${nextCartCount})` : "Panier"
           );
         }
-        if (trackIcon) {
-          trackIcon.setAttribute(
-            "aria-label",
-            nextTrackActive ? "Suivi commande active" : "Suivi commande"
-          );
-        }
-
         if (nextCartCount > 0) {
           if (cartChanged || !navState.initialized) {
             startCartAttention();
@@ -859,8 +849,6 @@
         if (pathname === "/cart/api/nav-status" || pathname === "/cart/api/summary") return false;
         if (pathname.startsWith("/cart/api/")) return true;
         if (pathname === "/cart/checkout" || pathname === "/cart/whatsapp") return true;
-        if (pathname === "/cart/suivi" || pathname === "/cart/mes-commandes") return true;
-        if (pathname.startsWith("/cart/track/")) return true;
         return false;
       }
 

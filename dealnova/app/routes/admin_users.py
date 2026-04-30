@@ -12,23 +12,22 @@ from ..models.shop import (
 )
 from ..models.product import Product
 from ..models.order import Order, OrderItem
-from ..models.order_period import OrderPeriod
 from ..models.audit import AuditLog
 from ..models.blocked import BlockedContact
-from ..models.vendor_payout import VendorPayout
+from ..models.product_contact_lead import ProductContactLead
 from ..models.platform_settings import PlatformSettings
 from ..models.subscription_payment import SubscriptionPayment
 from ..services.logging_service import logging_service
 from ..services.cache import bump_catalog_version, cache
 from ..services.audit import log_access
-from ..services.financial_periods import record_subscription_entry
+from ..services.date_filters import resolve_date_filter
+from ..services.finance_entries import record_subscription_entry
 from ..services.pagination import normalize_limit, page_from_args
-from ..services.order_periods import CLOSED_STATUS, period_bounds
 from ..services.traffic_stats import get_live_traffic_metrics
 from datetime import datetime, timedelta
 from sqlalchemy.orm import selectinload, load_only
 from sqlalchemy import or_, and_
-from sqlalchemy.exc import SQLAlchemyError  # âœ… AJOUT
+from sqlalchemy.exc import SQLAlchemyError  # ✅ AJOUT
 import secrets
 import re
 import string
@@ -50,8 +49,8 @@ _MEMORABLE_PASSWORD_WORDS = [
 
 ADMIN_ROLE = "admin"
 MANAGER_ROLE = "manager"
-STAFF_VISIBLE_TO_MANAGER_ROLES = ("vendor", "courier")
-ALLOWED_USER_ROLES = (ADMIN_ROLE, MANAGER_ROLE, "vendor", "courier")
+STAFF_VISIBLE_TO_MANAGER_ROLES = ("vendor",)
+ALLOWED_USER_ROLES = (ADMIN_ROLE, MANAGER_ROLE, "vendor")
 MANAGER_BLOCKED_ENDPOINTS = {
     "admin_users.view_logs",
     "admin_users.audit_logs",
@@ -61,7 +60,6 @@ MANAGER_BLOCKED_ENDPOINTS = {
 }
 FRAUD_MAX_ROWS_DEFAULT = 80
 FRAUD_MAX_ROWS_CAP = 200
-COURIER_IN_PROGRESS_STATUSES = ("new", "assigned", "picked_up", "delivering")
 ADMIN_METRICS_CACHE_TTL_SHORT = 20
 ADMIN_METRICS_CACHE_TTL_MEDIUM = 30
 PASSWORD_CHANGE_WINDOW_MINUTES = 20
@@ -166,7 +164,12 @@ def _users_query_visible_to_current_user():
 
 
 def _manager_hidden_user(user: User | None) -> bool:
-    return bool(user is not None and _is_manager() and (user.role or "").lower() not in STAFF_VISIBLE_TO_MANAGER_ROLES)
+    if user is None:
+        return False
+    role = (user.role or "").lower()
+    if role not in ALLOWED_USER_ROLES:
+        return True
+    return bool(_is_manager() and role not in STAFF_VISIBLE_TO_MANAGER_ROLES)
 
 
 def _hidden_user_response():
@@ -277,87 +280,6 @@ def _bool_arg(value: str | None) -> bool:
     return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
 
 
-def _order_period_choices(limit: int | None = 100) -> list[OrderPeriod]:
-    """Retourne les périodes, limitées optionnellement"""
-    query = OrderPeriod.query.order_by(
-        db.case((OrderPeriod.status == "open", 0), else_=1),
-        OrderPeriod.opened_at.desc(),
-        OrderPeriod.id.desc(),
-    )
-
-    if limit is not None:
-        query = query.limit(max(1, limit))
-
-    return query.all()
-
-
-def _period_selection_from_request(default_to_open: bool = True) -> dict:
-    periods = _order_period_choices()  # Maintenant limité à 100
-    open_period = next((period for period in periods if period.status == "open"), None)
-
-    requested_period_id = request.args.get("period_id", type=int)
-    selected_period = None
-    selected_period_id = None
-
-    if requested_period_id:
-        selected_period = db.session.get(OrderPeriod, requested_period_id)
-        if selected_period is not None:
-            selected_period_id = selected_period.id
-    if selected_period is None and default_to_open and open_period is not None:
-        selected_period = open_period
-        selected_period_id = open_period.id
-
-    include_legacy = _bool_arg(request.args.get("include_legacy"))
-    read_only = bool(selected_period and selected_period.status == CLOSED_STATUS)
-    return {
-        "periods": periods,
-        "open_period": open_period,
-        "selected_period": selected_period,
-        "selected_period_id": selected_period_id,
-        "include_legacy": include_legacy,
-        "read_only": read_only,
-    }
-
-
-def _orders_query_for_period(*, selected_period_id: int | None, include_legacy: bool):
-    query = Order.query
-    if selected_period_id is not None:
-        if include_legacy:
-            return query.filter(or_(Order.period_id == selected_period_id, Order.period_id.is_(None)))
-        return query.filter(Order.period_id == selected_period_id)
-    if include_legacy:
-        return query.filter(Order.period_id.is_(None))
-    return query.filter(Order.id == -1)
-
-
-def _order_period_filters(*, selected_period_id: int | None, include_legacy: bool):
-    if selected_period_id is not None:
-        if include_legacy:
-            return [or_(Order.period_id == selected_period_id, Order.period_id.is_(None))]
-        return [Order.period_id == selected_period_id]
-    if include_legacy:
-        return [Order.period_id.is_(None)]
-    return [Order.id == -1]
-
-
-def _courier_delivered_counts(user_ids: list[int]) -> dict[int, int]:
-    if not user_ids:
-        return {}
-    rows = (
-        db.session.query(
-            Order.courier_id.label("courier_id"),
-            db.func.count(Order.id).label("delivered_count"),
-        )
-        .filter(
-            Order.courier_id.in_(user_ids),
-            Order.delivery_status == "delivered",
-        )
-        .group_by(Order.courier_id)
-        .all()
-    )
-    return {int(row.courier_id): int(row.delivered_count or 0) for row in rows if row.courier_id is not None}
-
-
 # ==================== MIDDLEWARE ADMIN ====================
 @bp.before_request
 @login_required
@@ -367,9 +289,6 @@ def restrict_to_admin():
 
     if role in {ADMIN_ROLE, MANAGER_ROLE}:
         return None
-
-    if role == "courier":
-        return render_template("errors/403.html"), 403
 
     flash("Accès réservé aux administrateurs", "danger")
     return redirect(url_for("shop.home"))
@@ -381,16 +300,9 @@ def restrict_sensitive_pages_for_manager():
         return _forbidden_sensitive_admin_response()
 
 
-def _dashboard_activity_snapshot(days: int = 7, pending_days: int = 3) -> dict:
-    selection = _period_selection_from_request(default_to_open=True)
-    selected_period_id = selection["selected_period_id"]
-    include_legacy = selection["include_legacy"]
-    period_filters = _order_period_filters(
-        selected_period_id=selected_period_id,
-        include_legacy=include_legacy,
-    )
-    since = datetime.utcnow() - timedelta(days=days)
-    pending_cutoff = datetime.utcnow() - timedelta(days=pending_days)
+def _dashboard_activity_snapshot(days: int = 7, date_filter=None) -> dict:
+    since = date_filter.start_at if date_filter else datetime.utcnow() - timedelta(days=days)
+    until = date_filter.end_at if date_filter else None
 
     settings = PlatformSettings.get()
     try:
@@ -400,35 +312,52 @@ def _dashboard_activity_snapshot(days: int = 7, pending_days: int = 3) -> dict:
     if low_stock_threshold < 0:
         low_stock_threshold = 0
 
-    metrics_cache_key = (
-        f"admin:dashboard:activity:v1:{days}:{pending_days}:{selected_period_id or 0}:"
-        f"{1 if include_legacy else 0}:{low_stock_threshold}"
+    range_cache_part = (
+        f"{date_filter.range_filter}:{date_filter.start_at.isoformat()}:{date_filter.end_at.isoformat()}"
+        if date_filter
+        else f"days:{days}"
     )
+    metrics_cache_key = f"admin:dashboard:contacts:v2:{range_cache_part}:{low_stock_threshold}"
 
     def _build_metrics():
-        period_scope_local = _orders_query_for_period(
-            selected_period_id=selected_period_id,
-            include_legacy=include_legacy,
+        contacts_recent = ProductContactLead.query.filter(
+            ProductContactLead.source == "product_whatsapp",
+            ProductContactLead.created_at >= since,
         )
-        orders_period_local = period_scope_local.filter(Order.created_at >= since)
-        revenue_value = (
-            orders_period_local
-            .filter(Order.status == "delivered")
-            .with_entities(db.func.coalesce(db.func.sum(Order.total), 0))
-            .scalar()
+        if until is not None:
+            contacts_recent = contacts_recent.filter(ProductContactLead.created_at < until)
+        contact_phones_count = (
+            db.session.query(ProductContactLead.client_phone)
+            .filter(
+                ProductContactLead.source == "product_whatsapp",
+                ProductContactLead.created_at >= since,
+                ProductContactLead.client_phone.isnot(None),
+                ProductContactLead.client_phone != "",
+            )
+        )
+        if until is not None:
+            contact_phones_count = contact_phones_count.filter(ProductContactLead.created_at < until)
+        contact_phones_count = contact_phones_count.distinct().count()
+        contacted_shops_count = (
+            db.session.query(ProductContactLead.shop_id)
+            .filter(
+                ProductContactLead.source == "product_whatsapp",
+                ProductContactLead.created_at >= since,
+                ProductContactLead.shop_id.isnot(None),
+            )
+        )
+        if until is not None:
+            contacted_shops_count = contacted_shops_count.filter(ProductContactLead.created_at < until)
+        contacted_shops_count = contacted_shops_count.distinct().count()
+        contacts_estimated_total = (
+            contacts_recent.with_entities(db.func.coalesce(db.func.sum(ProductContactLead.estimated_total), 0)).scalar()
             or 0
         )
-        pending_old_count_local = (
-            period_scope_local
-            .filter(Order.status == "pending", Order.created_at <= pending_cutoff)
-            .count()
-        )
         return {
-            "orders_count": int(orders_period_local.count() or 0),
-            "delivered_count": int(orders_period_local.filter(Order.status == "delivered").count() or 0),
-            "revenue_period": int(revenue_value or 0),
-            "pending_count": int(period_scope_local.filter(Order.status == "pending").count() or 0),
-            "pending_old_count": int(pending_old_count_local or 0),
+            "contacts_recent_count": int(contacts_recent.count() or 0),
+            "contact_phones_count": int(contact_phones_count or 0),
+            "contacted_shops_count": int(contacted_shops_count or 0),
+            "contacts_estimated_total_cents": int(contacts_estimated_total or 0),
             "unverified_count": int(Shop.query.filter(Shop.sql_is_incomplete_clause()).count() or 0),
             "vendors_without_shop_count": int(
                 User.query.filter_by(role="vendor").filter(~User.id.in_(db.session.query(Shop.vendor_id))).count()
@@ -440,21 +369,21 @@ def _dashboard_activity_snapshot(days: int = 7, pending_days: int = 3) -> dict:
         }
 
     metrics = _cache_get_or_build(metrics_cache_key, ADMIN_METRICS_CACHE_TTL_SHORT, _build_metrics)
-    period_scope = _orders_query_for_period(
-        selected_period_id=selected_period_id,
-        include_legacy=include_legacy,
-    )
 
     snapshot = dict(metrics)
     snapshot.update(
         {
             "activity_days": days,
-            "pending_days": pending_days,
             "low_stock_threshold": low_stock_threshold,
-            "pending_old_orders": (
-                period_scope
-                .filter(Order.status == "pending", Order.created_at <= pending_cutoff)
-                .order_by(Order.created_at.asc())
+            "recent_product_contacts": (
+                ProductContactLead.query
+                .options(selectinload(ProductContactLead.shop))
+                .filter(
+                    ProductContactLead.source == "product_whatsapp",
+                    ProductContactLead.created_at >= since,
+                    *((ProductContactLead.created_at < until,) if until is not None else ()),
+                )
+                .order_by(ProductContactLead.created_at.desc())
                 .limit(8)
                 .all()
             ),
@@ -479,16 +408,6 @@ def _dashboard_activity_snapshot(days: int = 7, pending_days: int = 3) -> dict:
                 .limit(8)
                 .all()
             ),
-            "top_products": (
-                db.session.query(Product, db.func.sum(OrderItem.quantity).label("qty"))
-                .join(OrderItem, OrderItem.product_id == Product.id)
-                .join(Order, OrderItem.order_id == Order.id)
-                .filter(Order.created_at >= since, Order.status == "delivered", *period_filters)
-                .group_by(Product.id)
-                .order_by(db.desc("qty"))
-                .limit(8)
-                .all()
-            ),
         }
     )
     return snapshot
@@ -497,14 +416,7 @@ def _dashboard_activity_snapshot(days: int = 7, pending_days: int = 3) -> dict:
 @bp.route("/")
 def admin_dashboard():
     """Dashboard admin principal"""
-    selection = _period_selection_from_request(default_to_open=True)
-    selected_period = selection["selected_period"]
-    selected_period_id = selection["selected_period_id"]
-    include_legacy = selection["include_legacy"]
-    period_scope = _orders_query_for_period(
-        selected_period_id=selected_period_id,
-        include_legacy=include_legacy,
-    )
+    date_filter = resolve_date_filter(request.args, default="month")
 
     # Statistiques (short cache to reduce repeated aggregate cost).
     cards = _cache_get_or_build(
@@ -527,11 +439,16 @@ def admin_dashboard():
     total_managers = int(cards.get("total_managers", 0) or 0)
     total_shops = int(cards.get("total_shops", 0) or 0)
     total_products = int(cards.get("total_products", 0) or 0)
-    total_orders = int(period_scope.count() or 0)
+    total_product_contacts = int(
+        ProductContactLead.query
+        .filter(
+            ProductContactLead.source == "product_whatsapp",
+            ProductContactLead.created_at >= date_filter.start_at,
+            ProductContactLead.created_at < date_filter.end_at,
+        )
+        .count() or 0
+    )
     vendors_without_shop = int(cards.get("vendors_without_shop", 0) or 0)
-
-    # Commandes récentes
-    recent_orders = Order.query.order_by(Order.created_at.desc()).limit(10).all()
 
     # Utilisateurs récents
     recent_users = (
@@ -543,7 +460,7 @@ def admin_dashboard():
 
     # Boutiques récentes
     recent_shops = Shop.query.order_by(Shop.created_at.desc()).limit(10).all()
-    activity_snapshot = _dashboard_activity_snapshot()
+    activity_snapshot = _dashboard_activity_snapshot(date_filter=date_filter)
     live_traffic = get_live_traffic_metrics()
 
     return render_template(
@@ -552,11 +469,13 @@ def admin_dashboard():
         total_vendors=total_vendors,
         total_shops=total_shops,
         total_products=total_products,
-        total_orders=total_orders,
+        total_product_contacts=total_product_contacts,
         vendors_without_shop=vendors_without_shop,
         total_managers=total_managers,
-        selected_period=selected_period,
-        recent_orders=recent_orders,
+        range_filter=date_filter.range_filter,
+        date_range_label=date_filter.label,
+        date_from=date_filter.date_from,
+        date_to=date_filter.date_to,
         recent_users=recent_users,
         recent_shops=recent_shops,
         live_traffic=live_traffic,
@@ -565,7 +484,7 @@ def admin_dashboard():
 
 @bp.route("/audience")
 def audience_dashboard():
-    if current_user.role != ADMIN_ROLE:
+    if _current_admin_role() not in {ADMIN_ROLE, MANAGER_ROLE}:
         return render_template("errors/403.html"), 403
     live_traffic = get_live_traffic_metrics()
     return render_template("admin/audience.html", live_traffic=live_traffic)
@@ -573,7 +492,7 @@ def audience_dashboard():
 
 @bp.route("/audience/live")
 def audience_dashboard_live():
-    if current_user.role != ADMIN_ROLE:
+    if _current_admin_role() not in {ADMIN_ROLE, MANAGER_ROLE}:
         return jsonify({"ok": False, "error": "forbidden"}), 403
     return jsonify(
         ok=True,
@@ -614,18 +533,11 @@ def manage_users():
     )
 
     users = pagination.items
-    courier_ids = [user.id for user in users if user.role == "courier"]
-    delivered_counts = _courier_delivered_counts(courier_ids)
-    for user in users:
-        if user.role == "courier":
-            user.courier_delivered_count = delivered_counts.get(user.id, 0)
-
     # Statistiques par rôle
     roles_stats = {
         'vendor': User.query.filter_by(role='vendor').count(),
         'admin': User.query.filter_by(role=ADMIN_ROLE).count() if _is_full_admin() else 0,
         'manager': User.query.filter_by(role=MANAGER_ROLE).count() if _is_full_admin() else 0,
-        'courier': User.query.filter_by(role='courier').count(),
     }
 
     return render_template(
@@ -653,27 +565,11 @@ def user_detail(user_id):
     if user.role == 'vendor':
         product_count = Product.query.filter_by(vendor_id=user.id).count()
 
-    courier_delivered_count = 0
-    courier_in_progress_count = 0
-    if user.role == "courier":
-        courier_delivered_count = (
-            Order.query
-            .filter(Order.courier_id == user.id, Order.delivery_status == "delivered")
-            .count()
-        )
-        courier_in_progress_count = (
-            Order.query
-            .filter(Order.courier_id == user.id, Order.delivery_status.in_(COURIER_IN_PROGRESS_STATUSES))
-            .count()
-        )
-
     return render_template(
         "admin/user_detail.html",
         user=user,
         shop=shop,
         product_count=product_count,
-        courier_delivered_count=courier_delivered_count,
-        courier_in_progress_count=courier_in_progress_count,
         password_change_window_active=user.password_change_window_active(),
         password_change_allowed_until=user.password_change_allowed_until,
         password_change_window_minutes=PASSWORD_CHANGE_WINDOW_MINUTES,
@@ -741,10 +637,6 @@ def update_user(user_id):
 
     if requested_role:
         user.role = requested_role
-        if requested_role == "courier":
-            user.courier_is_active = bool(user.courier_is_active)
-            user.courier_is_available = bool(user.courier_is_available)
-
     db.session.commit()
     changed_fields = [k for k, v in before.items() if getattr(user, k) != v]
     if changed_fields:
@@ -793,10 +685,10 @@ def set_user_password_change_window(user_id):
     user = User.query.get_or_404(user_id)
     if _manager_hidden_user(user):
         return _hidden_user_response()
-    if user.role not in {"vendor", "courier"}:
+    if user.role != "vendor":
         if _is_ajax_request():
-            return jsonify(success=False, message="Action réservée aux vendeurs et livreurs."), 400
-        flash("Action réservée aux vendeurs et livreurs.", "warning")
+            return jsonify(success=False, message="Action réservée aux vendeurs."), 400
+        flash("Action réservée aux vendeurs.", "warning")
         return redirect(url_for("admin_users.user_detail", user_id=user.id))
 
     enable = _bool_arg(request.form.get("enable", "1"))
@@ -859,10 +751,6 @@ def toggle_user_active(user_id):
     # Inverser le statut
     user.is_active = not user.is_active
 
-    # Si c'est un livreur, mettre à jour sa disponibilité
-    if user.role == "courier" and not user.is_active:
-        user.courier_is_available = False
-
     db.session.commit()
 
     # Log de l'action
@@ -886,122 +774,6 @@ def toggle_user_active(user_id):
     status = "activé" if user.is_active else "désactivé"
     flash(f"Utilisateur {user.username} {status}", "success")
     return redirect(url_for('admin_users.user_detail', user_id=user.id))
-
-
-@bp.route("/user/<int:user_id>/courier/toggle-active", methods=["POST"])
-def toggle_courier_active(user_id):
-    user = User.query.get_or_404(user_id)
-    if _manager_hidden_user(user):
-        return _hidden_user_response()
-    if user.role != "courier":
-        if _is_ajax_request():
-            return jsonify(success=False, message="Utilisateur non livreur."), 400
-        flash("Utilisateur non livreur.", "warning")
-        return redirect(url_for("admin_users.user_detail", user_id=user.id))
-
-    user.courier_is_active = not bool(user.courier_is_active)
-    if not user.courier_is_active:
-        user.courier_is_available = False
-    db.session.commit()
-
-    log_access(
-        "toggle_courier_active",
-        "user",
-        user.id,
-        success=True,
-        changes={
-            "courier_is_active": bool(user.courier_is_active),
-            "courier_is_available": bool(user.courier_is_available),
-        },
-    )
-
-    if _is_ajax_request():
-        return jsonify(
-            success=True,
-            user_id=user.id,
-            courier_is_active=bool(user.courier_is_active),
-            courier_is_available=bool(user.courier_is_available),
-        )
-
-    flash(
-        f"Livreur {user.username}: {'actif' if user.courier_is_active else 'inactif'}.",
-        "success",
-    )
-    return redirect(url_for("admin_users.user_detail", user_id=user.id))
-
-
-@bp.route("/user/<int:user_id>/courier/toggle-availability", methods=["POST"])
-def toggle_courier_availability(user_id):
-    user = User.query.get_or_404(user_id)
-    if _manager_hidden_user(user):
-        return _hidden_user_response()
-    if user.role != "courier":
-        if _is_ajax_request():
-            return jsonify(success=False, message="Utilisateur non livreur."), 400
-        flash("Utilisateur non livreur.", "warning")
-        return redirect(url_for("admin_users.user_detail", user_id=user.id))
-
-    if not user.is_active or not user.courier_is_active:
-        user.courier_is_available = False
-        db.session.commit()
-        if _is_ajax_request():
-            return jsonify(success=False, message="Livreur inactif."), 400
-        flash("Impossible: livreur inactif.", "warning")
-        return redirect(url_for("admin_users.user_detail", user_id=user.id))
-
-    user.courier_is_available = not bool(user.courier_is_available)
-    db.session.commit()
-
-    log_access(
-        "toggle_courier_availability",
-        "user",
-        user.id,
-        success=True,
-        changes={"courier_is_available": bool(user.courier_is_available)},
-    )
-
-    if _is_ajax_request():
-        return jsonify(
-            success=True,
-            user_id=user.id,
-            courier_is_available=bool(user.courier_is_available),
-        )
-
-    flash(
-        f"Livreur {user.username}: {'disponible' if user.courier_is_available else 'indisponible'}.",
-        "success",
-    )
-    return redirect(url_for("admin_users.user_detail", user_id=user.id))
-
-
-@bp.route("/user/<int:user_id>/courier/note", methods=["POST"])
-def save_courier_admin_note(user_id):
-    user = User.query.get_or_404(user_id)
-    if _manager_hidden_user(user):
-        return _hidden_user_response()
-    if user.role != "courier":
-        if _is_ajax_request():
-            return jsonify(success=False, message="Utilisateur non livreur."), 400
-        flash("Utilisateur non livreur.", "warning")
-        return redirect(url_for("admin_users.user_detail", user_id=user.id))
-
-    note = (request.form.get("courier_admin_note") or "").strip()
-    user.courier_admin_note = note or None
-    db.session.commit()
-
-    log_access(
-        "save_courier_admin_note",
-        "user",
-        user.id,
-        success=True,
-        changes={"note_len": len(note)},
-    )
-
-    if _is_ajax_request():
-        return jsonify(success=True, user_id=user.id)
-
-    flash("Note interne du livreur enregistrée.", "success")
-    return redirect(url_for("admin_users.user_detail", user_id=user.id))
 
 
 @bp.route("/user/<int:user_id>/delete", methods=["POST"])
@@ -1058,7 +830,7 @@ def create_user():
 
             # Validation rôle
             if not role or role not in allowed_roles:
-                flash("Rôle invalide. Rôles autorisés: admin, vendor, courier.", "danger")
+                flash("Rôle invalide. Rôles autorisés: admin, manager, vendor.", "danger")
                 return redirect(url_for('admin_users.create_user'))
 
             # Validation mot de passe
@@ -1343,7 +1115,7 @@ def delete_shop(shop_id):
         .first()
     )
     if has_orders:
-        message = "Impossible de supprimer: la boutique a des commandes."
+        message = "Impossible de supprimer: la boutique a un historique produit legacy."
         if _is_ajax_request():
             return jsonify(success=False, message=message), 400
         flash(message, "danger")
@@ -1586,9 +1358,7 @@ def reconciliation():
     per_page = 50
     now = datetime.utcnow()
     settings = PlatformSettings.get()
-    selection = _period_selection_from_request(default_to_open=True)
-    selected_period = selection["selected_period"]
-    selected_period_id = selection["selected_period_id"]
+    date_filter = resolve_date_filter(request.args, default="month")
     global_free_until = settings.vendor_free_until
     global_free_active = bool(global_free_until and global_free_until >= now)
 
@@ -1642,24 +1412,20 @@ def reconciliation():
         User.is_active == False
     ).count()
 
-    period_subscription_total_cents = 0
-    period_subscription_count = 0
-    if selected_period is not None:
-        period_start, period_end = period_bounds(selected_period)
-        period_row = (
-            db.session.query(
-                db.func.coalesce(db.func.sum(SubscriptionPayment.amount_cents), 0).label("amount"),
-                db.func.count(SubscriptionPayment.id).label("count"),
-            )
-            .select_from(SubscriptionPayment)
+    subscription_row = (
+        db.session.query(
+            db.func.coalesce(db.func.sum(SubscriptionPayment.amount_cents), 0).label("amount"),
+            db.func.count(SubscriptionPayment.id).label("count"),
         )
-        if period_start is not None:
-            period_row = period_row.filter(SubscriptionPayment.paid_at >= period_start)
-        if period_end is not None:
-            period_row = period_row.filter(SubscriptionPayment.paid_at < period_end)
-        period_row = period_row.first()
-        period_subscription_total_cents = int((period_row.amount if period_row else 0) or 0)
-        period_subscription_count = int((period_row.count if period_row else 0) or 0)
+        .select_from(SubscriptionPayment)
+        .filter(
+            SubscriptionPayment.paid_at >= date_filter.start_at,
+            SubscriptionPayment.paid_at < date_filter.end_at,
+        )
+        .first()
+    )
+    subscription_total_cents = int((subscription_row.amount if subscription_row else 0) or 0)
+    subscription_count = int((subscription_row.count if subscription_row else 0) or 0)
 
     return render_template(
         "admin/reconciliation.html",
@@ -1670,14 +1436,16 @@ def reconciliation():
         settings=settings,
         global_free_until=global_free_until,
         global_free_active=global_free_active,
-        selected_period=selected_period,
-        selected_period_id=selected_period_id,
+        range_filter=date_filter.range_filter,
+        date_range_label=date_filter.label,
+        date_from=date_filter.date_from,
+        date_to=date_filter.date_to,
         total_vendors=total_vendors,
         active_subs=active_subs,
         overdue_subs=overdue_subs,
         blocked_vendors=blocked_vendors,
-        period_subscription_total_cents=period_subscription_total_cents,
-        period_subscription_count=period_subscription_count,
+        subscription_total_cents=subscription_total_cents,
+        subscription_count=subscription_count,
     )
 
 
@@ -1716,7 +1484,16 @@ def mark_subscription_paid(user_id):
         note=note or None,
     )
     db.session.add(payment)
-    record_subscription_entry(payment, note="subscription marked paid by admin")
+    actor_label = (
+        (getattr(current_user, "username", None) or getattr(current_user, "email", None) or "").strip()
+        if current_user.is_authenticated
+        else ""
+    ) or "admin"
+    target_label = ((user.username or "").strip() or (user.email or "").strip() or f"user#{user.id}")
+    finance_note = f"Paiement abonnement pour {target_label} enregistre par {actor_label}"
+    if note:
+        finance_note = f"{finance_note} - note: {note}"
+    record_subscription_entry(payment, note=finance_note)
 
     db.session.commit()
 
@@ -1829,45 +1606,6 @@ def subscription_unblock_vendor(user_id):
     )
 
     flash("Vendeur débloqué", "success")
-    return redirect(request.referrer or url_for("admin_users.reconciliation"))
-
-
-@bp.route("/reconciliation/mark-paid/<int:payout_id>", methods=["POST"])
-def mark_vendor_paid(payout_id):
-    if (getattr(current_user, "role", "") or "").lower() != "admin":
-        return render_template("errors/403.html"), 403
-
-    payout = (
-        VendorPayout.query
-        .options(selectinload(VendorPayout.order).selectinload(Order.period))
-        .get_or_404(payout_id)
-    )
-    note = (request.form.get("note") or "").strip()[:200]
-
-    if payout.status == "paid":
-        flash("Ce paiement vendeur est déjà marqué comme payé.", "info")
-        return redirect(request.referrer or url_for("admin_users.reconciliation"))
-
-    order = payout.order
-    if order and order.period and order.period.status == CLOSED_STATUS:
-        flash("Action refusée : période fermée.", "warning")
-        return redirect(request.referrer or url_for("admin.order_detail", oid=order.id))
-
-    payout.status = "paid"
-    payout.paid_at = datetime.utcnow()
-    payout.paid_note = note
-    payout.paid_by_id = current_user.id
-    db.session.commit()
-
-    log_access(
-        "mark_vendor_paid",
-        "vendor_payout",
-        payout.id,
-        success=True,
-        changes={"note": note}
-    )
-
-    flash("Paiement vendeur marqué comme payé.", "success")
     return redirect(request.referrer or url_for("admin_users.reconciliation"))
 
 
@@ -2209,28 +1947,27 @@ def api_stats():
     total_vendors = User.query.filter_by(role='vendor').count()
     total_shops = Shop.query.count()
     total_products = Product.query.count()
-    total_orders = Order.query.count()
+    total_product_contacts = ProductContactLead.query.filter_by(source="product_whatsapp").count()
 
-    # Commandes aujourd'hui
     today = datetime.utcnow().date()
-    orders_today = Order.query.filter(
-        db.func.date(Order.created_at) == today
+    product_contacts_today = ProductContactLead.query.filter(
+        db.func.date(ProductContactLead.created_at) == today,
+        ProductContactLead.source == "product_whatsapp",
     ).count()
-
-    # Revenus aujourd'hui
-    revenue_today = Order.query.filter(
+    express_delivery_revenue_today = Order.query.filter(
         db.func.date(Order.created_at) == today,
-        Order.status == 'delivered'
-    ).with_entities(db.func.sum(Order.total)).scalar() or 0
+        Order.delivery_source == "special",
+        Order.delivery_status == "delivered",
+    ).with_entities(db.func.sum(Order.delivery_platform_fee_cents)).scalar() or 0
 
     return jsonify({
         'total_users': total_users,
         'total_vendors': total_vendors,
         'total_shops': total_shops,
         'total_products': total_products,
-        'total_orders': total_orders,
-        'orders_today': orders_today,
-        'revenue_today': revenue_today / 100
+        'total_product_contacts': total_product_contacts,
+        'product_contacts_today': product_contacts_today,
+        'express_delivery_revenue_today': express_delivery_revenue_today / 100,
     })
 
 @bp.route("/api/user/<int:user_id>/quick-info")

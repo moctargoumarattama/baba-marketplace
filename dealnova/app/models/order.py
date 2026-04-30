@@ -8,8 +8,8 @@ class Order(db.Model):
     # Zones de livraison actuelles
     CITIES = ['Rabat', 'Salé', 'Témara', 'Kénitra']
 
-    STATUSES = ["pending", "shipped", "delivered", "cancelled", "archived"]
-    DELIVERY_STATUSES = ["new", "assigned", "picked_up", "delivering", "delivered", "canceled"]
+    STATUSES = ["pending", "shipped", "delivered", "cancelled", "archived", "draft", "expired"]
+    DELIVERY_STATUSES = ["new", "delivered", "canceled"]
 
     id = db.Column(db.Integer, primary_key=True)
     buyer_id = db.Column(db.Integer, db.ForeignKey("user.id", name="fk_order_buyer_id_user"), nullable=True, index=True)
@@ -31,7 +31,6 @@ class Order(db.Model):
     shipping = db.Column(db.Integer, default=0)          # centimes
     delivery_price_cents = db.Column(db.Integer, nullable=True, default=0)
     delivery_platform_fee_cents = db.Column(db.Integer, nullable=True, default=0)
-    delivery_courier_net_cents = db.Column(db.Integer, nullable=True, default=0)
     delivery_source = db.Column(db.String(20), nullable=False, default="marketplace", index=True)
     delivery_city = db.Column(db.String(120), nullable=True)
     delivery_address = db.Column(db.Text, nullable=True)
@@ -52,30 +51,10 @@ class Order(db.Model):
     special_note = db.Column(db.Text, nullable=True)
     special_datetime = db.Column(db.String(80), nullable=True)
     special_is_urgent = db.Column(db.Boolean, nullable=False, default=False)
-    courier_id = db.Column(
-        db.Integer,
-        db.ForeignKey("user.id", name="fk_order_courier_id_user"),
-        nullable=True,
-        index=True,
-    )
     delivery_status = db.Column(
         db.Enum(*DELIVERY_STATUSES, name="delivery_status"),
         default="new",
         nullable=False,
-        index=True,
-    )
-    assigned_at = db.Column(db.DateTime, nullable=True, index=True)
-    assigned_by_user_id = db.Column(
-        db.Integer,
-        db.ForeignKey("user.id", name="fk_order_assigned_by_user_id_user"),
-        nullable=True,
-        index=True,
-    )
-    picked_up_at = db.Column(db.DateTime, nullable=True, index=True)
-    period_id = db.Column(
-        db.Integer,
-        db.ForeignKey("order_period.id", name="fk_order_period_id_order_period"),
-        nullable=True,
         index=True,
     )
     created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
@@ -90,9 +69,6 @@ class Order(db.Model):
     token = db.Column(db.String(64), unique=True, nullable=False, default=lambda: secrets.token_urlsafe(16))
     guest_token = db.Column(db.String(32), unique=True, nullable=True, index=True)
     items = db.relationship("OrderItem", backref="order", lazy=True, cascade="all, delete-orphan")
-    period = db.relationship("OrderPeriod", back_populates="orders")
-    courier = db.relationship("User", foreign_keys=[courier_id], backref="assigned_orders")
-    assigned_by_user = db.relationship("User", foreign_keys=[assigned_by_user_id])
     baba_fee_settled_by = db.relationship("User", foreign_keys=[baba_fee_settled_by_user_id])
 
     # ======================

@@ -91,7 +91,7 @@
     gap: .9rem;
   }
   .aud-grid {
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
   .aud-grid-small {
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -99,6 +99,9 @@
   .aud-grid-panels,
   .aud-detail-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .aud-grid-panels .aud-wide {
+    grid-column: 1 / -1;
   }
   .aud-panel,
   .aud-card,
@@ -112,11 +115,13 @@
     padding: 1rem;
   }
   .aud-card {
-    padding: .95rem 1rem;
+    min-height: 118px;
+    padding: .9rem .95rem;
     background: linear-gradient(180deg, #ffffff, #f8fafc);
   }
   .aud-card.is-priority {
     border-color: rgba(13, 148, 136, .16);
+    background: linear-gradient(180deg, #f0fdfa, #ffffff);
   }
   .aud-shell {
     display: grid;
@@ -153,13 +158,13 @@
   .aud-label {
     color: #64748b;
     font-weight: 700;
-    font-size: .78rem;
+    font-size: .72rem;
     text-transform: uppercase;
-    letter-spacing: .08em;
+    letter-spacing: .05em;
   }
   .aud-value {
     margin-top: .42rem;
-    font-size: 1.8rem;
+    font-size: 1.65rem;
     line-height: 1;
     font-weight: 900;
     color: #0f172a;
@@ -173,6 +178,12 @@
     display: grid;
     gap: .7rem;
   }
+  #audTopPages {
+    gap: .38rem;
+  }
+  #audRoles {
+    gap: .35rem;
+  }
   .aud-item {
     display: flex;
     align-items: flex-start;
@@ -182,9 +193,27 @@
     border-radius: 18px;
     background: linear-gradient(180deg, #f8fafc, #f1f5f9);
   }
+  #audTopPages .aud-item {
+    align-items: center;
+    padding: .5rem .65rem;
+    border-radius: 12px;
+  }
+  #audRoles .aud-item {
+    align-items: center;
+    padding: .45rem .6rem;
+    border-radius: 12px;
+  }
   .aud-item-title {
     font-weight: 900;
     color: #0f172a;
+  }
+  #audTopPages .aud-item-title {
+    font-size: .92rem;
+    font-weight: 800;
+  }
+  #audRoles .aud-item-title {
+    font-size: .9rem;
+    font-weight: 800;
   }
   .aud-item-meta {
     margin-top: .22rem;
@@ -196,6 +225,12 @@
     white-space: nowrap;
     font-weight: 900;
     color: #0f766e;
+  }
+  #audTopPages .aud-item-side {
+    font-size: .95rem;
+  }
+  #audRoles .aud-item-side {
+    font-size: .92rem;
   }
   .aud-item-side small {
     display: block;
@@ -338,11 +373,19 @@
       position: static;
     }
   }
+  @media (max-width: 900px) {
+    .aud-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
   @media (max-width: 768px) {
     .aud-grid,
     .aud-grid-small,
     .aud-heatmap {
       grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .aud-grid-panels .aud-wide {
+      grid-column: auto;
     }
     .aud-hero h1 {
       font-size: 1.55rem;
@@ -356,34 +399,34 @@
   <section class="aud-hero">
     <h1><i class="bi bi-broadcast-pin me-2"></i>Audience et trafic en direct</h1>
     <p>
-      Cette page te montre, en français simple, qui est actif maintenant, combien de clients sont là,
-      combien de personnes internes utilisent le site, d'où vient le trafic et ce qui convertit le mieux.
+      Cette page montre qui utilise le site en ce moment, combien de clients sont présents,
+      quelles pages attirent le plus de monde et combien de demandes arrivent.
     </p>
     <div class="aud-hero-meta">
       <span class="aud-pill"><i class="bi bi-arrow-repeat"></i> Mise à jour auto toutes les 15 s</span>
       <span class="aud-pill"><i class="bi bi-clock-history"></i> <span id="audUpdatedAt">Chargement...</span></span>
-      <span class="aud-pill is-live-ok" id="audLiveStatus"><span class="aud-dot"></span><span id="audLiveStatusText">Live connecté</span></span>
-      <span class="aud-pill"><i class="bi bi-phone"></i> PWA incluse</span>
+      <span class="aud-pill is-live-ok" id="audLiveStatus"><span class="aud-dot"></span><span id="audLiveStatusText">Suivi actif</span></span>
+      <span class="aud-pill"><i class="bi bi-phone"></i> Application incluse</span>
     </div>
   </section>
 
   <nav class="aud-section-nav">
-    <a class="aud-nav-chip" href="#audResume"><i class="bi bi-speedometer2"></i> Résumé live</a>
-    <a class="aud-nav-chip" href="#audConversions"><i class="bi bi-graph-up-arrow"></i> Conversions</a>
+    <a class="aud-nav-chip" href="#audResume"><i class="bi bi-speedometer2"></i> Résumé en direct</a>
+    <a class="aud-nav-chip" href="#audConversions"><i class="bi bi-graph-up-arrow"></i> Demandes et paniers</a>
     <a class="aud-nav-chip" href="#audDetails"><i class="bi bi-sliders"></i> Détails</a>
   </nav>
 
   <section class="aud-panel">
     <div class="aud-panel-head">
       <div>
-        <h2>Lecture rapide</h2>
-        <div class="aud-panel-note">Change l'angle de lecture en un clic</div>
+        <h2>Choisir l'affichage</h2>
+        <div class="aud-panel-note">Filtre les chiffres selon ce que tu veux regarder</div>
       </div>
     </div>
     <div class="aud-filters" id="audFilters">
       <button type="button" class="aud-filter-btn active" data-scope="all">Tout voir</button>
       <button type="button" class="aud-filter-btn" data-scope="clients">Clients seulement</button>
-      <button type="button" class="aud-filter-btn" data-scope="internal">Interne seulement</button>
+      <button type="button" class="aud-filter-btn" data-scope="internal">Équipe seulement</button>
     </div>
   </section>
 
@@ -391,23 +434,23 @@
     <article class="aud-panel">
       <div class="aud-panel-head">
         <div>
-          <h2>Résumé live</h2>
-          <div class="aud-panel-note">Les chiffres utiles en haut, sans trop de défilement</div>
+          <h2>Résumé en direct</h2>
+          <div class="aud-panel-note">Les chiffres importants pour comprendre l'activité actuelle</div>
         </div>
       </div>
       <div class="aud-grid" id="audMainCards"></div>
       <div class="aud-intro-strip">
         <div class="aud-intro-note">
-          <strong>Lecture immediate</strong>
-          Le trafic live, les invités, les comptes connectés et le pic du jour.
+          <strong>À savoir maintenant</strong>
+          Combien de personnes utilisent le site en ce moment.
         </div>
         <div class="aud-intro-note">
-          <strong>Lecture metier</strong>
-          Le filtre client / interne separe le business du trafic equipe.
+          <strong>Côté activité</strong>
+          Le filtre sépare les clients de l'équipe.
         </div>
         <div class="aud-intro-note">
-          <strong>Lecture humaine</strong>
-          La colonne de droite montre clairement qui est actif maintenant.
+          <strong>Qui est là</strong>
+          La colonne de droite montre les comptes actuellement actifs.
         </div>
       </div>
     </article>
@@ -415,20 +458,26 @@
     <article class="aud-panel aud-sticky-panel">
       <div class="aud-panel-head">
         <div>
-          <h2>Personnes connectées maintenant</h2>
-          <div class="aud-panel-note">Toujours visible pendant le scroll</div>
+          <h2>Qui est en ligne maintenant</h2>
+          <div class="aud-panel-note">Actualisé automatiquement</div>
         </div>
       </div>
       <div class="aud-list aud-scroll-panel" id="audConnectedList"></div>
+      <div class="aud-panel-head mt-3">
+        <div>
+          <h2>Types d'utilisateurs</h2>
+        </div>
+      </div>
+      <div class="aud-list" id="audRoles"></div>
     </article>
   </section>
 
   <section class="aud-grid-panels" id="audConversions">
-    <article class="aud-panel">
+    <article class="aud-panel aud-wide">
       <div class="aud-panel-head">
         <div>
-          <h2>Conversions du jour</h2>
-          <div class="aud-panel-note">Visites, panier, commandes et ouvertures WhatsApp</div>
+          <h2>Demandes et paniers du jour</h2>
+          <div class="aud-panel-note">Visiteurs, ajouts au panier, demandes et ouvertures WhatsApp</div>
         </div>
       </div>
       <div class="aud-grid-small" id="audConversionCards"></div>
@@ -437,8 +486,8 @@
     <article class="aud-panel">
       <div class="aud-panel-head">
         <div>
-          <h2>Pages les plus vues aujourd’hui</h2>
-          <div class="aud-panel-note">Les zones du site qui attirent le plus de monde</div>
+          <h2>Pages les plus ouvertes aujourd’hui</h2>
+          <div class="aud-panel-note">Les pages que les visiteurs ouvrent le plus</div>
         </div>
       </div>
       <div class="aud-list" id="audTopPages"></div>
@@ -448,7 +497,7 @@
       <div class="aud-panel-head">
         <div>
           <h2>Sources d’entrée</h2>
-          <div class="aud-panel-note">Le referer montre d’où arrivent les visiteurs</div>
+          <div class="aud-panel-note">D'où viennent les visiteurs avant d'arriver ici</div>
         </div>
       </div>
       <div class="aud-list" id="audTopSources"></div>
@@ -459,8 +508,8 @@
     <details class="aud-detail" open>
       <summary>
         <div>
-          Heatmap horaire
-          <span>Vue rapide des heures les plus actives aujourd’hui</span>
+          Heures les plus actives
+          <span>Les moments où le site est le plus utilisé aujourd’hui</span>
         </div>
         <i class="bi bi-chevron-down"></i>
       </summary>
@@ -472,8 +521,8 @@
     <details class="aud-detail">
       <summary>
         <div>
-          Diagnostic et repartition
-          <span>Ouvre seulement quand tu veux voir les details techniques</span>
+          Infos techniques
+          <span>Sources de connexion, profils des utilisateurs et données Cloudflare</span>
         </div>
         <i class="bi bi-chevron-down"></i>
       </summary>
@@ -482,28 +531,8 @@
           <article class="aud-panel">
             <div class="aud-panel-head">
               <div>
-                <h2>Repartition par appareil</h2>
-                <div class="aud-panel-note">Mobile, desktop ou tablette</div>
-              </div>
-            </div>
-            <div class="aud-list" id="audDevices"></div>
-          </article>
-
-          <article class="aud-panel">
-            <div class="aud-panel-head">
-              <div>
-                <h2>Sessions par role</h2>
-                <div class="aud-panel-note">Utile pour separer clients et trafic interne</div>
-              </div>
-            </div>
-            <div class="aud-list" id="audRoles"></div>
-          </article>
-
-          <article class="aud-panel">
-            <div class="aud-panel-head">
-              <div>
-                <h2>Villes detectees</h2>
-                <div class="aud-panel-note">Visible si le proxy ou CDN envoie la ville</div>
+                <h2>Villes repérées</h2>
+                <div class="aud-panel-note">Visible si l'information est disponible</div>
               </div>
             </div>
             <div class="aud-list" id="audCities"></div>
@@ -512,8 +541,8 @@
           <article class="aud-panel">
             <div class="aud-panel-head">
               <div>
-                <h2>Headers detectes</h2>
-                <div class="aud-panel-note">Diagnostic live pour verifier si Cloudflare transmet bien les infos jusqu'a Flask</div>
+                <h2>Données Cloudflare reçues</h2>
+                <div class="aud-panel-note">Pour vérifier quelles informations arrivent jusqu'au site</div>
               </div>
             </div>
             <div class="aud-list aud-scroll-panel" id="audHeaderDebug"></div>
@@ -521,6 +550,7 @@
         </div>
       </div>
     </details>
+
   </section>
 </div>
 {% endblock %}
@@ -577,7 +607,53 @@
 
     function isInternalRole(role) {
       const value = String(role || "").toLowerCase();
-      return ["admin", "manager", "vendor", "vendeur", "courier", "livreur"].includes(value);
+      return ["admin", "manager", "vendor", "vendeur"].includes(value);
+    }
+
+    function roleLabel(role) {
+      const value = String(role || "").toLowerCase();
+      const labels = {
+        admin: "Administrateur",
+        manager: "Gestionnaire",
+        vendor: "Vendeur",
+        vendeur: "Vendeur",
+        user: "Client",
+        client: "Client"
+      };
+      return labels[value] || String(role || "Compte");
+    }
+
+    function deviceLabel(device) {
+      const value = String(device || "").toLowerCase();
+      const labels = {
+        desktop: "Ordinateur",
+        mobile: "Téléphone",
+        tablet: "Tablette",
+        phone: "Téléphone"
+      };
+      return labels[value] || String(device || "");
+    }
+
+    function pageLabel(path) {
+      const value = String(path || "").trim();
+      const labels = {
+        "/": "Accueil",
+        "/login": "Connexion",
+        "/shop": "Boutique",
+        "/shop/": "Boutique",
+        "/cart": "Panier",
+        "/shop/product/:id": "Fiche produit",
+        "/locations": "Zones de livraison",
+        "/admin/audience": "Audience du site",
+        "/admin/deliveries": "Gestion des livraisons",
+        "/admin/product-contacts": "Contacts produits",
+        "/delivery": "Demande de livraison"
+      };
+      if (labels[value]) return labels[value];
+      if (value.startsWith("/shop/product/")) return "Fiche produit";
+      if (value.startsWith("/admin/")) return "Page gestionnaire";
+      const cleaned = value.replace(/^\/+/, "").replace(/:id/g, "détail").replace(/:token/g, "suivi");
+      return cleaned ? cleaned.split("/").join(" / ") : "Accueil";
     }
 
     function renderLiveStatus(isOk) {
@@ -586,7 +662,7 @@
       if (!node || !textNode) return;
       node.classList.remove("is-live-ok", "is-live-down");
       node.classList.add(isOk ? "is-live-ok" : "is-live-down");
-      textNode.textContent = isOk ? "Live connecté" : "Live coupé";
+      textNode.textContent = isOk ? "Suivi actif" : "Suivi interrompu";
     }
 
     function scopeData(data) {
@@ -614,22 +690,20 @@
 
     function renderCards(data) {
       const scoped = scopeData(data);
-      const loginRate = Number(data.login_rate_active_pct || 0).toFixed(1);
       const cards = [
-        ["Actifs maintenant", scoped.activeNow, currentScope === "clients" ? "Clients actifs sur les 5 dernières minutes" : currentScope === "internal" ? "Trafic interne actif sur les 5 dernières minutes" : "Personnes actives sur les 5 dernières minutes", true],
-        ["Connectés", number(data.active_authenticated_5m), "Comptes avec connexion actuellement actifs", true],
-        ["Invités", number(data.active_guests_5m), "Visiteurs sans connexion actuellement actifs", true],
-        ["Pic du jour", number(data.peak_active_today), "Le plus grand nombre observé aujourd’hui", true],
-        ["RPM", number(data.rpm), "Requetes par minute en ce moment", true],
-        ["Pages vues", number(data.page_views_today), "Toutes les pages chargées aujourd’hui", false],
-        ["Visiteurs uniques", scoped.uniqueToday, currentScope === "internal" ? "Sessions internes vues aujourd’hui" : "Nombre de visiteurs différents aujourd’hui", false],
-        ["Taux de connexion", loginRate + "%", "Part des connectés parmi les actifs", false],
-        ["Clients actifs", number(data.active_clients_5m), "Trafic client actif maintenant", false],
-        ["Interne actif", number(data.active_internal_5m), "Equipe active maintenant", false],
-        ["PWA aujourd’hui", number(data.pwa_installs_today), "Installations détectées aujourd’hui", false],
-        ["PWA total", number(data.pwa_installs_total), "Compteur garde durablement", false],
-        ["Nouveaux", number(data.new_visitors_today), "Premières visites du jour", false],
-        ["Revenants", number(data.returning_visitors_today), "Visiteurs déjà vus qui reviennent", false]
+        ["En ligne maintenant", scoped.activeNow, currentScope === "clients" ? "Clients qui ont utilisé le site récemment" : currentScope === "internal" ? "Membres de l'équipe actifs récemment" : "Personnes actives sur les 5 dernières minutes", true],
+        ["Avec compte", number(data.active_authenticated_5m), "Utilisateurs connectés à leur compte", true],
+        ["Sans compte", number(data.active_guests_5m), "Visiteurs qui naviguent sans connexion", true],
+        ["Record aujourd'hui", number(data.peak_active_today), "Plus grand nombre de personnes en ligne aujourd'hui", true],
+        ["Activité par minute", number(data.rpm), "Nombre de demandes reçues par minute", true],
+        ["Pages ouvertes", number(data.page_views_today), "Nombre total de pages ouvertes aujourd'hui", false],
+        ["Personnes différentes", scoped.uniqueToday, currentScope === "internal" ? "Comptes de l'équipe vus aujourd'hui" : "Nombre de personnes différentes aujourd'hui", false],
+        ["Clients en ligne", number(data.active_clients_5m), "Clients actifs maintenant", false],
+        ["Équipe en ligne", number(data.active_internal_5m), "Membres de l'équipe actifs maintenant", false],
+        ["Installations app aujourd'hui", number(data.pwa_installs_today), "Installations de l'application aujourd'hui", false],
+        ["Installations app total", number(data.pwa_installs_total), "Total des installations détectées", false],
+        ["Nouveaux visiteurs", number(data.new_visitors_today), "Première visite aujourd'hui", false],
+        ["Visiteurs de retour", number(data.returning_visitors_today), "Personnes déjà venues avant", false]
       ];
       const html = cards.map(function (entry) {
         return (
@@ -646,10 +720,9 @@
     function renderConversions(data) {
       const conversions = data.conversions || {};
       const html = [
-        ["Visiteurs", number(conversions.visitors), "Base de calcul du jour"],
-        ["Ajouts panier", number(conversions.add_to_cart), (Number(conversions.add_to_cart_rate_pct || 0)).toFixed(1) + "% des visiteurs"],
-        ["Commandes", number(conversions.orders), (Number(conversions.order_rate_pct || 0)).toFixed(1) + "% des visiteurs"],
-        ["Ouvertures WhatsApp", number(conversions.whatsapp), (Number(conversions.whatsapp_rate_pct || 0)).toFixed(1) + "% des visiteurs"]
+        ["Ajouts au panier", number(conversions.add_to_cart), (Number(conversions.add_to_cart_rate_pct || 0)).toFixed(1) + "% des visiteurs"],
+        ["Demandes", number(conversions.orders), (Number(conversions.order_rate_pct || 0)).toFixed(1) + "% des visiteurs"],
+        ["WhatsApp ouverts", number(conversions.whatsapp), (Number(conversions.whatsapp_rate_pct || 0)).toFixed(1) + "% des visiteurs"]
       ].map(function (entry) {
         return (
           '<article class="aud-card">' +
@@ -676,6 +749,17 @@
       setHtml(targetId, html);
     }
 
+    function renderTopPages(items) {
+      if (!Array.isArray(items) || !items.length) {
+        setHtml("audTopPages", empty("Aucune page dominante pour le moment."));
+        return;
+      }
+      const html = items.map(function (item) {
+        return itemRow(pageLabel(item.label), "", String(number(item.count)), "");
+      }).join("");
+      setHtml("audTopPages", html);
+    }
+
     function renderConnectedUsers(data) {
       const allItems = Array.isArray(data.active_authenticated_users) ? data.active_authenticated_users : [];
       const items = allItems.filter(function (item) {
@@ -684,16 +768,16 @@
         return true;
       });
       if (!items.length) {
-        setHtml("audConnectedList", empty(currentScope === "clients" ? "Aucun client connecté actif sur les 5 dernières minutes." : currentScope === "internal" ? "Aucune personne interne active sur les 5 dernières minutes." : "Aucune personne connectée active sur les 5 dernières minutes."));
+        setHtml("audConnectedList", empty(currentScope === "clients" ? "Aucun client connecté actif sur les 5 dernières minutes." : currentScope === "internal" ? "Aucun membre de l'équipe actif sur les 5 dernières minutes." : "Aucun compte connecté actif sur les 5 dernières minutes."));
         return;
       }
 
       const html = items.map(function (item) {
         const scopeBadge = item.audience_scope === "interne"
-          ? '<span class="aud-badge is-internal"><i class="bi bi-shield-check"></i> Interne</span>'
+          ? '<span class="aud-badge is-internal"><i class="bi bi-shield-check"></i> Équipe</span>'
           : '<span class="aud-badge is-client"><i class="bi bi-person"></i> Client</span>';
-        const roleBadge = item.role ? '<span class="aud-badge"><i class="bi bi-person-badge"></i> ' + String(item.role) + '</span>' : "";
-        const deviceBadge = item.device ? '<span class="aud-badge"><i class="bi bi-phone"></i> ' + String(item.device) + '</span>' : "";
+        const roleBadge = item.role ? '<span class="aud-badge"><i class="bi bi-person-badge"></i> ' + roleLabel(item.role) + '</span>' : "";
+        const deviceBadge = item.device ? '<span class="aud-badge"><i class="bi bi-phone"></i> ' + deviceLabel(item.device) + '</span>' : "";
         const cityBadge = item.city ? '<span class="aud-badge"><i class="bi bi-geo-alt"></i> ' + String(item.city) + '</span>' : "";
         const pathText = item.path ? "Page active : " + String(item.path) : "Page active non détectée";
         return (
@@ -726,7 +810,7 @@
     function renderHeaderDebug(data) {
       const items = Array.isArray(data.geo_debug_headers) ? data.geo_debug_headers : [];
       if (!items.length) {
-        setHtml("audHeaderDebug", empty("Aucun header utile detecte sur cette requete."));
+        setHtml("audHeaderDebug", empty("Aucune donnée utile détectée sur cette demande."));
         return;
       }
       const detectedCity = String(data.detected_city_header || "").trim();
@@ -735,11 +819,11 @@
         const status = item.present ? "Oui" : "Non";
         const meta = value
           ? 'Valeur reçue<div class="aud-code">' + value + '</div>'
-          : "Header absent sur cette requête";
+          : "Information absente sur cette demande";
         const sideSmall = detectedCity && value && detectedCity.toLowerCase() === value.toLowerCase()
           ? "Utilise pour la ville"
           : "";
-        return itemRow(String(item.label || "Header"), meta, status, sideSmall);
+        return itemRow(String(item.label || "Information"), meta, status, sideSmall);
       }).join("");
       setHtml("audHeaderDebug", html);
     }
@@ -756,20 +840,15 @@
       renderCards(latestData);
       renderConversions(latestData);
       renderConnectedUsers(latestData);
-      renderList("audTopPages", latestData.top_pages, "Aucune page dominante pour le moment.", function () {
-        return "Pages les plus consultées aujourd’hui";
-      });
+      renderTopPages(latestData.top_pages);
       renderList("audTopSources", latestData.top_sources, "Aucune source détectée pour le moment.", function () {
-        return "Entrées observées aujourd’hui";
-      });
-      renderList("audDevices", latestData.device_breakdown, "Pas encore de répartition par appareil.", function () {
-        return "Répartition des sessions observées";
+        return "Arrivées observées aujourd’hui";
       });
       renderList("audRoles", scopeData(latestData).roles, "Pas encore de sessions catégorisées.", function () {
-        return "Pour distinguer trafic client et trafic interne";
+        return "Pour distinguer clients et équipe";
       });
-      renderList("audCities", latestData.city_breakdown, "Aucune ville disponible. Configure un header de ville cote proxy ou CDN, par exemple CF-IPCity, CloudFront-Viewer-City ou X-City.", function () {
-        return "Ville transmise par le proxy ou le CDN";
+      renderList("audCities", latestData.city_breakdown, "Aucune ville disponible pour le moment.", function () {
+        return "Ville transmise au site";
       });
       renderHeaderDebug(latestData);
       renderHeatmap(latestData);

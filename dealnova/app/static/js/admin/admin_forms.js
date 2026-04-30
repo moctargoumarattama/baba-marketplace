@@ -192,7 +192,7 @@
     if (triggerEl) {
       var original = triggerEl.dataset.copyOriginalLabel || triggerEl.textContent.trim();
       triggerEl.dataset.copyOriginalLabel = original;
-      triggerEl.textContent = ok ? "Copie âœ…" : "Echec";
+      triggerEl.textContent = ok ? "Copie ✅" : "Echec";
       window.setTimeout(function () {
         triggerEl.textContent = original;
       }, 1200);
