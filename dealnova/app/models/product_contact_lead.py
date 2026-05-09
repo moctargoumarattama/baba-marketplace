@@ -24,6 +24,10 @@ class ProductContactLead(db.Model):
 
     shop = db.relationship("Shop", backref="product_contact_leads")
 
+    __table_args__ = (
+        db.Index("ix_product_contact_lead_source_created", "source", "created_at"),
+    )
+
     @property
     def product_summary(self):
         try:

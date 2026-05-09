@@ -15,9 +15,13 @@
                  data-search-url="{{ url_for('vendor.products_search') }}"
                  data-stats-url="{{ url_for('vendor.stats_live') }}"
                  data-orders-live-url="{{ url_for('vendor.dashboard_orders_live') }}"
-                 data-orders-poll-ms="20000"
+                 data-orders-poll-ms="5000"
                  data-orders-per-page="{{ recent_orders_pagination.per_page if recent_orders_pagination is defined else 8 }}"
                  data-bookings-per-page="{{ today_bookings_pagination.per_page if today_bookings_pagination is defined else 8 }}"
+                  data-push-config-url="{{ url_for('vendor.vendor_push_config') }}"
+                  data-push-status-url="{{ url_for('vendor.vendor_push_status') }}"
+                  data-push-subscribe-url="{{ url_for('vendor.vendor_push_subscribe') }}"
+                  data-push-unsubscribe-url="{{ url_for('vendor.vendor_push_unsubscribe') }}"
                  data-vendor-id="{{ current_user.id }}">
             </div>
             <!-- Header -->
@@ -69,6 +73,10 @@
                                 <span>Nouvelles commandes ({{ recent_orders_window_hours }}h)</span>
                                 <span class="notif-count" id="pendingCount">{{ recent_orders_count }}</span>
                             </div>
+                            <button class="notif-chip vendor-push-status" id="vendorPushStatus" type="button">
+                                <i class="bi bi-phone-vibrate"></i>
+                                <span>Alertes téléphone</span>
+                            </button>
                         </div>
                         {% endif %}
 
@@ -231,7 +239,7 @@
                             </div>
                             <div>
                                 <div class="today-label">Locations actives</div>
-                                <div class="today-value">{{ today_locations_count }}</div>
+                                <div class="today-value" id="todayLocationsCount">{{ today_locations_count }}</div>
                             </div>
                         </div>
                         <div class="today-actions">

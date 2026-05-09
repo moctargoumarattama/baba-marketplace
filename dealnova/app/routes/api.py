@@ -24,6 +24,8 @@ from .cart import get_cart, set_cart
 from ..extensions import db
 
 bp = Blueprint("api", __name__, url_prefix="/api")
+PRODUCT_SEARCH_MIN_CHARS = 2
+SECONDARY_SEARCH_MIN_CHARS = 3
 
 # =====================================================
 # HELPERS
@@ -44,6 +46,7 @@ def _legacy_active_promo_map(product_ids: list[int], now: datetime | None = None
         .filter(
             Promo.product_id.in_(product_ids),
             Promo.end_date >= now_utc,
+            Promo.status == Promo.STATUS_APPROVED,
         )
         .order_by(Promo.product_id.asc(), Promo.end_date.asc())
         .all()
@@ -202,7 +205,7 @@ def search_products():
     q = _clean_str(request.args.get("q"))
     limit = min(limit_from_args(request.args, default=10), 50)  # ← Borne à 50 max
 
-    if not q:
+    if not q or len(q) < PRODUCT_SEARCH_MIN_CHARS:
         return jsonify({"products": []})
 
     start = time.time()
@@ -227,7 +230,7 @@ def search_shops():
     q = _clean_str(request.args.get("q"))
     limit = min(limit_from_args(request.args, default=10), 50)
 
-    if not q:
+    if not q or len(q) < SECONDARY_SEARCH_MIN_CHARS:
         return jsonify({"shops": []})
 
     exact_name = Shop.name.ilike(q)
@@ -324,7 +327,7 @@ def search_locations():
     q = _clean_str(request.args.get("q"))
     limit = min(limit_from_args(request.args, default=8), 30)
 
-    if not q:
+    if not q or len(q) < SECONDARY_SEARCH_MIN_CHARS:
         return jsonify({"locations": []})
 
     return jsonify({"locations": search_public_locations(search_q=q, limit=limit)})
@@ -342,7 +345,7 @@ def search_categories():
     q = _clean_str(request.args.get("q"))
     limit = min(limit_from_args(request.args, default=10), 30)
 
-    if not q:
+    if not q or len(q) < SECONDARY_SEARCH_MIN_CHARS:
         return jsonify({"categories": []})
 
     exact_name = Category.name.ilike(q)

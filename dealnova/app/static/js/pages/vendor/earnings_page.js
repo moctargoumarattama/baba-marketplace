@@ -219,6 +219,35 @@
     applySearch();
   }
 
+  function bindFilterDateBehavior(root) {
+    if (!root || root.dataset.filterDateBehaviorBound === "1") return;
+    const rangeSelect = root.querySelector('[data-earnings-range-select="true"]');
+    const dateInputs = Array.from(root.querySelectorAll('[data-earnings-date-input="true"]'));
+    if (!rangeSelect || !dateInputs.length) return;
+
+    root.dataset.filterDateBehaviorBound = "1";
+
+    dateInputs.forEach(function (input) {
+      input.addEventListener("input", function () {
+        if (input.value) {
+          rangeSelect.value = "custom";
+        }
+      });
+      input.addEventListener("change", function () {
+        if (input.value) {
+          rangeSelect.value = "custom";
+        }
+      });
+    });
+
+    rangeSelect.addEventListener("change", function () {
+      if (rangeSelect.value === "custom") return;
+      dateInputs.forEach(function (input) {
+        input.value = "";
+      });
+    });
+  }
+
   function bindScrollMemory() {
     const key = cfg.scrollStorageKey || "earningsScrollPosition";
     window.addEventListener("beforeunload", function () {
@@ -491,7 +520,7 @@
           body: payload,
           history: "replace",
           preserveScroll: true,
-          successMessage: "Encaissement confirme.",
+          successMessage: "Encaissement confirmé.",
           triggerEl: submitBtn || null,
         }).then(function (ok) {
           if (!ok) form.submit();
@@ -549,6 +578,7 @@
     optimizeFilterPillOnSmallScreens(root);
     bindBackToTop(root);
     bindQuickSearch(root);
+    bindFilterDateBehavior(root);
     bindAjaxInteractions(root);
     applyEntranceAnimationDelay(root);
   }
@@ -597,7 +627,7 @@
           return;
         }
         if (shouldInform) {
-          showToast("Mise a jour automatique des donnees", "info");
+          showToast("Mise à jour automatique des données", "info");
         }
       });
     }

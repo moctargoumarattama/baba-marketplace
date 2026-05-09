@@ -269,7 +269,6 @@
 
 {% block scripts %}
 <script>
-  /* ── Back button logic ── */
   (function () {
     var backLink = document.querySelector('.promo-page-back');
     if (!backLink) return;
@@ -296,77 +295,6 @@
       var fallback = backLink.getAttribute('data-fallback');
       if (fallback) backLink.setAttribute('href', fallback);
     });
-  })();
-
-  /* ── Real-time search + sort sync ── */
-  (function () {
-    var searchInput  = document.querySelector('.search-input');
-    var sortSelect   = document.querySelector('.sort-select');
-    var sortForm     = sortSelect ? sortSelect.closest('form') : null;
-    var grid         = document.getElementById('productsGrid');
-    var resultsCount = document.querySelector('.results-count');
-    if (!searchInput || !grid) return;
-
-    var allCards   = Array.from(grid.querySelectorAll('.product-card-compact'));
-    var totalCount = allCards.length;
-    var debounceTimer;
-
-    /* ── Filter cards by name ── */
-    function filterCards(query) {
-      var q = query.trim().toLowerCase();
-      var visible = 0;
-      allCards.forEach(function (card) {
-        var nameEl = card.querySelector('.product-name-compact');
-        var name   = nameEl ? nameEl.textContent.toLowerCase() : '';
-        var match  = !q || name.indexOf(q) !== -1;
-        card.style.display = match ? '' : 'none';
-        if (match) visible++;
-      });
-      if (resultsCount) resultsCount.textContent = q ? visible : totalCount;
-    }
-
-    /* ── Sync search value into sort form before it submits ── */
-    function syncQToSortForm() {
-      if (!sortForm) return;
-      var hidden = sortForm.querySelector('input[name="q"]');
-      var val    = searchInput.value.trim();
-      if (val) {
-        if (!hidden) {
-          hidden = document.createElement('input');
-          hidden.type = 'hidden';
-          hidden.name = 'q';
-          sortForm.appendChild(hidden);
-        }
-        hidden.value = val;
-      } else if (hidden) {
-        hidden.parentNode.removeChild(hidden);
-      }
-    }
-
-    /* Live search on input */
-    searchInput.addEventListener('input', function () {
-      clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(function () {
-        filterCards(searchInput.value);
-      }, 180);
-    });
-
-    /* Sort select: sync q then let the native onchange submit fire normally */
-    if (sortSelect) {
-      sortSelect.addEventListener('change', function () {
-        syncQToSortForm();
-        /* native onchange="this.form.submit()" will fire right after */
-      });
-    }
-
-    /* Search form Enter key: filter client-side only */
-    var searchForm = searchInput.closest('form');
-    if (searchForm) {
-      searchForm.addEventListener('submit', function (e) {
-        e.preventDefault();
-        filterCards(searchInput.value);
-      });
-    }
   })();
 </script>
 {% endblock %}

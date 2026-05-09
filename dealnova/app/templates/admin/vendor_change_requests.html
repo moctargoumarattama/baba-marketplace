@@ -1,0 +1,217 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Demandes modifications vendeurs | DealNova Admin{% endblock %}
+{% block page_title %}Demandes modifications vendeurs{% endblock %}
+{% block body_attrs %}data-adm-page="vendor-change-requests"{% endblock %}
+
+{% block head %}
+<style>
+  .admin-simple-guide {
+    align-items: center;
+    background: #ecfdf5;
+    border: 1px solid #bbf7d0;
+    border-radius: 10px;
+    color: #065f46;
+    display: flex;
+    gap: .65rem;
+    margin-bottom: .75rem;
+    padding: .7rem .85rem;
+  }
+
+  .admin-simple-guide strong {
+    color: #064e3b;
+    display: block;
+    font-size: .84rem;
+    line-height: 1.2;
+  }
+
+  .admin-simple-guide span {
+    display: block;
+    font-size: .8rem;
+    line-height: 1.35;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  {% set status_labels = {
+    'pending': 'A traiter',
+    'approved': 'Acceptees',
+    'rejected': 'Refusees'
+  } %}
+
+  <div class="admin-simple-guide">
+    <i class="bi bi-lightbulb"></i>
+    <div>
+      <strong>A faire maintenant</strong>
+      <span>Ces vendeurs demandent une modification. Comparez Avant et Apres, puis acceptez seulement si c'est clair.</span>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-md-4 col-6">
+      <div class="card admin-card h-100">
+        <div class="card-body">
+          <div class="text-muted small text-uppercase">A traiter</div>
+          <div class="h4 mb-0">{{ pending_count }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4 col-6">
+      <div class="card admin-card h-100">
+        <div class="card-body">
+          <div class="text-muted small text-uppercase">Acceptees</div>
+          <div class="h4 mb-0">{{ approved_count }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4 col-12">
+      <div class="card admin-card h-100">
+        <div class="card-body">
+          <div class="text-muted small text-uppercase">Refusees</div>
+          <div class="h4 mb-0">{{ rejected_count }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card admin-card mb-3">
+    <div class="card-body">
+      <form method="get" class="row g-2 align-items-end">
+        <div class="col-md-3">
+          <label class="form-label">Voir les demandes</label>
+          <select class="form-select" name="status">
+            <option value="">Tous</option>
+            {% for st in status_order %}
+            <option value="{{ st }}" {% if status_filter == st %}selected{% endif %}>{{ status_labels.get(st, st) }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Partie a modifier</label>
+          <select class="form-select" name="type">
+            <option value="">Tous</option>
+            {% for req_type in type_order %}
+            <option value="{{ req_type }}" {% if type_filter == req_type %}selected{% endif %}>
+              {{ type_labels.get(req_type, req_type) }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Chercher dans les demandes</label>
+          <input type="text" class="form-control" name="search" value="{{ search or '' }}" placeholder="Valeur, motif...">
+        </div>
+        <div class="col-md-2 d-grid">
+          <button class="btn btn-primary" type="submit"><i class="bi bi-funnel-fill"></i> Filtrer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card admin-card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <h5 class="mb-0">Modifications demandees ({{ pagination.total }})</h5>
+      <small class="text-muted">Page {{ pagination.page }} sur {{ pagination.pages }}</small>
+    </div>
+    <div class="card-body p-0">
+      {% if requests_items %}
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th style="min-width: 140px;">Date</th>
+              <th style="min-width: 220px;">Vendeur</th>
+              <th style="min-width: 220px;">Boutique</th>
+              <th style="min-width: 160px;">Partie a modifier</th>
+              <th style="min-width: 260px;">Ce qui change</th>
+              <th style="min-width: 200px;">Ou en est la demande ?</th>
+              <th style="min-width: 280px;">Que faire ?</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for req in requests_items %}
+            {% set vendor = vendors.get(req.vendor_id) if req.vendor_id else None %}
+            {% set shop = shops.get(req.shop_id) if req.shop_id else None %}
+            <tr>
+              <td>{{ req.created_at.strftime('%d/%m/%Y %H:%M') if req.created_at else '-' }}</td>
+              <td>
+                <div class="fw-semibold">{{ vendor.username if vendor else ('#' ~ req.vendor_id) }}</div>
+                <div class="small text-muted">{{ vendor.email if vendor else '' }}</div>
+              </td>
+              <td>
+                {% if shop %}
+                <a href="{{ url_for('admin_users.shop_detail', shop_id=shop.id) }}" class="text-decoration-none">{{ shop.name }}</a>
+                {% else %}
+                <span class="text-muted">#{{ req.shop_id }}</span>
+                {% endif %}
+              </td>
+              <td>{{ type_labels.get(req.request_type, req.request_type) }}</td>
+              <td>
+                <div><strong>Avant:</strong> {{ req.current_value }}</div>
+                <div><strong>Apres:</strong> {{ req.requested_value }}</div>
+                {% if req.reason %}
+                <div class="small text-muted mt-1">Motif: {{ req.reason }}</div>
+                {% endif %}
+              </td>
+              <td>
+                {% if req.status == 'pending' %}
+                <span class="badge bg-warning text-dark">A traiter</span>
+                {% elif req.status == 'approved' %}
+                <span class="badge bg-success">Acceptee</span>
+                {% else %}
+                <span class="badge bg-secondary">Refusee</span>
+                {% endif %}
+                {% if req.reviewed_at %}
+                <div class="small text-muted mt-1">
+                  {{ req.reviewed_at.strftime('%d/%m/%Y %H:%M') }}
+                </div>
+                {% endif %}
+                {% if req.reviewed_by_id %}
+                <div class="small text-muted">
+                  {% set reviewer = reviewers.get(req.reviewed_by_id) %}
+                  {{ reviewer.username if reviewer else ('#' ~ req.reviewed_by_id) }}
+                </div>
+                {% endif %}
+                {% if req.review_note %}
+                <div class="small mt-1"><strong>Note:</strong> {{ req.review_note }}</div>
+                {% endif %}
+              </td>
+              <td>
+                {% if req.status == 'pending' %}
+                <form method="post" class="d-grid gap-2">
+                  {% include "admin/partials/_csrf.html" %}
+                  <input type="text" name="note" class="form-control form-control-sm" maxlength="500" placeholder="Note interne ou motif si vous refusez">
+                  <div class="d-flex flex-wrap gap-2">
+                    <button type="submit" formaction="{{ url_for('admin_users.vendor_change_request_approve', request_id=req.id) }}" class="btn btn-sm btn-success">
+                      <i class="bi bi-check2-circle"></i> Accepter la modification
+                    </button>
+                    <button type="submit" formaction="{{ url_for('admin_users.vendor_change_request_reject', request_id=req.id) }}" class="btn btn-sm btn-outline-secondary">
+                      <i class="bi bi-x-circle"></i> Refuser la modification
+                    </button>
+                  </div>
+                </form>
+                {% else %}
+                <span class="text-muted small">Decision deja prise</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="p-4 text-center text-muted">Aucune demande dans cette liste.</div>
+      {% endif %}
+    </div>
+    {% if pagination.pages > 1 %}
+    <div class="card-footer">
+      {% set endpoint = 'admin_users.vendor_change_requests' %}
+      {% set params = {'status': status_filter, 'type': type_filter, 'search': search} %}
+      {% include "admin/partials/_pagination.html" %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

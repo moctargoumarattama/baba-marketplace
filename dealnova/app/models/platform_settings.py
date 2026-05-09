@@ -33,6 +33,8 @@ class PlatformSettings(db.Model):
     rental_success_commission_mode = db.Column(db.String(20), nullable=False, default="percent")  # percent|fixed
     rental_success_commission_bps = db.Column(db.Integer, nullable=False, default=500)  # 5.00%
     rental_success_commission_fixed_cents = db.Column(db.Integer, nullable=False, default=0)
+    rental_monthly_duration_days = db.Column(db.Integer, nullable=False, default=14)
+    rental_daily_duration_days = db.Column(db.Integer, nullable=False, default=14)
 
     # Maintenance mode
     maintenance_enabled = db.Column(db.Boolean, nullable=False, default=False)

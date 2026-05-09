@@ -445,9 +445,72 @@ body {
     width: 100%;
 }
 
+button.notif-chip {
+    cursor: pointer;
+    text-align: left;
+}
+
 .notif-chip i {
     font-size: 0.95rem;
     opacity: 0.9;
+}
+
+.vendor-sound-prompt {
+    position: fixed;
+    left: max(16px, env(safe-area-inset-left));
+    right: max(16px, env(safe-area-inset-right));
+    bottom: calc(78px + env(safe-area-inset-bottom));
+    z-index: 1040;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.75rem;
+    max-width: 520px;
+    margin: 0 auto;
+    padding: 0.78rem 0.85rem;
+    border-radius: 14px;
+    border: 1px solid rgba(15, 157, 120, 0.28);
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
+    color: var(--text-primary);
+}
+
+.vendor-sound-prompt-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    color: #fff;
+    font-size: 1.1rem;
+}
+
+.vendor-sound-prompt-copy {
+    display: grid;
+    gap: 0.1rem;
+    font-size: 0.82rem;
+    line-height: 1.25;
+}
+
+.vendor-sound-prompt-copy strong {
+    font-size: 0.92rem;
+}
+
+.vendor-sound-prompt-copy span {
+    color: var(--text-secondary);
+    font-weight: 700;
+}
+
+.vendor-sound-prompt-btn {
+    border: 0;
+    border-radius: 999px;
+    padding: 0.55rem 0.78rem;
+    background: var(--primary);
+    color: #fff;
+    font-weight: 900;
+    white-space: nowrap;
 }
 
 .notif-chip.pending {
@@ -458,6 +521,24 @@ body {
 
 .notif-chip.to-confirm {
     border-color: rgba(239, 68, 68, 0.25);
+    background: rgba(239, 68, 68, 0.10);
+    color: #991b1b;
+}
+
+.notif-chip.vendor-push-status.is-active {
+    border-color: rgba(16, 185, 129, 0.28);
+    background: rgba(16, 185, 129, 0.12);
+    color: #065f46;
+}
+
+.notif-chip.vendor-push-status.is-muted {
+    border-color: rgba(59, 130, 246, 0.24);
+    background: rgba(59, 130, 246, 0.10);
+    color: #1e3a8a;
+}
+
+.notif-chip.vendor-push-status.is-error {
+    border-color: rgba(239, 68, 68, 0.26);
     background: rgba(239, 68, 68, 0.10);
     color: #991b1b;
 }

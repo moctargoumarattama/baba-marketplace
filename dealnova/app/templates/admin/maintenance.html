@@ -264,6 +264,59 @@
     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
     gap: .85rem;
   }
+  .maintenance-tabs {
+    position: sticky;
+    top: .35rem;
+    z-index: 5;
+    display: flex;
+    gap: .45rem;
+    flex-wrap: wrap;
+    align-items: center;
+    padding: .45rem;
+    border: 1px solid var(--monitor-border);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, .92);
+    box-shadow: 0 8px 18px rgba(15, 23, 42, .08);
+    backdrop-filter: blur(8px);
+  }
+  .maintenance-tab {
+    border: 1px solid #dbe4ef;
+    background: #f8fafc;
+    color: #334155;
+    border-radius: 999px;
+    padding: .45rem .75rem;
+    font-size: .82rem;
+    font-weight: 800;
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    cursor: pointer;
+  }
+  .maintenance-tab.is-active {
+    border-color: #0f766e;
+    background: #0f766e;
+    color: #ffffff;
+  }
+  .maintenance-tab-panel {
+    display: none;
+    gap: 1rem;
+  }
+  .maintenance-tab-panel.is-active {
+    display: grid;
+  }
+  .maintenance-wrap[data-theme="noc"] .maintenance-tabs {
+    background: rgba(15, 26, 45, .9);
+  }
+  .maintenance-wrap[data-theme="noc"] .maintenance-tab {
+    background: #0b1424;
+    border-color: var(--monitor-border);
+    color: #c8d6ea;
+  }
+  .maintenance-wrap[data-theme="noc"] .maintenance-tab.is-active {
+    background: #0891b2;
+    border-color: #67e8f9;
+    color: #ecfeff;
+  }
   .action-box {
     border: 1px solid #e2e8f0;
     border-radius: 14px;
@@ -290,6 +343,29 @@
     border-radius: 10px;
     padding: .6rem .7rem;
     background: #f8fafc;
+  }
+  .restore-details {
+    display: inline-block;
+    min-width: 210px;
+  }
+  .restore-details > summary {
+    list-style: none;
+    cursor: pointer;
+  }
+  .restore-details > summary::-webkit-details-marker {
+    display: none;
+  }
+  .restore-box {
+    min-width: min(320px, 80vw);
+    text-align: left;
+    border: 1px solid #fecaca;
+    border-radius: 12px;
+    padding: .75rem;
+    background: #fff7f7;
+  }
+  .maintenance-wrap[data-theme="noc"] .restore-box {
+    background: #24131a;
+    border-color: rgba(248, 113, 113, .38);
   }
   .maintenance-wrap[data-theme="noc"] .report-item {
     border-color: var(--monitor-border);
@@ -354,6 +430,34 @@
   .lock-card {
     max-width: 760px;
     margin: 0 auto;
+  }
+  .freshness-strip {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: .45rem;
+    justify-content: flex-end;
+  }
+  .freshness-command {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    border: 1px solid var(--monitor-border);
+    border-radius: 999px;
+    background: #f8fafc;
+    color: var(--monitor-text);
+    padding: .28rem .55rem;
+    font-size: .78rem;
+    font-weight: 700;
+  }
+  .freshness-command code {
+    color: inherit;
+    font-size: .76rem;
+  }
+  .maintenance-wrap[data-theme="noc"] .freshness-command {
+    background: #0f1a2d;
+    border-color: var(--monitor-border);
+    color: #dbe7f8;
   }
   @media (max-width: 991.98px) {
     .monitor-hero-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -511,6 +615,15 @@
     Verrou maintenance ouvert jusqu'à <strong>{{ maintenance_unlock_until_label }}</strong>.
   </div>
   {% endif %}
+  <nav class="maintenance-tabs" aria-label="Sections maintenance">
+    <button type="button" class="maintenance-tab is-active" data-maintenance-tab="overview"><i class="bi bi-speedometer2"></i> Vue rapide</button>
+    <button type="button" class="maintenance-tab" data-maintenance-tab="backups"><i class="bi bi-database-check"></i> Sauvegardes</button>
+    <button type="button" class="maintenance-tab" data-maintenance-tab="mode"><i class="bi bi-tools"></i> Mode</button>
+    <button type="button" class="maintenance-tab" data-maintenance-tab="logs"><i class="bi bi-journal-text"></i> Logs</button>
+    <button type="button" class="maintenance-tab" data-maintenance-tab="danger"><i class="bi bi-shield-exclamation"></i> Danger</button>
+  </nav>
+  <div class="maintenance-tab-panels" id="maintenanceTabPanels">
+  <div class="maintenance-tab-panel is-active" data-maintenance-panel="overview">
   {% if report and report_cleanup %}
   <section class="card-shell report-top" id="last-report">
     <div class="section-head">
@@ -520,9 +633,6 @@
       </div>
     </div>
     <div class="report-list">
-      <div class="report-item"><strong>Mode</strong><span>{{ 'rapide' if (report.mode or (last_run.mode if last_run else '')) == 'quick' else ('complet' if (report.mode or (last_run.mode if last_run else '')) == 'full' else (report.mode or (last_run.mode if last_run else 'Non disponible'))) }}</span></div>
-      <div class="report-item"><strong>Date d'execution</strong><span>{{ report.ran_at or ((last_run.finished_at or last_run.started_at).strftime('%d/%m/%Y %H:%M:%S') if last_run else 'Non disponible') }}</span></div>
-      <div class="report-item"><strong>Duree</strong><span>{{ report.duration_ms if report.duration_ms is not none else (last_run.duration_ms if last_run else 'Non disponible') }} ms</span></div>
       <div class="report-item"><strong>Fichiers supprimes</strong><span>{{ report_cleanup.get('files_deleted', 'Non disponible') }}</span></div>
       <div class="report-item"><strong>Orphelins supprimes</strong><span>{{ report_cleanup.get('orphan_media_removed', 'Non disponible') }}</span></div>
       <div class="report-item"><strong>Locations purgees</strong><span>{{ report_cleanup.get('locations_purged', 'Non disponible') }}</span></div>
@@ -558,10 +668,19 @@
           <input id="days" name="days" type="number" class="form-control form-control-sm" min="1" max="365" value="{{ days }}" style="width: 90px;">
           <button class="btn btn-sm btn-outline-primary" type="submit">Actualiser</button>
         </form>
-        <span class="small text-muted">
-          Derniere execution:
-          <strong>{{ last_run_label }}</strong>
-        </span>
+        <div class="freshness-strip">
+          <span class="status-pill {{ health_freshness.status_class }}">{{ health_freshness.status_label }}</span>
+          <span class="small text-muted">
+            Données calculées le:
+            <strong>{{ health_freshness.calculated_at_label }}</strong>
+            <span>({{ health_freshness.age_label }})</span>
+          </span>
+          <button type="button" class="freshness-command" title="Commande à lancer depuis le terminal">
+            <i class="bi bi-terminal"></i>
+            <span>Recalculer</span>
+            <code>flask cleanup --mode quick --days {{ days }}</code>
+          </button>
+        </div>
       </div>
     </div>
 <div class="health-grid">
@@ -675,6 +794,127 @@
   </div>
 {% endif %}
 </section>
+
+  </div>
+  <div class="maintenance-tab-panel" data-maintenance-panel="backups">
+  <section class="card-shell" id="database-backups">
+    <div class="section-head">
+      <div>
+        <h5 class="section-title"><i class="bi bi-database-check"></i> Sauvegardes base de donnees</h5>
+        <p class="section-sub">Voir ce qui se passe, ce qui s'est passe, et restaurer une sauvegarde si la base casse.</p>
+      </div>
+      <span class="status-pill {{ backup_panel.status_class }}">{{ backup_panel.status_label }}</span>
+    </div>
+
+    <div class="report-list mb-3">
+      <div class="report-item">
+        <strong>Derniere sauvegarde</strong>
+        <span>{{ backup_panel.latest.modified_at_utc if backup_panel.latest else 'Jamais detectee' }}</span>
+        <div class="small text-muted mt-1">{{ backup_panel.latest.name if backup_panel.latest else 'Aucun fichier trouve dans le dossier.' }}</div>
+      </div>
+      <div class="report-item">
+        <strong>Dossier stockage</strong>
+        <span><code>{{ backup_panel.backup_dir }}</code></span>
+      </div>
+      <div class="report-item">
+        <strong>Conservation</strong>
+        <span>{{ backup_panel.retention_days }} jours</span>
+      </div>
+      <div class="report-item">
+        <strong>Commande automatique 02h</strong>
+        <span><code>{{ backup_panel.command }}</code></span>
+      </div>
+    </div>
+
+    {% if backup_panel.note %}
+      <div class="alert alert-warning mb-3">{{ backup_panel.note }}</div>
+    {% endif %}
+
+    <div class="actions-grid mb-3">
+      <article class="action-box">
+        <h6>Creer une sauvegarde maintenant</h6>
+        <p>Declenche une copie complete de la base, puis range les anciens fichiers selon la conservation.</p>
+        <form method="post" action="{{ url_for('admin.maintenance_backup_create') }}">
+          {% include "admin/partials/_csrf.html" %}
+          <input type="hidden" name="days" value="{{ days }}">
+          <input type="hidden" name="backup_dir" value="{{ backup_panel.backup_dir }}">
+          <input type="hidden" name="retention_days" value="{{ backup_panel.retention_days }}">
+          <button type="submit" class="btn btn-sm btn-primary">
+            <i class="bi bi-cloud-arrow-up"></i> Creer une sauvegarde maintenant
+          </button>
+        </form>
+      </article>
+
+      <article class="action-box">
+        <h6>Importer une sauvegarde</h6>
+        <p>Ajoute un fichier de sauvegarde MySQL dans la liste. La restauration reste une action separee.</p>
+        <form method="post" action="{{ url_for('admin.maintenance_backup_import') }}" enctype="multipart/form-data">
+          {% include "admin/partials/_csrf.html" %}
+          <input type="hidden" name="days" value="{{ days }}">
+          <input type="hidden" name="backup_dir" value="{{ backup_panel.backup_dir }}">
+          <input type="file" name="backup_file" class="form-control form-control-sm" accept=".sql.gz" required>
+          <button type="submit" class="btn btn-sm btn-outline-primary mt-2">
+            <i class="bi bi-upload"></i> Importer
+          </button>
+        </form>
+      </article>
+    </div>
+
+    <div class="section-head mb-2">
+      <div>
+        <h6 class="section-title mb-0"><i class="bi bi-clock-history"></i> Historique des sauvegardes</h6>
+        <p class="section-sub">Les fichiers disponibles pour verifier ou restaurer une ancienne version.</p>
+      </div>
+      <span class="small text-muted">{{ backup_panel.backups|length }} fichier(s)</span>
+    </div>
+
+    {% if backup_panel.backups %}
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0 monitor-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Fichier</th>
+              <th>Taille</th>
+              <th>Type</th>
+              <th class="text-end">Restaurer</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for backup in backup_panel.backups %}
+              <tr>
+                <td data-label="Date">{{ backup.modified_at_utc }}</td>
+                <td data-label="Fichier"><code>{{ backup.name }}</code></td>
+                <td data-label="Taille">{{ (backup.size_bytes / 1024 / 1024)|round(2) }} MB</td>
+                <td data-label="Type">{{ backup.db_engine }}</td>
+                <td data-label="Restaurer" class="text-end">
+                  <details class="restore-details">
+                    <summary class="btn btn-sm btn-outline-danger">Restaurer cette sauvegarde</summary>
+                    <form method="post" action="{{ url_for('admin.maintenance_backup_restore') }}" class="restore-box mt-2">
+                      {% include "admin/partials/_csrf.html" %}
+                      <input type="hidden" name="days" value="{{ days }}">
+                      <input type="hidden" name="backup_file" value="{{ backup.file }}">
+                      <div class="small text-muted mb-2">Cette action remplace la base actuelle. Tape RESTAURER et ton mot de passe admin.</div>
+                      <input type="text" name="confirm_text" class="form-control form-control-sm mb-2" placeholder="RESTAURER" required>
+                      <input type="password" name="password" class="form-control form-control-sm mb-2" placeholder="Mot de passe admin" autocomplete="current-password" required>
+                      <button type="submit" class="btn btn-sm btn-danger w-100">Confirmer la restauration</button>
+                    </form>
+                  </details>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="alert alert-secondary mb-0">
+        Aucune sauvegarde visible pour le moment. Lance une sauvegarde maintenant ou importe un fichier .sql.gz.
+      </div>
+    {% endif %}
+  </section>
+
+  </div>
+  <div class="maintenance-tab-panel" data-maintenance-panel="mode">
   <section class="card-shell">
     <div class="section-head">
       <div>
@@ -767,6 +1007,8 @@
     {% endif %}
   </section>
 
+  </div>
+  <div class="maintenance-tab-panel" data-maintenance-panel="logs">
   <section class="card-shell">
     <div class="section-head">
       <div>
@@ -930,6 +1172,8 @@
     {% endif %}
   </section>
 
+  </div>
+  <div class="maintenance-tab-panel" data-maintenance-panel="danger">
   <section class="card-shell danger-zone">
     <h5 class="mb-2">Reinitialisation de la base (admin uniquement)</h5>
     <p class="danger-note mb-2">Supprime toutes les donnees applicatives et conserve uniquement les comptes admin.</p>
@@ -965,6 +1209,8 @@
       </div>
     {% endif %}
   </section>
+  </div>
+  </div>
   {% endif %}
 </div>
 <script>
@@ -978,6 +1224,33 @@
 
   var root = document.querySelector('.maintenance-wrap');
   var btn = document.getElementById('maintenanceThemeToggle');
+  var tabs = Array.from(document.querySelectorAll('[data-maintenance-tab]'));
+  var panels = Array.from(document.querySelectorAll('[data-maintenance-panel]'));
+  function showMaintenanceTab(name, pushHash) {
+    var target = name || 'overview';
+    if (!panels.some(function (panel) { return panel.getAttribute('data-maintenance-panel') === target; })) {
+      target = 'overview';
+    }
+    tabs.forEach(function (tab) {
+      var active = tab.getAttribute('data-maintenance-tab') === target;
+      tab.classList.toggle('is-active', active);
+      tab.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    panels.forEach(function (panel) {
+      panel.classList.toggle('is-active', panel.getAttribute('data-maintenance-panel') === target);
+    });
+    if (pushHash) {
+      history.replaceState(null, '', '#maintenance-' + target);
+    }
+  }
+  tabs.forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      showMaintenanceTab(tab.getAttribute('data-maintenance-tab'), true);
+    });
+  });
+  var initialTab = (window.location.hash || '').replace('#maintenance-', '');
+  showMaintenanceTab(initialTab || 'overview', false);
+
   if (!root || !btn) return;
   var KEY = 'admin-theme-mode';
   function setTheme(mode) {

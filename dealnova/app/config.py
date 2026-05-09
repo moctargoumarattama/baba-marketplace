@@ -84,6 +84,9 @@ class Config:
     ADMIN_PHONE = os.getenv("ADMIN_PHONE", "+212770010264")
     SUPPORT_WHATSAPP_NUMBER = os.getenv("SUPPORT_WHATSAPP_NUMBER", ADMIN_PHONE)
     RENTAL_VISIT_WHATSAPP_NUMBER = os.getenv("RENTAL_VISIT_WHATSAPP_NUMBER", "212602908954")
+    VENDOR_PUSH_VAPID_PUBLIC_KEY = os.getenv("VENDOR_PUSH_VAPID_PUBLIC_KEY", "")
+    VENDOR_PUSH_VAPID_PRIVATE_KEY = os.getenv("VENDOR_PUSH_VAPID_PRIVATE_KEY", "")
+    VENDOR_PUSH_VAPID_EMAIL = os.getenv("VENDOR_PUSH_VAPID_EMAIL", os.getenv("ADMIN_EMAIL", "admin@babamarket.local"))
 
     # UPLOAD_FOLDER: rendre absolu si relatif (plus robuste)
     _upload_folder_env = os.getenv("UPLOAD_FOLDER", "app/static/uploads")
@@ -175,6 +178,7 @@ class Config:
 
     SECURITY_ALERT_WEBHOOK_URL = os.getenv("SECURITY_ALERT_WEBHOOK_URL", "")
     MAINTENANCE_BACKUP_DIR = os.getenv("MAINTENANCE_BACKUP_DIR", "")
+    DB_BACKUP_RETENTION_DAYS = int(os.getenv("DB_BACKUP_RETENTION_DAYS", "30"))
 
     @staticmethod
     def _safe_num_eval(expr: str):

@@ -1,6 +1,7 @@
 import json
 import re
 import time
+import hashlib
 from datetime import datetime, timedelta
 from functools import lru_cache
 from collections import OrderedDict
@@ -23,6 +24,7 @@ from ..services.pricing import (
     compute_shipping_by_city as pricing_shipping_by_city,
 )
 from ..services.guest_session import GuestSessionManager
+from ..services.vendor_push import notify_product_contact_leads
 from ..middleware.rate_limit import rate_limit
 
 
@@ -368,6 +370,23 @@ def record_product_contact_leads(checkout_data, client_data):
         current_app.logger.exception("product_contact_lead_record_failed")
         return 0
     return created
+
+
+def _checkout_contact_session_key(group) -> str:
+    shop = (group or {}).get("shop")
+    shop_id = getattr(shop, "id", None)
+    summary = []
+    for item in (group or {}).get("items", []):
+        product = _cart_item_product(item)
+        summary.append({
+            "product_id": getattr(product, "id", None),
+            "quantity": _cart_item_quantity(item),
+            "line_total_cents": _cart_item_line_total_cents(item),
+        })
+    digest = hashlib.sha1(
+        json.dumps(summary, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()[:16]
+    return f"product_whatsapp:{shop_id}:{digest}"
 
 
 def _product_kind(product) -> str:
@@ -1104,6 +1123,8 @@ def _physical_cart_items_for_checkout(cart, product_map, promo_map):
 @bp.route("/checkout", methods=["GET", "POST"])
 @rate_limit(limit=20, window_seconds=300, key_prefix="checkout", methods=("POST",))
 def checkout():
+    if request.method == "GET":
+        return _render_whatsapp_checkout_page()
     return whatsapp_checkout()
 
 
@@ -1121,6 +1142,10 @@ def ajax_shipping(city):
 @log_performance
 def whatsapp_checkout():
     """Prepare les demandes WhatsApp par boutique pour les produits physiques."""
+    return _render_whatsapp_checkout_page(log_contact_attempt=True)
+
+
+def _render_whatsapp_checkout_page(*, log_contact_attempt=False):
     cart = get_cart()
     product_map, promo_map = _get_cached_cart_data(cart, include_shop=True)
     removed_services = _remove_service_items_from_cart(cart, product_map)
@@ -1139,11 +1164,12 @@ def whatsapp_checkout():
         )
         return _ajax_error(msg, status=400, flash_category="warning", redirect_endpoint="shop.home")
 
-    current_app.logger.info(
-        "checkout_contact_start user_id=%s ajax=%s",
-        current_user.id if current_user.is_authenticated else None,
-        _is_ajax_request(),
-    )
+    if log_contact_attempt:
+        current_app.logger.info(
+            "checkout_contact_start user_id=%s ajax=%s",
+            current_user.id if current_user.is_authenticated else None,
+            _is_ajax_request(),
+        )
 
     client_ip = _client_ip()
 
@@ -1166,7 +1192,6 @@ def whatsapp_checkout():
 
     client_data = {}
     checkout_data = prepare_vendor_whatsapp_checkout(items, client_data)
-    record_product_contact_leads(checkout_data, client_data)
 
     if _is_ajax_request():
         return jsonify({
@@ -1182,6 +1207,66 @@ def whatsapp_checkout():
         client_data=client_data,
     ))
     return response
+
+
+@bp.route("/whatsapp/contact/<int:shop_id>", methods=["POST"])
+@rate_limit(limit=60, window_seconds=300, key_prefix="whatsapp_contact", methods=("POST",))
+def record_whatsapp_contact(shop_id):
+    """Trace un contact produit seulement quand le client ouvre WhatsApp."""
+    cart = get_cart()
+    product_map, promo_map = _get_cached_cart_data(cart, include_shop=True)
+    if not cart:
+        return jsonify({"success": False, "message": "Panier vide"}), 400
+
+    items, _subtotal_cents, cart_error = _physical_cart_items_for_checkout(cart, product_map, promo_map)
+    if cart_error:
+        return jsonify({"success": False, "message": cart_error}), 409
+    if not items:
+        return jsonify({"success": False, "message": "Panier vide"}), 400
+
+    client_data = {}
+    checkout_data = prepare_vendor_whatsapp_checkout(items, client_data)
+    selected_group = None
+    for group in checkout_data.get("shop_groups", []):
+        shop = group.get("shop")
+        if getattr(shop, "id", None) == shop_id:
+            selected_group = group
+            break
+
+    if not selected_group:
+        return jsonify({"success": False, "message": "Boutique introuvable"}), 404
+    if not selected_group.get("phone_available") or not selected_group.get("whatsapp_url"):
+        return jsonify({"success": False, "message": "WhatsApp indisponible"}), 409
+
+    contact_key = _checkout_contact_session_key(selected_group)
+    contacted_keys = session.get("product_whatsapp_contact_keys")
+    if not isinstance(contacted_keys, list):
+        contacted_keys = []
+
+    recorded = False
+    if contact_key not in contacted_keys:
+        created = record_product_contact_leads(
+            {"shop_groups": [selected_group]},
+            client_data,
+        )
+        if created:
+            try:
+                notify_product_contact_leads({"shop_groups": [selected_group]})
+            except Exception:
+                current_app.logger.exception(
+                    "vendor_push.product_contact_notify_failed",
+                    extra={"shop_id": shop_id},
+                )
+            contacted_keys.append(contact_key)
+            session["product_whatsapp_contact_keys"] = contacted_keys[-100:]
+            session.modified = True
+            recorded = True
+
+    return jsonify({
+        "success": True,
+        "recorded": recorded,
+        "whatsapp_url": selected_group["whatsapp_url"],
+    })
 
 
 # VIDER PANIER

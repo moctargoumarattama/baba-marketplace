@@ -1,5 +1,5 @@
 {% extends "vendor/base.html" %}
-{% block title %}Paiements reçus | Espace vendeur{% endblock %}
+{% block title %}Caisse vendeur | Espace vendeur{% endblock %}
 
 {% block head %}
 {{ super() }}
@@ -13,8 +13,8 @@
       <div style="position: relative; z-index: 2;">
         <div class="earnings-hero-top">
           <h1 class="earnings-title">
-            <i class="bi bi-wallet2"></i>
-            Paiements reçus
+            <i class="bi bi-cash-stack"></i>
+            Caisse vendeur
           </h1>
           <a href="{{ url_for('vendor.dashboard') }}" class="btn-back-quick" data-stop-nav>
             <i class="bi bi-arrow-left"></i>
@@ -22,25 +22,25 @@
           </a>
         </div>
         <p class="earnings-subtitle">
-          Suivez vos paiements produits par jour, mois ou année.
+          Comptez l'argent encaissé dans votre commerce. Baba Market affiche les commandes, vous gardez la main sur la caisse.
         </p>
       </div>
 
       <div class="filter-section" style="margin-top: 1.5rem;">
         <form class="filter-pill" method="get">
           <span class="form-label mb-0">Filtre</span>
-          <select class="form-select form-select-sm" name="range" style="width: 150px;">
+          <select class="form-select form-select-sm" name="range" style="width: 150px;" data-earnings-range-select="true">
             <option value="today" {% if range_filter == 'today' %}selected{% endif %}>Aujourd'hui</option>
             <option value="month" {% if range_filter == 'month' %}selected{% endif %}>Ce mois</option>
             <option value="year" {% if range_filter == 'year' %}selected{% endif %}>Cette année</option>
             <option value="custom" {% if range_filter == 'custom' %}selected{% endif %}>Dates</option>
           </select>
-          <input class="form-control form-control-sm" type="date" name="from" value="{{ date_from }}" style="width: 150px;">
-          <input class="form-control form-control-sm" type="date" name="to" value="{{ date_to }}" style="width: 150px;">
+          <input class="form-control form-control-sm" type="date" name="from" value="{{ date_from }}" style="width: 150px;" data-earnings-date-input="true">
+          <input class="form-control form-control-sm" type="date" name="to" value="{{ date_to }}" style="width: 150px;" data-earnings-date-input="true">
           <select class="form-select form-select-sm" name="show" style="width: 145px;">
             <option value="all" {% if show == 'all' %}selected{% endif %}>Tout</option>
             <option value="pending" {% if show == 'pending' %}selected{% endif %}>À vérifier</option>
-            <option value="confirmed" {% if show == 'confirmed' %}selected{% endif %}>Reçu</option>
+            <option value="confirmed" {% if show == 'confirmed' %}selected{% endif %}>Encaissé</option>
           </select>
           <button class="btn-filter" type="submit">
             <i class="bi bi-funnel"></i> Filtrer
@@ -49,7 +49,7 @@
 
         <div class="search-pill" role="search" aria-label="Recherche rapide">
           <i class="bi bi-search"></i>
-          <input id="quickSearch" class="search-input" type="search" placeholder="Rechercher une commande ou un produit" autocomplete="off" spellcheck="false">
+          <input id="quickSearch" class="search-input" type="search" placeholder="Rechercher commande ou produit" autocomplete="off" spellcheck="false">
           <button id="clearSearch" class="search-clear" type="button" aria-label="Effacer la recherche" hidden>
             <i class="bi bi-x-lg"></i>
           </button>
@@ -60,7 +60,7 @@
     <div class="stats-grid">
       <div class="stat-tile">
         <div class="stat-label">
-          <i class="bi bi-cash-coin"></i> Reçu
+          <i class="bi bi-cash-coin"></i> Encaissé
         </div>
         <div class="stat-value">{{ '%.2f'|format(total_confirmed / 100) }} <span class="stat-unit">MAD</span></div>
       </div>
@@ -72,16 +72,16 @@
       </div>
       <div class="stat-tile">
         <div class="stat-label">
-          <i class="bi bi-calculator"></i> Total filtre
+          <i class="bi bi-calculator"></i> Total ventes
         </div>
         <div class="stat-value">{{ '%.2f'|format((total_confirmed + total_pending) / 100) }} <span class="stat-unit">MAD</span></div>
       </div>
       <div class="stat-tile">
         <div class="stat-label">
-          <i class="bi bi-calendar-check"></i> Vue
+          <i class="bi bi-receipt-cutoff"></i> Commandes
         </div>
-        <div class="stat-value" style="font-size: 1.05rem; line-height: 1.25;">
-          {{ date_range_label }}
+        <div class="stat-value">
+          {{ total_orders_count }}
         </div>
       </div>
     </div>
@@ -91,11 +91,11 @@
         <div class="table-card-header">
           <h5>
             <i class="bi bi-receipt"></i>
-            Paiements par commande
+            Commandes à compter
           </h5>
           <div class="earnings-note">
             <i class="bi bi-info-circle"></i>
-            Cliquez sur "Je suis payé" quand vous avez bien reçu l'argent.
+            Marquez une commande seulement quand l'argent est bien dans votre caisse.
           </div>
         </div>
 
@@ -105,9 +105,9 @@
               <tr>
                 <th>Commande</th>
                 <th>Produits</th>
-                <th>Montant</th>
+                <th>Montant à compter</th>
                 <th>Date</th>
-                <th>Note</th>
+                <th>Note caisse</th>
                 <th class="text-end">Statut</th>
               </tr>
             </thead>
@@ -151,17 +151,17 @@
                 <td data-label="Date">
                   {{ order.created_at.strftime('%d/%m/%Y') if order and order.created_at else '-' }}
                 </td>
-                <td data-label="Note">
+                <td data-label="Note caisse">
                   {% if receipt %}
                     <span class="text-muted">{{ receipt.note if receipt.note else '-' }}</span>
                   {% else %}
-                    <input class="pay-input" form="receipt-form-{{ order.id }}" name="note" placeholder="Note (optionnel)" maxlength="255">
+                    <input class="pay-input" form="receipt-form-{{ order.id }}" name="note" placeholder="Ex: cash, virement..." maxlength="255">
                   {% endif %}
                 </td>
                 <td data-label="Statut" class="text-end">
                   {% if receipt %}
                     <span class="pay-badge confirmed">
-                      <i class="bi bi-check2-circle"></i> Reçu
+                      <i class="bi bi-check2-circle"></i> Encaissé
                     </span>
                   {% else %}
                     <div class="d-flex flex-column align-items-end gap-2">
@@ -172,12 +172,12 @@
                         {% include "partials/_csrf.html" %}
                         {% if not coach_receipt.done %}
                           {% set coach_receipt.done = True %}
-                          <button class="pay-btn" type="submit" data-coach="vendor_receipt" data-coach-priority="10" data-coach-text="Astuce : cliquez sur Je suis payé seulement quand vous avez bien reçu le paiement.">
-                            ✓ Je suis payé
+                          <button class="pay-btn" type="submit" data-coach="vendor_receipt" data-coach-priority="10" data-coach-text="Astuce : marquez encaissé seulement quand l'argent est bien dans votre caisse.">
+                            <i class="bi bi-check2-circle"></i> Marquer encaissé
                           </button>
                         {% else %}
                           <button class="pay-btn" type="submit">
-                            ✓ Je suis payé
+                            <i class="bi bi-check2-circle"></i> Marquer encaissé
                           </button>
                         {% endif %}
                       </form>
@@ -196,7 +196,7 @@
         </div>
 
         {% if pagination and pagination.pages > 1 %}
-        <nav class="pagination-premium" aria-label="Navigation des paiements">
+        <nav class="pagination-premium" aria-label="Navigation des encaissements">
           <a href="{{ url_for('vendor.earnings', page=pagination.prev_num, range=range_filter, **{'from': date_from, 'to': date_to, 'show': show}) if pagination.has_prev else '#' }}"
              class="pagination-item {% if not pagination.has_prev %}disabled{% endif %}">
             <i class="bi bi-chevron-left"></i>
@@ -223,9 +223,9 @@
 
     {% else %}
       <div class="empty-earnings">
-        <i class="bi bi-wallet2"></i>
-        <h5>Aucune commande pour ce filtre</h5>
-        <p>Les commandes s'afficheront ici quand vous aurez des paiements à vérifier.</p>
+        <i class="bi bi-cash-stack"></i>
+        <h5>Aucune commande à compter</h5>
+        <p>Les ventes de votre commerce s'afficheront ici quand des commandes seront créées.</p>
         <div style="margin-top: 1.5rem;">
           <a href="{{ url_for('vendor.dashboard') }}" class="btn-history" style="background: var(--earn-brand); color: white; border: none; display: inline-flex; align-items: center; gap: 0.5rem;">
             <i class="bi bi-arrow-left-circle"></i>
@@ -246,8 +246,8 @@
     <i class="bi bi-check2-circle"></i>
   </div>
   <div class="toast-content">
-    <div class="toast-title">Paiement enregistré</div>
-    <div class="toast-message" id="toastMessage">Le paiement a bien été enregistré</div>
+    <div class="toast-title">Encaissement enregistré</div>
+    <div class="toast-message" id="toastMessage">La commande est maintenant marquée encaissée</div>
   </div>
   <button class="toast-close" type="button" aria-label="Fermer" data-close-target=".earnings-toast" data-stop-nav>
     <i class="bi bi-x"></i>

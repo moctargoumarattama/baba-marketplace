@@ -26,7 +26,15 @@ from .routes import auth, shop, vendor, cart, booking, admin, admin_categories, 
 from .services.logging_service import logging_service
 from .services.image import image_variant
 from .services.cache import cache
-from .services.migration import ensure_featured_items_table
+from .services.migration import (
+    ensure_featured_items_table,
+    ensure_admin_performance_indexes,
+    ensure_platform_settings_columns,
+    ensure_promo_workflow_columns,
+    ensure_vendor_application_table,
+    ensure_vendor_change_request_table,
+    ensure_vendor_push_subscription_table,
+)
 from .services.shop_access import is_safe_public_shop_slug, normalize_public_shop_slug
 from .services.i18n_labels import (
     label_delivery_status,
@@ -79,6 +87,12 @@ def create_app(config_class=Config):
     with app.app_context():
         logging_service.setup_logging()
         ensure_featured_items_table()
+        ensure_vendor_application_table()
+        ensure_vendor_change_request_table()
+        ensure_vendor_push_subscription_table()
+        ensure_platform_settings_columns()
+        ensure_promo_workflow_columns()
+        ensure_admin_performance_indexes()
         if app.config.get("SECRET_KEY") == "dev":
             app.logger.warning("SECURITY: SECRET_KEY par défaut détectée. Configurez une clé forte.")
 
@@ -964,12 +978,6 @@ def create_app(config_class=Config):
     #  ROUTE POUR LA RECHERCHE GLOBALE
     @app.route("/search")
     def global_search():
-        from .models.product import Product
-        from .models.shop import Shop
-        from .models.category import Category
-        from .models.rental import RentalListing
-        from flask import request
-
         q = request.args.get("q", "").strip()
         search_type = request.args.get("type", "products")
 
@@ -979,45 +987,6 @@ def create_app(config_class=Config):
             "categories": [],
             "locations": []
         }
-
-        if q:
-            # Recherche de produits
-            if search_type in ["products", "all"]:
-                product_results = Product.query.filter(
-                    Product.is_active == True,
-                    Product.name.ilike(f"%{q}%")
-                ).limit(10).all()
-                results["products"] = product_results
-
-            # Recherche de boutiques
-            if search_type in ["shops", "all"]:
-                shop_results = Shop.query.filter(
-                    Shop.is_active == True,
-                    (Shop.name.ilike(f"%{q}%") | Shop.description.ilike(f"%{q}%"))
-                ).limit(10).all()
-                results["shops"] = shop_results
-
-            # Recherche de catgories
-            if search_type in ["products", "all"]:
-                category_results = Category.query.filter(
-                    Category.name.ilike(f"%{q}%")
-                ).limit(5).all()
-                results["categories"] = category_results
-
-            # Recherche de locations
-            if search_type in ["locations", "all"]:
-                now = datetime.utcnow()
-                location_results = RentalListing.query.filter(
-                    RentalListing.is_active == True,
-                    RentalListing.status.in_(["active", "reserved"]),
-                    RentalListing.expires_at > now,
-                    or_(
-                        RentalListing.title.ilike(f"%{q}%"),
-                        RentalListing.city.ilike(f"%{q}%"),
-                        RentalListing.area.ilike(f"%{q}%")
-                    )
-                ).limit(10).all()
-                results["locations"] = location_results
 
         return render_template(
             "search/results.html",

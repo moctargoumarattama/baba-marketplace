@@ -1,8 +1,8 @@
 ﻿{% extends "admin/base.html" %}
 
-{% block title %}Créer un Utilisateur | DealNova Admin{% endblock %}
+{% block title %}Créer un Compte | DealNova Admin{% endblock %}
 
-{% block page_title %}{{ 'Ajouter un compte' if current_user.role == 'manager' else 'Créer un Utilisateur' }}{% endblock %}
+{% block page_title %}Créer un Compte{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
@@ -11,17 +11,16 @@
             <div class="card admin-card">
                 <div class="card-header">
                     <h5 class="mb-0">
-                        <i class="bi bi-person-plus"></i> {{ 'Ajouter un nouveau compte' if current_user.role == 'manager' else 'Créer un nouvel utilisateur' }}
+                        <i class="bi bi-person-plus"></i> Créer un compte interne
                     </h5>
                 </div>
                 <div class="card-body">
                     <form method="post" action="{{ url_for('admin_users.create_user') }}">
                     {% include "admin/partials/_csrf.html" %}
                         {% set selected_role = request.form.get('role', '') %}
-                        {% set selected_primary = request.form.get('primary_type', 'products') %}
                         <div class="row g-3">
                             <div class="col-md-6">
-                                <label for="username" class="form-label">Nom du compte *</label>
+                                <label for="username" class="form-label">Nom utilisateur *</label>
                                 <input type="text" class="form-control" id="username" name="username" 
                                        value="{{ request.form.get('username', '') }}"
                                        required pattern="[a-zA-Z0-9_]+" minlength="3" maxlength="50">
@@ -46,7 +45,6 @@
                                 <label for="role" class="form-label">{{ 'Type de compte' if current_user.role == 'manager' else 'Rôle' }} *</label>
                                 <select class="form-select" id="role" name="role" required>
                                     <option value="">{{ 'Choisir un type de compte' if current_user.role == 'manager' else 'Sélectionner un rôle' }}</option>
-                                    <option value="vendor" {% if selected_role == 'vendor' %}selected{% endif %}>Vendeur</option>
                                     {% if 'manager' in manageable_roles %}
                                     <option value="manager" {% if selected_role == 'manager' %}selected{% endif %}>Gestionnaire</option>
                                     {% endif %}
@@ -56,57 +54,18 @@
                                 </select>
                             </div>
 
-                            <div class="col-12 {% if selected_role != 'vendor' %}d-none{% endif %}" id="vendorShopFields">
-                                <div class="border rounded-3 bg-light p-3">
-                                    <div class="d-flex align-items-center gap-2 mb-3">
-                                        <i class="bi bi-shop"></i>
-                                        <strong>Creation rapide de la boutique</strong>
-                                    </div>
-                                    <div class="row g-3">
-                                        <div class="col-md-8">
-                                            <label for="shop_name" class="form-label">Nom de la boutique *</label>
-                                            <input type="text"
-                                                   class="form-control"
-                                                   id="shop_name"
-                                                   name="shop_name"
-                                                   value="{{ request.form.get('shop_name', '') }}"
-                                                   {% if selected_role == 'vendor' %}required{% endif %}>
-                                            <div class="form-text">Le vendeur pourra completer la description, le contact et l'adresse plus tard depuis son compte.</div>
-                                        </div>
-                                        <div class="col-md-4">
-                                            <label for="primary_type" class="form-label">Type principal *</label>
-                                            <select class="form-select"
-                                                    id="primary_type"
-                                                    name="primary_type"
-                                                    {% if selected_role == 'vendor' %}required{% endif %}>
-                                                {% for shop_type in shop_type_order %}
-                                                <option value="{{ shop_type }}" {% if selected_primary == shop_type %}selected{% endif %}>
-                                                    {{ shop_type_labels.get(shop_type, shop_type|title) }}
-                                                </option>
-                                                {% endfor %}
-                                            </select>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="col-md-6 {% if selected_role == 'vendor' %}d-none{% endif %}" id="userPhoneField">
+                            <div class="col-md-6">
                                 <label for="phone" class="form-label">Téléphone</label>
                                 <input type="tel" class="form-control" id="phone" name="phone" value="{{ request.form.get('phone', '') }}">
                             </div>
                             
-                            <div class="col-12 {% if selected_role == 'vendor' %}d-none{% endif %}" id="userAddressField">
-                                <label for="address" class="form-label">Adresse</label>
-                                <textarea class="form-control" id="address" name="address" rows="2">{{ request.form.get('address', '') }}</textarea>
-                            </div>
-
                             <div class="col-12 mt-4">
                                 <div class="d-flex justify-content-between">
                                     <a href="{{ url_for('admin_users.manage_users') }}" class="btn btn-outline-secondary">
                                         <i class="bi bi-arrow-left"></i> Retour
                                     </a>
                                     <button type="submit" class="btn btn-primary">
-                                        <i class="bi bi-check-circle"></i> {{ 'Enregistrer le compte' if current_user.role == 'manager' else "Créer l'utilisateur" }}
+                                        <i class="bi bi-check-circle"></i> Créer l'utilisateur
                                     </button>
                                 </div>
                             </div>
@@ -114,59 +73,9 @@
                     </form>
                 </div>
             </div>
-            
-            <!-- Info simple -->
-            <div class="card admin-card mt-4">
-                <div class="card-body">
-                    <h6><i class="bi bi-info-circle"></i> {{ 'A savoir' if current_user.role == 'manager' else 'Informations' }}</h6>
-                    <ul class="mb-0">
-                        <li>{{ "Le compte sera cree tout de suite et pourra se connecter" if current_user.role == 'manager' else "L'utilisateur sera créé immédiatement et pourra se connecter" }}</li>
-                        <li>Pour un vendeur, seule la base de la boutique est demandee ici.</li>
-                        <li>Le vendeur pourra ensuite completer contact, adresse et localisation depuis son espace.</li>
-                        <li>Vous pourrez modifier toutes les informations plus tard</li>
-                    </ul>
-                </div>
-            </div>
         </div>
     </div>
 </div>
-
-<script>
-(function () {
-    const roleSelect = document.getElementById('role');
-    const vendorShopFields = document.getElementById('vendorShopFields');
-    const userPhoneField = document.getElementById('userPhoneField');
-    const userAddressField = document.getElementById('userAddressField');
-    const shopNameInput = document.getElementById('shop_name');
-    const primaryTypeInput = document.getElementById('primary_type');
-    const phoneInput = document.getElementById('phone');
-    const addressInput = document.getElementById('address');
-
-    function syncCreateUserRoleUI() {
-        const isVendor = roleSelect && roleSelect.value === 'vendor';
-
-        if (vendorShopFields) vendorShopFields.classList.toggle('d-none', !isVendor);
-        if (userPhoneField) userPhoneField.classList.toggle('d-none', isVendor);
-        if (userAddressField) userAddressField.classList.toggle('d-none', isVendor);
-
-        if (shopNameInput) {
-            shopNameInput.required = isVendor;
-            shopNameInput.disabled = !isVendor;
-        }
-        if (primaryTypeInput) {
-            primaryTypeInput.required = isVendor;
-            primaryTypeInput.disabled = !isVendor;
-        }
-        if (phoneInput) phoneInput.disabled = isVendor;
-        if (addressInput) addressInput.disabled = isVendor;
-    }
-
-    if (roleSelect) {
-        roleSelect.addEventListener('change', syncCreateUserRoleUI);
-        syncCreateUserRoleUI();
-    }
-})();
-</script>
 
 {% endblock %}
 

@@ -301,8 +301,8 @@
         <p class="shops-subtitle">{{ 'Retrouvez les boutiques et leur statut.' if current_user.role == 'manager' else 'Gerez les vendeurs, statuts et informations de contact.' }}</p>
       </div>
       <div class="shops-cta">
-        <a href="{{ url_for('admin_users.create_shop') }}" class="btn btn-primary">
-          <i class="bi bi-shop"></i> {{ 'Ajouter une boutique' if current_user.role == 'manager' else 'Nouvelle boutique' }}
+        <a href="{{ url_for('admin_users.vendor_requests') }}" class="btn btn-primary">
+          <i class="bi bi-person-check"></i> Demandes vendeurs
         </a>
       </div>
     </div>

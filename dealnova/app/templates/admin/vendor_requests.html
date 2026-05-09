@@ -1,0 +1,267 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Demandes vendeurs | DealNova Admin{% endblock %}
+{% block page_title %}Demandes vendeurs{% endblock %}
+{% block body_attrs %}data-adm-page="vendor-requests"{% endblock %}
+
+{% block head %}
+<style>
+  .admin-simple-guide {
+    align-items: center;
+    background: #ecfdf5;
+    border: 1px solid #bbf7d0;
+    border-radius: 10px;
+    color: #065f46;
+    display: flex;
+    gap: .65rem;
+    margin-bottom: .75rem;
+    padding: .7rem .85rem;
+  }
+
+  .admin-simple-guide strong {
+    color: #064e3b;
+    display: block;
+    font-size: .84rem;
+    line-height: 1.2;
+  }
+
+  .admin-simple-guide span {
+    display: block;
+    font-size: .8rem;
+    line-height: 1.35;
+  }
+
+  .admin-help-line {
+    color: #64748b;
+    font-size: .78rem;
+    margin-top: .18rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  {% set status_labels = {
+    'pending': 'A traiter',
+    'approved': 'Acceptees',
+    'rejected': 'Refusees',
+    'blocked': 'Bloquees'
+  } %}
+  {% set shop_type_labels = {
+    'products': 'Produits',
+    'services': 'Services',
+    'location': 'Location'
+  } %}
+
+  <div class="admin-simple-guide">
+    <i class="bi bi-lightbulb"></i>
+    <div>
+      <strong>A faire maintenant</strong>
+      <span>Ces personnes veulent ouvrir une boutique. Verifiez le nom, le telephone et la boutique, puis acceptez ou refusez.</span>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-md-3 col-6">
+      <a class="text-decoration-none" href="{{ url_for('admin_users.vendor_requests', status='pending', search=search, per_page=per_page) }}">
+      <div class="card admin-card h-100 {% if status_filter == 'pending' %}border border-warning{% endif %}">
+        <div class="card-body">
+          <div class="text-muted small text-uppercase">A traiter</div>
+          <div class="h4 mb-0">{{ pending_count }}</div>
+        </div>
+      </div>
+      </a>
+    </div>
+    <div class="col-md-3 col-6">
+      <a class="text-decoration-none" href="{{ url_for('admin_users.vendor_requests', status='approved', search=search, per_page=per_page) }}">
+      <div class="card admin-card h-100 {% if status_filter == 'approved' %}border border-success{% endif %}">
+        <div class="card-body">
+          <div class="text-muted small text-uppercase">Acceptees</div>
+          <div class="h4 mb-0">{{ approved_count }}</div>
+        </div>
+      </div>
+      </a>
+    </div>
+    <div class="col-md-3 col-6">
+      <a class="text-decoration-none" href="{{ url_for('admin_users.vendor_requests', status='rejected', search=search, per_page=per_page) }}">
+      <div class="card admin-card h-100 {% if status_filter == 'rejected' %}border border-secondary{% endif %}">
+        <div class="card-body">
+          <div class="text-muted small text-uppercase">Refusees</div>
+          <div class="h4 mb-0">{{ rejected_count }}</div>
+        </div>
+      </div>
+      </a>
+    </div>
+    <div class="col-md-3 col-6">
+      <a class="text-decoration-none" href="{{ url_for('admin_users.vendor_requests', status='blocked', search=search, per_page=per_page) }}">
+      <div class="card admin-card h-100 {% if status_filter == 'blocked' %}border border-danger{% endif %}">
+        <div class="card-body">
+          <div class="text-muted small text-uppercase">Bloquees</div>
+          <div class="h4 mb-0">{{ blocked_count }}</div>
+        </div>
+      </div>
+      </a>
+    </div>
+  </div>
+
+  <div class="card admin-card mb-3">
+    <div class="card-body">
+      <form method="get" class="row g-2 align-items-end">
+        <div class="col-md-3">
+          <label class="form-label">Voir les demandes</label>
+          <select class="form-select" name="status">
+            <option value="">Tous</option>
+            {% for st in status_order %}
+            <option value="{{ st }}" {% if status_filter == st %}selected{% endif %}>
+              {{ status_labels.get(st, st) }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-5">
+          <label class="form-label">Chercher une personne ou une boutique</label>
+          <input type="text" class="form-control" name="search" value="{{ search or '' }}" placeholder="Nom, telephone, email, boutique, ville...">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Par page</label>
+          <select class="form-select" name="per_page">
+            {% for option in per_page_options %}
+            <option value="{{ option }}" {% if per_page == option %}selected{% endif %}>{{ option }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-2 d-flex gap-2">
+          <button class="btn btn-primary flex-fill" type="submit">
+            <i class="bi bi-funnel-fill"></i> Filtrer
+          </button>
+          <a class="btn btn-outline-secondary" href="{{ url_for('admin_users.vendor_requests') }}">
+            <i class="bi bi-arrow-counterclockwise"></i>
+          </a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card admin-card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <h5 class="mb-0">Demandes vendeurs ({{ pagination.total }})</h5>
+      {% set start_index = ((pagination.page - 1) * pagination.per_page) + 1 if pagination.total else 0 %}
+      {% set end_index = start_index + (requests_items|length) - 1 if requests_items else 0 %}
+      <small class="text-muted">
+        Affichage {{ start_index }}-{{ end_index }} sur {{ pagination.total }} • Page {{ pagination.page }} sur {{ pagination.pages or 1 }}
+      </small>
+    </div>
+    <div class="card-body p-0">
+      {% if requests_items %}
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th style="min-width: 140px;">Date</th>
+              <th style="min-width: 220px;">Demandeur</th>
+              <th style="min-width: 220px;">Boutique</th>
+              <th style="min-width: 180px;">Ou en est la demande ?</th>
+              <th style="min-width: 220px;">Decision prise</th>
+              <th style="min-width: 360px;">Que faire ?</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for req in requests_items %}
+            <tr>
+              <td>
+                <div>{{ req.created_at.strftime('%d/%m/%Y %H:%M') if req.created_at else '-' }}</div>
+              </td>
+              <td>
+                <div class="fw-semibold">{{ req.full_name }}</div>
+                <div class="small text-muted">{{ req.phone }}</div>
+                <div class="small text-muted">{{ req.email or 'Email non fourni' }}</div>
+              </td>
+              <td>
+                <div class="fw-semibold">{{ req.shop_name }}</div>
+                <div class="small text-muted">{{ req.city }}</div>
+                <div class="small text-muted">Activite: {{ shop_type_labels.get(req.shop_type, req.shop_type) }}</div>
+                {% if req.short_description %}
+                <div class="small text-muted mt-1">{{ req.short_description }}</div>
+                {% endif %}
+              </td>
+              <td>
+                {% if req.status == 'pending' %}
+                <span class="badge bg-warning text-dark">A traiter</span>
+                {% elif req.status == 'approved' %}
+                <span class="badge bg-success">Acceptee</span>
+                {% elif req.status == 'rejected' %}
+                <span class="badge bg-secondary">Refusee</span>
+                {% elif req.status == 'blocked' %}
+                <span class="badge bg-danger">Bloquee</span>
+                {% else %}
+                <span class="badge bg-light text-dark">{{ req.status }}</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if req.reviewed_at %}
+                <div class="small">{{ req.reviewed_at.strftime('%d/%m/%Y %H:%M') }}</div>
+                <div class="small text-muted">
+                  {% set reviewer = reviewers.get(req.reviewed_by_id) if req.reviewed_by_id else None %}
+                  {{ reviewer.username if reviewer else 'Systeme' }}
+                </div>
+                {% else %}
+                <span class="text-muted small">-</span>
+                {% endif %}
+                {% if req.review_note %}
+                <div class="small mt-1"><strong>Note:</strong> {{ req.review_note }}</div>
+                {% endif %}
+                {% if req.created_user_id %}
+                <div class="small mt-1">
+                  <a href="{{ url_for('admin_users.user_detail', user_id=req.created_user_id) }}">Compte vendeur #{{ req.created_user_id }}</a>
+                </div>
+                {% endif %}
+                {% if req.created_shop_id %}
+                <div class="small">
+                  <a href="{{ url_for('admin_users.shop_detail', shop_id=req.created_shop_id) }}">Boutique #{{ req.created_shop_id }}</a>
+                </div>
+                {% endif %}
+              </td>
+              <td>
+                {% if req.status == 'pending' %}
+                <form method="post" class="d-grid gap-2">
+                  {% include "admin/partials/_csrf.html" %}
+                  <input type="text" name="note" class="form-control form-control-sm" maxlength="500" placeholder="Note interne ou motif si vous refusez/bloquez">
+                  <div class="d-flex flex-wrap gap-2">
+                    <button type="submit" formaction="{{ url_for('admin_users.vendor_request_approve', request_id=req.id) }}" class="btn btn-sm btn-success">
+                      <i class="bi bi-check2-circle"></i> Accepter et creer le compte vendeur
+                    </button>
+                    <button type="submit" formaction="{{ url_for('admin_users.vendor_request_reject', request_id=req.id) }}" class="btn btn-sm btn-outline-secondary">
+                      <i class="bi bi-x-circle"></i> Refuser cette demande
+                    </button>
+                    <button type="submit" formaction="{{ url_for('admin_users.vendor_request_block', request_id=req.id) }}" class="btn btn-sm btn-outline-danger">
+                      <i class="bi bi-slash-circle"></i> Bloquer ce contact
+                    </button>
+                  </div>
+                  <div class="admin-help-line">Accepter cree le compte vendeur et sa boutique.</div>
+                </form>
+                {% else %}
+                <span class="text-muted small">Decision deja prise</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="p-4 text-center text-muted">
+        Aucune demande dans cette liste.
+      </div>
+      {% endif %}
+    </div>
+    {% if pagination.pages > 1 %}
+    <div class="card-footer">
+      {% set endpoint = 'admin_users.vendor_requests' %}
+      {% set params = {'status': status_filter, 'search': search, 'per_page': per_page} %}
+      {% set iter_args = {'left_edge': 1, 'left_current': 1, 'right_current': 2, 'right_edge': 1} %}
+      {% include "admin/partials/_pagination.html" %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

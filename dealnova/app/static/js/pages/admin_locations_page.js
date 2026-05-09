@@ -74,6 +74,7 @@
     var archivesPg = document.getElementById("archivesPg");
     var listingsSub = document.getElementById("listingsSub");
     var archivesSub = document.getElementById("archivesSub");
+    var locationsStats = document.getElementById("locationsStats");
 
     if (!listingsTbody || !archivesTbody || !listingsPg || !archivesPg) return;
 
@@ -91,7 +92,9 @@
       searchInd.classList.toggle("on", !!on);
     }
 
-    function buildURL(lp, ap) {
+    function buildURL(lp, ap, options) {
+      var cfg = options || {};
+      var section = String(cfg.section || "").trim();
       var params = new URLSearchParams();
       if (state.q) params.set("q", state.q);
       if (state.status) params.set("status", state.status);
@@ -101,6 +104,8 @@
       if (state.dateTo) params.set("date_to", state.dateTo);
       params.set("page", String(lp || state.lpage || 1));
       params.set("apage", String(ap || state.apage || 1));
+      if (section) params.set("section", section);
+      if (cfg.includeStats) params.set("stats", "1");
       return baseUrl + "?" + params.toString();
     }
 
@@ -130,7 +135,7 @@
       });
     }
 
-    async function fetchHtml(lp, ap) {
+    async function fetchHtml(lp, ap, options) {
       if (activeController && typeof activeController.abort === "function") {
         try {
           activeController.abort();
@@ -139,7 +144,7 @@
       activeController = typeof AbortController !== "undefined" ? new AbortController() : null;
 
       var requestId = seq.next();
-      var response = await requestText(buildURL(lp, ap), {
+      var response = await requestText(buildURL(lp, ap, options), {
         headers: { "X-Requested-With": "XMLHttpRequest" },
         signal: activeController ? activeController.signal : undefined,
       });
@@ -154,6 +159,10 @@
       var cfg = options || {};
       var includeListings = !!cfg.includeListings;
       var includeArchives = !!cfg.includeArchives;
+      var nextStats = doc.getElementById("locationsStats");
+      if (locationsStats && nextStats) {
+        locationsStats.innerHTML = nextStats.innerHTML;
+      }
 
       if (includeListings) {
         var nextListingsBody = doc.getElementById("listingsTbody");
@@ -193,7 +202,7 @@
       setMasks(true, false);
 
       try {
-        var payload = await fetchHtml(state.lpage, state.apage);
+        var payload = await fetchHtml(state.lpage, state.apage, { section: "listings" });
         if (payload.stale) return;
         var response = payload.response;
         if (!response || !response.ok) {
@@ -222,7 +231,7 @@
       setMasks(false, true);
 
       try {
-        var payload = await fetchHtml(state.lpage, state.apage);
+        var payload = await fetchHtml(state.lpage, state.apage, { section: "archives" });
         if (payload.stale) return;
         var response = payload.response;
         if (!response || !response.ok) {
@@ -252,7 +261,7 @@
       setMasks(true, true);
 
       try {
-        var payload = await fetchHtml(state.lpage, state.apage);
+        var payload = await fetchHtml(state.lpage, state.apage, { section: "both", includeStats: true });
         if (payload.stale) return;
         var response = payload.response;
         if (!response || !response.ok) {

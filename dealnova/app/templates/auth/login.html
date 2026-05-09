@@ -161,54 +161,15 @@
     background: white;
     color: #047857;
     border-color: rgba(16,185,129,0.28);
+    box-shadow: 0 3px 10px rgba(15,23,42,0.04);
   }
 
   .auth-mini-btn--ghost:hover {
-    background: #f0fdf8;
-    border-color: #10b981;
+    background: #ecfdf5;
+    border-color: rgba(16,185,129,0.5);
+    color: #065f46;
+    box-shadow: 0 5px 14px rgba(16,185,129,0.14);
   }
-
-  .auth-marketing-note {
-    margin-top: 0.5rem;
-    font-size: clamp(0.72rem, 2vw, 0.78rem);
-    color: #64748b;
-    display: flex;
-    align-items: baseline;
-    flex-wrap: wrap;
-    gap: 0.25rem;
-  }
-
-  .auth-help-link {
-    border: none;
-    background: transparent;
-    color: #047857;
-    font-weight: 700;
-    font-size: inherit;
-    padding: 0;
-    text-decoration: underline;
-    text-underline-offset: 2px;
-    cursor: pointer;
-  }
-
-  .auth-help-link:hover { color: #065f46; }
-
-  .auth-access-help {
-    margin-top: 0.625rem;
-    background: rgba(16,185,129,0.06);
-    border: 1px dashed rgba(16,185,129,0.28);
-    border-radius: 10px;
-    padding: 0.75rem 0.875rem;
-  }
-
-  .auth-access-help ol {
-    margin: 0;
-    padding-left: 1.1rem;
-    color: #475569;
-    font-size: clamp(0.78rem, 2.2vw, 0.82rem);
-    line-height: 1.6;
-  }
-
-  .auth-access-help li + li { margin-top: 0.25rem; }
 
   /* ===== FORM ===== */
   .auth-body {
@@ -433,8 +394,7 @@
 
   .auth-cta:focus-visible,
   .auth-mini-btn:focus-visible,
-  .password-toggle:focus-visible,
-  .auth-help-link:focus-visible {
+  .password-toggle:focus-visible {
     outline: 2px solid #10b981;
     outline-offset: 2px;
   }
@@ -453,51 +413,31 @@
             <i class="bi bi-box-arrow-in-right"></i>
           </div>
           <h2>Bon retour</h2>
-          <p>Connectez-vous à votre espace vendeur</p>
+          <p>Connectez-vous à votre espace pro</p>
         </div>
 
-        <!-- MARKETING -->
+        <!-- ACCÈS VENDEUR -->
         <div class="auth-marketing">
           <div class="auth-marketing-title">
-            <i class="bi bi-stars"></i>
-            Espace Pro BABA Marketplace
+            <i class="bi bi-shield-check"></i>
+            Accès vendeur
           </div>
           <p class="auth-marketing-text">
-            Vendez, suivez vos commandes et gérez vos paiements en un clin d'œil.
+            Les comptes vendeurs sont activés après validation par l'administration.
           </p>
           <div class="auth-marketing-actions">
             <a class="auth-mini-btn auth-mini-btn--primary"
                href="{{ url_for('auth.vendor_access') }}"
                data-coach="vendor_access"
                data-coach-priority="10"
-               data-coach-text="Astuce : si vous n'avez pas de compte vendeur, cliquez ici pour remplir vos infos puis ouvrir WhatsApp.">
-              <i class="bi bi-whatsapp"></i>
-              Devenir vendeur
+               data-coach-text="Si vous n'avez pas encore de compte vendeur, envoyez une demande d'accès.">
+              <i class="bi bi-person-plus"></i>
+              Demander un accès vendeur
             </a>
             <a class="auth-mini-btn auth-mini-btn--ghost" href="{{ url_for('shop.home') }}">
               <i class="bi bi-shop"></i>
               Continuer sans compte
             </a>
-          </div>
-          <div class="auth-marketing-note">
-            <i class="bi bi-info-circle"></i>
-            Nouveau vendeur ? Cliquez <strong>Devenir vendeur</strong>.&nbsp;
-            <button class="auth-help-link" type="button"
-                    data-bs-toggle="collapse"
-                    data-bs-target="#vendorAccessHelp"
-                    aria-expanded="false"
-                    aria-controls="vendorAccessHelp">
-              Comment ça marche ?
-            </button>
-          </div>
-          <div class="collapse" id="vendorAccessHelp">
-            <div class="auth-access-help">
-              <ol>
-                <li>Cliquez sur <strong>Devenir vendeur</strong>.</li>
-                <li>Remplissez vos infos (nom, téléphone, ville, boutique, type).</li>
-                <li>On vous crée un compte et on vous envoie vos identifiants.</li>
-              </ol>
-            </div>
           </div>
         </div>
 

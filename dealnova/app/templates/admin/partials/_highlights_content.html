@@ -25,6 +25,7 @@
     {% include "admin/partials/_csrf.html" %}
     <input type="hidden" name="view" value="{{ featured_view }}">
     <input type="hidden" name="status" value="{{ status_filter }}">
+    <input type="hidden" name="history_page" value="{{ history_page }}">
     <input type="hidden" name="shop_q" value="{{ shop_q }}">
     <input type="hidden" name="product_q" value="{{ product_q }}">
     <input type="hidden" name="location_q" value="{{ location_q }}">
@@ -103,6 +104,7 @@
             {% include "admin/partials/_csrf.html" %}
             <input type="hidden" name="view" value="history">
             <input type="hidden" name="status" value="{{ status_filter }}">
+            <input type="hidden" name="history_page" value="{{ history_page }}">
             <input type="hidden" name="shop_q" value="{{ shop_q }}">
             <input type="hidden" name="product_q" value="{{ product_q }}">
             <input type="hidden" name="location_q" value="{{ location_q }}">
@@ -116,6 +118,31 @@
       </div>
       {% endfor %}
     </div>
+    {% if history_pagination.pages > 1 %}
+    <nav class="mt-4" aria-label="Pagination historique mise en avant">
+      <ul class="pagination justify-content-center flex-wrap gap-1 mb-0">
+        {% if history_pagination.has_prev %}
+        <li class="page-item">
+          <a class="page-link" href="{{ url_for('admin.featured_items', view='history', status=status_filter, history_page=history_pagination.prev_num, shop_q=shop_q, product_q=product_q, location_q=location_q) }}" data-highlights-link>Precedent</a>
+        </li>
+        {% endif %}
+        {% for page_num in history_pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+          {% if page_num %}
+          <li class="page-item {% if page_num == history_pagination.page %}active{% endif %}">
+            <a class="page-link" href="{{ url_for('admin.featured_items', view='history', status=status_filter, history_page=page_num, shop_q=shop_q, product_q=product_q, location_q=location_q) }}" data-highlights-link>{{ page_num }}</a>
+          </li>
+          {% else %}
+          <li class="page-item disabled"><span class="page-link">...</span></li>
+          {% endif %}
+        {% endfor %}
+        {% if history_pagination.has_next %}
+        <li class="page-item">
+          <a class="page-link" href="{{ url_for('admin.featured_items', view='history', status=status_filter, history_page=history_pagination.next_num, shop_q=shop_q, product_q=product_q, location_q=location_q) }}" data-highlights-link>Suivant</a>
+        </li>
+        {% endif %}
+      </ul>
+    </nav>
+    {% endif %}
     {% else %}
     <div class="alert alert-light border mb-0">Aucun element dans l'historique.</div>
     {% endif %}

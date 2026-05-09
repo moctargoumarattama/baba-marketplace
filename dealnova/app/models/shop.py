@@ -79,6 +79,7 @@ class Shop(db.Model):
     rating = db.Column(db.Float, default=0.0)
     review_count = db.Column(db.Integer, default=0)
     is_verified = db.Column(db.Boolean, default=False)
+    promo_trusted = db.Column(db.Boolean, default=False, nullable=False, index=True)
     is_active = db.Column(db.Boolean, default=True, nullable=False, index=True)
     # Disponibilite (repos/vacances) : n'affecte pas l'existence du compte, juste l'accueil des nouvelles commandes/rdv.
     is_open = db.Column(db.Boolean, default=True, nullable=False, index=True)

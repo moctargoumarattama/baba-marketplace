@@ -667,11 +667,13 @@
           <input class="form-control" type="date" name="date_to" value="{{ date_to }}" style="width: 145px;">
           <button class="btn btn-outline-primary" type="submit"><i class="bi bi-funnel"></i></button>
         </form>
+        {% if current_user.role == 'admin' %}
         <a href="{{ url_for('admin_users.create_user') }}" class="btn btn-primary">
           <i class="bi bi-person-plus"></i> Nouvel utilisateur
         </a>
-        <a href="{{ url_for('admin_users.create_shop') }}" class="btn btn-success">
-          <i class="bi bi-shop"></i> Nouvelle boutique
+        {% endif %}
+        <a href="{{ url_for('admin_users.vendor_requests') }}" class="btn btn-success">
+          <i class="bi bi-person-check"></i> Demandes vendeurs
         </a>
       </div>
     </div>
@@ -755,18 +757,20 @@
       <span class="text-muted small">{{ 'Les liens les plus utilises' if current_user.role == 'manager' else 'Raccourcis prioritaires' }}</span>
     </div>
     <div class="action-grid">
+      {% if current_user.role == 'admin' %}
       <a href="{{ url_for('admin_users.create_user') }}" class="action-card" style="--i:0">
         <span class="action-icon"><i class="bi bi-person-plus"></i></span>
         <span class="action-text">
-          <span>{{ 'Ajouter un compte' if current_user.role == 'manager' else 'Creer un utilisateur' }}</span>
-          <small>{% if current_user.role == 'admin' %}Compte vendeur, gestionnaire ou admin{% else %}Compte vendeur{% endif %}</small>
+          <span>Creer un utilisateur</span>
+          <small>Comptes gestionnaire et admin</small>
         </span>
       </a>
-      <a href="{{ url_for('admin_users.create_shop') }}" class="action-card" style="--i:1">
-        <span class="action-icon"><i class="bi bi-shop"></i></span>
+      {% endif %}
+      <a href="{{ url_for('admin_users.vendor_requests') }}" class="action-card" style="--i:1">
+        <span class="action-icon"><i class="bi bi-person-check"></i></span>
         <span class="action-text">
-          <span>{{ 'Ajouter une boutique' if current_user.role == 'manager' else 'Creer une boutique' }}</span>
-          <small>{{ 'Lier a un vendeur' if current_user.role == 'manager' else 'Associer un vendeur' }}</small>
+          <span>Demandes vendeurs</span>
+          <small>Valider, refuser ou bloquer</small>
         </span>
       </a>
       {% if current_user.role == 'admin' %}
@@ -823,30 +827,6 @@
         </div>
       </div>
       <div class="activity-insights">
-        <div class="activity-insight-card">
-          <div class="activity-insight-head">
-            <h6>Vendeurs sans boutique</h6>
-            <span class="text-muted small">{{ vendors_without_shop_list|length }}</span>
-          </div>
-          <div class="activity-mini-list">
-            {% for vendor in vendors_without_shop_list %}
-            <div class="activity-mini-item">
-              <div>
-                <div class="activity-mini-title">
-                  <a href="{{ url_for('admin_users.user_detail', user_id=vendor.id) }}" class="text-decoration-none">
-                    {{ vendor.username }}
-                  </a>
-                </div>
-                <div class="activity-mini-meta">{{ vendor.email }}</div>
-              </div>
-              <div class="activity-mini-side">{{ vendor.created_at.strftime('%d/%m/%Y') if vendor.created_at else '' }}</div>
-            </div>
-            {% else %}
-            <div class="empty-state">Tous les vendeurs ont une boutique.</div>
-            {% endfor %}
-          </div>
-        </div>
-
         <div class="activity-insight-card">
           <div class="activity-insight-head">
             <h6>Boutiques a completer</h6>

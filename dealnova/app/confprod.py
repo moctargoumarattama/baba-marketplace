@@ -215,6 +215,7 @@ class Config:
 
     SECURITY_ALERT_WEBHOOK_URL = os.getenv("SECURITY_ALERT_WEBHOOK_URL", "")
     MAINTENANCE_BACKUP_DIR = os.getenv("MAINTENANCE_BACKUP_DIR", "")
+    DB_BACKUP_RETENTION_DAYS = int(os.getenv("DB_BACKUP_RETENTION_DAYS", "30"))
 
     max_env = os.getenv("MAX_CONTENT_LENGTH")
     if max_env:

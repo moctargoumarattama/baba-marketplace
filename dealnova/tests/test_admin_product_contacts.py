@@ -24,13 +24,16 @@ def test_product_contact_lead_model_exists_for_whatsapp_tracking():
     assert "source" in source
 
 
-def test_cart_checkout_records_product_contact_leads_without_orders_or_payouts():
+def test_whatsapp_click_records_product_contact_leads_without_orders_or_payouts():
     source = _read("app/routes/cart.py")
     body = _function_body(source, "whatsapp_checkout")
+    contact_body = _function_body(source, "record_whatsapp_contact")
 
-    assert "record_product_contact_leads(" in body
-    assert "Order(" not in body
-    assert "VendorPayout" not in body
+    assert "record_product_contact_leads(" not in body
+    assert "record_product_contact_leads(" in contact_body
+    assert "_checkout_contact_session_key" in contact_body
+    assert "Order(" not in contact_body
+    assert "VendorPayout" not in contact_body
 
 
 def test_admin_has_read_only_product_contacts_page():

@@ -15,6 +15,7 @@ from ..models.product import Product
 from ..models.shop import Shop
 from ..services.pricing import prix_final
 from ..services.traffic_stats import track_custom_event
+from ..services.vendor_push import notify_service_booking
 
 
 bp = Blueprint("booking", __name__, url_prefix="/booking")
@@ -337,6 +338,14 @@ def book(pid):
             current_app.logger.exception("Erreur réservation")
             flash("Erreur serveur. Merci de réessayer.", "danger")
             return redirect(url_for("booking.book", pid=product.id))
+
+        try:
+            notify_service_booking(booking)
+        except Exception:
+            current_app.logger.exception(
+                "vendor_push.service_booking_notify_failed",
+                extra={"booking_id": getattr(booking, "id", None), "product_id": product.id},
+            )
 
         session["booking_phone"] = phone
 

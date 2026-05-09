@@ -1,0 +1,66 @@
+<div class="lc lc-archives" id="archivesCard">
+  <div class="lc-hd">
+    <h6><i class="bi bi-archive"></i> Archives</h6>
+    <span class="sub" id="archivesSub">{{ archives_pg.total }} archives · page {{ archives_pg.page }}/{{ [archives_pg.pages,1]|max }}</span>
+  </div>
+  <div class="tbl-wrap">
+    <div class="tbl-mask" id="archivesMask"><div class="spinner"></div></div>
+    <div class="lt-mobile-scroll">
+      <table class="lt">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Titre</th>
+            <th class="hide-sm">Propriétaire</th>
+            <th class="hide-sm">Prix</th>
+            <th class="hide-sm">Commission</th>
+            <th>Motif</th>
+            <th class="hide-sm">Vues</th>
+            <th class="hide-sm">Fermée le</th>
+          </tr>
+        </thead>
+        <tbody id="archivesTbody">
+          {% if archives %}
+            {% for archive in archives %}
+            {% set ac = archive.platform_commission_amount_cents if archive.platform_commission_amount_cents else (commission_amount_from_owner_fee(archive.owner_fee_cents, archive.platform_commission_rate_bps) + (archive.platform_commission_fixed_cents or 0)) %}
+            <tr>
+              <td style="color:var(--muted);font-size:.73rem">#{{ archive.id }}</td>
+              <td style="font-size:.79rem;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ archive.title|truncate(42) }}</td>
+              <td class="hide-sm">{{ archive.owner.username if archive.owner else '?' }}</td>
+              <td class="hide-sm" style="font-weight:700;white-space:nowrap">{{ cents_to_dh(archive.rent_cents) }}</td>
+              <td class="hide-sm">
+                {% if archive.closed_reason == 'taken' %}
+                  <div class="cn">{{ bps_to_percent(archive.platform_commission_rate_bps) }}%</div>
+                  <div class="cn">{{ cents_to_dh(ac) }}</div>
+                {% else %}
+                  <div class="cn" style="color:var(--muted)">N/A</div>
+                {% endif %}
+              </td>
+              <td><span class="bs bs-{{ archive.closed_reason if archive.closed_reason in ['taken','expired'] else 'taken' }}">{{ label_location_status(archive.closed_reason, current_lang) }}</span></td>
+              <td class="hide-sm" style="color:var(--muted)">{{ archive.archived_view_count }}</td>
+              <td class="hide-sm" style="font-size:.72rem;color:var(--muted);white-space:nowrap">{{ format_dt(archive.closed_at) }}</td>
+            </tr>
+            {% endfor %}
+          {% else %}
+            <tr class="empty"><td colspan="8"><i class="bi bi-archive"></i> Aucune archive.</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+    <div class="pg" id="archivesPg">
+      {% if archives_pg.pages > 1 %}
+        {% if archives_pg.has_prev %}
+          <a data-apage="{{ archives_pg.prev_num }}"><i class="bi bi-chevron-left"></i></a>
+        {% else %}<span class="dis"><i class="bi bi-chevron-left"></i></span>{% endif %}
+        {% for p in archives_pg.iter_pages(left_edge=1,right_edge=1,left_current=2,right_current=2) %}
+          {% if p %}<a class="{{ 'cur' if p==archives_pg.page }}" data-apage="{{ p }}">{{ p }}</a>
+          {% else %}<span class="dis">...</span>{% endif %}
+        {% endfor %}
+        <span class="pinfo">{{ archives_pg.page }}/{{ archives_pg.pages }} · {{ archives_pg.total }}</span>
+        {% if archives_pg.has_next %}
+          <a data-apage="{{ archives_pg.next_num }}"><i class="bi bi-chevron-right"></i></a>
+        {% else %}<span class="dis"><i class="bi bi-chevron-right"></i></span>{% endif %}
+      {% endif %}
+    </div>
+  </div>
+</div>

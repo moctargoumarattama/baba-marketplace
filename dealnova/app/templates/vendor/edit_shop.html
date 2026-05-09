@@ -343,11 +343,12 @@
                                 <div class="col-md-6">
                                     <label for="contact_email" class="form-label fw-bold">Email de contact</label>
                                     <input type="email" 
-                                           class="form-control" 
+                                           class="form-control readonly-field"
                                            id="contact_email" 
-                                           name="contact_email"
-                                           value="{{ shop.contact_email or current_user.email }}"
-                                           placeholder="contact@votreboutique.com">
+                                           value="{{ locked_contact_email }}"
+                                           readonly
+                                           aria-readonly="true">
+                                    <small class="text-muted d-block mt-1">Email verrouille. Utilisez la demande de changement ci-dessous.</small>
                                 </div>
                                 <div class="col-md-6">
                                     <label for="contact_phone" class="form-label fw-bold">Telephone</label>
@@ -356,7 +357,8 @@
                                            id="contact_phone" 
                                            name="contact_phone"
                                            value="{{ shop.contact_phone or '' }}"
-                                           placeholder="+212 6 00 00 00 00">
+                                           placeholder="+212 6 00 00 00 00"
+                                           required>
                                 </div>
                             </div>
                             
@@ -366,6 +368,7 @@
                                           id="address" 
                                           name="address" 
                                           rows="3"
+                                          required
                                           placeholder="Indiquez l'adresse ou la zone de votre boutique.">{{ shop.address or '' }}</textarea>
                             </div>
                         </div>
@@ -385,7 +388,75 @@
                     </form>
                 </div>
             </div>
-            
+
+            <div class="form-card card border-0 mt-4">
+                <div class="card-body">
+                    <h2 class="section-title"><i class="bi bi-shield-lock"></i> Demander un changement verrouille</h2>
+                    <p class="section-help">Pour changer l'email ou le nom de boutique, envoyez une demande a l'administration.</p>
+
+                    <form method="post" action="{{ url_for('vendor.request_locked_shop_change') }}" class="mb-3">
+                        {% include "partials/_csrf.html" %}
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label for="request_type" class="form-label fw-bold">Type</label>
+                                <select class="form-select" id="request_type" name="request_type" required>
+                                    <option value="">Selectionner</option>
+                                    {% for req_type in allowed_change_types %}
+                                    <option value="{{ req_type }}">{{ change_request_type_labels.get(req_type, req_type) }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-8">
+                                <label for="requested_value" class="form-label fw-bold">Nouvelle valeur</label>
+                                <input type="text" class="form-control" id="requested_value" name="requested_value" maxlength="255" required>
+                            </div>
+                            <div class="col-12">
+                                <label for="reason" class="form-label fw-bold">Motif</label>
+                                <textarea class="form-control" id="reason" name="reason" rows="3" maxlength="1000" required></textarea>
+                            </div>
+                            <div class="col-12 d-flex justify-content-end">
+                                <button type="submit" class="btn btn-outline-primary">
+                                    <i class="bi bi-send"></i> Envoyer la demande
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+
+                    {% if recent_change_requests %}
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Type</th>
+                                    <th>Valeur demandee</th>
+                                    <th>Statut</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for req in recent_change_requests %}
+                                <tr>
+                                    <td>{{ req.created_at.strftime('%d/%m/%Y %H:%M') if req.created_at else '-' }}</td>
+                                    <td>{{ change_request_type_labels.get(req.request_type, req.request_type) }}</td>
+                                    <td>{{ req.requested_value }}</td>
+                                    <td>
+                                        {% if req.status == 'pending' %}
+                                        <span class="badge bg-warning text-dark">En attente</span>
+                                        {% elif req.status == 'approved' %}
+                                        <span class="badge bg-success">Validee</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">Refusee</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+             
             <!-- URL de la boutique -->
             <div class="url-card card border-0 mt-4">
                 <div class="card-body">

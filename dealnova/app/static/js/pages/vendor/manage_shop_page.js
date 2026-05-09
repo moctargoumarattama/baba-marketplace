@@ -48,6 +48,24 @@
     });
   }
 
+  function removeLegacyOpeningCard() {
+    const legacyTexts = [
+      "Ouverture de la boutique",
+      "Fermer temporairement",
+      "Statut boutique",
+      "Fermée jusqu",
+      "Fermee jusqu",
+    ];
+    document.querySelectorAll(".card, .glass-effect, section, form").forEach(function (node) {
+      const text = String(node.textContent || "");
+      if (!legacyTexts.some(function (needle) { return text.indexOf(needle) !== -1; })) return;
+      const candidate = node.closest(".card") || node.closest(".glass-effect") || node;
+      if (candidate && candidate.parentNode) {
+        candidate.remove();
+      }
+    });
+  }
+
   async function copyTextToClipboard(rawValue) {
     const value = String(rawValue || "").trim();
     if (!value) return false;
@@ -451,6 +469,7 @@
       VendorUI.bindConfirmForms(document);
     }
 
+    removeLegacyOpeningCard();
     initTooltips();
     bindShopPublicUrlActions();
     bindRealtimeSearch();

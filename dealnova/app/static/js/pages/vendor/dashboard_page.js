@@ -10,6 +10,10 @@
         searchUrl: (cfgNode && cfgNode.dataset.searchUrl) || '/vendor/products/search',
         statsUrl: (cfgNode && cfgNode.dataset.statsUrl) || '/vendor/stats/live',
         ordersLiveUrl: (cfgNode && cfgNode.dataset.ordersLiveUrl) || '/vendor/dashboard/orders-live',
+        pushConfigUrl: (cfgNode && cfgNode.dataset.pushConfigUrl) || '',
+        pushStatusUrl: (cfgNode && cfgNode.dataset.pushStatusUrl) || '',
+        pushSubscribeUrl: (cfgNode && cfgNode.dataset.pushSubscribeUrl) || '',
+        pushUnsubscribeUrl: (cfgNode && cfgNode.dataset.pushUnsubscribeUrl) || '',
         ordersPollMs: Math.max(5000, Number((cfgNode && cfgNode.dataset.ordersPollMs) || 20000)),
         ordersPerPage: Math.max(4, Number((cfgNode && cfgNode.dataset.ordersPerPage) || 8)),
         bookingsPerPage: Math.max(4, Number((cfgNode && cfgNode.dataset.bookingsPerPage) || 8)),
@@ -18,6 +22,8 @@
         refreshStatsMs: 30000,
         refreshStockMs: 60000
     };
+    const VENDOR_ORDER_ALERT_MS = 5000;
+    const VENDOR_ORDER_VIBRATE_PATTERN = [700, 180, 700, 180, 700, 180, 700, 180, 700, 180, 700];
 
     const searchInput = document.getElementById('searchInput');
     const searchClear = document.getElementById('searchClear');
@@ -37,10 +43,12 @@
     const orderToastTitle = document.getElementById('orderToastTitle');
     const orderToastText = document.getElementById('orderToastText');
     const soundToggle = document.getElementById('soundToggle');
+    const vendorPushStatus = document.getElementById('vendorPushStatus');
     const pendingPill = document.getElementById('pendingPill');
     const pendingCount = document.getElementById('pendingCount');
     const todayPrepareCount = document.getElementById('todayPrepareCount');
     const todayBookingsCount = document.getElementById('todayBookingsCount');
+    const todayLocationsCount = document.getElementById('todayLocationsCount');
     const recentOrdersList = document.getElementById('recentOrdersList');
     const recentOrdersPager = document.getElementById('recentOrdersPager');
     const todayPrepareList = document.getElementById('todayPrepareList');
@@ -474,7 +482,10 @@
     }
 
     function armAudioOnce() {
-        if (audioArmed) return;
+        if (audioArmed) {
+            hideSoundActivationPrompt();
+            return;
+        }
         try {
             const AudioCtx = window.AudioContext || window.webkitAudioContext;
             if (!AudioCtx) return;
@@ -483,6 +494,7 @@
                 audioCtx.resume().catch(function() {});
             }
             audioArmed = true;
+            hideSoundActivationPrompt();
         } catch (e) {
             audioArmed = false;
         }
@@ -499,6 +511,39 @@
             : '<i class="bi bi-volume-mute"></i>';
         soundToggle.classList.toggle('muted', !soundEnabled);
         soundToggle.title = soundEnabled ? 'Desactiver le son' : 'Activer le son';
+    }
+
+    function hideSoundActivationPrompt() {
+        const prompt = document.getElementById('vendorSoundActivationPrompt');
+        if (prompt) prompt.remove();
+    }
+
+    function showSoundActivationPrompt() {
+        if (!soundToggle || audioArmed || document.getElementById('vendorSoundActivationPrompt')) return;
+        const prompt = document.createElement('div');
+        prompt.className = 'vendor-sound-prompt';
+        prompt.id = 'vendorSoundActivationPrompt';
+        prompt.setAttribute('role', 'status');
+        prompt.innerHTML =
+            '<div class="vendor-sound-prompt-icon"><i class="bi bi-volume-up"></i></div>' +
+            '<div class="vendor-sound-prompt-copy">' +
+            '<strong>Réactiver le son</strong>' +
+            '<span>Touchez ici pour armer les alertes du tableau vendeur.</span>' +
+            '</div>' +
+            '<button type="button" class="vendor-sound-prompt-btn">Activer</button>';
+        prompt.addEventListener('click', function() {
+            soundEnabled = true;
+            try {
+                localStorage.setItem('vendorDashboardSound', '1');
+            } catch (_error) {}
+            updateSoundToggle();
+            armAudioOnce();
+            playPushTestAlert();
+            if (navigator.vibrate) {
+                navigator.vibrate([120, 80, 120]);
+            }
+        });
+        document.body.appendChild(prompt);
     }
 
     function playStockAlert() {
@@ -537,21 +582,55 @@
     function playOrderAlert() {
         if (!soundEnabled || !audioArmed || !audioCtx) return;
         try {
-            const notes = [988, 1318];
+            const pattern = [988, 1318, 1174, 1568];
+            const endAt = audioCtx.currentTime + (VENDOR_ORDER_ALERT_MS / 1000);
             let startAt = audioCtx.currentTime;
-            notes.forEach(function(freq) {
+            while (startAt < endAt) {
+                pattern.forEach(function(freq, index) {
+                    if (startAt >= endAt) return;
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    const noteStart = startAt + (index * 0.12);
+                    const noteStop = Math.min(noteStart + 0.18, endAt);
+                    osc.type = 'triangle';
+                    osc.frequency.value = freq;
+                    gain.gain.value = 0.0001;
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(noteStart);
+                    gain.gain.exponentialRampToValueAtTime(0.2, noteStart + 0.03);
+                    gain.gain.exponentialRampToValueAtTime(0.0001, Math.max(noteStart + 0.08, noteStop - 0.02));
+                    osc.stop(noteStop);
+                });
+                startAt += 0.72;
+            }
+        } catch (_error) {}
+    }
+
+    function vibrateOrderAlert() {
+        if (!navigator.vibrate) return;
+        try {
+            navigator.vibrate(VENDOR_ORDER_VIBRATE_PATTERN);
+        } catch (_error) {}
+    }
+
+    function playPushTestAlert() {
+        if (!soundEnabled || !audioArmed || !audioCtx) return;
+        try {
+            const now = audioCtx.currentTime;
+            [880, 1174, 1568].forEach(function(freq, index) {
                 const osc = audioCtx.createOscillator();
                 const gain = audioCtx.createGain();
-                osc.type = 'sine';
+                const startAt = now + (index * 0.12);
+                osc.type = 'triangle';
                 osc.frequency.value = freq;
                 gain.gain.value = 0.0001;
                 osc.connect(gain);
                 gain.connect(audioCtx.destination);
                 osc.start(startAt);
-                gain.gain.exponentialRampToValueAtTime(0.18, startAt + 0.04);
+                gain.gain.exponentialRampToValueAtTime(0.16, startAt + 0.03);
                 gain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.22);
                 osc.stop(startAt + 0.24);
-                startAt += 0.13;
             });
         } catch (_error) {}
     }
@@ -568,10 +647,217 @@
         orderToastText.textContent = message || 'Une nouvelle commande est arrivee.';
         orderToast.classList.add('show');
         playOrderAlert();
+        vibrateOrderAlert();
+        showSystemVendorNotification(title || 'Nouvelle commande', message || 'Une nouvelle commande est arrivee.');
         orderToastTimer = window.setTimeout(function() {
             orderToast.classList.remove('show');
             orderToastTimer = null;
-        }, 3600);
+        }, VENDOR_ORDER_ALERT_MS);
+    }
+
+    function showSystemVendorNotification(title, body) {
+        if (!('Notification' in window) || Notification.permission !== 'granted') return;
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.ready.then(function(registration) {
+                if (!registration || !registration.showNotification) return;
+                registration.showNotification(String(title || 'Baba Market'), {
+                    body: String(body || 'Nouvelle activité vendeur.'),
+                    icon: '/static/android-chrome-192x192.png',
+                    badge: '/static/favicon-32x32.png',
+                    tag: 'vendor-dashboard-local',
+                    renotify: true,
+                    data: { url: cfg.dashboardUrl || '/vendor/dashboard' }
+                });
+            }).catch(function() {});
+        }
+    }
+
+    function setVendorPushStatus(label, state) {
+        if (!vendorPushStatus) return;
+        const text = String(label || 'Alertes téléphone');
+        vendorPushStatus.classList.toggle('is-active', state === 'active');
+        vendorPushStatus.classList.toggle('is-muted', state === 'muted');
+        vendorPushStatus.classList.toggle('is-error', state === 'error');
+        vendorPushStatus.innerHTML =
+            '<i class="bi bi-phone-vibrate"></i><span>' + text.replace(/[<>&]/g, '') + '</span>';
+    }
+
+    function isIosDevice() {
+        return /iphone|ipad|ipod/i.test(window.navigator.userAgent || '') ||
+            (window.navigator.platform === 'MacIntel' && window.navigator.maxTouchPoints > 1);
+    }
+
+    function isStandaloneApp() {
+        return Boolean(
+            (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+            window.navigator.standalone === true
+        );
+    }
+
+    function setVendorPushDiagnostic(config) {
+        if (!config || !vendorPushStatus) return;
+        if (isIosDevice() && !isStandaloneApp()) {
+            setVendorPushStatus("Installer l'app", 'error');
+            return;
+        }
+        if (config.configured === false) {
+            setVendorPushStatus('Serveur à configurer', 'error');
+            return;
+        }
+        if (Number(config.activeSubscriptions || 0) <= 0 && Notification.permission === 'granted') {
+            setVendorPushStatus('Réactiver alertes', 'error');
+        }
+    }
+
+    function urlBase64ToUint8Array(base64String) {
+        const padding = '='.repeat((4 - base64String.length % 4) % 4);
+        const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+        const rawData = window.atob(base64);
+        const outputArray = new Uint8Array(rawData.length);
+        for (let i = 0; i < rawData.length; i += 1) {
+            outputArray[i] = rawData.charCodeAt(i);
+        }
+        return outputArray;
+    }
+
+    function isValidVapidPublicKey(publicKey) {
+        try {
+            const decoded = urlBase64ToUint8Array(String(publicKey || '').trim());
+            return decoded.length === 65 && decoded[0] === 4;
+        } catch (_error) {
+            return false;
+        }
+    }
+
+    function jsonHeaders() {
+        const headers = { 'Accept': 'application/json', 'Content-Type': 'application/json' };
+        if (window.BMAjaxCSRF && typeof window.BMAjaxCSRF.addToHeaders === 'function') {
+            return window.BMAjaxCSRF.addToHeaders(headers);
+        }
+        return headers;
+    }
+
+    function postPushSubscription(url, payload) {
+        return window.fetch(url, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: jsonHeaders(),
+            body: JSON.stringify(payload || {})
+        }).then(function(response) {
+            return response.json().catch(function() { return {}; }).then(function(data) {
+                if (!response.ok || data.success === false) {
+                    throw new Error(data.message || 'push_request_failed');
+                }
+                return data;
+            });
+        });
+    }
+
+    function initVendorPushNotifications() {
+        if (!vendorPushStatus || !cfg.pushConfigUrl || !cfg.pushSubscribeUrl) return;
+        if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+            setVendorPushStatus(isIosDevice() ? "Installer l'app" : 'Non supporté', 'muted');
+            return;
+        }
+        if (isIosDevice() && !isStandaloneApp()) {
+            setVendorPushStatus("Installer l'app", 'error');
+        }
+
+        function subscribe() {
+            setVendorPushStatus('Activation...', 'muted');
+            return fetch(cfg.pushConfigUrl, {
+                credentials: 'same-origin',
+                headers: { 'Accept': 'application/json' }
+            })
+                .then(function(response) { return response.json(); })
+                .then(function(config) {
+                    if (!config || !config.publicKey) {
+                        setVendorPushStatus('Serveur à configurer', 'error');
+                        return null;
+                    }
+                    if (config.validPublicKey === false || !isValidVapidPublicKey(config.publicKey)) {
+                        setVendorPushStatus('Clé push invalide', 'error');
+                        return null;
+                    }
+                    return Notification.requestPermission().then(function(permission) {
+                        if (permission !== 'granted') {
+                            setVendorPushStatus('Alertes bloquées', 'error');
+                            return null;
+                        }
+                        return navigator.serviceWorker.ready.then(function(registration) {
+                            return registration.pushManager.getSubscription().then(function(existing) {
+                                if (existing) return existing;
+                                return registration.pushManager.subscribe({
+                                    userVisibleOnly: true,
+                                    applicationServerKey: urlBase64ToUint8Array(config.publicKey)
+                                });
+                            });
+                        });
+                    });
+                })
+                .then(function(subscription) {
+                    if (!subscription) return null;
+                    showSystemVendorNotification('Test alerte vendeur', 'Test local: les notifications du navigateur sont autorisées.');
+                    return postPushSubscription(cfg.pushSubscribeUrl, {
+                        subscription: subscription.toJSON ? subscription.toJSON() : subscription,
+                        send_test: true
+                    });
+                })
+                .then(function(result) {
+                    if (!result) return;
+                    if (result.configured === false) {
+                        setVendorPushStatus('Serveur à configurer', 'error');
+                        return;
+                    }
+                    if (Number(result.test_sent || 0) <= 0) {
+                        setVendorPushStatus('Aucune alerte envoyée', 'error');
+                        return;
+                    }
+                    playPushTestAlert();
+                    if (navigator.vibrate) {
+                        navigator.vibrate([250, 120, 250]);
+                    }
+                    setVendorPushStatus('Alertes actives', 'active');
+                })
+                .catch(function(error) {
+                    console.warn('[vendor-push] subscribe failed', error);
+                    setVendorPushStatus('Alertes à vérifier', 'error');
+                });
+        }
+
+        navigator.serviceWorker.ready
+            .then(function(registration) {
+                return registration.pushManager.getSubscription();
+            })
+            .then(function(subscription) {
+                if (Notification.permission === 'granted' && subscription) {
+                    setVendorPushStatus('Alertes actives', 'active');
+                    postPushSubscription(cfg.pushSubscribeUrl, {
+                        subscription: subscription.toJSON ? subscription.toJSON() : subscription
+                    }).catch(function() {});
+                } else if (Notification.permission === 'denied') {
+                    setVendorPushStatus('Alertes bloquées', 'error');
+                } else {
+                    setVendorPushStatus('Activer alertes', 'muted');
+                }
+            })
+            .then(function() {
+                if (!cfg.pushStatusUrl) return null;
+                return fetch(cfg.pushStatusUrl, {
+                    credentials: 'same-origin',
+                    headers: { 'Accept': 'application/json' }
+                })
+                    .then(function(response) { return response.json(); })
+                    .then(setVendorPushDiagnostic)
+                    .catch(function() {});
+            })
+            .catch(function() {
+                setVendorPushStatus('Activer alertes', 'muted');
+            });
+
+        vendorPushStatus.addEventListener('click', function() {
+            subscribe();
+        });
     }
 
     function abortDashboardRequests() {
@@ -817,6 +1103,7 @@
                 const recent = data.recent || {};
                 const prepare = data.today_prepare || {};
                 const bookings = data.today_bookings || {};
+                const locationsCount = Math.max(0, Number(data.today_locations_count || 0));
                 const recentItems = recent.items || [];
                 const prepareItems = prepare.items || [];
                 const bookingItems = bookings.items || [];
@@ -828,6 +1115,9 @@
                     }
                     if (todayBookingsCount) {
                         todayBookingsCount.textContent = String(Math.max(0, Number(bookings.count || 0)));
+                    }
+                    if (todayLocationsCount) {
+                        todayLocationsCount.textContent = String(locationsCount);
                     }
 
                     renderOrdersList(
@@ -1227,6 +1517,7 @@
         });
     }
     updateSoundToggle();
+    window.setTimeout(showSoundActivationPrompt, 600);
 
     if (searchInput) {
         searchInput.addEventListener('input', function() {
@@ -1286,6 +1577,7 @@
     bindProductImagePreview();
     bindShopStatusOptimistic();
     setupDashboardPrefetch();
+    initVendorPushNotifications();
     checkLowStock();
     loadCategories();
 
@@ -1396,12 +1688,26 @@
                     poller.resume();
                 }
             });
+            if (shouldPollOrders) {
+                refreshOrdersLive({ force: true, skipNotify: true });
+            }
         });
     }
 
     document.addEventListener('visibilitychange', function() {
-        if (!document.hidden) return;
+        if (!document.hidden) {
+            if (shouldPollOrders) {
+                refreshOrdersLive({ force: true, skipNotify: true });
+            }
+            return;
+        }
         clearDashboardTimers();
+    });
+
+    window.addEventListener('focus', function() {
+        if (shouldPollOrders && !document.hidden) {
+            refreshOrdersLive({ force: true, skipNotify: true });
+        }
     });
 
     window.addEventListener('pagehide', function() {

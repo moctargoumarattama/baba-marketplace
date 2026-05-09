@@ -1,0 +1,400 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Promotions | Admin{% endblock %}
+{% block page_title %}Promotions{% endblock %}
+
+{% block head %}
+<style>
+  .promo-admin {
+    display: grid;
+    gap: 1rem;
+    padding-bottom: 1.5rem;
+  }
+
+  .promo-panel {
+    background: #fff;
+    border: 1px solid #dbe4f0;
+    border-radius: 10px;
+    box-shadow: 0 4px 14px rgba(15, 23, 42, .06);
+    overflow: hidden;
+  }
+
+  .promo-head {
+    align-items: center;
+    background: #f8fafc;
+    border-bottom: 1px solid #dbe4f0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: .75rem;
+    justify-content: space-between;
+    padding: .9rem 1rem;
+  }
+
+  .promo-head-title {
+    align-items: center;
+    color: #0f172a;
+    display: flex;
+    font-weight: 850;
+    gap: .55rem;
+    margin: 0;
+  }
+
+  .promo-head-title i {
+    align-items: center;
+    background: #ecfeff;
+    border: 1px solid #99f6e4;
+    border-radius: 8px;
+    color: #0f766e;
+    display: inline-flex;
+    height: 2.25rem;
+    justify-content: center;
+    width: 2.25rem;
+  }
+
+  .promo-sub {
+    color: #64748b;
+    font-size: .88rem;
+    margin: .25rem 0 0;
+  }
+
+  .promo-guide {
+    align-items: center;
+    background: #ecfdf5;
+    border: 1px solid #bbf7d0;
+    border-radius: 10px;
+    color: #065f46;
+    display: flex;
+    gap: .65rem;
+    margin-bottom: .75rem;
+    padding: .7rem .85rem;
+  }
+
+  .promo-guide i {
+    font-size: 1rem;
+  }
+
+  .promo-guide strong {
+    color: #064e3b;
+    display: block;
+    font-size: .84rem;
+    line-height: 1.2;
+  }
+
+  .promo-guide span {
+    display: block;
+    font-size: .8rem;
+    line-height: 1.35;
+  }
+
+  .promo-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .45rem;
+  }
+
+  .promo-tab {
+    align-items: center;
+    background: #fff;
+    border: 1px solid #dbe4f0;
+    border-radius: 999px;
+    color: #334155;
+    display: inline-flex;
+    font-size: .82rem;
+    font-weight: 750;
+    gap: .4rem;
+    min-height: 2.15rem;
+    padding: .35rem .7rem;
+    text-decoration: none;
+  }
+
+  .promo-tab:hover {
+    background: #f8fafc;
+    color: #0f766e;
+  }
+
+  .promo-tab.is-active {
+    background: #0f766e;
+    border-color: #0f766e;
+    color: #fff;
+  }
+
+  .promo-count {
+    background: rgba(15, 23, 42, .08);
+    border-radius: 999px;
+    font-size: .72rem;
+    min-width: 1.4rem;
+    padding: .12rem .42rem;
+    text-align: center;
+  }
+
+  .promo-tab.is-active .promo-count {
+    background: rgba(255, 255, 255, .22);
+  }
+
+  .promo-table {
+    font-size: .84rem;
+    margin: 0;
+  }
+
+  .promo-table thead th {
+    background: #f8fafc;
+    border-bottom: 1px solid #dbe4f0;
+    color: #64748b;
+    font-size: .7rem;
+    font-weight: 800;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .promo-table td {
+    border-color: #edf2f7;
+    vertical-align: middle;
+  }
+
+  .promo-product {
+    color: #0f172a;
+    font-weight: 800;
+    line-height: 1.25;
+  }
+
+  .promo-note {
+    color: #64748b;
+    font-size: .76rem;
+    margin-top: .18rem;
+    max-width: 26rem;
+  }
+
+  .promo-shop {
+    color: #334155;
+    font-weight: 750;
+  }
+
+  .promo-badge {
+    border-radius: 999px;
+    display: inline-flex;
+    font-size: .7rem;
+    font-weight: 800;
+    padding: .22rem .5rem;
+  }
+
+  .promo-badge.pending {
+    background: #fef3c7;
+    border: 1px solid #fde68a;
+    color: #92400e;
+  }
+
+  .promo-badge.approved {
+    background: #dcfce7;
+    border: 1px solid #bbf7d0;
+    color: #166534;
+  }
+
+  .promo-badge.rejected {
+    background: #f1f5f9;
+    border: 1px solid #cbd5e1;
+    color: #475569;
+  }
+
+  .promo-discount {
+    color: #0f766e;
+    font-size: 1rem;
+    font-weight: 900;
+    white-space: nowrap;
+  }
+
+  .promo-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .45rem;
+    justify-content: flex-end;
+  }
+
+  .promo-actions .btn {
+    border-radius: 8px;
+    font-size: .78rem;
+    font-weight: 800;
+  }
+
+  .promo-empty {
+    color: #64748b;
+    padding: 2rem 1rem;
+    text-align: center;
+  }
+
+  @media (max-width: 900px) {
+    .promo-table thead {
+      display: none;
+    }
+
+    .promo-table,
+    .promo-table tbody,
+    .promo-table tr,
+    .promo-table td {
+      display: block;
+      width: 100%;
+    }
+
+    .promo-table tr {
+      border-bottom: 1px solid #e2e8f0;
+      padding: .75rem .9rem;
+    }
+
+    .promo-table td {
+      border: 0;
+      padding: .25rem 0;
+    }
+
+    .promo-table td::before {
+      color: #64748b;
+      content: attr(data-label);
+      display: block;
+      font-size: .68rem;
+      font-weight: 800;
+      letter-spacing: .04em;
+      margin-bottom: .12rem;
+      text-transform: uppercase;
+    }
+
+    .promo-actions {
+      justify-content: flex-start;
+      margin-top: .35rem;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+{% set promo_status_labels = {
+  'pending': 'A traiter',
+  'approved': 'Acceptee',
+  'rejected': 'Refusee'
+} %}
+<div class="promo-admin">
+  <div class="promo-guide">
+    <i class="bi bi-lightbulb"></i>
+    <div>
+      <strong>A faire maintenant</strong>
+      <span>Regardez la remise, la boutique et la date de fin. Si tout est clair, acceptez. Sinon, refusez.</span>
+    </div>
+  </div>
+
+  <section class="promo-panel">
+    <div class="promo-head">
+      <div>
+        <h2 class="promo-head-title">
+          <i class="bi bi-percent"></i>
+          Promotions proposees par les vendeurs
+        </h2>
+        <p class="promo-sub">Chaque ligne est une promotion a verifier avant affichage public.</p>
+      </div>
+
+      <nav class="promo-tabs" aria-label="Filtrer les promotions">
+        <a class="promo-tab {{ 'is-active' if status == 'pending' else '' }}" href="{{ url_for('admin.promo_reviews', status='pending') }}">
+          A traiter <span class="promo-count">{{ status_counts.get('pending', 0) }}</span>
+        </a>
+        <a class="promo-tab {{ 'is-active' if status == 'approved' else '' }}" href="{{ url_for('admin.promo_reviews', status='approved') }}">
+          Acceptees <span class="promo-count">{{ status_counts.get('approved', 0) }}</span>
+        </a>
+        <a class="promo-tab {{ 'is-active' if status == 'rejected' else '' }}" href="{{ url_for('admin.promo_reviews', status='rejected') }}">
+          Refusees <span class="promo-count">{{ status_counts.get('rejected', 0) }}</span>
+        </a>
+        <a class="promo-tab {{ 'is-active' if status == 'all' else '' }}" href="{{ url_for('admin.promo_reviews', status='all') }}">
+          Toutes <span class="promo-count">{{ pagination.total if status == 'all' else status_counts.values()|sum }}</span>
+        </a>
+      </nav>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-hover align-middle promo-table">
+        <thead>
+          <tr>
+            <th>Produit</th>
+            <th>Boutique</th>
+            <th>Remise</th>
+            <th>Fin de la promo</th>
+            <th>Statut</th>
+            <th class="text-end">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for promo in promos %}
+          {% set product = promo.product %}
+          {% set shop = product.shop if product else none %}
+          {% set promo_status = promo.status %}
+          <tr>
+            <td data-label="Produit">
+              <div class="promo-product">{{ product.name if product else 'Produit supprime' }}</div>
+              {% if promo.review_note %}
+              <div class="promo-note">{{ promo.review_note }}</div>
+              {% endif %}
+            </td>
+            <td data-label="Boutique">
+              <div class="promo-shop">{{ shop.name if shop else 'Boutique inconnue' }}</div>
+              {% if shop and shop.promo_trusted %}
+              <span class="promo-badge approved mt-1">Boutique de confiance</span>
+              {% endif %}
+            </td>
+            <td data-label="Remise">
+              <span class="promo-discount">{{ promo.value }}{{ '%' if promo.type == 'percentage' else ' MAD' }}</span>
+            </td>
+            <td data-label="Fin de la promo">{{ promo.end_date.strftime('%d/%m/%Y %H:%M') if promo.end_date else '-' }}</td>
+            <td data-label="Statut">
+              <span class="promo-badge {{ promo_status }}">{{ promo_status_labels.get(promo_status, promo_status) }}</span>
+            </td>
+            <td data-label="Actions">
+              <div class="promo-actions">
+                {% if promo.status == 'pending' %}
+                <form method="post" action="{{ url_for('admin.promo_approve', promo_id=promo.id) }}">
+                  {% include "admin/partials/_csrf.html" %}
+                  <button type="submit" class="btn btn-success btn-sm">Accepter la promotion</button>
+                </form>
+                {% if shop and not shop.promo_trusted %}
+                <form method="post" action="{{ url_for('admin.promo_approve', promo_id=promo.id) }}">
+                  {% include "admin/partials/_csrf.html" %}
+                  <input type="hidden" name="trust_shop" value="1">
+                  <button type="submit" class="btn btn-outline-success btn-sm">Accepter + faire confiance</button>
+                </form>
+                {% endif %}
+                <form method="post" action="{{ url_for('admin.promo_reject', promo_id=promo.id) }}">
+                  {% include "admin/partials/_csrf.html" %}
+                  <input type="hidden" name="review_note" value="Promo non retenue pour la vitrine.">
+                  <button type="submit" class="btn btn-outline-danger btn-sm">Refuser la promotion</button>
+                </form>
+                {% endif %}
+                {% if shop %}
+                <form method="post" action="{{ url_for('admin.shop_promo_trusted_toggle', shop_id=shop.id) }}">
+                  {% include "admin/partials/_csrf.html" %}
+                  <button type="submit" class="btn btn-outline-primary btn-sm">
+                    {{ 'Ne plus faire confiance' if shop.promo_trusted else 'Faire confiance a cette boutique' }}
+                  </button>
+                </form>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="6" class="promo-empty">Aucune promotion dans ce filtre.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  {% if pagination and pagination.pages > 1 %}
+  <nav aria-label="Pagination promotions">
+    <ul class="pagination pagination-sm justify-content-center">
+      <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+        <a class="page-link" href="{{ url_for('admin.promo_reviews', status=status, page=pagination.prev_num) if pagination.has_prev else '#' }}">Precedent</a>
+      </li>
+      <li class="page-item disabled"><span class="page-link">{{ pagination.page }} / {{ pagination.pages }}</span></li>
+      <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+        <a class="page-link" href="{{ url_for('admin.promo_reviews', status=status, page=pagination.next_num) if pagination.has_next else '#' }}">Suivant</a>
+      </li>
+    </ul>
+  </nav>
+  {% endif %}
+</div>
+{% endblock %}

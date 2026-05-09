@@ -49,6 +49,26 @@ def limit_from_args(
     return normalize_limit(raw, default=default, max_limit=max_limit)
 
 
+def paginate_with_clamped_page(query, *, page: int, per_page: int, error_out: bool = False, **kwargs):
+    requested_page = normalize_page(page)
+    pagination = query.paginate(
+        page=requested_page,
+        per_page=per_page,
+        error_out=error_out,
+        **kwargs,
+    )
+    pages = int(getattr(pagination, "pages", 0) or 0)
+    target_page = pages if pages > 0 else 1
+    if requested_page > target_page:
+        return query.paginate(
+            page=target_page,
+            per_page=per_page,
+            error_out=error_out,
+            **kwargs,
+        )
+    return pagination
+
+
 class SimplePagination:
     def __init__(self, page: int, per_page: int, total: int):
         self.page = max(int(page or 1), 1)

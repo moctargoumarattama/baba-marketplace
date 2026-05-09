@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import re
+from types import SimpleNamespace
 from logging.handlers import RotatingFileHandler
 from datetime import datetime, timedelta
 from flask import current_app, request
@@ -236,22 +237,59 @@ class LoggingService:
     @staticmethod
     def get_recent_logs(limit=100, category=None, level=None, user_id=None, days=None):
         """Récupère les logs récents avec filtres"""
-        query = ActivityLog.query
+        query = db.session.query(
+            ActivityLog.id,
+            ActivityLog.timestamp,
+            ActivityLog.level,
+            ActivityLog.category,
+            ActivityLog.action,
+            ActivityLog.user_id,
+            ActivityLog.username,
+            ActivityLog.ip_address,
+            ActivityLog.resource_type,
+            ActivityLog.resource_id,
+            ActivityLog.message,
+        )
 
         if category:
-            query = query.filter_by(category=category)
+            query = query.filter(ActivityLog.category == category)
 
         if level:
-            query = query.filter_by(level=level)
+            query = query.filter(ActivityLog.level == level)
 
         if user_id:
-            query = query.filter_by(user_id=user_id)
+            query = query.filter(ActivityLog.user_id == user_id)
 
         if days:
             since = datetime.utcnow() - timedelta(days=days)
             query = query.filter(ActivityLog.timestamp >= since)
 
-        return query.order_by(ActivityLog.timestamp.desc()).limit(limit).all()
+        try:
+            rows = query.order_by(ActivityLog.timestamp.desc()).limit(limit).all()
+        except Exception as exc:
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+            current_app.logger.error(f"Erreur lecture logs recents: {exc}")
+            return []
+
+        return [
+            SimpleNamespace(
+                id=row.id,
+                timestamp=row.timestamp,
+                level=row.level,
+                category=row.category,
+                action=row.action,
+                user_id=row.user_id,
+                username=row.username,
+                ip_address=row.ip_address,
+                resource_type=row.resource_type,
+                resource_id=row.resource_id,
+                message=row.message,
+            )
+            for row in rows
+        ]
 
     @staticmethod
     @cache.cached(timeout=300, key_prefix="logs_stats")

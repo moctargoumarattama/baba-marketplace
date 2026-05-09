@@ -1,6 +1,5 @@
 # app/routes/shops.py - VERSION RENFORCÉE
 from datetime import datetime
-import hashlib
 
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for
 from sqlalchemy.orm import selectinload, load_only
@@ -14,7 +13,7 @@ from ..services.pricing import calculate_promo_price, get_active_promos_for_prod
 from ..models.category import Category
 from ..models.rental import RentalListing
 from ..services.cache import get_catalog_cache
-from ..services.pagination import SimplePagination, page_from_args
+from ..services.pagination import SimplePagination, page_from_args, paginate_with_clamped_page
 from ..services.rentals import cents_to_dh, rental_existing_video_poster_rel_path
 from ..services.shop_access import is_safe_public_shop_slug, normalize_public_shop_slug
 
@@ -105,60 +104,24 @@ def _safe_session_rollback() -> None:
         pass
 
 
-def _shops_mix_slot() -> str:
-    now = datetime.utcnow()
-    return f"{now:%Y%m%d%H}{now.minute // 2}"
-
-
-def _mixed_shop_ids(query, *, slot: str) -> list[int]:
-    base_rows = query.with_entities(
-        Shop.id.label("id"),
-        Shop.is_verified.label("is_verified"),
-        Shop.created_at.label("created_at"),
-    ).subquery()
-
-    rows = db.session.query(
-        base_rows.c.id,
-        base_rows.c.is_verified,
-        base_rows.c.created_at,
-    ).all()
-
-    def sort_key(row) -> tuple:
-        digest = hashlib.sha1(f"{slot}:{row.id}".encode("utf-8")).hexdigest()[:12]
-        random_rank = int(digest, 16)
-        try:
-            freshness = row.created_at.timestamp() if row.created_at else 0.0
-        except Exception:
-            freshness = 0.0
-        return (
-            random_rank,
-            -int(bool(row.is_verified)),
-            -freshness,
-            -int(row.id),
-        )
-
-    ordered_rows = sorted(rows, key=sort_key)
-    return [int(row.id) for row in ordered_rows]
-
-
 @bp.route("/shops")
 def list_shops():
     """Liste toutes les boutiques actives"""
     page = page_from_args(request.args)
     q = _safe_str_param(request.args.get("q", ""))
+    search_q = q if len(q) >= 2 else ""
     kind = _validate_kind_param((request.args.get("kind") or "").strip().lower())
 
     per_page = 12
-    mix_slot = _shops_mix_slot()
 
     def build_shops_payload():
         """Construit le payload des boutiques (utilisé pour le cache)."""
         query = Shop.query.filter_by(is_active=True)
 
-        if q:
+        if search_q:
             query = query.filter(
-                Shop.name.ilike(f"%{q}%") |
-                Shop.description.ilike(f"%{q}%")
+                Shop.name.ilike(f"%{search_q}%") |
+                Shop.description.ilike(f"%{search_q}%")
             )
 
         if kind:
@@ -200,42 +163,35 @@ def list_shops():
                 )
                 query = query.filter(Shop.id.in_(location_shop_ids_subq))
 
-        mixed_shop_ids = _mixed_shop_ids(query, slot=mix_slot)
-        total = len(mixed_shop_ids)
-        start_idx = max(0, (page - 1) * per_page)
-        page_shop_ids = mixed_shop_ids[start_idx:start_idx + per_page]
-
-        shops_page = []
-        if page_shop_ids:
-            shops_rows = (
-                query
-                .options(
-                    load_only(
-                        Shop.id,
-                        Shop.vendor_id,
-                        Shop.name,
-                        Shop.slug,
-                        Shop.logo,
-                        Shop.banner,
-                        Shop.description,
-                        Shop.is_verified,
-                        Shop.contact_phone,
-                        Shop.address,
-                        Shop.service_location_note,
-                        Shop.service_latitude,
-                        Shop.service_longitude,
-                        Shop.is_active,
-                        Shop.is_open,
-                        Shop.closed_until,
-                        Shop.primary_type,
-                        Shop.allowed_types_json,
-                    )
+        ordered_query = (
+            query
+            .options(
+                load_only(
+                    Shop.id,
+                    Shop.vendor_id,
+                    Shop.name,
+                    Shop.slug,
+                    Shop.logo,
+                    Shop.banner,
+                    Shop.description,
+                    Shop.is_verified,
+                    Shop.contact_phone,
+                    Shop.address,
+                    Shop.service_location_note,
+                    Shop.service_latitude,
+                    Shop.service_longitude,
+                    Shop.is_active,
+                    Shop.is_open,
+                    Shop.closed_until,
+                    Shop.primary_type,
+                    Shop.allowed_types_json,
                 )
-                .filter(Shop.id.in_(page_shop_ids))
-                .all()
             )
-            shops_by_id = {shop.id: shop for shop in shops_rows}
-            shops_page = [shops_by_id[sid] for sid in page_shop_ids if sid in shops_by_id]
+            .order_by(Shop.is_verified.desc(), Shop.created_at.desc(), Shop.id.desc())
+        )
+        pagination = paginate_with_clamped_page(ordered_query, page=page, per_page=per_page, error_out=False)
+        shops_page = pagination.items
+        total = pagination.total
         shop_ids = [shop.id for shop in shops_page]
 
         physical_counts = {}
@@ -251,6 +207,7 @@ def list_shops():
                 .filter(
                     Promo.product_id == Product.id,
                     Promo.end_date >= now,
+                    Promo.status == Promo.STATUS_APPROVED,
                 )
                 .exists()
             )
@@ -372,9 +329,10 @@ def list_shops():
             "shops": shops_data,
             "total": total,
             "per_page": per_page,
+            "page": pagination.page,
         }
 
-    cache_key = f"shops_list:{page}:{q}:{kind}:{mix_slot}"
+    cache_key = f"shops_list:v2:{page}:{search_q}:{kind}"
 
     try:
         payload = get_catalog_cache(cache_key, build_shops_payload, timeout=120)
@@ -390,7 +348,7 @@ def list_shops():
 
     shops = payload.get("shops", [])
     pagination = SimplePagination(
-        page,
+        payload.get("page", page),
         payload.get("per_page", per_page),
         payload.get("total", 0)
     )
@@ -443,6 +401,7 @@ def shop_detail(shop_slug):
         cat = None
     
     q = _safe_str_param(request.args.get("q", ""))
+    search_q = q if len(q) >= 2 else ""
     sort = _validate_sort_param((request.args.get("sort") or "").strip())
     kind = _validate_kind_param(
         (request.args.get("kind") or "").strip().lower(),
@@ -475,6 +434,7 @@ def shop_detail(shop_slug):
             Product.shop_id == shop.id,
             Product.is_active == True,
             Promo.end_date >= utc_now,
+            Promo.status == Promo.STATUS_APPROVED,
         )
         .distinct()
         .subquery()
@@ -486,19 +446,19 @@ def shop_detail(shop_slug):
         if kind:
             query = query.filter(Product.kind == kind)
 
-        if q:
-            query = query.filter(Product.name.ilike(f"%{q}%"))
+        if search_q:
+            query = query.filter(Product.name.ilike(f"%{search_q}%"))
 
         if cat:
             query = query.filter_by(category_id=cat)
 
         # Tri
         if sort == "new":
-            query = query.order_by(Product.created_at.desc())
+            query = query.order_by(Product.created_at.desc(), Product.id.desc())
         elif sort == "low":
-            query = query.order_by(Product.price_cents_value.asc())
+            query = query.order_by(Product.price_cents_value.asc(), Product.created_at.desc(), Product.id.desc())
         elif sort == "high":
-            query = query.order_by(Product.price_cents_value.desc())
+            query = query.order_by(Product.price_cents_value.desc(), Product.created_at.desc(), Product.id.desc())
         elif sort == "promo":
             promo_first_rank = case(
                 (active_promo_products.c.product_id.isnot(None), 0),
@@ -507,14 +467,14 @@ def shop_detail(shop_slug):
             query = (
                 query
                 .outerjoin(active_promo_products, Product.id == active_promo_products.c.product_id)
-                .order_by(promo_first_rank.asc(), Product.created_at.desc())
+                .order_by(promo_first_rank.asc(), Product.created_at.desc(), Product.id.desc())
             )
         else:
-            query = query.order_by(Product.created_at.desc())
+            query = query.order_by(Product.created_at.desc(), Product.id.desc())
     
     # Pagination
     per_page = 12
-    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    pagination = paginate_with_clamped_page(query, page=page, per_page=per_page, error_out=False)
     promo_map = get_active_promos_for_products([product.id for product in pagination.items])
     try:
         shop_promo_count = int(

@@ -76,6 +76,17 @@ class FeaturedItem(db.Model):
             "ends_at",
             "target_type",
         ),
+        db.Index(
+            "ix_featureditem_target_latest",
+            "target_type",
+            "shop_id",
+            "product_id",
+            "location_id",
+            "is_active",
+            "ends_at",
+            "created_at",
+        ),
+        db.Index("ix_featureditem_created_id", "created_at", "id"),
     )
 
     @property

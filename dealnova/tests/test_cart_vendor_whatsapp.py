@@ -152,6 +152,8 @@ def test_cart_page_uses_direct_whatsapp_purchase_language():
     assert "Commander sur WhatsApp" in template
     assert "Continuer mes achats" in template
     assert "commerçant" not in template
+    assert "Commerçants" not in template
+    assert "Boutiques" in template
     assert "vendeur" not in template.lower()
     assert "Mise en relation" not in template
     assert "Contacter les boutiques" not in template

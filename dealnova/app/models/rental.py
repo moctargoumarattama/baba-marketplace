@@ -3,11 +3,40 @@
 from ..extensions import db
 
 
-RENTAL_LISTING_DURATION_DAYS = 15
+DEFAULT_RENTAL_MONTHLY_DURATION_DAYS = 14
+DEFAULT_RENTAL_DAILY_DURATION_DAYS = 14
+RENTAL_LISTING_DURATION_DAYS = DEFAULT_RENTAL_MONTHLY_DURATION_DAYS
+
+
+def _safe_duration_days(raw_value, fallback: int) -> int:
+    try:
+        parsed = int(raw_value)
+    except (TypeError, ValueError):
+        parsed = int(fallback)
+    return max(1, min(3650, parsed))
+
+
+def rental_duration_days_for_type(listing_type: str | None, settings=None) -> int:
+    kind = (listing_type or "").strip().lower()
+
+    if settings is None:
+        try:
+            from .platform_settings import PlatformSettings
+
+            settings = PlatformSettings.get()
+        except Exception:
+            settings = None
+
+    if kind == "daily":
+        raw_days = getattr(settings, "rental_daily_duration_days", DEFAULT_RENTAL_DAILY_DURATION_DAYS)
+        return _safe_duration_days(raw_days, DEFAULT_RENTAL_DAILY_DURATION_DAYS)
+
+    raw_days = getattr(settings, "rental_monthly_duration_days", DEFAULT_RENTAL_MONTHLY_DURATION_DAYS)
+    return _safe_duration_days(raw_days, DEFAULT_RENTAL_MONTHLY_DURATION_DAYS)
 
 
 def _default_expires_at():
-    return datetime.utcnow() + timedelta(days=RENTAL_LISTING_DURATION_DAYS)
+    return datetime.utcnow() + timedelta(days=rental_duration_days_for_type("monthly"))
 
 
 class RentalListing(db.Model):
@@ -85,6 +114,9 @@ class RentalListing(db.Model):
         ),
         db.CheckConstraint("view_count >= 0", name="ck_rentallisting_views_non_negative"),
         db.Index("ix_rental_listing_shop_status", "shop_id", "status"),
+        db.Index("ix_rental_listing_created_id", "created_at", "id"),
+        db.Index("ix_rental_listing_status_created", "status", "created_at"),
+        db.Index("ix_rental_listing_owner_created", "owner_id", "created_at"),
     )
 
     def mark_view(self):
@@ -185,5 +217,9 @@ class RentalArchive(db.Model):
             "archived_view_count >= 0",
             name="ck_rentalarchive_views_non_negative",
         ),
+        db.Index("ix_rental_archive_closed_id", "closed_at", "id"),
+        db.Index("ix_rental_archive_reason_closed", "closed_reason", "closed_at"),
+        db.Index("ix_rental_archive_owner_closed", "owner_id", "closed_at"),
+        db.Index("ix_rental_archive_owner_reason_closed", "owner_id", "closed_reason", "closed_at"),
     )
 

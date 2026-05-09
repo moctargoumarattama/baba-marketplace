@@ -19,7 +19,12 @@ def _safe_session_rollback() -> None:
 
 
 def _promo_is_active(promo) -> bool:
-    return bool(promo and promo.end_date and promo.end_date >= datetime.utcnow())
+    return bool(
+        promo
+        and promo.end_date
+        and promo.end_date >= datetime.utcnow()
+        and getattr(promo, "status", Promo.STATUS_APPROVED) == Promo.STATUS_APPROVED
+    )
 
 
 def get_active_promo(product_id):
@@ -28,7 +33,11 @@ def get_active_promo(product_id):
     try:
         return (
             Promo.query
-            .filter(Promo.product_id == product_id, Promo.end_date >= now)
+            .filter(
+                Promo.product_id == product_id,
+                Promo.end_date >= now,
+                Promo.status == Promo.STATUS_APPROVED,
+            )
             .order_by(Promo.end_date.asc())
             .first()
         )
@@ -47,7 +56,8 @@ def get_active_promos_for_products(product_ids):
     try:
         promos = Promo.query.filter(
             Promo.product_id.in_(product_ids),
-            Promo.end_date >= now
+            Promo.end_date >= now,
+            Promo.status == Promo.STATUS_APPROVED,
         ).order_by(Promo.product_id.asc(), Promo.end_date.asc()).all()
     except Exception:
         _safe_session_rollback()

@@ -1,5 +1,6 @@
 ﻿import json
 import os
+from pathlib import Path
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, current_app, session
 from flask_login import login_required, current_user, logout_user
 from datetime import datetime, timedelta
@@ -10,6 +11,7 @@ from ..models.order import Order
 from ..models.financial import FinancialEntry
 from ..models.maintenance import ErrorLog, MaintenanceRun
 from ..models.product import Product
+from ..models.promo import Promo
 from ..models.featured_item import FeaturedItem
 from ..models.shop import Shop
 from ..models.user import User
@@ -21,7 +23,7 @@ from ..models.product_contact_lead import ProductContactLead
 from ..models.subscription_payment import SubscriptionPayment
 from ..services.audit import log_access
 from sqlalchemy.orm import selectinload
-from sqlalchemy import case, or_
+from sqlalchemy import case, func, or_
 from sqlalchemy.exc import SQLAlchemyError
 from ..services.cache import bump_catalog_version
 from ..services.featured_items import (
@@ -44,7 +46,11 @@ from ..services.maintenance import (
     localize_http_error_message,
     UPLOADS_SIZE_GB_DANGER,
     UPLOADS_SIZE_GB_WARNING,
+    create_database_backup,
+    import_database_backup,
+    list_database_backups,
     create_pre_reset_backup,
+    restore_database_backup,
     reset_database_keep_admins,
 )
 from ..services.maintenance_mode import (
@@ -81,6 +87,7 @@ ACTIVE_DELIVERY_STATUSES = {"new"}
 ORDER_STATUS_FILTERS = {"", "pending", "delivered", "cancelled"}
 DELIVERY_STATUS_FILTERS = {"", "new", "delivered", "canceled"}
 FEATURED_SEARCH_LIMIT = 18
+FEATURED_HISTORY_PER_PAGE = 30
 FEATURED_STATUS_FILTERS = {"all", "active", "expired", "stopped"}
 FEATURED_VIEW_FILTERS = {"overview", "history"}
 ADMIN_ROLE = "admin"
@@ -247,6 +254,97 @@ def _format_datetime_local(value: datetime | None) -> str:
     return value.strftime("%Y-%m-%dT%H:%M")
 
 
+def _maintenance_health_freshness(last_run, days: int) -> dict:
+    command = f"flask cleanup --mode quick --days {days}"
+    if not last_run:
+        return {
+            "calculated_at_label": "Non disponible",
+            "status_label": "Ancien",
+            "status_class": "status-warn",
+            "age_label": "Aucun rapport console enregistre",
+            "command": command,
+        }
+
+    calculated_at = last_run.finished_at or last_run.started_at
+    if not calculated_at:
+        return {
+            "calculated_at_label": "Non disponible",
+            "status_label": "Ancien",
+            "status_class": "status-warn",
+            "age_label": "Date du rapport absente",
+            "command": command,
+        }
+
+    age = datetime.utcnow() - calculated_at
+    total_seconds = max(0, int(age.total_seconds()))
+    is_fresh = total_seconds < 86400
+    hours = total_seconds // 3600
+    minutes = (total_seconds % 3600) // 60
+    if hours:
+        age_label = f"Il y a {hours}h {minutes:02d}min"
+    else:
+        age_label = f"Il y a {minutes}min"
+
+    return {
+        "calculated_at_label": calculated_at.strftime("%d/%m/%Y %H:%M:%S"),
+        "status_label": "Frais" if is_fresh else "Ancien",
+        "status_class": "status-ok" if is_fresh else "status-warn",
+        "age_label": age_label,
+        "command": command,
+    }
+
+
+def _maintenance_backup_context() -> dict:
+    retention_days = int(current_app.config.get("DB_BACKUP_RETENTION_DAYS", 30) or 30)
+    backup_dir = str(current_app.config.get("MAINTENANCE_BACKUP_DIR") or "").strip()
+    display_dir = backup_dir or str((Path(current_app.root_path).resolve().parent / "backups").resolve())
+    project_dir = str((Path(current_app.root_path).resolve().parent).resolve())
+    venv_name = str(current_app.config.get("PYTHONANYWHERE_VENV_NAME") or "babaenv").strip() or "babaenv"
+    command = (
+        f"cd {project_dir} && workon {venv_name} && "
+        f"flask --app app:create_app db-backup --backup-dir {display_dir} --retention-days {retention_days}"
+    )
+    restore_command = f"flask --app app:create_app db-restore {display_dir}/nom_du_backup.sql.gz --yes"
+    panel = {
+        "available": True,
+        "backup_dir": display_dir,
+        "retention_days": retention_days,
+        "command": command,
+        "restore_command": restore_command,
+        "backups": [],
+        "latest": None,
+        "status_label": "Aucune sauvegarde",
+        "status_class": "status-warn",
+        "note": "",
+    }
+
+    try:
+        backups = list_database_backups(backup_dir=backup_dir or None)
+        panel["backups"] = backups
+        latest = backups[0] if backups else None
+        panel["latest"] = latest
+        if latest:
+            modified_raw = latest.get("modified_at_utc") or ""
+            modified_dt = None
+            try:
+                modified_dt = datetime.fromisoformat(modified_raw.replace("Z", ""))
+            except ValueError:
+                modified_dt = None
+            if modified_dt and (datetime.utcnow() - modified_dt).total_seconds() < 86400:
+                panel["status_label"] = "Sauvegarde recente"
+                panel["status_class"] = "status-ok"
+            else:
+                panel["status_label"] = "Sauvegarde ancienne"
+                panel["status_class"] = "status-warn"
+    except Exception as exc:
+        panel["available"] = False
+        panel["status_label"] = "Erreur sauvegardes"
+        panel["status_class"] = "status-danger"
+        panel["note"] = str(exc)
+
+    return panel
+
+
 def _maintenance_status(value, warning: float, danger: float) -> dict:
     numeric = _to_float_or_none(value)
     if numeric is None:
@@ -397,6 +495,8 @@ def _maintenance_view_context(days: int, reset_result=None, errors_page: int = 1
         "last_quick_run": last_quick_run,
         "last_full_run": last_full_run,
         "last_run_label": last_run_label,
+        "health_freshness": _maintenance_health_freshness(last_run, days),
+        "backup_panel": _maintenance_backup_context(),
         "maintenance_mode": maintenance_mode,
         "live_traffic": live_traffic,
         "errors_block": errors_block,
@@ -478,6 +578,8 @@ def _featured_items_url_from_context(context: dict) -> str:
     params = {}
     if context.get("featured_view") and context["featured_view"] != "overview":
         params["view"] = context["featured_view"]
+    if int(context.get("history_page") or 1) > 1:
+        params["history_page"] = int(context.get("history_page") or 1)
     if context.get("status_filter") and context["status_filter"] != "all":
         params["status"] = context["status_filter"]
     if context.get("shop_q"):
@@ -489,58 +591,103 @@ def _featured_items_url_from_context(context: dict) -> str:
     return url_for("admin.featured_items", **params)
 
 
+def _featured_target_type_order():
+    return case(
+        (FeaturedItem.target_type == FeaturedItem.TARGET_SHOP, 0),
+        (FeaturedItem.target_type == FeaturedItem.TARGET_PRODUCT, 1),
+        (FeaturedItem.target_type == FeaturedItem.TARGET_LOCATION, 2),
+        else_=3,
+    )
+
+
+def _featured_target_rank_subquery():
+    return (
+        db.session.query(
+            FeaturedItem.id.label("item_id"),
+            func.row_number()
+            .over(
+                partition_by=(
+                    FeaturedItem.target_type,
+                    FeaturedItem.shop_id,
+                    FeaturedItem.product_id,
+                    FeaturedItem.location_id,
+                ),
+                order_by=(
+                    FeaturedItem.is_active.desc(),
+                    _featured_target_type_order(),
+                    FeaturedItem.ends_at.desc(),
+                    FeaturedItem.created_at.desc(),
+                    FeaturedItem.id.desc(),
+                ),
+            )
+            .label("target_rank"),
+        )
+        .subquery()
+    )
+
+
+def _featured_items_query_options():
+    return (
+        selectinload(FeaturedItem.shop).selectinload(Shop.vendor),
+        selectinload(FeaturedItem.product).selectinload(Product.shop),
+        selectinload(FeaturedItem.location).selectinload(RentalListing.shop),
+        selectinload(FeaturedItem.vendor),
+        selectinload(FeaturedItem.created_by_admin),
+    )
+
+
 def _build_featured_items_context(source=None) -> dict:
     source = source or request.args
     featured_view = _normalize_featured_view(source.get("view"))
     status_filter = _normalize_featured_status(source.get("status"))
+    history_page = page_from_args(source, key="history_page", default=1)
     now = datetime.utcnow()
-    latest_rows_query = (
+    ranked_targets = _featured_target_rank_subquery()
+    active_targets_query = (
         FeaturedItem.query
-        .options(
-            selectinload(FeaturedItem.shop).selectinload(Shop.vendor),
-            selectinload(FeaturedItem.product).selectinload(Product.shop),
-            selectinload(FeaturedItem.location).selectinload(RentalListing.shop),
-            selectinload(FeaturedItem.vendor),
-            selectinload(FeaturedItem.created_by_admin),
+        .join(ranked_targets, FeaturedItem.id == ranked_targets.c.item_id)
+        .options(*_featured_items_query_options())
+        .filter(ranked_targets.c.target_rank == 1)
+        .filter(
+            FeaturedItem.is_active == True,
+            FeaturedItem.starts_at <= now,
+            FeaturedItem.ends_at >= now,
         )
         .order_by(
-            FeaturedItem.is_active.desc(),
-            case(
-                (FeaturedItem.target_type == FeaturedItem.TARGET_SHOP, 0),
-                (FeaturedItem.target_type == FeaturedItem.TARGET_PRODUCT, 1),
-                (FeaturedItem.target_type == FeaturedItem.TARGET_LOCATION, 2),
-                else_=3,
-            ),
+            _featured_target_type_order(),
             FeaturedItem.ends_at.desc(),
             FeaturedItem.created_at.desc(),
+            FeaturedItem.id.desc(),
         )
     )
-    latest_rows = []
-    history_items = []
-    seen_targets = set()
-    for item in latest_rows_query.all():
-        target_key = (item.target_type, item.target_id)
-        if target_key in seen_targets:
-            item.ui_status = "history"
-            item.can_delete_after = item.created_at + timedelta(days=30)
-            item.can_delete_now = item.can_delete_after <= now
-            history_items.append(item)
-            continue
-        seen_targets.add(target_key)
-        if item.ends_at < now:
-            item.ui_status = "expired"
-        elif item.is_active and item.starts_at <= now <= item.ends_at:
-            item.ui_status = "active"
-        else:
-            item.ui_status = "stopped"
-        if item.ui_status == "active":
-            latest_rows.append(item)
-        else:
-            item.can_delete_after = item.created_at + timedelta(days=30)
-            item.can_delete_now = item.can_delete_after <= now
-            history_items.append(item)
+    latest_rows = active_targets_query.all()
+    for item in latest_rows:
+        item.ui_status = "active"
 
-    history_items.sort(key=lambda item: (item.created_at, item.id), reverse=True)
+    history_query = (
+        FeaturedItem.query
+        .join(ranked_targets, FeaturedItem.id == ranked_targets.c.item_id)
+        .options(*_featured_items_query_options())
+        .filter(
+            or_(
+                ranked_targets.c.target_rank > 1,
+                FeaturedItem.is_active == False,
+                FeaturedItem.starts_at > now,
+                FeaturedItem.ends_at < now,
+            )
+        )
+        .order_by(FeaturedItem.created_at.desc(), FeaturedItem.id.desc())
+    )
+    history_pagination = history_query.paginate(
+        page=history_page,
+        per_page=FEATURED_HISTORY_PER_PAGE,
+        error_out=False,
+    )
+    history_items = history_pagination.items
+    for item in history_items:
+        item.ui_status = "history"
+        item.can_delete_after = item.created_at + timedelta(days=30)
+        item.can_delete_now = item.can_delete_after <= now
 
     if status_filter == "active":
         active_items = latest_rows
@@ -572,7 +719,9 @@ def _build_featured_items_context(source=None) -> dict:
     context = {
         "active_items": active_items,
         "history_items": history_items,
-        "history_count": len(history_items),
+        "history_count": history_pagination.total,
+        "history_pagination": history_pagination,
+        "history_page": history_pagination.page,
         "active_target_keys": active_target_keys,
         "featured_view": featured_view,
         "status_filter": status_filter,
@@ -715,6 +864,93 @@ def restrict_sensitive_pages_for_manager():
 # ======================
 # CONTACTS PRODUITS
 # ======================
+@bp.route("/promotions")
+def promo_reviews():
+    page = page_from_args(request.args)
+    status = (request.args.get("status") or Promo.STATUS_PENDING).strip().lower()
+    if status not in {Promo.STATUS_PENDING, Promo.STATUS_APPROVED, Promo.STATUS_REJECTED, "all"}:
+        status = Promo.STATUS_PENDING
+
+    query = (
+        Promo.query
+        .join(Product, Product.id == Promo.product_id)
+        .outerjoin(Shop, Shop.id == Product.shop_id)
+        .options(selectinload(Promo.product).selectinload(Product.shop))
+    )
+    if status != "all":
+        query = query.filter(Promo.status == status)
+
+    pagination = (
+        query
+        .order_by(
+            case((Promo.status == Promo.STATUS_PENDING, 0), else_=1),
+            Promo.created_at.desc(),
+            Promo.id.desc(),
+        )
+        .paginate(page=page, per_page=40, error_out=False)
+    )
+    trusted_shop_ids = {
+        shop_id for (shop_id,) in Shop.query.with_entities(Shop.id).filter(Shop.promo_trusted == True).all()
+    }
+    status_counts = {
+        row.status: int(row.total or 0)
+        for row in (
+            db.session.query(Promo.status, func.count(Promo.id).label("total"))
+            .group_by(Promo.status)
+            .all()
+        )
+    }
+    return render_template(
+        "admin/promo_reviews.html",
+        promos=pagination.items,
+        pagination=pagination,
+        status=status,
+        trusted_shop_ids=trusted_shop_ids,
+        status_counts=status_counts,
+    )
+
+
+@bp.route("/promotions/<int:promo_id>/approve", methods=["POST"])
+def promo_approve(promo_id):
+    promo = Promo.query.get_or_404(promo_id)
+    trust_shop = request.form.get("trust_shop") == "1"
+    promo.status = Promo.STATUS_APPROVED
+    promo.review_note = (request.form.get("review_note") or "").strip()[:500] or None
+    promo.reviewed_by_id = current_user.id
+    promo.reviewed_at = datetime.utcnow()
+    if trust_shop and promo.product and promo.product.shop:
+        promo.product.shop.promo_trusted = True
+    db.session.commit()
+    bump_catalog_version()
+    flash("Promotion approuvée.", "success")
+    return redirect(url_for("admin.promo_reviews"))
+
+
+@bp.route("/promotions/<int:promo_id>/reject", methods=["POST"])
+def promo_reject(promo_id):
+    promo = Promo.query.get_or_404(promo_id)
+    promo.status = Promo.STATUS_REJECTED
+    promo.review_note = (request.form.get("review_note") or "").strip()[:500] or "Refusée par l'admin."
+    promo.reviewed_by_id = current_user.id
+    promo.reviewed_at = datetime.utcnow()
+    db.session.commit()
+    bump_catalog_version()
+    flash("Promotion refusée.", "info")
+    return redirect(url_for("admin.promo_reviews"))
+
+
+@bp.route("/shops/<int:shop_id>/promo-trusted", methods=["POST"])
+def shop_promo_trusted_toggle(shop_id):
+    shop = Shop.query.get_or_404(shop_id)
+    shop.promo_trusted = not bool(shop.promo_trusted)
+    db.session.commit()
+    flash(
+        "Publication automatique des promos activée." if shop.promo_trusted else "Validation admin des promos réactivée.",
+        "success",
+    )
+    return redirect(request.referrer or url_for("admin_users.shop_detail", shop_id=shop.id))
+
+
 @bp.route("/product-contacts")
 def product_contacts():
     page = page_from_args(request.args)
@@ -1724,6 +1960,8 @@ def maintenance():
             "last_quick_run": None,
             "last_full_run": None,
             "last_run_label": "Déverrouillage requis",
+            "health_freshness": _maintenance_health_freshness(None, days),
+            "backup_panel": _maintenance_backup_context(),
             "live_traffic": {"available": False},
             "errors_block": {
                 "available": False,
@@ -1920,6 +2158,102 @@ def run_maintenance(mode: str):
 
     flash(message, "info")
     return redirect(url_for("admin.maintenance", days=days))
+
+
+@bp.route("/maintenance/backups/create", methods=["POST"])
+def maintenance_backup_create():
+    days = _parse_days(request.form.get("days"), default=6, minimum=1, maximum=365)
+    if not _maintenance_panel_is_unlocked():
+        return _maintenance_protected_redirect(days=days)
+
+    backup_dir = (request.form.get("backup_dir") or "").strip()
+    retention_raw = (request.form.get("retention_days") or "").strip()
+    retention_days = int(retention_raw) if retention_raw.isdigit() else None
+    try:
+        result = create_database_backup(backup_dir=backup_dir or None, retention_days=retention_days)
+        flash(f"Sauvegarde creee: {result.get('backup_file')}", "success")
+        log_access(
+            "maintenance_db_backup_create",
+            "system",
+            0,
+            success=True,
+            changes={"backup_file": result.get("backup_file"), "backup_dir": result.get("backup_dir")},
+        )
+    except Exception as exc:
+        db.session.rollback()
+        flash(f"Echec sauvegarde base de donnees: {exc}", "danger")
+    return redirect(url_for("admin.maintenance", days=days) + "#maintenance-backups")
+
+
+@bp.route("/maintenance/backups/import", methods=["POST"])
+def maintenance_backup_import():
+    days = _parse_days(request.form.get("days"), default=6, minimum=1, maximum=365)
+    if not _maintenance_panel_is_unlocked():
+        return _maintenance_protected_redirect(days=days)
+
+    backup_dir = (request.form.get("backup_dir") or "").strip()
+    upload = request.files.get("backup_file")
+    if not upload or not upload.filename:
+        flash("Choisis un fichier .sql.gz a importer.", "warning")
+        return redirect(url_for("admin.maintenance", days=days) + "#maintenance-backups")
+
+    try:
+        result = import_database_backup(
+            source_stream=upload,
+            filename=upload.filename,
+            backup_dir=backup_dir or None,
+        )
+        flash(f"Sauvegarde importee: {result.get('backup_file')}", "success")
+        log_access(
+            "maintenance_db_backup_import",
+            "system",
+            0,
+            success=True,
+            changes={"backup_file": result.get("backup_file"), "original_filename": result.get("original_filename")},
+        )
+    except Exception as exc:
+        db.session.rollback()
+        flash(f"Echec import sauvegarde: {exc}", "danger")
+    return redirect(url_for("admin.maintenance", days=days) + "#maintenance-backups")
+
+
+@bp.route("/maintenance/backups/restore", methods=["POST"])
+def maintenance_backup_restore():
+    days = _parse_days(request.form.get("days"), default=6, minimum=1, maximum=365)
+    if not _maintenance_panel_is_unlocked():
+        return _maintenance_protected_redirect(days=days)
+
+    password = (request.form.get("password") or "").strip()
+    confirm_text = (request.form.get("confirm_text") or "").strip().upper()
+    backup_file = (request.form.get("backup_file") or "").strip()
+
+    if confirm_text != "RESTAURER":
+        flash("Confirmation invalide. Tape RESTAURER pour continuer.", "warning")
+        return redirect(url_for("admin.maintenance", days=days) + "#maintenance-backups")
+
+    if not password or not current_user.check_password(password):
+        flash("Mot de passe admin invalide.", "danger")
+        return redirect(url_for("admin.maintenance", days=days) + "#maintenance-backups")
+
+    if not backup_file:
+        flash("Sauvegarde a restaurer introuvable.", "warning")
+        return redirect(url_for("admin.maintenance", days=days) + "#maintenance-backups")
+
+    try:
+        result = restore_database_backup(backup_file, yes=True)
+        flash(f"Base restauree depuis: {result.get('restored_file')}", "success")
+        log_access(
+            "maintenance_db_backup_restore",
+            "system",
+            0,
+            success=True,
+            changes={"restored_file": result.get("restored_file"), "database": result.get("database")},
+        )
+    except Exception as exc:
+        db.session.rollback()
+        flash(f"Echec restauration base de donnees: {exc}", "danger")
+
+    return redirect(url_for("admin.maintenance", days=days) + "#maintenance-backups")
 
 
 @bp.route("/maintenance/reset-data", methods=["POST"])

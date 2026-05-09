@@ -10,37 +10,53 @@
 .admin-card,.card{transform:none!important;transition:none!important;animation:none!important;}
 
 :root{
-  --white:#fff;--bg:#f8fafc;--border:#e5e7eb;
-  --text:#0f172a;--mid:#475569;--muted:#94a3b8;
-  --primary:#3b82f6;--r:10px;--sh:0 1px 5px rgba(0,0,0,.07);
+  --white:#fff;--bg:#f3f6fb;--border:#dbe4f0;
+  --text:#0f172a;--mid:#334155;--muted:#64748b;
+  --primary:#0ea5a5;--primary-2:#6366f1;--accent:#f59e0b;--danger:#ef4444;
+  --r:10px;--sh:0 4px 14px rgba(15,23,42,.06);
 }
 
 .lw{display:flex;flex-direction:column;gap:.85rem;padding-bottom:2rem;}
 
 /* STATS */
 .st-row{display:grid;grid-template-columns:repeat(3,1fr);gap:.65rem;}
-.st-box{background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:.75rem .9rem;box-shadow:var(--sh);}
+.st-box{background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:.75rem .9rem;box-shadow:var(--sh);position:relative;overflow:hidden;}
+.st-box::before{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:var(--primary);}
+.st-box.is-active{background:#f0fdfa;}
+.st-box.is-active::before{background:var(--primary);}
+.st-box.is-clean{background:#fff7ed;}
+.st-box.is-clean::before{background:var(--accent);}
+.st-box.is-archive{background:#eef2ff;}
+.st-box.is-archive::before{background:var(--primary-2);}
 .st-box .lbl{font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;font-weight:700;color:var(--muted);}
 .st-box .val{font-size:1.35rem;font-weight:900;color:var(--text);line-height:1.1;margin-top:.1rem;}
 
 /* CARD */
 .lc{background:var(--white);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--sh);overflow:hidden;}
-.lc-hd{display:flex;align-items:center;justify-content:space-between;padding:.65rem .9rem;border-bottom:1px solid var(--border);background:var(--bg);flex-wrap:wrap;gap:.4rem;}
+.lc-hd{display:flex;align-items:center;justify-content:space-between;padding:.65rem .9rem;border-bottom:1px solid var(--border);background:#f8fafc;flex-wrap:wrap;gap:.4rem;}
 .lc-hd h6{margin:0;font-size:.85rem;font-weight:700;color:var(--text);display:flex;align-items:center;gap:.35rem;}
+.lc-hd h6 i{color:var(--primary);}
 .lc-hd .sub{font-size:.72rem;color:var(--muted);}
 .lc-body{padding:.8rem .9rem;}
+.lc-org .lc-hd{background:#ecfeff;}
+.lc-filter .lc-hd{background:#f0fdfa;}
+.lc-commission .lc-hd{background:#eff6ff;}
+.lc-duration .lc-hd{background:#fff7ed;}
+.lc-history .lc-hd{background:#eef2ff;}
+.lc-listings .lc-hd{background:#effcf6;}
+.lc-archives .lc-hd{background:#fff1f2;}
 
 /* FILTER */
 .fbar{display:flex;gap:.45rem;flex-wrap:wrap;align-items:flex-end;}
 .fbar .fg{display:flex;flex-direction:column;gap:.18rem;flex:1;min-width:120px;}
 .fbar label{font-size:.68rem;font-weight:700;color:var(--mid);}
-.fc,.fs{height:36px;font-size:.79rem;border-radius:7px;border:1px solid var(--border);padding:.3rem .6rem;background:var(--white);outline:none;width:100%;transition:border-color .15s;}
-.fc:focus,.fs:focus{border-color:var(--primary);}
+.fc,.fs{height:36px;font-size:.79rem;border-radius:7px;border:1px solid var(--border);padding:.3rem .6rem;background:var(--white);outline:none;width:100%;transition:border-color .15s,box-shadow .15s;}
+.fc:focus,.fs:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(14,165,165,.14);}
 .fbar .fg-btns{display:flex;gap:.38rem;align-items:flex-end;flex-shrink:0;}
-.btn-f{height:36px;padding:0 .85rem;border-radius:7px;background:var(--primary);color:#fff;border:none;font-size:.77rem;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:.26rem;}
-.btn-f:hover{background:#2563eb;}
+.btn-f{height:36px;padding:0 .85rem;border-radius:7px;background:var(--primary);color:#fff;border:none;font-size:.77rem;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:.26rem;box-shadow:0 4px 10px rgba(14,165,165,.2);}
+.btn-f:hover{background:#0d9488;}
 .btn-r{height:36px;padding:0 .75rem;border-radius:7px;background:var(--white);color:var(--mid);border:1px solid var(--border);font-size:.75rem;font-weight:600;text-decoration:none;display:inline-flex;align-items:center;gap:.24rem;cursor:pointer;}
-.btn-r:hover{background:var(--bg);}
+.btn-r:hover{background:#eef2f7;border-color:#cbd5e1;color:#0f172a;}
 
 /* LIVE BADGE */
 .live-b{font-size:.65rem;font-weight:700;color:#16a34a;background:#dcfce7;border:1px solid #bbf7d0;border-radius:999px;padding:.12rem .45rem;display:inline-flex;align-items:center;gap:.2rem;}
@@ -54,10 +70,11 @@
 
 /* TABLE */
 .lt{width:100%;border-collapse:collapse;font-size:.79rem;}
-.lt thead th{padding:.45rem .65rem;text-align:left;font-size:.67rem;text-transform:uppercase;letter-spacing:.05em;font-weight:700;color:var(--muted);background:var(--bg);border-bottom:1px solid var(--border);white-space:nowrap;}
+.lt thead th{padding:.45rem .65rem;text-align:left;font-size:.67rem;text-transform:uppercase;letter-spacing:.05em;font-weight:700;color:var(--muted);background:#f8fafc;border-bottom:1px solid var(--border);white-space:nowrap;}
 .lt tbody td{padding:.52rem .65rem;border-bottom:1px solid #f1f5f9;vertical-align:middle;}
 .lt tbody tr:last-child td{border-bottom:none;}
-.lt tbody tr:hover{background:#fafbfc;}
+.lt tbody tr:nth-child(even){background:#fbfdff;}
+.lt tbody tr:hover{background:#f1f8ff;}
 .lt .empty td{text-align:center;padding:2rem;color:var(--muted);}
 
 /* hide on mobile */
@@ -85,7 +102,7 @@
 /* PAGINATION */
 .pg{display:flex;align-items:center;justify-content:center;gap:.26rem;padding:.65rem .9rem;border-top:1px solid var(--border);flex-wrap:wrap;}
 .pg a,.pg span{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:30px;padding:0 .5rem;border:1px solid var(--border);border-radius:6px;background:var(--white);color:var(--mid);font-size:.74rem;font-weight:700;text-decoration:none;transition:border-color .12s,background .12s;cursor:pointer;}
-.pg a:hover{border-color:var(--primary);color:var(--primary);background:#eff6ff;}
+.pg a:hover{border-color:var(--primary);color:var(--primary);background:#ecfeff;}
 .pg .cur{background:var(--primary);border-color:var(--primary);color:#fff;}
 .pg .dis{opacity:.32;pointer-events:none;cursor:default;}
 .pg .pinfo{border:none;background:transparent;font-size:.7rem;color:var(--muted);padding:0 .2rem;min-width:auto;}
@@ -120,13 +137,9 @@
 <div class="lw">
 
   <!-- STATS -->
-  <div class="st-row">
-    <div class="st-box"><div class="lbl">Actives</div><div class="val">{{ active_count }}</div></div>
-    <div class="st-box"><div class="lbl">À nettoyer</div><div class="val">{{ expired_pending }}</div></div>
-    <div class="st-box"><div class="lbl">Archives</div><div class="val">{{ archives_count }}</div></div>
-  </div>
+  {% include "admin/partials/_locations_stats.html" %}
 
-  <div class="lc">
+  <div class="lc lc-org">
     <div class="lc-hd">
       <h6><i class="bi bi-calendar3"></i> Organisation generale</h6>
       <span class="sub">{{ date_range_label }}</span>
@@ -142,7 +155,7 @@
   </div>
 
   <!-- FILTER -->
-  <div class="lc">
+  <div class="lc lc-filter">
     <div class="lc-hd">
       <h6><i class="bi bi-funnel"></i> Filtres</h6>
       <div style="display:flex;align-items:center;gap:.55rem;">
@@ -199,7 +212,7 @@
   </div>
 
   <!-- COMMISSION -->
-  <div class="lc">
+  <div class="lc lc-commission">
       <div class="lc-hd"><h6><i class="bi bi-percent"></i> Commission location</h6></div>
       <div class="lc-body">
         <div class="com-body">
@@ -214,154 +227,80 @@
     </div>
   </div>
 
-  <!-- LISTINGS TABLE -->
-  <div class="lc" id="listingsCard">
-    <div class="lc-hd">
-      <h6><i class="bi bi-house-door"></i> Annonces actives</h6>
-      <span class="sub" id="listingsSub">{{ listings_pg.total }} annonces · page {{ listings_pg.page }}/{{ [listings_pg.pages,1]|max }}</span>
-    </div>
-    <div class="tbl-wrap">
-      <div class="tbl-mask" id="listingsMask"><div class="spinner"></div></div>
-      <div class="lt-mobile-scroll">
-        <table class="lt" id="listingsTbl">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Annonce</th>
-              <th class="hide-sm">Propriétaire</th>
-              <th class="hide-sm">Prix</th>
-              <th class="hide-sm">Commission</th>
-              <th class="hide-sm">Vues</th>
-              <th>Statut</th>
-              <th class="hide-sm">Expire</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody id="listingsTbody">
-            {% include "admin/partials/_loc_listings_rows.html" ignore missing %}
-            {# fallback inline if partial not used #}
-            {% if listings %}
-              {% for listing in listings %}
-              <tr>
-                <td style="color:var(--muted);font-size:.73rem">#{{ listing.id }}</td>
-                <td>
-                  <div style="font-weight:700;font-size:.8rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ listing.title|truncate(40) }}</div>
-                  <div style="font-size:.71rem;color:var(--muted)">{{ listing.city }}{% if listing.area %}, {{ listing.area }}{% endif %}</div>
-                </td>
-                <td class="hide-sm">{{ listing.owner.username if listing.owner else '?' }}</td>
-                <td class="hide-sm" style="font-weight:700;white-space:nowrap">{{ cents_to_dh(listing.rent_cents) }}</td>
-                <td class="hide-sm">
-                  {% set ac = commission_amount_from_owner_fee(listing.owner_fee_cents, settings.rental_success_commission_bps) %}
-                  <div class="cn">{{ bps_to_percent(settings.rental_success_commission_bps) }}%</div>
-                  <div class="cn">Est.: {{ cents_to_dh(ac) }}</div>
-                </td>
-                <td class="hide-sm" style="color:var(--muted)">{{ listing.view_count }}</td>
-                <td><span class="bs bs-{{ listing.status }}">{{ label_location_status(listing.status, current_lang) }}</span></td>
-                <td class="hide-sm" style="font-size:.72rem;color:var(--muted);white-space:nowrap">{{ format_dt(listing.expires_at) }}</td>
-                <td>
-                  <div style="display:flex;gap:.28rem;">
-                    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('rentals.location_detail', slug=listing.slug) }}" target="_blank"><i class="bi bi-eye"></i></a>
-                    <form method="post" action="{{ url_for('rentals.admin_location_delete', listing_id=listing.id) }}" data-confirm-submit="Supprimer ">
-                      {% include "admin/partials/_csrf.html" %}
-                      <button class="btn btn-sm btn-outline-danger" type="submit"><i class="bi bi-trash"></i></button>
-                    </form>
-                  </div>
-                </td>
-              </tr>
-              {% endfor %}
-            {% else %}
-              <tr class="empty"><td colspan="9"><i class="bi bi-house-slash"></i> Aucune annonce.</td></tr>
-            {% endif %}
-          </tbody>
-        </table>
-      </div>
-      <!-- LISTINGS PAGINATION -->
-      <div class="pg" id="listingsPg">
-        {% if listings_pg.pages > 1 %}
-          {% if listings_pg.has_prev %}
-            <a data-lpage="{{ listings_pg.prev_num }}"><i class="bi bi-chevron-left"></i></a>
-          {% else %}<span class="dis"><i class="bi bi-chevron-left"></i></span>{% endif %}
-          {% for p in listings_pg.iter_pages(left_edge=1,right_edge=1,left_current=2,right_current=2) %}
-            {% if p %}<a class="{{ 'cur' if p==listings_pg.page }}" data-lpage="{{ p }}">{{ p }}</a>
-            {% else %}<span class="dis">...</span>{% endif %}
-          {% endfor %}
-          <span class="pinfo">{{ listings_pg.page }}/{{ listings_pg.pages }} · {{ listings_pg.total }}</span>
-          {% if listings_pg.has_next %}
-            <a data-lpage="{{ listings_pg.next_num }}"><i class="bi bi-chevron-right"></i></a>
-          {% else %}<span class="dis"><i class="bi bi-chevron-right"></i></span>{% endif %}
-        {% endif %}
-      </div>
+  <!-- DISAPPEARANCE SETTINGS -->
+  <div class="lc lc-duration">
+    <div class="lc-hd"><h6><i class="bi bi-hourglass-split"></i> Durée de disparition</h6></div>
+    <div class="lc-body">
+      <form method="post" action="{{ url_for('rentals.admin_locations_duration_settings') }}">
+        {% include "admin/partials/_csrf.html" %}
+        <div class="fbar">
+          <div class="fg">
+            <label>Location journalière (jours)</label>
+            <input class="fc" type="number" min="1" max="3650" step="1" name="rental_daily_duration_days" value="{{ settings.rental_daily_duration_days or 14 }}">
+          </div>
+          <div class="fg">
+            <label>Location mensuelle (jours)</label>
+            <input class="fc" type="number" min="1" max="3650" step="1" name="rental_monthly_duration_days" value="{{ settings.rental_monthly_duration_days or 14 }}">
+          </div>
+          <div class="fg-btns">
+            <button class="btn-f" type="submit"><i class="bi bi-check2-circle"></i> Enregistrer</button>
+          </div>
+        </div>
+      </form>
+      <p class="cn" style="margin:.55rem 0 0">Appliqué aux nouvelles annonces et au changement de type (journalier/mensuel).</p>
     </div>
   </div>
 
-  <!-- ARCHIVES TABLE -->
-  <div class="lc" id="archivesCard">
+  <!-- SETTINGS HISTORY -->
+  <div class="lc lc-history">
     <div class="lc-hd">
-      <h6><i class="bi bi-archive"></i> Archives</h6>
-      <span class="sub" id="archivesSub">{{ archives_pg.total }} archives · page {{ archives_pg.page }}/{{ [archives_pg.pages,1]|max }}</span>
+      <h6><i class="bi bi-clock-history"></i> Historique des changements</h6>
+      <span class="sub">{{ duration_settings_history|length }} derniers changements</span>
     </div>
-    <div class="tbl-wrap">
-      <div class="tbl-mask" id="archivesMask"><div class="spinner"></div></div>
-      <div class="lt-mobile-scroll">
-        <table class="lt">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Titre</th>
-              <th class="hide-sm">Propriétaire</th>
-              <th class="hide-sm">Prix</th>
-              <th class="hide-sm">Commission</th>
-              <th>Motif</th>
-              <th class="hide-sm">Vues</th>
-              <th class="hide-sm">Fermée le</th>
-            </tr>
-          </thead>
-          <tbody id="archivesTbody">
-            {% if archives %}
-              {% for archive in archives %}
-              {% set ac = archive.platform_commission_amount_cents if archive.platform_commission_amount_cents else (commission_amount_from_owner_fee(archive.owner_fee_cents, archive.platform_commission_rate_bps) + (archive.platform_commission_fixed_cents or 0)) %}
+    <div class="lt-mobile-scroll">
+      <table class="lt">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Opérateur</th>
+            <th>Journalier</th>
+            <th>Mensuel</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if duration_settings_history %}
+            {% for event in duration_settings_history %}
+              {% set changes = event.changes or {} %}
               <tr>
-                <td style="color:var(--muted);font-size:.73rem">#{{ archive.id }}</td>
-                <td style="font-size:.79rem;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ archive.title|truncate(42) }}</td>
-                <td class="hide-sm">{{ archive.owner.username if archive.owner else '?' }}</td>
-                <td class="hide-sm" style="font-weight:700;white-space:nowrap">{{ cents_to_dh(archive.rent_cents) }}</td>
-                <td class="hide-sm">
-                  {% if archive.closed_reason == 'taken' %}
-                    <div class="cn">{{ bps_to_percent(archive.platform_commission_rate_bps) }}%</div>
-                    <div class="cn">{{ cents_to_dh(ac) }}</div>
+                <td style="white-space:nowrap;color:var(--muted)">{{ format_dt(event.created_at) }}</td>
+                <td>{{ event.user.username if event.user else "system" }}</td>
+                <td>
+                  {% if changes.get('rental_daily_duration_days_before') is not none and changes.get('rental_daily_duration_days_after') is not none %}
+                    {{ changes.get('rental_daily_duration_days_before') }} -> {{ changes.get('rental_daily_duration_days_after') }}
                   {% else %}
-                    <div class="cn" style="color:var(--muted)">N/A</div>
+                    {{ changes.get('rental_daily_duration_days_after', changes.get('rental_daily_duration_days', '-')) }}
                   {% endif %}
                 </td>
-                <td><span class="bs bs-{{ archive.closed_reason if archive.closed_reason in ['taken','expired'] else 'taken' }}">{{ label_location_status(archive.closed_reason, current_lang) }}</span></td>
-                <td class="hide-sm" style="color:var(--muted)">{{ archive.archived_view_count }}</td>
-                <td class="hide-sm" style="font-size:.72rem;color:var(--muted);white-space:nowrap">{{ format_dt(archive.closed_at) }}</td>
+                <td>
+                  {% if changes.get('rental_monthly_duration_days_before') is not none and changes.get('rental_monthly_duration_days_after') is not none %}
+                    {{ changes.get('rental_monthly_duration_days_before') }} -> {{ changes.get('rental_monthly_duration_days_after') }}
+                  {% else %}
+                    {{ changes.get('rental_monthly_duration_days_after', changes.get('rental_monthly_duration_days', '-')) }}
+                  {% endif %}
+                </td>
               </tr>
-              {% endfor %}
-            {% else %}
-              <tr class="empty"><td colspan="8"><i class="bi bi-archive"></i> Aucune archive.</td></tr>
-            {% endif %}
-          </tbody>
-        </table>
-      </div>
-      <!-- ARCHIVES PAGINATION -->
-      <div class="pg" id="archivesPg">
-        {% if archives_pg.pages > 1 %}
-          {% if archives_pg.has_prev %}
-            <a data-apage="{{ archives_pg.prev_num }}"><i class="bi bi-chevron-left"></i></a>
-          {% else %}<span class="dis"><i class="bi bi-chevron-left"></i></span>{% endif %}
-          {% for p in archives_pg.iter_pages(left_edge=1,right_edge=1,left_current=2,right_current=2) %}
-            {% if p %}<a class="{{ 'cur' if p==archives_pg.page }}" data-apage="{{ p }}">{{ p }}</a>
-            {% else %}<span class="dis">...</span>{% endif %}
-          {% endfor %}
-          <span class="pinfo">{{ archives_pg.page }}/{{ archives_pg.pages }} · {{ archives_pg.total }}</span>
-          {% if archives_pg.has_next %}
-            <a data-apage="{{ archives_pg.next_num }}"><i class="bi bi-chevron-right"></i></a>
-          {% else %}<span class="dis"><i class="bi bi-chevron-right"></i></span>{% endif %}
-        {% endif %}
-      </div>
+            {% endfor %}
+          {% else %}
+            <tr class="empty"><td colspan="4"><i class="bi bi-clock-history"></i> Aucun changement enregistré.</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
     </div>
   </div>
+
+  {% include "admin/partials/_locations_listings_panel.html" %}
+
+  {% include "admin/partials/_locations_archives_panel.html" %}
 
 </div><!-- /lw -->
 

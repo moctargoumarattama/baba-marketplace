@@ -998,6 +998,65 @@ self.addEventListener("message", (event) => {
   }
 });
 
+self.addEventListener("push", (event) => {
+  let payload = {};
+  try {
+    payload = event.data ? event.data.json() : {};
+  } catch (_error) {
+    try {
+      payload = { body: event.data ? event.data.text() : "" };
+    } catch (__error) {
+      payload = {};
+    }
+  }
+
+  const title = String(payload.title || "Baba Market");
+  const url = String(payload.url || "/vendor/dashboard");
+  const options = {
+    body: String(payload.body || "Nouvelle activité vendeur."),
+    icon: "/static/android-chrome-192x192.png",
+    badge: "/static/favicon-32x32.png",
+    tag: String(payload.tag || "vendor-notification"),
+    renotify: true,
+    requireInteraction: true,
+    vibrate: [700, 180, 700, 180, 700, 180, 700, 180, 700, 180, 700],
+    data: {
+      url: url,
+      type: String(payload.type || "vendor"),
+    },
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const targetUrl = new URL(
+    (event.notification && event.notification.data && event.notification.data.url) || "/vendor/dashboard",
+    self.location.origin
+  ).toString();
+
+  event.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        try {
+          const clientUrl = new URL(client.url);
+          if (clientUrl.origin === self.location.origin && "focus" in client) {
+            if ("navigate" in client) {
+              return client.navigate(targetUrl).then((focusedClient) => focusedClient.focus());
+            }
+            return client.focus();
+          }
+        } catch (_error) {}
+      }
+      if (clients.openWindow) {
+        return clients.openWindow(targetUrl);
+      }
+      return undefined;
+    })
+  );
+});
+
 self.addEventListener("install", (event) => {
   event.waitUntil(
     (async () => {

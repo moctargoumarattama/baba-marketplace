@@ -10,6 +10,8 @@ from ..models.order import Order, OrderItem
 from ..models.booking import Booking
 from ..models.user import User
 from ..models.vendor_receipt import VendorReceipt
+from ..models.vendor_change_request import VendorChangeRequest
+from ..models.vendor_push_subscription import VendorPushSubscription
 from ..models.rental import RentalListing
 from ..models.platform_settings import PlatformSettings
 from ..services.image import MAX_PRODUCT_VIDEO_BYTES, delete_product_video, save_image, save_product_video
@@ -20,20 +22,33 @@ from sqlalchemy.orm import load_only, selectinload
 from sqlalchemy import or_, and_, case, text
 from ..services.audit import log_access
 from ..services.shop_access import ensure_shop_allows, ensure_vendor_allows, resolve_vendor_shop, shop_allows_any
-from ..services.pagination import page_from_args
+from ..services.pagination import page_from_args, paginate_with_clamped_page
 from ..services.support_whatsapp import (
     append_support_request,
     build_support_whatsapp_url,
     safe_support_back_target,
     support_user_label,
 )
+from ..services.vendor_push import (
+    deactivate_vendor_push_subscription,
+    notify_admin_vendor_change_request,
+    send_vendor_push_notification,
+    upsert_vendor_push_subscription,
+    vendor_push_public_key_is_valid,
+    vendor_push_is_configured,
+    vendor_push_public_key,
+)
 from ..middleware.security import order_access_required
 from datetime import datetime, timedelta
 from time import perf_counter
 from slugify import slugify
 from sqlalchemy.exc import SQLAlchemyError
+import re
 
 bp = Blueprint("vendor", __name__)
+PROMO_MAX_ACTIVE_PER_SHOP = 5
+PROMO_MAX_DURATION_DAYS = 14
+PROMO_MIN_PERCENT = 5
 
 ALLOWED = {"png", "jpg", "jpeg", "webp"}
 MAX_PRODUCT_IMAGES = 4
@@ -41,13 +56,24 @@ MAX_PRODUCT_IMAGES_TOTAL_BYTES = 15 * 1024 * 1024
 MAX_PRODUCT_VIDEOS = 1
 PRODUCT_PURGE_GRACE_DAYS = 21
 ACTIVE_ORDER_STATUSES = {"pending", "paid", "processing", "shipping", "shipped"}
+CASHBOOK_EXCLUDED_ORDER_STATUSES = {"cancelled", "draft", "expired"}
 NEW_ORDERS_WINDOW_HOURS = 4
 DASHBOARD_ORDERS_PER_PAGE_DEFAULT = 8
 DASHBOARD_ORDERS_PER_PAGE_MAX = 30
 DASHBOARD_BOOKINGS_PER_PAGE_DEFAULT = 8
 DASHBOARD_BOOKINGS_PER_PAGE_MAX = 30
-LIVE_ENDPOINT_MICROCACHE_TTL_SECONDS = 3.0
+LIVE_ENDPOINT_MICROCACHE_TTL_SECONDS = 0.0
 _DASHBOARD_ORDERS_LIVE_CACHE: dict[tuple, tuple[float, dict]] = {}
+_EMAIL_BASIC_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+VENDOR_CHANGE_TYPE_LABELS = {
+    VendorChangeRequest.TYPE_ACCOUNT_EMAIL: "Email compte/boutique",
+    VendorChangeRequest.TYPE_SHOP_NAME: "Nom de boutique",
+}
+PUSH_ALLOWED_ROLES = {"vendor", "admin", "manager"}
+
+
+def _current_user_can_use_push() -> bool:
+    return getattr(current_user, "role", None) in PUSH_ALLOWED_ROLES
 
 
 @bp.route("/support/whatsapp")
@@ -163,6 +189,13 @@ def _catalog_block_reasons(product: Product | None) -> list[str]:
 def _redirect_vendor_shop_admin_only():
     flash("La creation de boutique est geree par l'administration.", "warning")
     return redirect(url_for("vendor.manage_shop"))
+
+
+def _normalize_optional_email(value: str | None) -> str:
+    candidate = (value or "").strip().lower()
+    if not candidate:
+        return ""
+    return candidate if _EMAIL_BASIC_RE.match(candidate) else ""
 
 
 def _uploaded_files_total_bytes(files) -> int:
@@ -321,6 +354,8 @@ def _log_perf(endpoint_name: str, started_at: float, **extra):
 
 
 def _orders_live_cache_get(cache_key: tuple):
+    if LIVE_ENDPOINT_MICROCACHE_TTL_SECONDS <= 0:
+        return None
     cached = _DASHBOARD_ORDERS_LIVE_CACHE.get(cache_key)
     if not cached:
         return None
@@ -332,6 +367,8 @@ def _orders_live_cache_get(cache_key: tuple):
 
 
 def _orders_live_cache_set(cache_key: tuple, payload: dict):
+    if LIVE_ENDPOINT_MICROCACHE_TTL_SECONDS <= 0:
+        return
     _DASHBOARD_ORDERS_LIVE_CACHE[cache_key] = (datetime.utcnow().timestamp(), payload)
 
 
@@ -633,6 +670,23 @@ def _require_physical_vendor_access(strict_forbidden: bool = True):
         strict_forbidden=strict_forbidden,
     )
 
+
+def _shop_requires_contact_details(shop: Shop | None) -> bool:
+    return bool(shop and shop_allows_any(shop, "products", "services"))
+
+
+def _shop_has_required_contact_details(shop: Shop | None) -> bool:
+    if not _shop_requires_contact_details(shop):
+        return True
+    return bool((getattr(shop, "contact_phone", "") or "").strip() and (getattr(shop, "address", "") or "").strip())
+
+
+def _require_shop_contact_details(shop: Shop | None):
+    if _shop_has_required_contact_details(shop):
+        return None
+    flash("Pour vendre des produits ou services, telephone et adresse sont obligatoires.", "warning")
+    return redirect(url_for("vendor.edit_shop"))
+
 # ==================== DASHBOARD & GESTION PRODUITS ====================
 
 @bp.route("/dashboard")
@@ -705,8 +759,8 @@ def dashboard():
     per_page = 20
     product_query = Product.query.filter_by(vendor_id=current_user.id)
     product_query = _scope_catalog_query(product_query, allows_products, allows_services)
-    product_query = product_query.order_by(Product.created_at.desc())
-    pagination = product_query.paginate(page=page, per_page=per_page, error_out=False)
+    product_query = product_query.order_by(Product.created_at.desc(), Product.id.desc())
+    pagination = paginate_with_clamped_page(product_query, page=page, per_page=per_page, error_out=False)
     products = pagination.items
     product_promos = _product_promo_snapshot(products)
 
@@ -899,6 +953,8 @@ def catalog():
     sort_filter = (request.args.get("sort") or "recent").strip().lower()
     stock_filter = (request.args.get("stock") or "all").strip().lower()
     category_id = _safe_int(request.args.get("category_id"))
+    partial_only = _is_ajax_request() and request.headers.get("X-Catalog-Partial") == "1"
+    search_term_query = search_term if len(search_term) >= 2 else ""
 
     base_query = Product.query.filter(Product.vendor_id == current_user.id)
     base_query = _scope_catalog_query(base_query, allows_products, allows_services)
@@ -909,8 +965,10 @@ def catalog():
         base_query.options(selectinload(Product.category))
     )
 
-    if search_term:
-        like_term = f"%{search_term}%"
+    if search_term and not search_term_query:
+        product_query = product_query.filter(False)
+    elif search_term_query:
+        like_term = f"%{search_term_query}%"
         product_query = product_query.filter(
             or_(
                 Product.name.ilike(like_term),
@@ -959,20 +1017,22 @@ def catalog():
     else:
         stock_filter = "all"
 
-    category_options_query = (
-        db.session.query(Category.id, Category.name, db.func.count(Product.id).label("count"))
-        .join(Product, Product.category_id == Category.id)
-        .filter(Product.vendor_id == current_user.id)
-    )
-    category_options_query = _scope_catalog_query(category_options_query, allows_products, allows_services)
-    category_options = (
-        category_options_query
-        .group_by(Category.id, Category.name)
-        .order_by(Category.name.asc())
-        .all()
-    )
+    category_options = []
+    if not partial_only:
+        category_options_query = (
+            db.session.query(Category.id, Category.name, db.func.count(Product.id).label("count"))
+            .join(Product, Product.category_id == Category.id)
+            .filter(Product.vendor_id == current_user.id)
+        )
+        category_options_query = _scope_catalog_query(category_options_query, allows_products, allows_services)
+        category_options = (
+            category_options_query
+            .group_by(Category.id, Category.name)
+            .order_by(Category.name.asc())
+            .all()
+        )
     category_ids = {int(row.id) for row in category_options}
-    if category_id and category_id in category_ids:
+    if category_id and (partial_only or category_id in category_ids):
         product_query = product_query.filter(Product.category_id == category_id)
     else:
         category_id = None
@@ -982,6 +1042,7 @@ def catalog():
         .filter(
             Promo.product_id == Product.id,
             Promo.end_date >= datetime.utcnow(),
+            Promo.status == Promo.STATUS_APPROVED,
         )
         .correlate(Product)
         .scalar_subquery()
@@ -1005,7 +1066,7 @@ def catalog():
         sort_filter = "recent"
     product_query = product_query.order_by(*sort_map[sort_filter])
 
-    pagination = product_query.paginate(page=page, per_page=per_page, error_out=False)
+    pagination = paginate_with_clamped_page(product_query, page=page, per_page=per_page, error_out=False)
     products = pagination.items
     product_promos = _product_promo_snapshot(products)
 
@@ -1017,14 +1078,16 @@ def catalog():
     if low_stock_threshold < 0:
         low_stock_threshold = 0
 
-    total_products = int(summary_query.count())
-    active_products = int(summary_query.filter(Product.is_active.is_(True)).count())
-    inactive_products = max(0, total_products - active_products)
-    service_total = int(summary_query.filter(Product.kind == "service").count()) if allows_services else 0
-    physical_total = (
-        int(summary_query.filter(Product.kind != "service").count())
-        if allows_products else 0
-    )
+    total_products = active_products = inactive_products = service_total = physical_total = 0
+    if not partial_only:
+        total_products = int(summary_query.count())
+        active_products = int(summary_query.filter(Product.is_active.is_(True)).count())
+        inactive_products = max(0, total_products - active_products)
+        service_total = int(summary_query.filter(Product.kind == "service").count()) if allows_services else 0
+        physical_total = (
+            int(summary_query.filter(Product.kind != "service").count())
+            if allows_products else 0
+        )
 
     pagination_args = request.args.to_dict(flat=True)
     pagination_args.pop("page", None)
@@ -1062,7 +1125,7 @@ def catalog():
         prev_page_url=prev_page_url,
         next_page_url=next_page_url,
     )
-    if _is_ajax_request() and request.headers.get("X-Catalog-Partial") == "1":
+    if partial_only:
         return jsonify(
             success=True,
             html=render_template("vendor/partials/_catalog_results.html", **context),
@@ -1121,7 +1184,7 @@ def dashboard_orders_live():
     empty_orders_page = _empty_dashboard_orders_page(per_page)
     empty_bookings_page = _empty_dashboard_bookings_page(bookings_per_page)
 
-    if not allows_products and not allows_services:
+    if not allows_products and not allows_services and not type_flags["allows_location"]:
         payload = dict(
             success=True,
             window_hours=NEW_ORDERS_WINDOW_HOURS,
@@ -1129,9 +1192,10 @@ def dashboard_orders_live():
             recent=empty_orders_page,
             today_prepare=empty_orders_page,
             today_bookings=empty_bookings_page,
+            today_locations_count=0,
         )
         response = jsonify(payload)
-        response.headers["Cache-Control"] = f"private, max-age={int(LIVE_ENDPOINT_MICROCACHE_TTL_SECONDS)}"
+        response.headers["Cache-Control"] = "private, no-store, max-age=0"
         _log_perf(
             "vendor.dashboard_orders_live",
             started_at,
@@ -1171,8 +1235,9 @@ def dashboard_orders_live():
             recent=cached_payload.get("recent", empty_orders_page),
             today_prepare=cached_payload.get("today_prepare", empty_orders_page),
             today_bookings=cached_payload.get("today_bookings", empty_bookings_page),
+            today_locations_count=int(cached_payload.get("today_locations_count", 0) or 0),
         )
-        response.headers["Cache-Control"] = f"private, max-age={int(LIVE_ENDPOINT_MICROCACHE_TTL_SECONDS)}"
+        response.headers["Cache-Control"] = "private, no-store, max-age=0"
         response.headers["X-Live-Cache"] = "HIT"
         _log_perf(
             "vendor.dashboard_orders_live",
@@ -1235,9 +1300,10 @@ def dashboard_orders_live():
         recent=cards_payload.get("recent", empty_orders_page),
         today_prepare=cards_payload.get("today_prepare", empty_orders_page),
         today_bookings=cards_payload.get("today_bookings", empty_bookings_page),
+        today_locations_count=int(cards_payload.get("today_locations_count", 0) or 0),
     )
     response = jsonify(payload)
-    response.headers["Cache-Control"] = f"private, max-age={int(LIVE_ENDPOINT_MICROCACHE_TTL_SECONDS)}"
+    response.headers["Cache-Control"] = "private, no-store, max-age=0"
     response.headers["X-Live-Cache"] = "MISS"
     _log_perf(
         "vendor.dashboard_orders_live",
@@ -1305,6 +1371,10 @@ def product_new():
     if not shop_allows_any(shop, "products", "services"):
         flash("Cette boutique ne permet pas d’ajouter des produits ou services.", "warning")
         return redirect(url_for("vendor.manage_shop"))
+
+    contact_guard = _require_shop_contact_details(shop)
+    if contact_guard:
+        return contact_guard
 
     categories_by_kind = _load_categories_by_kind()
     type_flags = _vendor_type_flags(shop)
@@ -1539,6 +1609,9 @@ def product_edit(pid):
         )
         if existing_guard:
             return existing_guard
+        contact_guard = _require_shop_contact_details(shop)
+        if contact_guard:
+            return contact_guard
 
     categories_by_kind = _load_categories_by_kind()
     allows_products = True
@@ -1736,7 +1809,11 @@ def product_promotion(pid):
     )
     active_promo = (
         Promo.query
-        .filter(Promo.product_id == product.id, Promo.end_date >= now)
+        .filter(
+            Promo.product_id == product.id,
+            Promo.end_date >= now,
+            Promo.status == Promo.STATUS_APPROVED,
+        )
         .order_by(Promo.end_date.asc(), Promo.id.asc())
         .first()
     )
@@ -1803,27 +1880,68 @@ def product_promotion(pid):
             form_error = "Choisissez une date de fin dans le futur."
             flash(form_error, "warning")
 
+        if not form_error and end_date > now + timedelta(days=PROMO_MAX_DURATION_DAYS):
+            end_date = now + timedelta(days=PROMO_MAX_DURATION_DAYS)
+
+        if not form_error:
+            current_price_for_validation = cents_to_money(
+                getattr(product, "price_cents", None)
+                if getattr(product, "price_cents", None) is not None
+                else getattr(product, "price_cents_value", 0)
+            )
+            min_discount = current_price_for_validation * (PROMO_MIN_PERCENT / 100)
+            if promo_type == "percentage" and promo_value < PROMO_MIN_PERCENT:
+                form_error = f"La remise minimale est de {PROMO_MIN_PERCENT}%."
+                flash(form_error, "warning")
+            elif promo_type == "fixed" and promo_value < min_discount:
+                form_error = f"La remise fixe doit valoir au moins {PROMO_MIN_PERCENT}% du prix."
+                flash(form_error, "warning")
+
+        if not form_error:
+            active_shop_promo_count = (
+                Promo.query
+                .join(Product, Product.id == Promo.product_id)
+                .filter(
+                    Product.shop_id == shop.id,
+                    Promo.end_date >= now,
+                    Promo.status.in_((Promo.STATUS_PENDING, Promo.STATUS_APPROVED)),
+                    Promo.product_id != product.id,
+                )
+                .count()
+            )
+            if active_shop_promo_count >= PROMO_MAX_ACTIVE_PER_SHOP:
+                form_error = f"Limite atteinte: {PROMO_MAX_ACTIVE_PER_SHOP} promotions actives ou en validation par boutique."
+                flash(form_error, "warning")
+
         if not form_error:
             promo_record = active_promo or latest_promo
+            next_status = Promo.STATUS_APPROVED if shop.promo_trusted else Promo.STATUS_PENDING
+            success_message = (
+                "Promotion activée automatiquement. Le nouveau prix est visible côté client."
+                if next_status == Promo.STATUS_APPROVED
+                else "Promotion envoyée à l'admin pour validation."
+            )
             if promo_record is None:
                 promo_record = Promo(
                     product_id=product.id,
                     type=promo_type,
                     value=promo_value,
                     end_date=end_date,
+                    status=next_status,
                 )
                 db.session.add(promo_record)
                 # Ensure the new promo gets an id before older promos are disabled.
                 db.session.flush()
                 action_name = "create_product_promo"
-                success_message = "Promotion activée. Le nouveau prix est maintenant visible côté client."
             else:
                 promo_record.type = promo_type
                 promo_record.value = promo_value
                 promo_record.end_date = end_date
+                promo_record.status = next_status
+                promo_record.review_note = None
+                promo_record.reviewed_by_id = None
+                promo_record.reviewed_at = None
                 action_name = "update_product_promo"
-                success_message = "Promotion mise à jour. Le nouveau prix est maintenant visible côté client."
-
             (
                 Promo.query
                 .filter(Promo.product_id == product.id, Promo.id != promo_record.id, Promo.end_date >= now)
@@ -1842,6 +1960,7 @@ def product_promotion(pid):
                     "type": promo_record.type,
                     "value": promo_record.value,
                     "end_date": promo_record.end_date.isoformat(),
+                    "status": promo_record.status,
                 },
             )
             flash(success_message, "success")
@@ -1876,7 +1995,11 @@ def product_promotion_disable(pid):
 
     promo = (
         Promo.query
-        .filter(Promo.product_id == product.id, Promo.end_date >= datetime.utcnow())
+        .filter(
+            Promo.product_id == product.id,
+            Promo.end_date >= datetime.utcnow(),
+            Promo.status.in_((Promo.STATUS_PENDING, Promo.STATUS_APPROVED)),
+        )
         .order_by(Promo.end_date.asc(), Promo.id.asc())
         .first()
     )
@@ -2082,19 +2205,29 @@ def edit_shop():
     if not shop:
         return _redirect_vendor_shop_admin_only()
 
+    recent_change_requests = (
+        VendorChangeRequest.query
+        .filter_by(vendor_id=current_user.id, shop_id=shop.id)
+        .order_by(VendorChangeRequest.created_at.desc())
+        .limit(8)
+        .all()
+    )
+    locked_contact_email = (shop.contact_email or current_user.email or "").strip()
+
     if request.method == "POST":
         before = {
             "description": shop.description,
             "contact_phone": shop.contact_phone,
-            "contact_email": shop.contact_email,
             "address": shop.address,
             "logo": shop.logo,
         }
         try:
             shop.description = request.form.get("description", "").strip()
             shop.contact_phone = request.form.get("contact_phone", "").strip()
-            shop.contact_email = request.form.get("contact_email", shop.contact_email)
             shop.address = request.form.get("address", "").strip()
+            if _shop_requires_contact_details(shop) and not _shop_has_required_contact_details(shop):
+                flash("Pour vendre des produits ou services, telephone et adresse sont obligatoires.", "warning")
+                return redirect(url_for("vendor.edit_shop"))
 
             # Grer le logo
             if 'logo' in request.files:
@@ -2137,7 +2270,121 @@ def edit_shop():
         "vendor/edit_shop.html",
         shop=shop,
         shop_public_url=_public_shop_url(shop.slug),
+        locked_contact_email=locked_contact_email,
+        recent_change_requests=recent_change_requests,
+        change_request_type_labels=VENDOR_CHANGE_TYPE_LABELS,
+        allowed_change_types=VendorChangeRequest.allowed_types(),
     )
+
+
+@bp.route("/shop/change-request", methods=["POST"])
+@login_required
+def request_locked_shop_change():
+    if current_user.role != "vendor":
+        flash("Acces reserve aux vendeurs", "warning")
+        return redirect(url_for("shop.home"))
+
+    shop = Shop.query.filter_by(vendor_id=current_user.id).first()
+    if not shop:
+        return _redirect_vendor_shop_admin_only()
+
+    request_type = VendorChangeRequest.normalize_type(request.form.get("request_type"))
+    if not request_type:
+        flash("Type de demande invalide.", "warning")
+        return redirect(url_for("vendor.edit_shop"))
+
+    requested_value_raw = (request.form.get("requested_value") or "").strip()
+    reason = (request.form.get("reason") or "").strip()[:1000]
+    if len(reason) < 8:
+        flash("Merci d'ajouter un motif plus detaille (au moins 8 caracteres).", "warning")
+        return redirect(url_for("vendor.edit_shop"))
+
+    pending_request = (
+        VendorChangeRequest.query
+        .filter_by(
+            vendor_id=current_user.id,
+            shop_id=shop.id,
+            request_type=request_type,
+            status=VendorChangeRequest.STATUS_PENDING,
+        )
+        .first()
+    )
+    if pending_request:
+        flash("Une demande du meme type est deja en attente.", "warning")
+        return redirect(url_for("vendor.edit_shop"))
+
+    current_value = ""
+    requested_value = ""
+
+    if request_type == VendorChangeRequest.TYPE_ACCOUNT_EMAIL:
+        requested_email = _normalize_optional_email(requested_value_raw)
+        if not requested_email:
+            flash("Email invalide.", "warning")
+            return redirect(url_for("vendor.edit_shop"))
+        if requested_email == (current_user.email or "").strip().lower():
+            flash("Le nouvel email est identique a l'email actuel.", "warning")
+            return redirect(url_for("vendor.edit_shop"))
+        existing = User.query.filter(User.email == requested_email, User.id != current_user.id).first()
+        if existing:
+            flash("Cet email est deja utilise.", "danger")
+            return redirect(url_for("vendor.edit_shop"))
+
+        current_value = (current_user.email or "").strip()
+        requested_value = requested_email
+
+    elif request_type == VendorChangeRequest.TYPE_SHOP_NAME:
+        requested_name = requested_value_raw
+        if len(requested_name) < 3 or len(requested_name) > 100:
+            flash("Le nom de boutique doit contenir entre 3 et 100 caracteres.", "warning")
+            return redirect(url_for("vendor.edit_shop"))
+        if requested_name.casefold() == (shop.name or "").strip().casefold():
+            flash("Le nouveau nom est identique au nom actuel.", "warning")
+            return redirect(url_for("vendor.edit_shop"))
+
+        current_value = (shop.name or "").strip()
+        requested_value = requested_name
+
+    else:
+        flash("Type de demande non pris en charge.", "warning")
+        return redirect(url_for("vendor.edit_shop"))
+
+    try:
+        change_request = VendorChangeRequest(
+            vendor_id=current_user.id,
+            shop_id=shop.id,
+            request_type=request_type,
+            current_value=current_value[:255],
+            requested_value=requested_value[:255],
+            reason=reason,
+            status=VendorChangeRequest.STATUS_PENDING,
+        )
+        db.session.add(change_request)
+        db.session.commit()
+        try:
+            notify_admin_vendor_change_request(change_request)
+        except Exception:
+            current_app.logger.exception(
+                "vendor_push.change_request_notify_failed",
+                extra={"change_request_id": getattr(change_request, "id", None)},
+            )
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception(
+            "vendor.request_locked_shop_change.failed",
+            extra={"vendor_id": current_user.id, "shop_id": shop.id, "request_type": request_type},
+        )
+        flash("Impossible d'envoyer la demande pour le moment.", "danger")
+        return redirect(url_for("vendor.edit_shop"))
+
+    log_access(
+        "vendor_change_request_create",
+        "vendor_change_request",
+        change_request.id,
+        success=True,
+        changes={"request_type": request_type},
+    )
+    flash("Demande envoyee a l'administration.", "success")
+    return redirect(url_for("vendor.edit_shop"))
 
 
 @bp.route("/shop/service-location", methods=["POST"])
@@ -2166,6 +2413,11 @@ def update_service_location():
 
     shop.address = (request.form.get("service_address") or "").strip()
     shop.service_location_note = (request.form.get("service_location_note") or "").strip()[:255]
+    if _shop_requires_contact_details(shop) and not (shop.address or "").strip():
+        if _is_ajax_request():
+            return jsonify(success=False, message="Adresse obligatoire pour les boutiques produits/services."), 400
+        flash("Adresse obligatoire pour les boutiques produits/services.", "warning")
+        return redirect(url_for("vendor.manage_shop"))
 
     lat_raw = (request.form.get("service_latitude") or "").strip()
     lng_raw = (request.form.get("service_longitude") or "").strip()
@@ -2428,6 +2680,122 @@ def orders_notifications():
         message=message
     )
 
+
+@bp.route("/notifications/push/config")
+@login_required
+def vendor_push_config():
+    if not _current_user_can_use_push():
+        return jsonify({"enabled": False, "publicKey": ""}), 403
+    public_key = vendor_push_public_key()
+    return jsonify(
+        {
+            "enabled": bool(public_key),
+            "configured": vendor_push_is_configured(),
+            "validPublicKey": vendor_push_public_key_is_valid(public_key),
+            "publicKey": public_key,
+        }
+    )
+
+
+@bp.route("/notifications/push/status")
+@login_required
+def vendor_push_status():
+    if not _current_user_can_use_push():
+        return jsonify({"success": False, "message": "forbidden"}), 403
+    active_count = (
+        VendorPushSubscription.query
+        .filter_by(vendor_id=current_user.id, is_active=True)
+        .count()
+    )
+    return jsonify(
+        {
+            "success": True,
+            "configured": vendor_push_is_configured(),
+            "hasPublicKey": bool(vendor_push_public_key()),
+            "validPublicKey": vendor_push_public_key_is_valid(),
+            "activeSubscriptions": int(active_count or 0),
+        }
+    )
+
+
+@bp.route("/notifications/push/subscribe", methods=["POST"])
+@login_required
+def vendor_push_subscribe():
+    if not _current_user_can_use_push():
+        return jsonify({"success": False, "message": "forbidden"}), 403
+    payload = request.get_json(silent=True) or {}
+    subscription_payload = payload.get("subscription") if isinstance(payload, dict) else None
+    try:
+        subscription = upsert_vendor_push_subscription(
+            current_user.id,
+            subscription_payload or payload,
+            request.headers.get("User-Agent", ""),
+        )
+    except ValueError:
+        return jsonify({"success": False, "message": "invalid_subscription"}), 400
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception(
+            "vendor_push.subscribe_failed",
+            extra={"vendor_id": getattr(current_user, "id", None)},
+        )
+        return jsonify({"success": False, "message": "subscribe_failed"}), 500
+    test_sent = 0
+    if payload.get("send_test"):
+        try:
+            test_sent = send_vendor_push_notification(
+                current_user.id,
+                {
+                    "type": "vendor_push_test",
+                    "title": "Alertes Baba Market activees",
+                    "body": "Votre telephone est pret a recevoir les nouvelles demandes.",
+                    "url": url_for("vendor.dashboard", _external=False),
+                    "tag": "vendor-push-test",
+                },
+            )
+        except Exception:
+            current_app.logger.exception(
+                "vendor_push.subscribe_test_failed",
+                extra={"vendor_id": getattr(current_user, "id", None)},
+            )
+    return jsonify(
+        {
+            "success": True,
+            "subscription_id": subscription.id,
+            "configured": vendor_push_is_configured(),
+            "test_sent": test_sent,
+        }
+    )
+
+
+@bp.route("/notifications/push/unsubscribe", methods=["POST"])
+@login_required
+def vendor_push_unsubscribe():
+    if not _current_user_can_use_push():
+        return jsonify({"success": False, "message": "forbidden"}), 403
+    payload = request.get_json(silent=True) or {}
+    endpoint = str(payload.get("endpoint") or "").strip()
+    removed = deactivate_vendor_push_subscription(endpoint, vendor_id=current_user.id)
+    return jsonify({"success": True, "removed": removed})
+
+
+@bp.route("/notifications/push/test", methods=["POST"])
+@login_required
+def vendor_push_test():
+    if not _current_user_can_use_push():
+        return jsonify({"success": False, "message": "forbidden"}), 403
+    sent = send_vendor_push_notification(
+        current_user.id,
+        {
+            "type": "vendor_push_test",
+            "title": "Test notification Baba Market",
+            "body": "Si vous voyez ceci, les alertes vendeur sont actives.",
+            "url": url_for("vendor.dashboard", _external=False),
+            "tag": "vendor-push-test",
+        },
+    )
+    return jsonify({"success": True, "configured": vendor_push_is_configured(), "sent": sent})
+
 @bp.route("/order/<int:oid>")
 @login_required
 @order_access_required
@@ -2486,6 +2854,96 @@ def _parse_date(value: str):
         return None
 
 
+def _resolve_earnings_filter(args, *, now: datetime | None = None) -> dict:
+    now = now or datetime.utcnow()
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    year_start = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+
+    if month_start.month == 12:
+        next_month = month_start.replace(year=month_start.year + 1, month=1)
+    else:
+        next_month = month_start.replace(month=month_start.month + 1)
+    next_year = year_start.replace(year=year_start.year + 1)
+
+    range_filter = (args.get("range") or "month").strip().lower()
+    if range_filter not in {"today", "month", "year", "custom"}:
+        range_filter = "month"
+
+    show = (args.get("show") or "all").strip().lower()
+    if show not in {"all", "pending", "confirmed"}:
+        show = "all"
+
+    date_from_raw = (args.get("from") or "").strip()
+    date_to_raw = (args.get("to") or "").strip()
+    date_from = _parse_date(date_from_raw) if date_from_raw else None
+    date_to = _parse_date(date_to_raw) if date_to_raw else None
+
+    normalized_from = ""
+    normalized_to = ""
+
+    if range_filter == "today":
+        start = today_start
+        end = today_start + timedelta(days=1)
+        date_range_label = "Aujourd'hui"
+    elif range_filter == "year":
+        start = year_start
+        end = next_year
+        date_range_label = "Cette année"
+    elif range_filter == "custom":
+        if date_from and date_to and date_from > date_to:
+            date_from, date_to = date_to, date_from
+        if date_from and date_to:
+            start = date_from
+            end = date_to + timedelta(days=1)
+            normalized_from = date_from.strftime("%Y-%m-%d")
+            normalized_to = date_to.strftime("%Y-%m-%d")
+        elif date_from:
+            start = date_from
+            end = today_start + timedelta(days=1)
+            if end <= start:
+                end = start + timedelta(days=1)
+            normalized_from = date_from.strftime("%Y-%m-%d")
+        elif date_to:
+            start = date_to
+            end = date_to + timedelta(days=1)
+            normalized_to = date_to.strftime("%Y-%m-%d")
+        else:
+            range_filter = "month"
+            start = month_start
+            end = next_month
+            date_range_label = "Ce mois"
+        if range_filter == "custom":
+            date_range_label = "Dates choisies"
+    else:
+        start = month_start
+        end = next_month
+        date_range_label = "Ce mois"
+
+    if range_filter == "today":
+        normalized_from = ""
+        normalized_to = ""
+    elif range_filter == "month":
+        normalized_from = ""
+        normalized_to = ""
+    elif range_filter == "year":
+        normalized_from = ""
+        normalized_to = ""
+
+    if end <= start:
+        end = start + timedelta(days=1)
+
+    return {
+        "range_filter": range_filter,
+        "date_range_label": date_range_label,
+        "date_from": normalized_from,
+        "date_to": normalized_to,
+        "show": show,
+        "start": start,
+        "end": end,
+    }
+
+
 @bp.route("/security", methods=["GET"])
 @login_required
 def security():
@@ -2509,48 +2967,14 @@ def earnings():
 
     vendor_id = current_user.id
     now = datetime.utcnow()
-    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    year_start = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
-
-    if month_start.month == 12:
-        next_month = month_start.replace(year=month_start.year + 1, month=1)
-    else:
-        next_month = month_start.replace(month=month_start.month + 1)
-    next_year = year_start.replace(year=year_start.year + 1)
-
-    range_filter = (request.args.get("range") or "month").strip().lower()
-    if range_filter not in {"today", "month", "year", "custom"}:
-        range_filter = "month"
-
-    date_from_raw = (request.args.get("from") or "").strip()
-    date_to_raw = (request.args.get("to") or "").strip()
-    date_from = _parse_date(date_from_raw) if date_from_raw else None
-    date_to = _parse_date(date_to_raw) if date_to_raw else None
-
-    if range_filter == "today":
-        start = today_start
-        end = today_start + timedelta(days=1)
-        date_range_label = "Aujourd'hui"
-    elif range_filter == "year":
-        start = year_start
-        end = next_year
-        date_range_label = "Cette année"
-    elif range_filter == "custom":
-        start = date_from or month_start
-        end = (date_to + timedelta(days=1)) if date_to else now + timedelta(days=1)
-        date_range_label = "Dates choisies"
-    else:
-        start = month_start
-        end = next_month
-        date_range_label = "Ce mois"
-
-    if end <= start:
-        end = start + timedelta(days=1)
-
-    show = (request.args.get("show") or "all").strip().lower()
-    if show not in {"all", "pending", "confirmed"}:
-        show = "all"
+    earnings_filter = _resolve_earnings_filter(request.args, now=now)
+    range_filter = earnings_filter["range_filter"]
+    date_range_label = earnings_filter["date_range_label"]
+    date_from = earnings_filter["date_from"]
+    date_to = earnings_filter["date_to"]
+    show = earnings_filter["show"]
+    start = earnings_filter["start"]
+    end = earnings_filter["end"]
 
     order_amounts_subquery = (
         db.session.query(
@@ -2562,6 +2986,7 @@ def earnings():
         .filter(Product.vendor_id == vendor_id)
         .filter(Product.kind != "service")
         .filter(Order.created_at >= start, Order.created_at < end)
+        .filter(~Order.status.in_(CASHBOOK_EXCLUDED_ORDER_STATUSES))
         .group_by(OrderItem.order_id)
         .subquery()
     )
@@ -2576,7 +3001,7 @@ def earnings():
         .subquery()
     )
 
-    totals_row = (
+    totals_query = (
         db.session.query(
             db.func.coalesce(
                 db.func.sum(
@@ -2602,16 +3027,22 @@ def earnings():
                 ),
                 0,
             ).label("pending_cents"),
+            db.func.count(order_amounts_subquery.c.order_id).label("orders_count"),
         )
         .select_from(order_amounts_subquery)
         .outerjoin(
             receipt_order_subquery,
             receipt_order_subquery.c.order_id == order_amounts_subquery.c.order_id,
         )
-        .one()
     )
+    if show == "pending":
+        totals_query = totals_query.filter(receipt_order_subquery.c.order_id.is_(None))
+    elif show == "confirmed":
+        totals_query = totals_query.filter(receipt_order_subquery.c.order_id.isnot(None))
+    totals_row = totals_query.one()
     total_confirmed = int(totals_row.confirmed_cents or 0)
     total_pending = int(totals_row.pending_cents or 0)
+    total_orders_count = int(totals_row.orders_count or 0)
 
     base_list_query = (
         Order.query.options(
@@ -2631,7 +3062,7 @@ def earnings():
     base_list_query = base_list_query.order_by(Order.created_at.desc(), Order.id.desc())
 
     page = page_from_args(request.args)
-    pagination = base_list_query.paginate(page=page, per_page=30, error_out=False)
+    pagination = paginate_with_clamped_page(base_list_query, page=page, per_page=30, error_out=False)
     orders = pagination.items
 
     page_order_ids = [int(order.id) for order in orders if getattr(order, "id", None) is not None]
@@ -2668,8 +3099,8 @@ def earnings():
         "vendor/earnings.html",
         range_filter=range_filter,
         date_range_label=date_range_label,
-        date_from=date_from_raw,
-        date_to=date_to_raw,
+        date_from=date_from,
+        date_to=date_to,
         show=show,
         orders=orders,
         pagination=pagination,
@@ -2677,6 +3108,7 @@ def earnings():
         order_amount_map=order_amount_map,
         total_confirmed=total_confirmed,
         total_pending=total_pending,
+        total_orders_count=total_orders_count,
     )
 
 
@@ -2796,11 +3228,13 @@ def products_stock_api():
         maximum=100,
     )
 
-    pagination = (
+    stock_query = (
         Product.query
         .filter_by(vendor_id=current_user.id)
         .order_by(Product.created_at.desc(), Product.id.desc())
-        .paginate(page=page, per_page=per_page, error_out=False)
+    )
+    pagination = (
+        paginate_with_clamped_page(stock_query, page=page, per_page=per_page, error_out=False)
     )
     products = pagination.items
 
@@ -3039,3 +3473,4 @@ def stats_live():
         low_stock=low_stock,
     )
     return response
+

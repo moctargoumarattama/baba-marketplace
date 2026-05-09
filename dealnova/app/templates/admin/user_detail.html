@@ -209,9 +209,9 @@
                                         <i class="bi bi-shop"></i> Voir la boutique
                                     </a>
                                 {% else %}
-                                    <a href="{{ url_for('admin_users.create_shop', vendor_id=user.id) }}"
-                                       class="btn btn-success btn-sm btn-attention">
-                                        <i class="bi bi-shop"></i> Créer une boutique
+                                    <a href="{{ url_for('admin_users.vendor_requests', status='pending') }}"
+                                       class="btn btn-outline-secondary btn-sm">
+                                        <i class="bi bi-person-check"></i> Voir demandes vendeurs
                                     </a>
                                 {% endif %}
                             {% endif %}
@@ -321,9 +321,9 @@
                             <i class="bi bi-shop display-4 text-muted mb-3"></i>
                             <h5>Pas encore de boutique</h5>
                             <p class="text-muted">Cet utilisateur n'a pas encore créé de boutique.</p>
-                            <a href="{{ url_for('admin_users.create_shop', vendor_id=user.id) }}" 
-                               class="btn btn-success">
-                                <i class="bi bi-plus-circle"></i> Créer une boutique
+                            <a href="{{ url_for('admin_users.vendor_requests', status='pending') }}" 
+                               class="btn btn-outline-secondary">
+                                <i class="bi bi-person-check"></i> Ouvrir demandes vendeurs
                             </a>
                         </div>
                     {% endif %}
@@ -388,13 +388,18 @@
                         
                         <div class="col-md-6">
                             <label for="role" class="form-label">Rôle</label>
+                            {% if current_user.role == 'admin' and user.role != 'vendor' %}
                             <select class="form-select" id="role" name="role">
-                                <option value="vendor" {% if user.role == 'vendor' %}selected{% endif %}>Vendeur</option>
-                                {% if current_user.role == 'admin' %}
                                 <option value="manager" {% if user.role == 'manager' %}selected{% endif %}>Gestionnaire</option>
                                 <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Administrateur</option>
-                                {% endif %}
                             </select>
+                            {% else %}
+                            <input type="text"
+                                   class="form-control"
+                                   id="role"
+                                   value="{{ 'Vendeur' if user.role == 'vendor' else ('Administrateur' if user.role == 'admin' else 'Gestionnaire') }}"
+                                   readonly>
+                            {% endif %}
                         </div>
                     </div>
                 </div>

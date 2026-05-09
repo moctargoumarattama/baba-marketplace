@@ -17,6 +17,8 @@ from ..models.blocked import BlockedContact
 from ..models.product_contact_lead import ProductContactLead
 from ..models.platform_settings import PlatformSettings
 from ..models.subscription_payment import SubscriptionPayment
+from ..models.vendor_application import VendorApplication
+from ..models.vendor_change_request import VendorChangeRequest
 from ..services.logging_service import logging_service
 from ..services.cache import bump_catalog_version, cache
 from ..services.audit import log_access
@@ -27,7 +29,6 @@ from ..services.traffic_stats import get_live_traffic_metrics
 from datetime import datetime, timedelta
 from sqlalchemy.orm import selectinload, load_only
 from sqlalchemy import or_, and_
-from sqlalchemy.exc import SQLAlchemyError  # ✅ AJOUT
 import secrets
 import re
 import string
@@ -46,11 +47,15 @@ _MEMORABLE_PASSWORD_WORDS = [
     "nebula", "nova", "onze", "pique", "pixel", "pulse", "qamar", "rabat",
     "sakura", "satin", "smile", "sonic", "spray", "sucre", "tapis", "tempo",
 ]
+_PHONE_DIGIT_RE = re.compile(r"\d")
+_EMAIL_BASIC_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+_USERNAME_SAFE_RE = re.compile(r"[^a-z0-9_]+")
 
 ADMIN_ROLE = "admin"
 MANAGER_ROLE = "manager"
 STAFF_VISIBLE_TO_MANAGER_ROLES = ("vendor",)
 ALLOWED_USER_ROLES = (ADMIN_ROLE, MANAGER_ROLE, "vendor")
+ADMIN_CREATABLE_USER_ROLES = (ADMIN_ROLE, MANAGER_ROLE)
 MANAGER_BLOCKED_ENDPOINTS = {
     "admin_users.view_logs",
     "admin_users.audit_logs",
@@ -86,6 +91,10 @@ RESERVED_ROOT_SHOP_SLUGS = {
     "sitemap.xml",
     "sw.js",
     "vendor",
+}
+VENDOR_CHANGE_TYPE_LABELS = {
+    VendorChangeRequest.TYPE_ACCOUNT_EMAIL: "Email compte/boutique",
+    VendorChangeRequest.TYPE_SHOP_NAME: "Nom de boutique",
 }
 
 
@@ -208,6 +217,10 @@ def _build_unique_shop_slug(name: str, *, exclude_shop_id: int | None = None) ->
     counter = 1
 
     while True:
+        if slug.lower() in RESERVED_ROOT_SHOP_SLUGS:
+            slug = f"{base_slug}-{counter}"
+            counter += 1
+            continue
         query = Shop.query.filter_by(slug=slug)
         if exclude_shop_id is not None:
             query = query.filter(Shop.id != exclude_shop_id)
@@ -266,6 +279,78 @@ def _generate_memorable_password() -> str:
         word2 = secrets.choice(_MEMORABLE_PASSWORD_WORDS)
     digits = f"{secrets.randbelow(10000):04d}"
     return f"{word1}-{word2}-{digits}"
+
+
+def _normalize_phone_digits(value: str | None) -> str:
+    return "".join(_PHONE_DIGIT_RE.findall(str(value or "")))[:32]
+
+
+def _normalize_optional_email(value: str | None) -> str:
+    candidate = (value or "").strip().lower()
+    if not candidate:
+        return ""
+    return candidate if _EMAIL_BASIC_RE.match(candidate) else ""
+
+
+def _unique_vendor_username(base: str | None) -> str:
+    seed = _USERNAME_SAFE_RE.sub("_", slugify((base or "").strip() or "vendeur", separator="_").lower())
+    seed = re.sub(r"_+", "_", seed).strip("_")
+    if not seed:
+        seed = "vendeur"
+    if len(seed) < 3:
+        seed = f"{seed}_user"
+    seed = seed[:40]
+
+    candidate = seed
+    counter = 1
+    while User.query.filter_by(username=candidate).first():
+        suffix = f"_{counter}"
+        candidate = f"{seed[: max(1, 50 - len(suffix))]}{suffix}"
+        counter += 1
+        if counter > 2000:
+            candidate = f"vendor_{int(datetime.utcnow().timestamp())}"
+            if not User.query.filter_by(username=candidate).first():
+                break
+    return candidate
+
+
+def _unique_vendor_email(phone_digits: str, vendor_application_id: int) -> str:
+    local_seed = (phone_digits or "").strip() or f"request{vendor_application_id}"
+    local_seed = re.sub(r"[^a-zA-Z0-9]+", "", local_seed)[:32] or f"request{vendor_application_id}"
+    candidate = f"vendor{local_seed}@vendors.local"
+    if not User.query.filter_by(email=candidate).first():
+        return candidate
+
+    counter = 1
+    while True:
+        attempt = f"vendor{local_seed}{counter}@vendors.local"
+        if not User.query.filter_by(email=attempt).first():
+            return attempt
+        counter += 1
+        if counter > 2000:
+            return f"vendor{vendor_application_id}{int(datetime.utcnow().timestamp())}@vendors.local"
+
+
+def _shop_types_from_vendor_application(shop_type_text: str | None):
+    raw = (shop_type_text or "").strip().lower()
+    if not raw:
+        return "products", ["products"]
+
+    allowed: list[str] = []
+    has_mix = any(token in raw for token in ("mix", "multi", "tous", "all"))
+    if has_mix:
+        return "products", list(SHOP_TYPE_ORDER)
+
+    if any(token in raw for token in ("produit", "product", "marchandise", "article")):
+        allowed.append("products")
+    if any(token in raw for token in ("service", "prestation")):
+        allowed.append("services")
+    if any(token in raw for token in ("location", "rental", "locatif", "louer", "louage")):
+        allowed.append("location")
+
+    normalized_allowed = normalize_allowed_shop_types(allowed, primary_type=allowed[0] if allowed else "products")
+    primary_type = normalized_allowed[0] if normalized_allowed else "products"
+    return primary_type, normalized_allowed or ["products"]
 
 
 def _is_ajax_request() -> bool:
@@ -607,6 +692,12 @@ def update_user(user_id):
     requested_role = None
     if request.form.get('role'):
         requested_role = _normalize_user_role(request.form.get('role'))
+        if requested_role == "vendor" and user.role != "vendor":
+            flash(
+                "Le rôle vendeur ne peut plus être attribué ici. Utilisez le parcours Demandes vendeurs.",
+                "danger",
+            )
+            return redirect(url_for('admin_users.user_detail', user_id=user.id))
         allowed_roles = _manageable_user_roles_for_current_user()
         if not requested_role or requested_role not in allowed_roles:
             flash(f"Rôle invalide. Rôles autorisés : {', '.join(allowed_roles)}.", "danger")
@@ -811,7 +902,12 @@ def delete_user(user_id):
 # ==================== CRÉATION UTILISATEUR ====================
 @bp.route("/user/create", methods=["GET", "POST"])
 def create_user():
-    """Créer un nouvel utilisateur"""
+    """Créer un nouvel utilisateur (hors vendeurs)."""
+    if not _is_full_admin():
+        return _forbidden_sensitive_admin_response()
+
+    manageable_roles = ADMIN_CREATABLE_USER_ROLES
+
     if request.method == 'POST':
         try:
             # Récupération des champs
@@ -822,15 +918,11 @@ def create_user():
             full_name = request.form.get('full_name', '').strip()
             phone = request.form.get('phone', '').strip()
             address = request.form.get('address', '').strip()
-            allowed_roles = _manageable_user_roles_for_current_user()
-            shop = None
-            shop_name = ""
-            primary_type = "products"
-            allowed_types = ["products"]
+            allowed_roles = manageable_roles
 
             # Validation rôle
             if not role or role not in allowed_roles:
-                flash("Rôle invalide. Rôles autorisés: admin, manager, vendor.", "danger")
+                flash("Rôle invalide. Rôles autorisés: admin, manager.", "danger")
                 return redirect(url_for('admin_users.create_user'))
 
             # Validation mot de passe
@@ -853,22 +945,6 @@ def create_user():
                 return redirect(url_for('admin_users.create_user'))
 
             # Créer l'utilisateur
-
-            if role == "vendor":
-                shop_name = request.form.get("shop_name", "").strip()
-                if not shop_name:
-                    flash("Le nom de la boutique est obligatoire pour un vendeur.", "danger")
-                    return redirect(url_for('admin_users.create_user'))
-                try:
-                    primary_type, allowed_types = _shop_types_from_form()
-                except Exception:
-                    current_app.logger.exception("create_user.shop_types_error")
-                    flash("Type de boutique invalide.", "danger")
-                    return redirect(url_for('admin_users.create_user'))
-                full_name = ""
-                phone = ""
-                address = ""
-
             user = User(
                 username=username,
                 email=email,
@@ -881,16 +957,6 @@ def create_user():
             user.set_password(password)
 
             db.session.add(user)
-            db.session.flush()  # Pour obtenir l'ID
-
-            if role == "vendor":
-                shop = _create_shop_for_vendor(
-                    user,
-                    name=shop_name,
-                    primary_type=primary_type,
-                    allowed_types=allowed_types,
-                )
-
             db.session.commit()
 
             # Logger la création d'utilisateur
@@ -909,27 +975,7 @@ def create_user():
                 changes={"role": role, "username": username}
             )
 
-            if shop is not None:
-                try:
-                    log_access(
-                        "create_shop",
-                        "shop",
-                        shop.id,
-                        success=True,
-                        changes={"name": shop.name, "vendor_id": user.id, "source": "create_user"}
-                    )
-                except Exception:
-                    current_app.logger.warning(
-                        "create_user.shop_audit_log_failed",
-                        extra={"user_id": user.id, "shop_id": shop.id},
-                    )
-                flash(f"Utilisateur {username} et boutique {shop.name} créés avec succès.", "success")
-                return redirect(url_for('admin_users.user_detail', user_id=user.id))
-
-            if role == "vendor" and shop is None:
-                flash(f"Utilisateur {username} créé avec succès. La boutique doit être créée séparément.", "success")
-            else:
-                flash(f"Utilisateur {username} créé avec succès", "success")
+            flash(f"Utilisateur {username} créé avec succès", "success")
             return redirect(url_for('admin_users.user_detail', user_id=user.id))
 
         except Exception as e:
@@ -942,9 +988,7 @@ def create_user():
 
     return render_template(
         "admin/create_user.html",
-        manageable_roles=_manageable_user_roles_for_current_user(),
-        shop_type_order=SHOP_TYPE_ORDER,
-        shop_type_labels=SHOP_TYPE_LABELS,
+        manageable_roles=manageable_roles,
     )
 # ==================== GESTION BOUTIQUES ====================
 @bp.route("/shops")
@@ -1140,122 +1184,446 @@ def delete_shop(shop_id):
 
 @bp.route("/shop/create", methods=["GET", "POST"])
 def create_shop():
-    """Créer une nouvelle boutique pour un vendeur existant"""
-    if request.method == "POST":
-        try:
-            # ✅ Conversion explicite en int (évite les erreurs de type silencieuses)
-            try:
-                vendor_id = int(request.form["vendor_id"])
-            except (KeyError, ValueError, TypeError):
-                flash("Vendeur invalide.", "danger")
-                return redirect(url_for("admin_users.create_shop"))
+    """Ancienne création manuelle de boutique (désactivée)."""
+    flash(
+        "La création manuelle de boutique est désactivée. Utilisez la page Demandes vendeurs.",
+        "warning",
+    )
+    return redirect(url_for("admin_users.vendor_requests"))
 
-            name = request.form.get("name", "").strip()
-            description = request.form.get("description", "").strip()
-            contact_email = request.form.get("contact_email", "").strip()
-            contact_phone = request.form.get("contact_phone", "").strip()
-            address = request.form.get("address", "").strip()
 
-            # Validation du nom
-            if not name:
-                flash("Le nom de la boutique est obligatoire.", "danger")
-                return redirect(url_for("admin_users.create_shop"))
+# ==================== DEMANDES VENDEURS ====================
+@bp.route("/vendor-requests")
+def vendor_requests():
+    page = page_from_args(request.args)
+    per_page = normalize_limit(request.args.get("per_page"), default=20, max_limit=100)
+    status = (request.args.get("status") or "").strip().lower()
+    search = (request.args.get("search") or "").strip()
+    allowed_statuses = set(VendorApplication.allowed_statuses())
+    status_filter = status if status in allowed_statuses else ""
 
-            # Récupération et validation du type de boutique
-            try:
-                primary_type, allowed_types = _shop_types_from_form()
-            except Exception:
-                current_app.logger.exception(
-                    "create_shop.shop_types_error — vendor_id=%s", vendor_id
-                )
-                flash("Type de boutique invalide.", "danger")
-                return redirect(url_for("admin_users.create_shop"))
+    query = VendorApplication.query
+    if status_filter:
+        query = query.filter(VendorApplication.status == status_filter)
 
-            # Vérifier si le vendeur existe
-            vendor = db.session.get(User, vendor_id)
-            if not vendor or vendor.role != "vendor":
-                flash("Vendeur introuvable ou rôle invalide.", "danger")
-                return redirect(url_for("admin_users.create_shop"))
-
-            # Vérifier si le vendeur a déjà une boutique
-            existing_shop = Shop.query.filter_by(vendor_id=vendor_id).first()
-            if existing_shop:
-                flash("Ce vendeur a déjà une boutique.", "warning")
-                return redirect(url_for("admin_users.shop_detail", shop_id=existing_shop.id))
-
-            shop = _create_shop_for_vendor(
-                vendor,
-                name=name,
-                description=description,
-                contact_email=contact_email,
-                contact_phone=contact_phone,
-                address=address,
-                primary_type=primary_type,
-                allowed_types=allowed_types,
+    if search:
+        like_term = f"%{search}%"
+        query = query.filter(
+            or_(
+                VendorApplication.full_name.ilike(like_term),
+                VendorApplication.phone.ilike(like_term),
+                VendorApplication.email.ilike(like_term),
+                VendorApplication.shop_name.ilike(like_term),
+                VendorApplication.city.ilike(like_term),
+                VendorApplication.shop_type.ilike(like_term),
             )
-
-            db.session.commit()
-
-            # Log d'audit (non bloquant)
-            try:
-                log_access(
-                    "create_shop",
-                    "shop",
-                    shop.id,
-                    success=True,
-                    changes={"name": shop.name, "vendor_id": vendor_id},
-                )
-            except Exception:
-                current_app.logger.warning(
-                    "create_shop.audit_log_failed — shop_id=%s", shop.id
-                )
-
-            current_app.logger.info(
-                "create_shop.success — shop_id=%s vendor_id=%s name=%s",
-                shop.id, vendor_id, name,
-            )
-            flash(f"Boutique « {name} » créée pour {vendor.username}.", "success")
-            return redirect(url_for("admin_users.shop_detail", shop_id=shop.id))
-
-        except SQLAlchemyError:
-            db.session.rollback()
-            current_app.logger.exception(
-                "create_shop.db_error — vendor_id=%s name=%s",
-                request.form.get("vendor_id"),
-                request.form.get("name"),
-            )
-            flash("Erreur base de données. Merci de réessayer.", "danger")
-            return redirect(url_for("admin_users.create_shop"))
-
-        except Exception:
-            db.session.rollback()
-            current_app.logger.exception(
-                "create_shop.unexpected_error — vendor_id=%s",
-                request.form.get("vendor_id"),
-            )
-            flash("Une erreur inattendue s'est produite. Merci de réessayer.", "danger")
-            return redirect(url_for("admin_users.create_shop"))
-
-    # GET — Récupérer tous les vendeurs sans boutique
-    try:
-        vendors_without_shop = (
-            User.query
-            .filter_by(role="vendor")
-            .filter(~User.id.in_(db.session.query(Shop.vendor_id).filter(Shop.vendor_id.isnot(None))))
-            .order_by(User.username.asc())
-            .all()
         )
-    except Exception:
-        current_app.logger.exception("create_shop.vendors_load_error")
-        vendors_without_shop = []
-        flash("Impossible de charger la liste des vendeurs.", "warning")
+
+    pagination = query.order_by(VendorApplication.created_at.desc()).paginate(
+        page=page,
+        per_page=per_page,
+        error_out=False,
+    )
+    requests_items = pagination.items
+
+    grouped = (
+        db.session.query(VendorApplication.status, db.func.count(VendorApplication.id))
+        .group_by(VendorApplication.status)
+        .all()
+    )
+    status_counts = {status_key: int(count or 0) for status_key, count in grouped}
+    pending_count = int(status_counts.get(VendorApplication.STATUS_PENDING, 0))
+    approved_count = int(status_counts.get(VendorApplication.STATUS_APPROVED, 0))
+    rejected_count = int(status_counts.get(VendorApplication.STATUS_REJECTED, 0))
+    blocked_count = int(status_counts.get(VendorApplication.STATUS_BLOCKED, 0))
+
+    reviewers = {}
+    reviewer_ids = {row.reviewed_by_id for row in requests_items if row.reviewed_by_id}
+    if reviewer_ids:
+        reviewers = {
+            user.id: user
+            for user in User.query.filter(User.id.in_(reviewer_ids)).all()
+        }
 
     return render_template(
-        "admin/create_shop.html",
-        vendors_without_shop=vendors_without_shop,
-        shop_type_order=SHOP_TYPE_ORDER,
-        shop_type_labels=SHOP_TYPE_LABELS,
+        "admin/vendor_requests.html",
+        requests_items=requests_items,
+        pagination=pagination,
+        per_page=per_page,
+        per_page_options=(10, 20, 50, 100),
+        status_filter=status_filter,
+        search=search,
+        status_counts=status_counts,
+        pending_count=pending_count,
+        approved_count=approved_count,
+        rejected_count=rejected_count,
+        blocked_count=blocked_count,
+        reviewers=reviewers,
+        status_order=VendorApplication.allowed_statuses(),
     )
+
+
+def _vendor_requests_redirect():
+    return redirect(request.referrer or url_for("admin_users.vendor_requests"))
+
+
+@bp.route("/vendor-requests/<int:request_id>/approve", methods=["POST"])
+def vendor_request_approve(request_id: int):
+    application = VendorApplication.query.get_or_404(request_id)
+    if application.status != VendorApplication.STATUS_PENDING:
+        flash("Cette demande a deja ete traitee.", "warning")
+        return _vendor_requests_redirect()
+
+    phone_digits = application.phone_digits or _normalize_phone_digits(application.phone)
+    email_normalized = _normalize_optional_email(application.email)
+    username = _unique_vendor_username(application.shop_name or application.full_name)
+
+    email = email_normalized
+    if email and User.query.filter_by(email=email).first():
+        email = ""
+    if not email:
+        email = _unique_vendor_email(phone_digits, application.id)
+
+    generated_password = None
+    primary_type, allowed_types = _shop_types_from_vendor_application(application.shop_type)
+    review_note = (request.form.get("note") or "").strip()[:500] or None
+
+    try:
+        user = User(
+            username=username,
+            email=email,
+            role="vendor",
+            full_name=None,
+            phone=None,
+            address=None,
+            created_at=datetime.utcnow(),
+        )
+        if application.password_hash:
+            user.password_hash = application.password_hash
+        else:
+            generated_password = _generate_memorable_password()
+            user.set_password(generated_password)
+        db.session.add(user)
+        db.session.flush()
+
+        shop = _create_shop_for_vendor(
+            user,
+            name=(application.shop_name or "").strip() or f"Boutique de {username}",
+            description=(application.short_description or "").strip(),
+            contact_email=application.email or user.email,
+            contact_phone=application.phone,
+            address=application.city,
+            primary_type=primary_type,
+            allowed_types=allowed_types,
+        )
+
+        application.status = VendorApplication.STATUS_APPROVED
+        application.review_note = review_note
+        application.reviewed_at = datetime.utcnow()
+        application.reviewed_by_id = current_user.id if current_user.is_authenticated else None
+        application.phone_digits = phone_digits
+        application.email_normalized = email_normalized or None
+        application.created_user_id = user.id
+        application.created_shop_id = shop.id
+
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception("vendor_request_approve.failed request_id=%s", request_id)
+        flash("Impossible de valider la demande pour le moment.", "danger")
+        return _vendor_requests_redirect()
+
+    try:
+        log_access(
+            "vendor_request_approved",
+            "vendor_application",
+            application.id,
+            success=True,
+            changes={
+                "created_user_id": application.created_user_id,
+                "created_shop_id": application.created_shop_id,
+                "shop_type": application.shop_type,
+            },
+        )
+    except Exception:
+        current_app.logger.warning(
+            "vendor_request_approve.audit_log_failed request_id=%s", application.id
+        )
+
+    if generated_password:
+        flash(
+            (
+                f"Demande validee. Compte vendeur cree: {username} | "
+                f"mot de passe temporaire: {generated_password}"
+            ),
+            "success",
+        )
+    else:
+        flash(f"Demande validee. Compte vendeur cree: {username}.", "success")
+    return _vendor_requests_redirect()
+
+
+@bp.route("/vendor-requests/<int:request_id>/reject", methods=["POST"])
+def vendor_request_reject(request_id: int):
+    application = VendorApplication.query.get_or_404(request_id)
+    if application.status != VendorApplication.STATUS_PENDING:
+        flash("Cette demande a deja ete traitee.", "warning")
+        return _vendor_requests_redirect()
+
+    review_note = (request.form.get("note") or "").strip()
+    if not review_note:
+        flash("Un motif est obligatoire pour refuser.", "warning")
+        return _vendor_requests_redirect()
+
+    application.status = VendorApplication.STATUS_REJECTED
+    application.review_note = review_note[:500]
+    application.reviewed_at = datetime.utcnow()
+    application.reviewed_by_id = current_user.id if current_user.is_authenticated else None
+    db.session.commit()
+
+    try:
+        log_access(
+            "vendor_request_rejected",
+            "vendor_application",
+            application.id,
+            success=True,
+            changes={"reason": application.review_note},
+        )
+    except Exception:
+        current_app.logger.warning(
+            "vendor_request_reject.audit_log_failed request_id=%s", application.id
+        )
+
+    flash("Demande refusee.", "success")
+    return _vendor_requests_redirect()
+
+
+@bp.route("/vendor-requests/<int:request_id>/block", methods=["POST"])
+def vendor_request_block(request_id: int):
+    application = VendorApplication.query.get_or_404(request_id)
+    if application.status != VendorApplication.STATUS_PENDING:
+        flash("Cette demande a deja ete traitee.", "warning")
+        return _vendor_requests_redirect()
+
+    review_note = (request.form.get("note") or "").strip()
+    if not review_note:
+        flash("Un motif est obligatoire pour bloquer.", "warning")
+        return _vendor_requests_redirect()
+
+    application.status = VendorApplication.STATUS_BLOCKED
+    application.review_note = review_note[:500]
+    application.reviewed_at = datetime.utcnow()
+    application.reviewed_by_id = current_user.id if current_user.is_authenticated else None
+    application.phone_digits = application.phone_digits or _normalize_phone_digits(application.phone)
+    normalized_email = _normalize_optional_email(application.email)
+    application.email_normalized = normalized_email or None
+    db.session.commit()
+
+    try:
+        log_access(
+            "vendor_request_blocked",
+            "vendor_application",
+            application.id,
+            success=True,
+            changes={"reason": application.review_note},
+        )
+    except Exception:
+        current_app.logger.warning(
+            "vendor_request_block.audit_log_failed request_id=%s", application.id
+        )
+
+    flash("Contact bloque pour les prochaines demandes.", "success")
+    return _vendor_requests_redirect()
+
+
+# ==================== DEMANDES MODIFICATIONS VENDEUR ====================
+@bp.route("/vendor-change-requests")
+def vendor_change_requests():
+    page = page_from_args(request.args)
+    status = (request.args.get("status") or "").strip().lower()
+    request_type = (request.args.get("type") or "").strip().lower()
+    search = (request.args.get("search") or "").strip()
+
+    status_filter = status if status in set(VendorChangeRequest.allowed_statuses()) else ""
+    type_filter = request_type if request_type in set(VendorChangeRequest.allowed_types()) else ""
+
+    query = VendorChangeRequest.query
+    if status_filter:
+        query = query.filter(VendorChangeRequest.status == status_filter)
+    if type_filter:
+        query = query.filter(VendorChangeRequest.request_type == type_filter)
+    if search:
+        like_term = f"%{search}%"
+        query = query.filter(
+            or_(
+                VendorChangeRequest.current_value.ilike(like_term),
+                VendorChangeRequest.requested_value.ilike(like_term),
+                VendorChangeRequest.reason.ilike(like_term),
+            )
+        )
+
+    pagination = query.order_by(VendorChangeRequest.created_at.desc()).paginate(
+        page=page,
+        per_page=20,
+        error_out=False,
+    )
+    requests_items = pagination.items
+
+    vendor_ids = {row.vendor_id for row in requests_items if row.vendor_id}
+    shop_ids = {row.shop_id for row in requests_items if row.shop_id}
+    reviewer_ids = {row.reviewed_by_id for row in requests_items if row.reviewed_by_id}
+
+    vendors = {}
+    shops = {}
+    reviewers = {}
+    if vendor_ids:
+        vendors = {user.id: user for user in User.query.filter(User.id.in_(vendor_ids)).all()}
+    if shop_ids:
+        shops = {shop.id: shop for shop in Shop.query.filter(Shop.id.in_(shop_ids)).all()}
+    if reviewer_ids:
+        reviewers = {user.id: user for user in User.query.filter(User.id.in_(reviewer_ids)).all()}
+
+    grouped = (
+        db.session.query(VendorChangeRequest.status, db.func.count(VendorChangeRequest.id))
+        .group_by(VendorChangeRequest.status)
+        .all()
+    )
+    status_counts = {status_key: int(count or 0) for status_key, count in grouped}
+
+    return render_template(
+        "admin/vendor_change_requests.html",
+        requests_items=requests_items,
+        pagination=pagination,
+        status_filter=status_filter,
+        type_filter=type_filter,
+        search=search,
+        status_order=VendorChangeRequest.allowed_statuses(),
+        type_order=VendorChangeRequest.allowed_types(),
+        type_labels=VENDOR_CHANGE_TYPE_LABELS,
+        status_counts=status_counts,
+        pending_count=int(status_counts.get(VendorChangeRequest.STATUS_PENDING, 0)),
+        approved_count=int(status_counts.get(VendorChangeRequest.STATUS_APPROVED, 0)),
+        rejected_count=int(status_counts.get(VendorChangeRequest.STATUS_REJECTED, 0)),
+        vendors=vendors,
+        shops=shops,
+        reviewers=reviewers,
+    )
+
+
+def _vendor_change_requests_redirect():
+    return redirect(request.referrer or url_for("admin_users.vendor_change_requests"))
+
+
+@bp.route("/vendor-change-requests/<int:request_id>/approve", methods=["POST"])
+def vendor_change_request_approve(request_id: int):
+    change_request = VendorChangeRequest.query.get_or_404(request_id)
+    if change_request.status != VendorChangeRequest.STATUS_PENDING:
+        flash("Cette demande a deja ete traitee.", "warning")
+        return _vendor_change_requests_redirect()
+
+    vendor = db.session.get(User, change_request.vendor_id)
+    shop = db.session.get(Shop, change_request.shop_id)
+    if not vendor or not shop or shop.vendor_id != vendor.id:
+        flash("Demande invalide: vendeur ou boutique introuvable.", "danger")
+        return _vendor_change_requests_redirect()
+
+    review_note = (request.form.get("note") or "").strip()[:500] or None
+    requested_value = (change_request.requested_value or "").strip()
+
+    try:
+        if change_request.request_type == VendorChangeRequest.TYPE_ACCOUNT_EMAIL:
+            requested_email = _normalize_optional_email(requested_value)
+            if not requested_email:
+                flash("Email demande invalide.", "danger")
+                return _vendor_change_requests_redirect()
+            existing_user = User.query.filter(User.email == requested_email, User.id != vendor.id).first()
+            if existing_user:
+                flash("Email deja utilise par un autre compte.", "danger")
+                return _vendor_change_requests_redirect()
+            vendor.email = requested_email
+            shop.contact_email = requested_email
+        elif change_request.request_type == VendorChangeRequest.TYPE_SHOP_NAME:
+            if len(requested_value) < 3 or len(requested_value) > 100:
+                flash("Nom de boutique invalide.", "danger")
+                return _vendor_change_requests_redirect()
+            shop.name = requested_value
+            shop.slug = _build_unique_shop_slug(requested_value, exclude_shop_id=shop.id)
+        else:
+            flash("Type de demande inconnu.", "danger")
+            return _vendor_change_requests_redirect()
+
+        shop.updated_at = datetime.utcnow()
+        change_request.status = VendorChangeRequest.STATUS_APPROVED
+        change_request.review_note = review_note
+        change_request.reviewed_at = datetime.utcnow()
+        change_request.reviewed_by_id = current_user.id if current_user.is_authenticated else None
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception(
+            "vendor_change_request_approve.failed request_id=%s",
+            request_id,
+        )
+        flash("Impossible de valider cette demande.", "danger")
+        return _vendor_change_requests_redirect()
+
+    try:
+        log_access(
+            "vendor_change_request_approved",
+            "vendor_change_request",
+            change_request.id,
+            success=True,
+            changes={
+                "vendor_id": vendor.id,
+                "shop_id": shop.id,
+                "request_type": change_request.request_type,
+            },
+        )
+    except Exception:
+        current_app.logger.warning(
+            "vendor_change_request_approve.audit_log_failed request_id=%s",
+            change_request.id,
+        )
+
+    flash("Demande de modification validee.", "success")
+    return _vendor_change_requests_redirect()
+
+
+@bp.route("/vendor-change-requests/<int:request_id>/reject", methods=["POST"])
+def vendor_change_request_reject(request_id: int):
+    change_request = VendorChangeRequest.query.get_or_404(request_id)
+    if change_request.status != VendorChangeRequest.STATUS_PENDING:
+        flash("Cette demande a deja ete traitee.", "warning")
+        return _vendor_change_requests_redirect()
+
+    review_note = (request.form.get("note") or "").strip()
+    if not review_note:
+        flash("Un motif est obligatoire pour refuser.", "warning")
+        return _vendor_change_requests_redirect()
+
+    change_request.status = VendorChangeRequest.STATUS_REJECTED
+    change_request.review_note = review_note[:500]
+    change_request.reviewed_at = datetime.utcnow()
+    change_request.reviewed_by_id = current_user.id if current_user.is_authenticated else None
+    db.session.commit()
+
+    try:
+        log_access(
+            "vendor_change_request_rejected",
+            "vendor_change_request",
+            change_request.id,
+            success=True,
+            changes={"reason": change_request.review_note},
+        )
+    except Exception:
+        current_app.logger.warning(
+            "vendor_change_request_reject.audit_log_failed request_id=%s",
+            change_request.id,
+        )
+
+    flash("Demande de modification refusee.", "success")
+    return _vendor_change_requests_redirect()
+
 
 # ==================== LOGS & ACTIVITÉ ====================
 @bp.route("/logs")

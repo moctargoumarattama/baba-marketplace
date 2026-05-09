@@ -543,6 +543,7 @@
 {% block scripts %}
 {{ super() }}
 <script src="{{ url_for('static', filename='js/core/core_share.js', v=app_static_version) }}" defer></script>
+<script src="{{ url_for('static', filename='js/core/core_live.js', v=app_static_version) }}" defer></script>
 <script src="{{ url_for('static', filename='js/pages/product_detail_page.js', v=app_static_version) }}" defer></script>
 {% endblock %}
 

@@ -74,6 +74,7 @@
                target="_blank"
                rel="noopener noreferrer"
                data-whatsapp-contact
+               data-contact-url="{{ url_for('cart.record_whatsapp_contact', shop_id=group['shop'].id) }}"
                data-sent-label="Étape validée">
               <i class="bi bi-whatsapp me-2"></i>Ouvrir WhatsApp
             </a>
@@ -353,26 +354,52 @@
 
     buttons.forEach(function (button) {
       button.addEventListener("click", function (event) {
+        event.preventDefault();
         if (button.getAttribute("aria-disabled") === "true") {
-          event.preventDefault();
           return;
         }
 
+        var contactUrl = button.getAttribute("data-contact-url");
+        var fallbackUrl = button.getAttribute("href");
         button.setAttribute("aria-disabled", "true");
-        button.classList.add("is-sent");
-        button.innerHTML = '<i class="bi bi-check2-circle me-2"></i>' + (button.getAttribute("data-sent-label") || "Envoyé");
 
-        var card = button.closest("[data-contact-card]");
-        if (card) {
-          card.classList.add("merchant-card--sent");
-          var sentState = card.querySelector("[data-sent-state]");
-          if (sentState) {
-            sentState.classList.remove("d-none");
-          }
-        }
+        fetch(contactUrl, {
+          method: "POST",
+          headers: (window.BMAjaxCSRF && typeof window.BMAjaxCSRF.withCsrfHeaders === "function")
+            ? window.BMAjaxCSRF.withCsrfHeaders({ "X-Requested-With": "fetch", "Accept": "application/json" })
+            : { "X-Requested-With": "fetch", "Accept": "application/json" },
+          credentials: "same-origin"
+        })
+          .then(function (response) {
+            return response.json().catch(function () { return {}; }).then(function (payload) {
+              if (!response.ok || !payload.success) {
+                throw new Error(payload.message || "contact_failed");
+              }
+              return payload;
+            });
+          })
+          .then(function (payload) {
+            var openUrl = payload.whatsapp_url || fallbackUrl;
+            button.classList.add("is-sent");
+            button.innerHTML = '<i class="bi bi-check2-circle me-2"></i>' + (button.getAttribute("data-sent-label") || "Envoyé");
 
-        sentCount += 1;
-        updateCounter();
+            var card = button.closest("[data-contact-card]");
+            if (card) {
+              card.classList.add("merchant-card--sent");
+              var sentState = card.querySelector("[data-sent-state]");
+              if (sentState) {
+                sentState.classList.remove("d-none");
+              }
+            }
+
+            sentCount += 1;
+            updateCounter();
+            window.open(openUrl, "_blank", "noopener,noreferrer");
+          })
+          .catch(function () {
+            button.removeAttribute("aria-disabled");
+            window.open(fallbackUrl, "_blank", "noopener,noreferrer");
+          });
       });
     });
 

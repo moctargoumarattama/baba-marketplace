@@ -4,17 +4,17 @@ from urllib.parse import quote
 from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from slugify import slugify
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import load_only, selectinload
 from sqlalchemy.exc import SQLAlchemyError
 from ..extensions import db
+from ..models.audit import AuditLog
 from ..models.platform_settings import PlatformSettings
-from ..models.rental import RENTAL_LISTING_DURATION_DAYS, RentalArchive, RentalListing, RentalMedia
+from ..models.rental import RentalArchive, RentalListing, RentalMedia, rental_duration_days_for_type
 from ..models.shop import Shop
 from ..models.user import User
 from ..services.audit import log_access
-from ..services.marketplace_feed import CURATED_PAGE_LIMIT, build_location_feed
-from ..services.pagination import SimplePagination, page_from_args
+from ..services.pagination import paginate_with_clamped_page, page_from_args
 from ..services.date_filters import resolve_date_filter
 from ..services.shop_access import ensure_shop_allows, ensure_vendor_allows
 from ..services.support_whatsapp import (
@@ -35,6 +35,7 @@ from ..services.rentals import (
     save_rental_image,
     save_rental_video,
 )
+from ..services.vendor_push import notify_location_inquiry
 
 
 bp = Blueprint("rentals", __name__)
@@ -95,6 +96,14 @@ def _build_listing_slug(title: str, exclude_id: int | None = None) -> str:
 
 def _bps_to_percent(rate_bps: int | None) -> float:
     return round((int(rate_bps or 0) / 100), 2)
+
+
+def _coerce_duration_days(value, *, fallback: int) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        parsed = int(fallback)
+    return max(1, min(3650, parsed))
 
 
 def _redirect_internal_next(raw_target: str | None, fallback_endpoint: str, **fallback_values):
@@ -180,6 +189,11 @@ def _admin_required():
         flash("Accès réservé aux administrateurs.", "warning")
         return redirect(url_for("shop.home"))
     return None
+
+
+def _normalize_admin_locations_section(raw_value: str | None) -> str:
+    value = (raw_value or "").strip().lower()
+    return value if value in {"listings", "archives", "both"} else ""
 
 
 def _owner_shops(owner_id: int, location_only: bool = False):
@@ -302,9 +316,12 @@ def _listing_owner_view(listing: RentalListing):
 @bp.route("/locations")
 def locations_home():
     q = (request.args.get("q") or "").strip()
+    search_q = q if len(q) >= 2 else ""
+    description_search_q = q if len(q) >= 3 else ""
     listing_type = (request.args.get("type") or "").strip().lower()
     property_type = (request.args.get("property_type") or "").strip().lower()
     city_area = (request.args.get("city") or "").strip()
+    city_area_query = city_area if len(city_area) >= 2 else ""
     price_min = (request.args.get("min") or "").strip()
     price_max = (request.args.get("max") or "").strip()
     page = page_from_args(request.args)
@@ -335,40 +352,36 @@ def locations_home():
     except ValueError:
         flash("Filtre prix invalide.", "warning")
 
-    if q:
-        like = f"%{q}%"
-        query = query.filter(
-            (RentalListing.title.ilike(like))
-            | (RentalListing.description.ilike(like))
-            | (RentalListing.city.ilike(like))
-            | (RentalListing.area.ilike(like))
-        )
+    if q and not search_q:
+        query = query.filter(False)
+    elif search_q:
+        like = f"%{search_q}%"
+        search_clauses = [
+            RentalListing.title.ilike(like),
+            RentalListing.city.ilike(like),
+            RentalListing.area.ilike(like),
+        ]
+        if description_search_q:
+            search_clauses.append(RentalListing.description.ilike(f"%{description_search_q}%"))
+        query = query.filter(or_(*search_clauses))
     if listing_type:
         query = query.filter(RentalListing.listing_type == listing_type)
     if property_type:
         query = query.filter(RentalListing.property_type == property_type)
-    if city_area:
-        like_city = f"%{city_area}%"
+    if city_area and not city_area_query:
+        query = query.filter(False)
+    elif city_area_query:
+        like_city = f"%{city_area_query}%"
         query = query.filter((RentalListing.city.ilike(like_city)) | (RentalListing.area.ilike(like_city)))
 
     per_page = 12
-    if page <= CURATED_PAGE_LIMIT:
-        payload = build_location_feed(
-            page=page,
-            per_page=per_page,
-            search_q=q,
-            listing_type=listing_type,
-            property_type=property_type,
-            city_area=city_area,
-            min_price=min_price_value,
-            max_price=max_price_value,
-        )
-        listings = payload.get("items", [])
-        total = payload.get("total", 0)
-        pagination = SimplePagination(page, payload.get("per_page", per_page), total)
-    else:
-        pagination = query.order_by(RentalListing.created_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
-        listings = pagination.items
+    pagination = paginate_with_clamped_page(
+        query.order_by(RentalListing.created_at.desc(), RentalListing.id.desc()),
+        page=page,
+        per_page=per_page,
+        error_out=False,
+    )
+    listings = pagination.items
     has_active_filters = bool(q or listing_type or property_type or city_area or price_min or price_max)
 
     template_name = "partials/_locations_listing.html" if _is_ajax_request() else "locations/index.html"
@@ -451,6 +464,13 @@ def location_inquiry(slug: str):
             f"Date souhaitée: {form_data['desired_date'] or '-'}",
             f"Message: {form_data['message'] or '-'}",
         ]
+        try:
+            notify_location_inquiry(listing, form_data)
+        except Exception:
+            current_app.logger.exception(
+                "vendor_push.location_inquiry_notify_failed",
+                extra={"listing_id": getattr(listing, "id", None)},
+            )
         wa_number = _support_whatsapp_number()
         wa_url = f"https://wa.me/{wa_number}?text={quote(chr(10).join(lines))}"
         return render_template(
@@ -522,7 +542,8 @@ def owner_locations():
     # PAGINATION AJOUTÉE
     page = page_from_args(request.args)
     per_page = 20
-    pagination = query.order_by(RentalListing.created_at.desc()).paginate(
+    pagination = paginate_with_clamped_page(
+        query.order_by(RentalListing.created_at.desc(), RentalListing.id.desc()),
         page=page, per_page=per_page, error_out=False
     )
     listings = pagination.items
@@ -658,7 +679,8 @@ def owner_locations_archives():
             | (RentalArchive.area.ilike(like))
         )
 
-    pagination = query.order_by(RentalArchive.closed_at.desc()).paginate(
+    pagination = paginate_with_clamped_page(
+        query.order_by(RentalArchive.closed_at.desc(), RentalArchive.id.desc()),
         page=page, per_page=per_page, error_out=False
     )
     archives = pagination.items
@@ -739,6 +761,7 @@ def owner_location_new():
                 raise ValueError("Texte frais propriétaire trop long (max 255 caractères).")
 
             created_at = datetime.utcnow()
+            duration_days = rental_duration_days_for_type(listing_type, settings=settings)
             listing = RentalListing(
                 owner_id=current_user.id,
                 shop_id=shop_id,
@@ -762,7 +785,7 @@ def owner_location_new():
                 status="active",
                 is_active=True,
                 created_at=created_at,
-                expires_at=created_at + timedelta(days=RENTAL_LISTING_DURATION_DAYS),
+                expires_at=created_at + timedelta(days=duration_days),
             )
             db.session.add(listing)
             db.session.flush()
@@ -870,6 +893,7 @@ def owner_location_edit(listing_id: int):
     if request.method == "POST":
         saved_files: list[str] = []
         try:
+            previous_listing_type = (listing.listing_type or "").strip().lower()
             listing.title = (request.form.get("title") or "").strip()
             listing.description = (request.form.get("description") or "").strip()
             listing.listing_type = (request.form.get("listing_type") or "").strip().lower()
@@ -907,6 +931,11 @@ def owner_location_edit(listing_id: int):
             listing.platform_commission_mode = "success_commission"
             listing.platform_commission_rate_bps = int(settings.rental_success_commission_bps or 0)
             listing.platform_commission_fixed_cents = 0
+
+            if listing.listing_type != previous_listing_type:
+                duration_days = rental_duration_days_for_type(listing.listing_type, settings=settings)
+                base_created_at = listing.created_at or datetime.utcnow()
+                listing.expires_at = base_created_at + timedelta(days=duration_days)
 
             remove_media_ids = {
                 int(mid)
@@ -1146,6 +1175,12 @@ def admin_locations():
     if guard:
         return guard
 
+    section = _normalize_admin_locations_section(request.args.get("section")) if _is_ajax_request() else ""
+    include_listings = section in {"", "listings", "both"}
+    include_archives = section in {"", "archives", "both"}
+    include_stats = section == "" or request.args.get("stats") == "1"
+    partial_request = bool(section)
+
     q        = (request.args.get("q") or "").strip()
     status   = (request.args.get("status") or "").strip().lower()
     owner_id = request.args.get("owner_id", type=int)
@@ -1180,9 +1215,12 @@ def admin_locations():
         RentalListing.created_at < date_filter.end_at,
     )
 
-    listings_pg = lq.order_by(RentalListing.created_at.desc()).paginate(
-        page=page, per_page=PER, error_out=False
-    )
+    listings_pg = None
+    if include_listings:
+        listings_pg = paginate_with_clamped_page(
+            lq.order_by(RentalListing.created_at.desc(), RentalListing.id.desc()),
+            page=page, per_page=PER, error_out=False
+        )
 
     #  Archives 
     archives_query = (
@@ -1196,27 +1234,49 @@ def admin_locations():
         RentalArchive.closed_at >= date_filter.start_at,
         RentalArchive.closed_at < date_filter.end_at,
     )
-    archives_pg = archives_query.order_by(RentalArchive.closed_at.desc()).paginate(
-        page=a_page, per_page=A_PER, error_out=False
-    )
+    archives_pg = None
+    if include_archives:
+        archives_pg = paginate_with_clamped_page(
+            archives_query.order_by(RentalArchive.closed_at.desc(), RentalArchive.id.desc()),
+            page=a_page, per_page=A_PER, error_out=False
+        )
 
-    owners          = (
-        User.query
-        .options(load_only(User.id, User.username))
-        .filter_by(role="vendor")
-        .order_by(User.username.asc())
-        .all()
-    )
-    archives_count  = archives_query.order_by(None).count()
-    active_count    = lq.order_by(None).count()
-    expired_pending = lq.filter(RentalListing.expires_at <= datetime.utcnow()).order_by(None).count()
-    settings = PlatformSettings.get()
+    owners = []
+    if not partial_request:
+        owners = (
+            User.query
+            .options(load_only(User.id, User.username))
+            .filter_by(role="vendor")
+            .order_by(User.username.asc())
+            .all()
+        )
+    archives_count = 0
+    active_count = 0
+    expired_pending = 0
+    if include_stats:
+        archives_count = int(archives_pg.total) if archives_pg is not None else archives_query.order_by(None).count()
+        active_count = int(listings_pg.total) if listings_pg is not None else lq.order_by(None).count()
+        expired_pending = lq.filter(RentalListing.expires_at <= datetime.utcnow()).order_by(None).count()
+    settings = PlatformSettings.get() if (include_listings or not partial_request) else None
+    duration_settings_history = []
+    if not partial_request:
+        try:
+            duration_settings_history = (
+                AuditLog.query
+                .options(selectinload(AuditLog.user))
+                .filter(AuditLog.action == "update_rental_duration_settings")
+                .filter(AuditLog.entity_type == "platform_settings")
+                .order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
+                .limit(10)
+                .all()
+            )
+        except Exception:
+            db.session.rollback()
 
-    return render_template(
-        "admin/locations.html",
-        listings=listings_pg.items,
+    context = dict(
+        listings=listings_pg.items if listings_pg is not None else [],
         listings_pg=listings_pg,
-        archives=archives_pg.items,
+        archives=archives_pg.items if archives_pg is not None else [],
         archives_pg=archives_pg,
         owners=owners,
         q=q,
@@ -1231,11 +1291,73 @@ def admin_locations():
         active_count=active_count,
         expired_pending=expired_pending,
         settings=settings,
+        duration_settings_history=duration_settings_history,
         cents_to_dh=cents_to_dh,
         format_dt=_format_dt,
         bps_to_percent=_bps_to_percent,
         commission_amount_from_owner_fee=commission_amount_from_owner_fee,
     )
+
+    if partial_request:
+        return render_template(
+            "admin/partials/_locations_fragment.html",
+            include_listings=include_listings,
+            include_archives=include_archives,
+            include_stats=include_stats,
+            **context,
+        )
+
+    return render_template("admin/locations.html", **context)
+
+
+@bp.route("/admin/locations/duration-settings", methods=["POST"])
+@login_required
+def admin_locations_duration_settings():
+    guard = _admin_required()
+    if guard:
+        return guard
+
+    settings = PlatformSettings.get()
+    previous_monthly_days = int(getattr(settings, "rental_monthly_duration_days", 14) or 14)
+    previous_daily_days = int(getattr(settings, "rental_daily_duration_days", 14) or 14)
+
+    try:
+        monthly_days = _coerce_duration_days(
+            request.form.get("rental_monthly_duration_days"),
+            fallback=previous_monthly_days,
+        )
+        daily_days = _coerce_duration_days(
+            request.form.get("rental_daily_duration_days"),
+            fallback=previous_daily_days,
+        )
+    except Exception:
+        flash("Durees invalides. Veuillez saisir des nombres entiers.", "warning")
+        return redirect(request.referrer or url_for("rentals.admin_locations"))
+
+    if monthly_days == previous_monthly_days and daily_days == previous_daily_days:
+        flash("Aucun changement detecte sur les durees.", "info")
+        return redirect(request.referrer or url_for("rentals.admin_locations"))
+
+    settings.rental_monthly_duration_days = monthly_days
+    settings.rental_daily_duration_days = daily_days
+    db.session.commit()
+
+    log_access(
+        "update_rental_duration_settings",
+        "platform_settings",
+        settings.id or 0,
+        success=True,
+        changes={
+            "rental_monthly_duration_days_before": previous_monthly_days,
+            "rental_monthly_duration_days_after": monthly_days,
+            "rental_daily_duration_days_before": previous_daily_days,
+            "rental_daily_duration_days_after": daily_days,
+        },
+    )
+    flash("Durees de disparition location mises a jour.", "success")
+    return redirect(request.referrer or url_for("rentals.admin_locations"))
+
+
 @bp.route("/admin/location/<int:listing_id>/delete", methods=["POST"])
 @login_required
 def admin_location_delete(listing_id: int):

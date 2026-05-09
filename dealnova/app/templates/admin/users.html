@@ -296,9 +296,15 @@
         <p class="users-subtitle">{{ 'Retrouvez ici les vendeurs.' if current_user.role == 'manager' else 'Centralisez les comptes et les acces utiles au quotidien.' }}</p>
       </div>
       <div class="users-cta">
+        {% if current_user.role == 'admin' %}
         <a href="{{ url_for('admin_users.create_user') }}" class="btn btn-primary">
-          <i class="bi bi-person-plus"></i> {{ 'Ajouter un compte' if current_user.role == 'manager' else 'Nouvel utilisateur' }}
+          <i class="bi bi-person-plus"></i> Nouvel utilisateur
         </a>
+        {% else %}
+        <a href="{{ url_for('admin_users.vendor_requests') }}" class="btn btn-primary">
+          <i class="bi bi-person-check"></i> Demandes vendeurs
+        </a>
+        {% endif %}
       </div>
     </div>
   </section>

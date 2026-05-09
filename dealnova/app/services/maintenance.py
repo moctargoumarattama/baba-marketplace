@@ -2,9 +2,13 @@ from __future__ import annotations
 
 import json
 import os
+import gzip
+import shutil
 import sqlite3
+import subprocess
 import time
 import random
+import tempfile
 from collections import deque
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -137,6 +141,33 @@ def _validate_backup_dir(path: Path) -> bool:
         return False
 
 
+def _guard_backup_dir_not_public(path: Path) -> None:
+    """Evite de mettre les sauvegardes dans static/uploads ou un dossier public."""
+    resolved = path.resolve()
+    public_roots: list[Path] = []
+
+    static_folder = getattr(current_app, "static_folder", None)
+    if static_folder:
+        public_roots.append(Path(static_folder).resolve())
+
+    upload_folder = str(current_app.config.get("UPLOAD_FOLDER") or "").strip()
+    if upload_folder:
+        upload_path = Path(upload_folder)
+        if not upload_path.is_absolute():
+            upload_path = (_project_root() / upload_path).resolve()
+        public_roots.append(upload_path.resolve())
+
+    for public_root in public_roots:
+        try:
+            resolved.relative_to(public_root)
+        except ValueError:
+            continue
+        raise RuntimeError(
+            "Le dossier de sauvegarde ne doit pas etre dans un dossier public "
+            f"comme static/uploads: {resolved}"
+        )
+
+
 def _resolve_backup_dir(custom_dir: str | None = None) -> Path:
     configured = (custom_dir or "").strip() or str(current_app.config.get("MAINTENANCE_BACKUP_DIR") or "").strip()
     if not configured:
@@ -145,6 +176,7 @@ def _resolve_backup_dir(custom_dir: str | None = None) -> Path:
     if not path.is_absolute():
         path = (_project_root() / path).resolve()
     path.mkdir(parents=True, exist_ok=True)
+    _guard_backup_dir_not_public(path)
 
     if not _validate_backup_dir(path):
         raise RuntimeError(f"Le dossier de backup {path} n'est pas accessible en écriture.")
@@ -198,6 +230,304 @@ def create_pre_reset_backup(
         "backup_file": str(backup_file),
         "manifest_file": str(manifest_file),
         "db_engine": "sqlite",
+    }
+
+
+def _backup_retention_days(value: int | None = None) -> int:
+    if value is not None:
+        return max(1, int(value))
+    configured = current_app.config.get("DB_BACKUP_RETENTION_DAYS", 30)
+    try:
+        return max(1, int(configured))
+    except (TypeError, ValueError):
+        return 30
+
+
+def _find_required_executable(name: str) -> str:
+    executable = shutil.which(name)
+    if not executable:
+        raise RuntimeError(
+            f"{name} est introuvable sur ce serveur. Installe le client MySQL "
+            f"ou lance la commande depuis un serveur qui contient {name}."
+        )
+    return executable
+
+
+def _mysql_client_defaults_file() -> tuple[str, str]:
+    url = db.engine.url
+    username = url.username or ""
+    password = url.password or ""
+    host = url.host or "localhost"
+    port = url.port
+    database = url.database or ""
+    if not database:
+        raise RuntimeError("Nom de base MySQL introuvable dans la configuration.")
+
+    lines = [
+        "[client]",
+        f"user={username}",
+        f"password={password}",
+        f"host={host}",
+        "default-character-set=utf8mb4",
+    ]
+    if port:
+        lines.append(f"port={port}")
+
+    handle = tempfile.NamedTemporaryFile(
+        mode="w",
+        encoding="utf-8",
+        prefix="dealnova_mysql_",
+        suffix=".cnf",
+        delete=False,
+    )
+    try:
+        handle.write("\n".join(lines) + "\n")
+        defaults_path = handle.name
+    finally:
+        handle.close()
+
+    try:
+        os.chmod(defaults_path, 0o600)
+    except OSError:
+        pass
+    return defaults_path, database
+
+
+def _write_backup_manifest(manifest_path: Path, manifest: dict[str, Any]) -> None:
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def prune_database_backups(
+    *,
+    backup_dir: str | None = None,
+    retention_days: int | None = None,
+) -> list[str]:
+    destination_dir = _resolve_backup_dir(backup_dir)
+    safe_retention = _backup_retention_days(retention_days)
+    cutoff = datetime.utcnow() - timedelta(days=safe_retention)
+    removed: list[str] = []
+
+    for path in destination_dir.glob("dealnova_db_*"):
+        try:
+            if datetime.utcfromtimestamp(path.stat().st_mtime) >= cutoff:
+                continue
+            if path.suffix not in {".gz", ".json", ".sqlite3"}:
+                continue
+            path.unlink()
+            removed.append(str(path))
+        except OSError:
+            continue
+    return removed
+
+
+def _create_sqlite_database_backup(destination_dir: Path, timestamp: str) -> Path:
+    db_path = _sqlite_db_file_path()
+    if db_path is None or not db_path.exists():
+        raise RuntimeError("Fichier SQLite introuvable pour la sauvegarde.")
+
+    backup_file = destination_dir / f"dealnova_db_sqlite_{timestamp}.sqlite3"
+    source_conn = None
+    backup_conn = None
+    try:
+        source_conn = sqlite3.connect(str(db_path))
+        backup_conn = sqlite3.connect(str(backup_file))
+        source_conn.backup(backup_conn)
+    finally:
+        if backup_conn is not None:
+            backup_conn.close()
+        if source_conn is not None:
+            source_conn.close()
+    return backup_file
+
+
+def _create_mysql_database_backup(destination_dir: Path, timestamp: str) -> tuple[Path, str]:
+    mysqldump = _find_required_executable("mysqldump")
+    defaults_path, database = _mysql_client_defaults_file()
+    backup_file = destination_dir / f"dealnova_db_mysql_{timestamp}.sql.gz"
+    command = [
+        mysqldump,
+        f"--defaults-extra-file={defaults_path}",
+        "--single-transaction",
+        "--quick",
+        "--routines",
+        "--triggers",
+        "--events",
+        "--default-character-set=utf8mb4",
+        database,
+    ]
+
+    try:
+        with gzip.open(backup_file, "wb") as output:
+            result = subprocess.run(
+                command,
+                stdout=output,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+        if result.returncode != 0:
+            backup_file.unlink(missing_ok=True)
+            error = result.stderr.decode("utf-8", errors="replace").strip()
+            raise RuntimeError(f"mysqldump a echoue: {error or 'erreur inconnue'}")
+    finally:
+        try:
+            Path(defaults_path).unlink(missing_ok=True)
+        except OSError:
+            pass
+    return backup_file, database
+
+
+def create_database_backup(
+    *,
+    backup_dir: str | None = None,
+    retention_days: int | None = None,
+) -> dict[str, Any]:
+    destination_dir = _resolve_backup_dir(backup_dir)
+    safe_retention = _backup_retention_days(retention_days)
+    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    backend = _db_backend_name()
+    database_name = ""
+
+    if backend == "mysql":
+        backup_file, database_name = _create_mysql_database_backup(destination_dir, timestamp)
+    elif backend == "sqlite":
+        backup_file = _create_sqlite_database_backup(destination_dir, timestamp)
+        database_name = str(_sqlite_db_file_path() or "")
+    else:
+        raise RuntimeError(f"Sauvegarde non supportee pour ce moteur de base: {backend or 'inconnu'}")
+
+    removed = prune_database_backups(
+        backup_dir=str(destination_dir),
+        retention_days=safe_retention,
+    )
+    manifest_file = backup_file.with_suffix(backup_file.suffix + ".json")
+    manifest = {
+        "created_at_utc": datetime.utcnow().isoformat() + "Z",
+        "db_engine": backend,
+        "database": database_name,
+        "backup_file": str(backup_file),
+        "backup_dir": str(destination_dir),
+        "size_bytes": backup_file.stat().st_size,
+        "retention_days": safe_retention,
+        "removed_old_backups": removed,
+    }
+    _write_backup_manifest(manifest_file, manifest)
+    manifest["manifest_file"] = str(manifest_file)
+    return manifest
+
+
+def list_database_backups(*, backup_dir: str | None = None) -> list[dict[str, Any]]:
+    destination_dir = _resolve_backup_dir(backup_dir)
+    backups: list[dict[str, Any]] = []
+    for path in sorted(destination_dir.glob("dealnova_db_*"), key=lambda item: item.stat().st_mtime, reverse=True):
+        if path.name.endswith(".json"):
+            continue
+        try:
+            stat = path.stat()
+        except OSError:
+            continue
+        manifest_path = path.with_suffix(path.suffix + ".json")
+        manifest: dict[str, Any] = {}
+        if manifest_path.exists():
+            try:
+                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                manifest = {}
+        backups.append(
+            {
+                "file": str(path),
+                "name": path.name,
+                "size_bytes": stat.st_size,
+                "modified_at_utc": datetime.utcfromtimestamp(stat.st_mtime).isoformat() + "Z",
+                "db_engine": manifest.get("db_engine", "inconnu"),
+                "database": manifest.get("database", ""),
+            }
+        )
+    return backups
+
+
+def import_database_backup(
+    *,
+    source_stream,
+    filename: str,
+    backup_dir: str | None = None,
+) -> dict[str, Any]:
+    raw_name = (filename or "").strip()
+    if not raw_name.endswith(".sql.gz"):
+        raise RuntimeError("Import refuse: seuls les fichiers .sql.gz sont acceptes.")
+
+    secure_name = "".join(ch if ch.isalnum() or ch in {"-", "_", "."} else "_" for ch in raw_name)
+    secure_name = secure_name.strip("._") or "backup.sql.gz"
+    if not secure_name.endswith(".sql.gz"):
+        raise RuntimeError("Import refuse: nom de fichier invalide.")
+
+    destination_dir = _resolve_backup_dir(backup_dir)
+    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    destination = destination_dir / f"dealnova_db_mysql_imported_{timestamp}_{secure_name}"
+    source_stream.save(str(destination))
+
+    manifest_file = destination.with_suffix(destination.suffix + ".json")
+    manifest = {
+        "imported_at_utc": datetime.utcnow().isoformat() + "Z",
+        "db_engine": "mysql",
+        "database": "",
+        "backup_file": str(destination),
+        "backup_dir": str(destination_dir),
+        "original_filename": raw_name,
+        "size_bytes": destination.stat().st_size,
+    }
+    _write_backup_manifest(manifest_file, manifest)
+    manifest["manifest_file"] = str(manifest_file)
+    return manifest
+
+
+def restore_database_backup(
+    backup_file: str,
+    *,
+    yes: bool = False,
+) -> dict[str, Any]:
+    if not yes:
+        raise RuntimeError("Restauration refusee: ajoute --yes pour confirmer.")
+
+    path = Path(backup_file).expanduser().resolve()
+    if not path.exists() or not path.is_file():
+        raise RuntimeError(f"Fichier de sauvegarde introuvable: {path}")
+
+    backend = _db_backend_name()
+    if backend != "mysql":
+        raise RuntimeError("Restauration simple supportee uniquement pour MySQL en production.")
+    if not path.name.endswith(".sql.gz"):
+        raise RuntimeError("La restauration MySQL attend un fichier .sql.gz.")
+
+    mysql = _find_required_executable("mysql")
+    defaults_path, database = _mysql_client_defaults_file()
+    command = [
+        mysql,
+        f"--defaults-extra-file={defaults_path}",
+        "--default-character-set=utf8mb4",
+        database,
+    ]
+    try:
+        with gzip.open(path, "rb") as dump:
+            result = subprocess.run(
+                command,
+                stdin=dump,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+        if result.returncode != 0:
+            error = result.stderr.decode("utf-8", errors="replace").strip()
+            raise RuntimeError(f"mysql restore a echoue: {error or 'erreur inconnue'}")
+    finally:
+        try:
+            Path(defaults_path).unlink(missing_ok=True)
+        except OSError:
+            pass
+
+    return {
+        "restored_file": str(path),
+        "db_engine": backend,
+        "database": database,
+        "restored_at_utc": datetime.utcnow().isoformat() + "Z",
     }
 
 
@@ -1005,3 +1335,40 @@ def init_cli_commands(app):
         """Supprime les anciens rapports de maintenance"""
         deleted = cleanup_old_reports(days=days)
         click.echo(f"{deleted} rapports supprimés (>{days} jours)")
+
+    @app.cli.command("db-backup")
+    @click.option("--backup-dir", default=None, help="Dossier de stockage des sauvegardes")
+    @click.option("--retention-days", default=None, type=int, help="Nombre de jours a conserver")
+    def db_backup_command(backup_dir, retention_days):
+        """Cree une sauvegarde complete de la base de donnees."""
+        result = create_database_backup(backup_dir=backup_dir, retention_days=retention_days)
+        click.echo(f"Sauvegarde creee: {result['backup_file']}")
+        click.echo(f"Manifeste: {result['manifest_file']}")
+        click.echo(f"Retention: {result['retention_days']} jours")
+        click.echo(f"Anciens fichiers supprimes: {len(result['removed_old_backups'])}")
+
+    @app.cli.command("db-backups")
+    @click.option("--backup-dir", default=None, help="Dossier de stockage des sauvegardes")
+    def db_backups_command(backup_dir):
+        """Liste les sauvegardes disponibles."""
+        backups = list_database_backups(backup_dir=backup_dir)
+        if not backups:
+            click.echo("Aucune sauvegarde trouvee.")
+            return
+        for item in backups:
+            size = human_size(item.get("size_bytes"))
+            click.echo(f"{item['modified_at_utc']} | {size} | {item['db_engine']} | {item['file']}")
+
+    @app.cli.command("db-restore")
+    @click.argument("backup_file")
+    @click.option("--yes", is_flag=True, help="Confirme la restauration")
+    def db_restore_command(backup_file, yes):
+        """Restaure une sauvegarde MySQL .sql.gz."""
+        if not yes:
+            click.confirm(
+                "Cette action remplace la base actuelle par la sauvegarde choisie. Continuer ?",
+                abort=True,
+            )
+        result = restore_database_backup(backup_file, yes=True)
+        click.echo(f"Base restauree depuis: {result['restored_file']}")
+        click.echo(f"Base cible: {result['database']}")

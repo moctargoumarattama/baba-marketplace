@@ -10,6 +10,9 @@ from .maintenance import MaintenanceRun, ErrorLog
 from .subscription_payment import SubscriptionPayment
 from .financial import FinancialEntry
 from .runtime_state import RuntimeState
+from .vendor_application import VendorApplication
+from .vendor_change_request import VendorChangeRequest
+from .vendor_push_subscription import VendorPushSubscription
 
 __all__ = [
     "User",
@@ -28,4 +31,7 @@ __all__ = [
     "SubscriptionPayment",
     "FinancialEntry",
     "RuntimeState",
+    "VendorApplication",
+    "VendorChangeRequest",
+    "VendorPushSubscription",
 ]

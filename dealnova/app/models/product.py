@@ -39,6 +39,10 @@ class Product(db.Model):
         CheckConstraint("price_cents >= 0", name="price_cents_non_negative"),
         CheckConstraint("stock >= 0", name="stock_non_negative"),
         CheckConstraint("view_count >= 0", name="view_count_non_negative"),
+        db.Index("ix_product_vendor_created_id", "vendor_id", "created_at", "id"),
+        db.Index("ix_product_vendor_active_created", "vendor_id", "is_active", "created_at"),
+        db.Index("ix_product_vendor_kind_created", "vendor_id", "kind", "created_at"),
+        db.Index("ix_product_vendor_category_created", "vendor_id", "category_id", "created_at"),
     )
 
     def __repr__(self):

@@ -580,6 +580,7 @@ def _base_product_query(*, search_q: str, category_id: int | None, kind: str, mi
         .filter(
             Promo.product_id == Product.id,
             Promo.end_date >= now,
+            Promo.status == Promo.STATUS_APPROVED,
         )
         .order_by(Promo.end_date.asc())
         .limit(1)
@@ -591,6 +592,7 @@ def _base_product_query(*, search_q: str, category_id: int | None, kind: str, mi
         .filter(
             Promo.product_id == Product.id,
             Promo.end_date >= now,
+            Promo.status == Promo.STATUS_APPROVED,
         )
         .order_by(Promo.end_date.asc())
         .limit(1)
@@ -602,6 +604,7 @@ def _base_product_query(*, search_q: str, category_id: int | None, kind: str, mi
         .filter(
             Promo.product_id == Product.id,
             Promo.end_date >= now,
+            Promo.status == Promo.STATUS_APPROVED,
         )
         .exists()
     )
