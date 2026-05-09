@@ -15,3 +15,20 @@ venv/
 .venv/
 env/
 ENV/
+# Environnement local
+dealnova/.envxxx
+.env
+.env.*
+
+# Logs
+dealnova/logs/
+*.log
+
+# Raccourcis Windows
+*.lnk
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
