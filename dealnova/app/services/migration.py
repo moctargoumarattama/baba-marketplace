@@ -463,13 +463,17 @@ def ensure_promo_workflow_columns():
                     conn.execute(text(stmt))
                 conn.execute(text("UPDATE promo SET status = 'approved' WHERE status IS NULL OR TRIM(status) = ''"))
                 conn.execute(text("UPDATE promo SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL"))
-                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_promo_status_end_date ON promo(status, end_date)"))
+                promo_indexes = {idx["name"] for idx in inspector.get_indexes("promo")}
+                if "ix_promo_status_end_date" not in promo_indexes:
+                    conn.execute(text("CREATE INDEX ix_promo_status_end_date ON promo(status, end_date)"))
 
             if "shop" in table_names:
                 shop_columns = [col["name"] for col in inspector.get_columns("shop")]
                 if "promo_trusted" not in shop_columns:
                     conn.execute(text('ALTER TABLE "shop" ADD COLUMN promo_trusted BOOLEAN NOT NULL DEFAULT 0'))
-                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_shop_promo_trusted ON shop(promo_trusted)"))
+                shop_indexes = {idx["name"] for idx in inspector.get_indexes("shop")}
+                if "ix_shop_promo_trusted" not in shop_indexes:
+                    conn.execute(text("CREATE INDEX ix_shop_promo_trusted ON shop(promo_trusted)"))
         print("? Colonnes promo workflow verifiees")
     except Exception as e:
         print(f"? Erreur promo workflow: {e}")
