@@ -45,9 +45,12 @@ class Config:
         print("[WARN] SECRET_KEY faible ou manquant en production. Definis une SECRET_KEY forte dans les variables d'environnement.")
 
     @staticmethod
-    def _normalize_sqlite_url(url):
+    def _normalize_database_url(url):
         if not url:
             return url
+        url = str(url).strip()
+        if url.startswith("mysql://"):
+            return url.replace("mysql://", "mysql+pymysql://", 1)
         prefix = "sqlite:///"
         if url.startswith(prefix):
             path = url[len(prefix):]
@@ -57,10 +60,27 @@ class Config:
             return prefix + path
         return url
 
-    _db_env = os.getenv("DATABASE_URL")
-    SQLALCHEMY_DATABASE_URI = _normalize_sqlite_url.__func__(_db_env) if _db_env else (
-        "sqlite:///" + os.path.join(BASE_DIR, "..", "instance", "dealnova.db")
+    DB_USER = os.getenv("DB_USER", "dealnova")
+    DB_PASSWORD = os.getenv("DB_PASSWORD", "")
+    DB_HOST = os.getenv("DB_HOST", "127.0.0.1")
+    DB_NAME = os.getenv("DB_NAME", "dealnova")
+
+    _db_env = (os.getenv("DATABASE_URL") or "").strip()
+    _db_parts_explicit = any(
+        os.getenv(name) is not None for name in ("DB_USER", "DB_PASSWORD", "DB_HOST", "DB_NAME")
     )
+    if _db_env:
+        SQLALCHEMY_DATABASE_URI = _normalize_database_url.__func__(_db_env)
+    elif _db_parts_explicit:
+        if not DB_PASSWORD:
+            raise ValueError("DB_PASSWORD manquant pour configurer MySQL.")
+        SQLALCHEMY_DATABASE_URI = (
+            f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}/{DB_NAME}"
+        )
+    else:
+        SQLALCHEMY_DATABASE_URI = (
+            "sqlite:///" + os.path.join(BASE_DIR, "..", "instance", "dealnova.db")
+        )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     if SQLALCHEMY_DATABASE_URI.startswith("sqlite:///"):
@@ -72,6 +92,8 @@ class Config:
             "pool_pre_ping": True,
             "pool_recycle": 280,
             "pool_timeout": 30,
+            "pool_size": 5,
+            "max_overflow": 10,
         }
 
     # =========================
@@ -114,6 +136,12 @@ class Config:
 
     CACHE_TYPE = os.getenv("CACHE_TYPE", "SimpleCache")
     CACHE_DEFAULT_TIMEOUT = int(os.getenv("CACHE_DEFAULT_TIMEOUT", "3600"))
+    CACHE_DIR = os.getenv(
+        "CACHE_DIR",
+        os.path.abspath(os.path.join(BASE_DIR, "..", "instance", "flask_cache")),
+    )
+    CACHE_THRESHOLD = int(os.getenv("CACHE_THRESHOLD", "10000"))
+    CACHE_IGNORE_ERRORS = _env_bool.__func__("CACHE_IGNORE_ERRORS", True)
     LOG_LEVEL = (os.getenv("LOG_LEVEL", "INFO") or "INFO").strip().upper()
     LOG_FILE_MAX_BYTES = int(os.getenv("LOG_FILE_MAX_BYTES", str(5 * 1024 * 1024)))
     LOG_FILE_BACKUP_COUNT = int(os.getenv("LOG_FILE_BACKUP_COUNT", "7"))
@@ -174,7 +202,9 @@ class Config:
         header.strip()
         for header in os.getenv(
             "ANALYTICS_CITY_HEADERS",
-            "CF-IPCity,X-AppEngine-City,X-City,CloudFront-Viewer-City,X-Geo-City",
+            "CF-IPCity,CloudFront-Viewer-City,CloudFront-Viewer-City-Name,"
+            "X-City,X-Geo-City,X-AppEngine-City,X-Real-City,X-Client-City,"
+            "True-Client-City,Fly-Client-City,Geo-City",
         ).split(",")
         if header.strip()
     ]

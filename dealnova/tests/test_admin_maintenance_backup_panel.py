@@ -32,8 +32,8 @@ def test_maintenance_route_exposes_backup_context():
     assert "def _maintenance_backup_context(" in source
     assert '"backup_panel": _maintenance_backup_context()' in source
     assert "list_maintenance_backups(" in source
-    assert "cd {project_dir} && workon {venv_name}" in source
-    assert "PYTHONANYWHERE_VENV_NAME" in source
+    assert 'f"cd {project_dir} && "' in source
+    assert "flask --app app:create_app" in source
     assert "db-backup --backup-dir" in source
     assert "uploads-backup --backup-dir" in source
     assert "full-backup --backup-dir" in source

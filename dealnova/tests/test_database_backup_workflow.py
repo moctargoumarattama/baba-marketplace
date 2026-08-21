@@ -49,17 +49,17 @@ def test_backup_directory_is_not_allowed_inside_public_static_uploads():
 
 def test_backup_retention_is_configurable():
     config = _read("app/config.py")
-    confprod = _read("app/confprod.py")
     source = _read("app/services/maintenance.py")
 
     assert "DB_BACKUP_RETENTION_DAYS" in config
     assert "UPLOADS_BACKUP_RETENTION_DAYS" in config
     assert "FULL_BACKUP_RETENTION_DAYS" in config
     assert "FULL_BACKUP_KEEP_LATEST_ONLY" in config
-    assert "DB_BACKUP_RETENTION_DAYS" in confprod
-    assert "UPLOADS_BACKUP_RETENTION_DAYS" in confprod
-    assert "FULL_BACKUP_RETENTION_DAYS" in confprod
-    assert "FULL_BACKUP_KEEP_LATEST_ONLY" in confprod
+    assert "DB_USER" in config
+    assert "DB_PASSWORD" in config
+    assert "DB_HOST" in config
+    assert "DB_NAME" in config
+    assert not (ROOT / "app" / "confprod.py").exists()
     assert "prune_database_backups(" in source
     assert "prune_uploads_backups(" in source
     assert "prune_full_backups(" in source

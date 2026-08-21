@@ -1,12 +1,27 @@
 from pathlib import Path
 from base64 import urlsafe_b64encode
 import sys
+import types
 
 from flask import Flask
 
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+
+
+def _ensure_namespace(name: str, path: Path) -> None:
+    if name in sys.modules:
+        return
+    module = types.ModuleType(name)
+    module.__path__ = [str(path)]
+    sys.modules[name] = module
+
+
+_ensure_namespace("dealnova", ROOT)
+_ensure_namespace("dealnova.app", ROOT / "app")
+_ensure_namespace("dealnova.app.models", ROOT / "app" / "models")
+_ensure_namespace("dealnova.app.services", ROOT / "app" / "services")
 
 
 def _read(relative_path: str) -> str:
@@ -36,16 +51,17 @@ def test_vendor_push_subscription_model_and_routes_exist():
     assert "ttl=86400" in push_service
 
 
-def test_vendor_push_production_config_reads_vapid_environment():
-    confprod = _read("app/confprod.py")
+def test_vendor_push_config_reads_vapid_environment():
+    config_source = _read("app/config.py")
 
-    assert "VENDOR_PUSH_VAPID_PUBLIC_KEY" in confprod
-    assert "VENDOR_PUSH_VAPID_PRIVATE_KEY" in confprod
-    assert "VENDOR_PUSH_VAPID_EMAIL" in confprod
+    assert "VENDOR_PUSH_VAPID_PUBLIC_KEY" in config_source
+    assert "VENDOR_PUSH_VAPID_PRIVATE_KEY" in config_source
+    assert "VENDOR_PUSH_VAPID_EMAIL" in config_source
+    assert not (ROOT / "app" / "confprod.py").exists()
 
 
 def test_vendor_push_configuration_status_reports_server_reason(monkeypatch):
-    from app.services import vendor_push
+    from dealnova.app.services import vendor_push
 
     app = Flask(__name__)
     app.config.update(

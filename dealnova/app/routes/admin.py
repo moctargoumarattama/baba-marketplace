@@ -224,17 +224,16 @@ def _maintenance_backup_context() -> dict:
     backup_dir = str(current_app.config.get("MAINTENANCE_BACKUP_DIR") or "").strip()
     display_dir = backup_dir or str((Path(current_app.root_path).resolve().parent / "backups").resolve())
     project_dir = str((Path(current_app.root_path).resolve().parent).resolve())
-    venv_name = str(current_app.config.get("PYTHONANYWHERE_VENV_NAME") or "babaenv").strip() or "babaenv"
     db_command = (
-        f"cd {project_dir} && workon {venv_name} && "
+        f"cd {project_dir} && "
         f"flask --app app:create_app db-backup --backup-dir {display_dir} --retention-days {db_retention_days}"
     )
     uploads_command = (
-        f"cd {project_dir} && workon {venv_name} && "
+        f"cd {project_dir} && "
         f"flask --app app:create_app uploads-backup --backup-dir {display_dir} --retention-days {uploads_retention_days}"
     )
     full_command = (
-        f"cd {project_dir} && workon {venv_name} && "
+        f"cd {project_dir} && "
         f"flask --app app:create_app full-backup --backup-dir {display_dir} "
         f"--db-retention-days {db_retention_days} --uploads-retention-days {uploads_retention_days} "
         f"--full-retention-days {full_retention_days}"
