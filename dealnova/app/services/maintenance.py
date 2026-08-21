@@ -275,6 +275,12 @@ def _full_backup_retention_days(value: int | None = None) -> int:
         return 14
 
 
+def _full_backup_keep_latest_only(value: bool | None = None) -> bool:
+    if value is not None:
+        return bool(value)
+    return bool(current_app.config.get("FULL_BACKUP_KEEP_LATEST_ONLY", False))
+
+
 def _find_required_executable(name: str) -> str:
     executable = shutil.which(name)
     if not executable:
@@ -596,6 +602,62 @@ def _resolve_full_backup_component_path(raw_path: str | None, *, backup_dir: Pat
     return resolve_managed_backup_path(candidate_name, backup_dir=str(backup_dir))
 
 
+def _backup_name_has_timestamp(name: str, timestamp: str) -> bool:
+    return f"_{timestamp}." in name
+
+
+def _collect_full_backup_component_targets(manifest_path: Path) -> list[Path]:
+    targets = [manifest_path]
+    manifest = _read_backup_manifest(manifest_path)
+    if str(manifest.get("type") or "").strip().lower() != "full":
+        return targets
+
+    backup_dir = manifest_path.parent.resolve()
+    for key in ("database_backup", "uploads_backup"):
+        item = manifest.get(key) or {}
+        raw_file = str(item.get("file") or "").strip()
+        if not raw_file:
+            continue
+        try:
+            component_path = _resolve_full_backup_component_path(raw_file, backup_dir=backup_dir)
+        except RuntimeError:
+            continue
+        targets.append(component_path)
+        targets.append(_manifest_path_for_backup_file(component_path))
+
+        raw_manifest = str(item.get("manifest_file") or "").strip()
+        if not raw_manifest:
+            continue
+        try:
+            targets.append(_resolve_full_backup_component_path(raw_manifest, backup_dir=backup_dir))
+        except RuntimeError:
+            continue
+    return targets
+
+
+def _prune_full_backup_sets_except_timestamp(*, destination_dir: Path, keep_timestamp: str) -> list[str]:
+    removed: list[str] = []
+    seen: set[Path] = set()
+
+    for manifest_path in sorted(destination_dir.glob(f"{FULL_BACKUP_PREFIX}*.json")):
+        if _backup_name_has_timestamp(manifest_path.name, keep_timestamp):
+            continue
+        for target in _collect_full_backup_component_targets(manifest_path):
+            if target in seen:
+                continue
+            seen.add(target)
+            try:
+                if not target.exists() or not target.is_file():
+                    continue
+                if not _is_allowed_backup_filename(target.name):
+                    continue
+                target.unlink()
+                removed.append(str(target))
+            except OSError:
+                continue
+    return removed
+
+
 def prune_database_backups(
     *,
     backup_dir: str | None = None,
@@ -673,6 +735,7 @@ def create_database_backup(
     retention_days: int | None = None,
     timestamp: str | None = None,
     created_at_utc: str | None = None,
+    prune_existing: bool = True,
 ) -> dict[str, Any]:
     destination_dir = _resolve_backup_dir(backup_dir)
     safe_retention = _backup_retention_days(retention_days)
@@ -688,10 +751,12 @@ def create_database_backup(
     else:
         raise RuntimeError(f"Sauvegarde non supportee pour ce moteur de base: {backend or 'inconnu'}")
 
-    removed = prune_database_backups(
-        backup_dir=str(destination_dir),
-        retention_days=safe_retention,
-    )
+    removed = []
+    if prune_existing:
+        removed = prune_database_backups(
+            backup_dir=str(destination_dir),
+            retention_days=safe_retention,
+        )
     manifest_file = _manifest_path_for_backup_file(backup_file)
     manifest_created_at_utc = created_at_utc or datetime.utcnow().isoformat() + "Z"
     manifest = {
@@ -1124,6 +1189,7 @@ def create_uploads_backup(
     timestamp: str | None = None,
     created_at_utc: str | None = None,
     reason: str | None = None,
+    prune_existing: bool = True,
 ) -> dict[str, Any]:
     destination_dir = _resolve_backup_dir(backup_dir)
     safe_retention = _uploads_backup_retention_days(retention_days)
@@ -1181,10 +1247,12 @@ def create_uploads_backup(
         manifest_file.unlink(missing_ok=True)
         raise
 
-    removed = prune_uploads_backups(
-        backup_dir=str(destination_dir),
-        retention_days=safe_retention,
-    )
+    removed = []
+    if prune_existing:
+        removed = prune_uploads_backups(
+            backup_dir=str(destination_dir),
+            retention_days=safe_retention,
+        )
     manifest = {
         "created_at_utc": manifest_created_at_utc,
         "type": "uploads",
@@ -1264,9 +1332,11 @@ def create_full_backup(
     db_retention_days: int | None = None,
     uploads_retention_days: int | None = None,
     full_retention_days: int | None = None,
+    keep_latest_only: bool | None = None,
 ) -> dict[str, Any]:
     destination_dir = _resolve_backup_dir(backup_dir)
     timestamp, created_at_utc = _backup_timestamp()
+    keep_latest = _full_backup_keep_latest_only(keep_latest_only)
     safe_full_retention = _full_backup_retention_days(full_retention_days)
     safe_db_retention = max(_backup_retention_days(db_retention_days), safe_full_retention)
     safe_uploads_retention = max(_uploads_backup_retention_days(uploads_retention_days), safe_full_retention)
@@ -1282,6 +1352,7 @@ def create_full_backup(
         retention_days=safe_db_retention,
         timestamp=timestamp,
         created_at_utc=created_at_utc,
+        prune_existing=not keep_latest,
     )
     try:
         uploads_backup = create_uploads_backup(
@@ -1289,6 +1360,7 @@ def create_full_backup(
             retention_days=safe_uploads_retention,
             timestamp=timestamp,
             created_at_utc=created_at_utc,
+            prune_existing=not keep_latest,
         )
     except Exception as exc:
         current_app.logger.exception(
@@ -1308,13 +1380,11 @@ def create_full_backup(
             "db_engine": db_backup.get("db_engine"),
             "db_backup": db_backup,
             "uploads_backup": None,
+            "keep_latest_only": keep_latest,
         }
 
     manifest_file = destination_dir / f"{FULL_BACKUP_PREFIX}{timestamp}.json"
-    removed = prune_full_backups(
-        backup_dir=str(destination_dir),
-        retention_days=safe_full_retention,
-    )
+    removed = []
     manifest = {
         "created_at_utc": created_at_utc,
         "type": "full",
@@ -1322,6 +1392,7 @@ def create_full_backup(
         "backup_dir": str(destination_dir),
         "retention_days": safe_full_retention,
         "removed_old_backups": removed,
+        "keep_latest_only": keep_latest,
         "db_engine": db_backup.get("db_engine"),
         "database_backup": {
             "file": db_backup.get("backup_file"),
@@ -1343,6 +1414,20 @@ def create_full_backup(
         "total_size_bytes": int((db_backup.get("size_bytes") or 0) + (uploads_backup.get("size_bytes") or 0)),
     }
     _write_backup_manifest(manifest_file, manifest)
+    if keep_latest:
+        removed = _prune_full_backup_sets_except_timestamp(
+            destination_dir=destination_dir,
+            keep_timestamp=timestamp,
+        )
+        manifest["removed_old_backups"] = removed
+        _write_backup_manifest(manifest_file, manifest)
+    else:
+        removed = prune_full_backups(
+            backup_dir=str(destination_dir),
+            retention_days=safe_full_retention,
+        )
+        manifest["removed_old_backups"] = removed
+        _write_backup_manifest(manifest_file, manifest)
     current_app.logger.info(
         "maintenance.full_backup.created",
         extra={
@@ -1350,6 +1435,7 @@ def create_full_backup(
             "backup_dir": str(destination_dir),
             "db_backup_file": db_backup.get("backup_file"),
             "uploads_backup_file": uploads_backup.get("backup_file"),
+            "keep_latest_only": keep_latest,
         },
     )
     return {
@@ -1364,6 +1450,7 @@ def create_full_backup(
         "uploads_backup": uploads_backup,
         "removed_old_backups": removed,
         "retention_days": safe_full_retention,
+        "keep_latest_only": keep_latest,
         "size_bytes": manifest["total_size_bytes"],
     }
 
@@ -2455,13 +2542,19 @@ def init_cli_commands(app):
     @click.option("--db-retention-days", default=None, type=int, help="Retention pour les sauvegardes DB")
     @click.option("--uploads-retention-days", default=None, type=int, help="Retention pour les sauvegardes uploads")
     @click.option("--full-retention-days", default=None, type=int, help="Retention pour les manifestes full")
-    def full_backup_command(backup_dir, db_retention_days, uploads_retention_days, full_retention_days):
+    @click.option(
+        "--keep-latest-only",
+        is_flag=True,
+        help="Supprime les anciens jeux de sauvegarde complete apres verification du nouveau.",
+    )
+    def full_backup_command(backup_dir, db_retention_days, uploads_retention_days, full_retention_days, keep_latest_only):
         """Cree une sauvegarde complete DB + uploads + manifeste global."""
         result = create_full_backup(
             backup_dir=backup_dir,
             db_retention_days=db_retention_days,
             uploads_retention_days=uploads_retention_days,
             full_retention_days=full_retention_days,
+            keep_latest_only=keep_latest_only or _full_backup_keep_latest_only(),
         )
         if not result.get("success"):
             click.echo("Sauvegarde complete partielle")
@@ -2472,6 +2565,11 @@ def init_cli_commands(app):
         click.echo(f"Backup DB: {result['db_backup']['backup_file']}")
         click.echo(f"Backup uploads: {result['uploads_backup']['backup_file']}")
         click.echo(f"Taille totale: {human_size(result['size_bytes'])}")
+        click.echo(
+            "Rotation: "
+            + ("dernier backup complet uniquement" if result.get("keep_latest_only") else "historique conserve")
+        )
+        click.echo(f"Fichiers remplaces: {len(result['removed_old_backups'])}")
 
     @app.cli.command("db-backups")
     @click.option("--backup-dir", default=None, help="Dossier de stockage des sauvegardes")

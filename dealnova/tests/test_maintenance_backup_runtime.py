@@ -344,6 +344,71 @@ def test_create_full_backup_links_database_uploads_and_manifest(maintenance_app)
     assert {"database", "uploads", "full"} <= kinds
 
 
+def test_create_full_backup_keep_latest_only_replaces_previous_full_set(maintenance_app, monkeypatch):
+    app = maintenance_app["app"]
+    uploads_root = maintenance_app["uploads_root"]
+    backups_root = maintenance_app["backups_root"]
+    timestamps = iter(
+        [
+            ("20260821_010000", "2026-08-21T01:00:00Z"),
+            ("20260821_020000", "2026-08-21T02:00:00Z"),
+        ]
+    )
+
+    monkeypatch.setattr(maintenance_service, "_backup_timestamp", lambda now=None: next(timestamps))
+    _write_uploads(uploads_root, {"media/file.txt": "v1"})
+
+    with app.app_context():
+        first = maintenance_service.create_full_backup(keep_latest_only=True)
+
+    _write_uploads(uploads_root, {"media/file.txt": "v2"})
+
+    with app.app_context():
+        second = maintenance_service.create_full_backup(keep_latest_only=True)
+
+    backup_names = sorted(path.name for path in backups_root.iterdir() if path.is_file())
+
+    assert first["keep_latest_only"] is True
+    assert second["keep_latest_only"] is True
+    assert Path(second["manifest_file"]).exists()
+    assert any("20260821_020000" in name for name in backup_names)
+    assert all("20260821_010000" not in name for name in backup_names)
+    assert len(second["removed_old_backups"]) >= 5
+
+
+def test_create_full_backup_keep_latest_only_preserves_previous_set_on_partial_failure(maintenance_app, monkeypatch):
+    app = maintenance_app["app"]
+    uploads_root = maintenance_app["uploads_root"]
+    _write_uploads(uploads_root, {"media/file.txt": "stable"})
+
+    with app.app_context():
+        first = maintenance_service.create_full_backup(
+            keep_latest_only=True,
+            full_retention_days=30,
+        )
+
+    monkeypatch.setattr(
+        maintenance_service,
+        "_backup_timestamp",
+        lambda now=None: ("20260821_030000", "2026-08-21T03:00:00Z"),
+    )
+
+    def failing_uploads_backup(*args, **kwargs):
+        raise RuntimeError("uploads exploded")
+
+    monkeypatch.setattr(maintenance_service, "create_uploads_backup", failing_uploads_backup)
+
+    with app.app_context():
+        result = maintenance_service.create_full_backup(keep_latest_only=True)
+
+    assert result["success"] is False
+    assert result["state"] == "partial"
+    assert result["keep_latest_only"] is True
+    assert Path(first["manifest_file"]).exists()
+    assert Path(first["db_backup"]["backup_file"]).exists()
+    assert Path(first["uploads_backup"]["backup_file"]).exists()
+
+
 def test_legacy_database_backups_without_checksum_are_still_listed(maintenance_app):
     app = maintenance_app["app"]
     backups_root = maintenance_app["backups_root"]

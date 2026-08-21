@@ -229,6 +229,7 @@ class Config:
     DB_BACKUP_RETENTION_DAYS = int(os.getenv("DB_BACKUP_RETENTION_DAYS", "30"))
     UPLOADS_BACKUP_RETENTION_DAYS = int(os.getenv("UPLOADS_BACKUP_RETENTION_DAYS", "14"))
     FULL_BACKUP_RETENTION_DAYS = int(os.getenv("FULL_BACKUP_RETENTION_DAYS", "14"))
+    FULL_BACKUP_KEEP_LATEST_ONLY = _env_bool("FULL_BACKUP_KEEP_LATEST_ONLY", False)
 
     max_env = os.getenv("MAX_CONTENT_LENGTH")
     if max_env:

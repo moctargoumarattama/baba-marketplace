@@ -827,6 +827,10 @@
         <span>{{ backup_panel.db_retention_days }} / {{ backup_panel.uploads_retention_days }} / {{ backup_panel.full_retention_days }} jours</span>
       </div>
       <div class="report-item">
+        <strong>Rotation full</strong>
+        <span>{{ "Remplace l'ancien backup complet" if backup_panel.full_keep_latest_only else "Conserve l'historique complet" }}</span>
+      </div>
+      <div class="report-item">
         <strong>Volumes detectes</strong>
         <span>{{ backup_panel.counts.database }} base(s) · {{ backup_panel.counts.uploads }} archive(s) uploads · {{ backup_panel.counts.full }} backup(s) complet(s)</span>
       </div>

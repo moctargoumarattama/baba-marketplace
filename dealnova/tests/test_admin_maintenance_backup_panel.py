@@ -23,6 +23,7 @@ def test_maintenance_page_shows_database_backup_panel():
     assert "restore_button_label" in template
     assert "backup.restore_confirm_text" in template
     assert "Tape RESTAURER" in template
+    assert "Rotation full" in template
 
 
 def test_maintenance_route_exposes_backup_context():
@@ -36,6 +37,7 @@ def test_maintenance_route_exposes_backup_context():
     assert "db-backup --backup-dir" in source
     assert "uploads-backup --backup-dir" in source
     assert "full-backup --backup-dir" in source
+    assert "FULL_BACKUP_KEEP_LATEST_ONLY" in source
     assert "status_label" in source
 
 

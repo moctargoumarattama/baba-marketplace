@@ -220,6 +220,7 @@ def _maintenance_backup_context() -> dict:
     db_retention_days = int(current_app.config.get("DB_BACKUP_RETENTION_DAYS", 30) or 30)
     uploads_retention_days = int(current_app.config.get("UPLOADS_BACKUP_RETENTION_DAYS", 14) or 14)
     full_retention_days = int(current_app.config.get("FULL_BACKUP_RETENTION_DAYS", 14) or 14)
+    full_keep_latest_only = bool(current_app.config.get("FULL_BACKUP_KEEP_LATEST_ONLY", False))
     backup_dir = str(current_app.config.get("MAINTENANCE_BACKUP_DIR") or "").strip()
     display_dir = backup_dir or str((Path(current_app.root_path).resolve().parent / "backups").resolve())
     project_dir = str((Path(current_app.root_path).resolve().parent).resolve())
@@ -237,6 +238,7 @@ def _maintenance_backup_context() -> dict:
         f"flask --app app:create_app full-backup --backup-dir {display_dir} "
         f"--db-retention-days {db_retention_days} --uploads-retention-days {uploads_retention_days} "
         f"--full-retention-days {full_retention_days}"
+        f"{' --keep-latest-only' if full_keep_latest_only else ''}"
     )
     panel = {
         "available": True,
@@ -245,6 +247,7 @@ def _maintenance_backup_context() -> dict:
         "db_retention_days": db_retention_days,
         "uploads_retention_days": uploads_retention_days,
         "full_retention_days": full_retention_days,
+        "full_keep_latest_only": full_keep_latest_only,
         "db_command": db_command,
         "uploads_command": uploads_command,
         "full_command": full_command,
