@@ -196,6 +196,7 @@
   window.addEventListener("beforeinstallprompt", function (e) {
     e.preventDefault();
     deferredInstallPrompt = e;
+    pwaLog("info", "Native install prompt is ready");
     window.dispatchEvent(new Event("pwa:beforeinstallprompt-ready"));
   });
 
@@ -1006,7 +1007,10 @@
     const pwaModalInstall = document.getElementById("pwaModalInstall");
     const pwaModalLater = document.getElementById("pwaModalLater");
     const pwaModalToday = document.getElementById("pwaModalToday");
+    const pwaNativeInstallCopy = document.getElementById("pwaNativeInstallCopy");
+    const pwaInstallStatus = document.getElementById("pwaInstallStatus");
     const iosHint = document.getElementById("iosHint");
+    const iosBrowserWarning = document.getElementById("iosBrowserWarning");
     const PWA_HIDE_UNTIL_KEY = pwaStorageKey("hide_until");
     const PWA_MODAL_LAST_KEY = pwaStorageKey("modal_last");
     const PWA_ANDROID_DISMISSED_KEY = pwaStorageKey("install_bar_dismissed_at");
@@ -1024,6 +1028,7 @@
     let wasSlowConnection = false;
     let androidShimmerTimer = null;
     let androidShimmerCleanupTimer = null;
+    let androidHideTimer = null;
     let connectionInfo = window.BMConnectionInfo || readConnectionInfo();
 
     const prefersReducedMotion = Boolean(
@@ -1064,15 +1069,17 @@
     window.ensureScrollLockConsistency = ensureScrollLockConsistency;
 
     function isIOS() {
-      return /iphone|ipad|ipod/i.test(window.navigator.userAgent || "");
+      const ua = window.navigator.userAgent || "";
+      return /iphone|ipad|ipod/i.test(ua) || (
+        /Macintosh/i.test(ua) && Number(window.navigator.maxTouchPoints || 0) > 1
+      );
     }
 
     function isIOSSafari() {
       const ua = window.navigator.userAgent || "";
-      const iOS = /iphone|ipad|ipod/i.test(ua);
       const webkit = /WebKit/i.test(ua);
       const otherIOSBrowser = /(CriOS|FxiOS|EdgiOS|OPiOS|OPT|DuckDuckGo)/i.test(ua);
-      return iOS && webkit && !otherIOSBrowser;
+      return isIOS() && webkit && !otherIOSBrowser;
     }
 
     function isAndroid() {
@@ -1161,6 +1168,34 @@
       installBanner.classList.add("hidden");
     }
 
+    function setElementHidden(element, hidden) {
+      if (!element) return;
+      element.classList.toggle("hidden", Boolean(hidden));
+    }
+
+    function resetInstallStatus() {
+      if (!pwaInstallStatus) return;
+      pwaInstallStatus.textContent = "";
+      pwaInstallStatus.classList.add("hidden");
+    }
+
+    function showInstallStatus(message) {
+      if (!pwaInstallStatus) return;
+      pwaInstallStatus.textContent = String(message || "");
+      pwaInstallStatus.classList.remove("hidden");
+    }
+
+    function configureInstallMode(mode) {
+      const iosMode = mode === "ios";
+      setElementHidden(pwaNativeInstallCopy, iosMode);
+      setElementHidden(iosHint, !iosMode);
+      setElementHidden(iosBrowserWarning, !iosMode || isIOSSafari());
+      setElementHidden(pwaBannerInstall, iosMode);
+      setElementHidden(pwaHowBtn, !iosMode);
+      setElementHidden(pwaModalInstall, iosMode);
+      resetInstallStatus();
+    }
+
     function showPwaModal() {
       if (!installModal) return;
       installModal.classList.remove("hidden");
@@ -1200,9 +1235,14 @@
     function hideAndroidInstallBar() {
       if (!androidInstallBar) return;
       stopAndroidInstallEffects();
+      if (androidHideTimer) {
+        window.clearTimeout(androidHideTimer);
+        androidHideTimer = null;
+      }
       androidInstallBar.classList.remove("show");
-      window.setTimeout(function () {
+      androidHideTimer = window.setTimeout(function () {
         androidInstallBar.classList.add("hidden");
+        androidHideTimer = null;
       }, 240);
     }
 
@@ -1228,6 +1268,11 @@
       if (dismissedAndroidInstallToday()) return;
       if (window.location.pathname.startsWith("/admin")) return;
 
+      if (androidHideTimer) {
+        window.clearTimeout(androidHideTimer);
+        androidHideTimer = null;
+      }
+
       closePwaBanner();
       closePwaModal();
       androidInstallBar.classList.remove("hidden");
@@ -1242,55 +1287,88 @@
       if (document.querySelector("[data-home-bottom-tabs]")) {
         document.body.classList.add("has-home-bottom-tabs");
       }
-      if (isStandalone()) return;
-      if (window.location.pathname.startsWith("/admin")) return;
-      if (shouldHideInstall()) return;
-      if (isAndroid()) {
+
+      if (isStandalone() || window.location.pathname.startsWith("/admin") || shouldHideInstall()) {
         closePwaBanner();
         closePwaModal();
-        showAndroidInstallBar();
+        hideAndroidInstallBar();
         return;
       }
-      installBanner.classList.remove("hidden");
 
-      if (shouldShowPwaModal()) {
-        showPwaModal();
-        markPwaModalShownToday();
-      }
-
-      if (isIOSSafari()) {
-        if (iosHint) iosHint.classList.remove("hidden");
-        if (pwaBannerInstall) pwaBannerInstall.classList.add("hidden");
-        if (pwaHowBtn) pwaHowBtn.classList.remove("hidden");
-        if (pwaModalInstall) pwaModalInstall.classList.add("hidden");
-      } else {
-        if (iosHint) iosHint.classList.add("hidden");
-        if (pwaBannerInstall) pwaBannerInstall.classList.remove("hidden");
-        if (pwaHowBtn) pwaHowBtn.classList.add("hidden");
-        if (pwaModalInstall) pwaModalInstall.classList.remove("hidden");
-      }
-    }
-
-    async function handleInstallClick() {
-      if (isIOSSafari()) {
-        hideInstallFor24h();
-        closePwaBanner();
-        showPwaModal();
+      if (isIOS()) {
+        configureInstallMode("ios");
+        hideAndroidInstallBar();
+        installBanner.classList.remove("hidden");
+        if (shouldShowPwaModal()) {
+          showPwaModal();
+          markPwaModalShownToday();
+        }
         return;
       }
 
       if (!deferredInstallPrompt) {
+        closePwaBanner();
+        closePwaModal();
+        hideAndroidInstallBar();
+        return;
+      }
+
+      configureInstallMode("native");
+      if (isAndroid()) {
+        showAndroidInstallBar();
+        return;
+      }
+
+      hideAndroidInstallBar();
+      installBanner.classList.remove("hidden");
+      if (shouldShowPwaModal()) {
+        showPwaModal();
+        markPwaModalShownToday();
+      }
+    }
+
+    async function handleInstallClick() {
+      if (isIOS()) {
+        configureInstallMode("ios");
+        closePwaBanner();
         showPwaModal();
         return;
       }
 
+      const installPrompt = deferredInstallPrompt;
+      if (!installPrompt) {
+        closePwaBanner();
+        hideAndroidInstallBar();
+        pwaLog("warn", "Install click ignored because no native prompt is available");
+        return;
+      }
+
+      deferredInstallPrompt = null;
+      [pwaBannerInstall, pwaModalInstall, androidInstallBtn].forEach(function (button) {
+        if (button) button.disabled = true;
+      });
+
       try {
-        deferredInstallPrompt.prompt();
-        await deferredInstallPrompt.userChoice;
-      } catch (_) {
-        // Keep UX stable if prompt fails.
+        await installPrompt.prompt();
+        const choice = await installPrompt.userChoice;
+        const outcome = choice && choice.outcome ? choice.outcome : "unknown";
+        trackAnalyticsEvent("pwa_install_prompt_result", { outcome: outcome });
+        if (outcome !== "accepted") {
+          hideInstallFor24h();
+        }
+        closePwaModal();
+        closePwaBanner();
+        hideAndroidInstallBar();
+      } catch (error) {
+        pwaLog("error", "Native install prompt failed", error);
+        configureInstallMode("native");
+        setElementHidden(pwaModalInstall, true);
+        showInstallStatus("Le navigateur n'a pas pu ouvrir l'installation. Rechargez la page, puis utilisez le menu du navigateur pour installer Baba Market.");
+        showPwaModal();
       } finally {
-        deferredInstallPrompt = null;
+        [pwaBannerInstall, pwaModalInstall, androidInstallBtn].forEach(function (button) {
+          if (button) button.disabled = false;
+        });
       }
     }
 
@@ -1642,7 +1720,7 @@
     }
     if (pwaHowBtn) {
       pwaHowBtn.addEventListener("click", function () {
-        hideInstallFor24h();
+        configureInstallMode("ios");
         closePwaBanner();
         showPwaModal();
       });
@@ -1664,6 +1742,8 @@
         hideInstallUntilEndOfDay();
         markPwaModalShownToday();
         closePwaModal();
+        closePwaBanner();
+        hideAndroidInstallBar();
       });
     }
     if (installModal) {
@@ -1673,12 +1753,11 @@
     }
 
     window.addEventListener("pwa:beforeinstallprompt-ready", function () {
-      showAndroidInstallBar();
+      showSoftInstallUI();
     });
 
     if (androidInstallBtn) {
       androidInstallBtn.addEventListener("click", async function () {
-        if (!deferredInstallPrompt) return;
         if (!prefersReducedMotion) {
           androidInstallBtn.classList.remove("pulse");
           androidInstallBtn.classList.add("shimmer");
@@ -1686,16 +1765,7 @@
             androidInstallBtn.classList.remove("shimmer");
           }, 900);
         }
-
-        try {
-          deferredInstallPrompt.prompt();
-          await deferredInstallPrompt.userChoice;
-        } catch (_) {
-          // Keep UI stable if prompt fails.
-        } finally {
-          deferredInstallPrompt = null;
-          hideAndroidInstallBar();
-        }
+        await handleInstallClick();
       });
     }
 
@@ -1712,6 +1782,7 @@
         if (!isStandalone()) return;
         closePwaModal();
         closePwaBanner();
+        hideAndroidInstallBar();
       };
       if (typeof standaloneMedia.addEventListener === "function") {
         standaloneMedia.addEventListener("change", handleStandaloneChange);
@@ -1744,9 +1815,6 @@
       if (pwaInstallUiBooted) return;
       pwaInstallUiBooted = true;
       showSoftInstallUI();
-      if (deferredInstallPrompt) {
-        showAndroidInstallBar();
-      }
     }
 
     if (document.readyState === "complete" || document.readyState === "interactive") {
@@ -1761,22 +1829,12 @@
     document.addEventListener("visibilitychange", function () {
       if (document.hidden) return;
       schedulePwaScopeSync(250);
-      if (isStandalone()) {
-        closePwaModal();
-        closePwaBanner();
-        return;
-      }
-      if (!shouldHideInstall() && !isAndroid() && installBanner) {
-        installBanner.classList.remove("hidden");
-      }
+      showSoftInstallUI();
     });
 
     window.addEventListener("focus", function () {
       schedulePwaScopeSync(250);
-      if (isStandalone()) {
-        closePwaModal();
-        closePwaBanner();
-      }
+      showSoftInstallUI();
     });
 
     function registerServiceWorker() {

@@ -3,12 +3,16 @@
   "short_name": "Baba Market",
   "description": "Marketplace local pour produits, services, boutiques et locations avec livraison et paiement à la livraison.",
   "lang": "fr-MA",
+  "dir": "ltr",
   "id": "/",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone"],
+  "orientation": "any",
   "background_color": "#ffffff",
   "theme_color": "#10B981",
+  "prefer_related_applications": false,
   "categories": ["shopping", "business", "lifestyle"],
   "icons": [
     {

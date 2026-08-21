@@ -16,8 +16,10 @@ const SW_DEBUG =
 
 const PRECACHE_ASSETS = [
   OFFLINE_URL,
-  "/static/manifest.json",
   "/static/logo.png",
+  "/static/android-chrome-192x192.png",
+  "/static/android-chrome-512x512.png",
+  "/apple-touch-icon.png",
   "/static/js/live.js",
   "/static/js/i18n.js",
   "/static/js/ajax_pagination.js",
@@ -89,6 +91,8 @@ const ROOT_PUBLIC_SHOP_RESERVED = new Set([
   "signup",
   "sitemap.xml",
   "sw.js",
+  "manifest.json",
+  "apple-touch-icon.png",
   "vendor",
 ]);
 
@@ -118,7 +122,7 @@ function isSameOrigin(url) {
 }
 
 function isStaticAsset(pathname) {
-  return pathname.startsWith("/static/") || pathname === "/favicon.ico" || pathname === "/manifest.json";
+  return pathname.startsWith("/static/") || pathname === "/favicon.ico" || pathname === "/apple-touch-icon.png";
 }
 
 function isUploadImage(pathname) {
@@ -1109,7 +1113,7 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(req.url);
   if (!isSameOrigin(url)) return;
 
-  if (isNetworkOnlyPath(url.pathname) || url.pathname === "/sw.js") {
+  if (isNetworkOnlyPath(url.pathname) || url.pathname === "/sw.js" || url.pathname === "/manifest.json") {
     event.respondWith(handleNetworkOnly(req));
     return;
   }

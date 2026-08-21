@@ -41,6 +41,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
+  <link rel="manifest" href="{{ url_for('web_app_manifest') }}">
   <link rel="preconnect" href="https://www.babamarket.ma" crossorigin>
   <title>{% block title %}{{ config.SITE_NAME }}{% endblock %}</title>
   <link rel="icon" href="{{ url_for('favicon') }}" sizes="any">
@@ -57,8 +58,6 @@
   {% for startup_file, startup_media in apple_startup_images %}
   <link rel="apple-touch-startup-image" href="{{ url_for('static', filename=startup_file, v=app_static_version ~ '-splashw1') }}" media="{{ startup_media }}">
   {% endfor %}
-  <link rel="preload" as="image" href="{{ url_for('apple_touch_icon') }}" fetchpriority="high">
-
   <!-- Bootstrap 5 -->
   <link href="{{ url_for('static', filename='vendor/bootstrap/5.3.3/css/bootstrap.min.css', v=app_static_version) }}" rel="stylesheet">
   <!-- Bootstrap Icons -->
@@ -69,7 +68,6 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/ui_shell.css', v=app_static_version) }}">
 
   <meta name="csrf-token" content="{{ csrf_token() }}">
-  <link rel="manifest" href="{{ url_for('web_app_manifest') }}">
   <meta name="theme-color" content="#10B981">
 
   <!-- STYLES POUR LE LOADER (très léger, pas de collision) -->
@@ -1397,6 +1395,7 @@
 
   <!-- Install Banner (soft) -->
   <div id="installBanner" class="pwa-banner hidden" role="status" aria-live="polite">
+    <img class="pwa-banner__icon" src="{{ url_for('apple_touch_icon') }}" alt="" width="48" height="48">
     <div class="pwa-banner__text">
       <strong>{{ t('Installez Baba Market') }}</strong>
       <span>{{ t("Accès instantané. Moins d'attente. Plus efficace.") }}</span>
@@ -1409,8 +1408,9 @@
   </div>
 
   <div id="androidInstallBar" class="install-bar hidden" role="dialog" aria-label="{{ t('Installer Baba Market') }}">
+    <img class="install-bar__icon" src="{{ url_for('apple_touch_icon') }}" alt="" width="48" height="48">
     <div class="install-bar__text">
-      <div class="install-bar__title">📲 {{ t('Installez Baba Market') }}</div>
+      <div class="install-bar__title">{{ t('Installez Baba Market') }}</div>
       <div class="install-bar__sub">{{ t('Accès instantané, plus rapide, plus fluide.') }}</div>
     </div>
 
@@ -1421,13 +1421,21 @@
   <!-- Install Popup (1/day) -->
   <div id="installModal" class="pwa-modal hidden" role="dialog" aria-modal="true" aria-labelledby="pwaInstallTitle">
     <div class="pwa-modal__card">
-      <h3 id="pwaInstallTitle">📲 {{ t('Accédez à Baba Market en un seul clic') }}</h3>
-      <p class="pwa-modal__value">{{ t("Accès instantané. Moins d'attente. Plus efficace.") }}</p>
-      <p>{{ t("Installez l'application sur votre écran d'accueil pour un accès plus rapide et plus fluide.") }}</p>
-      <p class="pwa-modal__steps-lead">{{ t('Installation en 10 secondes 👇') }}</p>
+      <div class="pwa-modal__brand">
+        <img class="pwa-modal__icon" src="{{ url_for('apple_touch_icon') }}" alt="{{ t('Icône Baba Market') }}" width="64" height="64">
+        <div>
+          <h3 id="pwaInstallTitle">{{ t('Installer Baba Market') }}</h3>
+          <p class="pwa-modal__value">{{ t("L'application avec son nom et son icône officiels.") }}</p>
+        </div>
+      </div>
+
+      <div id="pwaNativeInstallCopy">
+        <p>{{ t("Le navigateur va ouvrir sa fenêtre d'installation sécurisée. Baba Market démarrera ensuite comme une application, sans barre d'adresse.") }}</p>
+      </div>
 
       <div id="iosHint" class="pwa-ios-hint hidden">
         <p class="pwa-ios-title">🍏 {{ t('Sur iPhone (Safari) :') }}</p>
+        <p id="iosBrowserWarning" class="pwa-ios-browser-warning hidden">{{ t("Ouvrez d'abord babamarket.ma dans Safari pour créer une vraie application sans barre de navigation.") }}</p>
         <ol class="pwa-ios-steps">
           <li>
             {{ t('Dans Safari, appuyez sur le bouton') }}
@@ -1448,6 +1456,8 @@
         </ol>
         <p class="pwa-ios-end">{{ t('Baba Market sera accessible directement depuis votre téléphone.') }}</p>
       </div>
+
+      <p id="pwaInstallStatus" class="pwa-install-status hidden" role="status" aria-live="polite"></p>
 
       <div class="pwa-modal__actions">
         <button id="pwaModalInstall" class="pwa-btn primary" type="button">{{ t('Installer') }}</button>

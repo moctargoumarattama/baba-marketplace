@@ -56,6 +56,27 @@ from .services.i18n_runtime import build_client_i18n_payload, translate_text
 
 _SCRIPT_NONCE_RE = re.compile(r"(<script\b)(?![^>]*\bnonce=)", re.IGNORECASE)
 _STYLE_NONCE_RE = re.compile(r"(<style\b)(?![^>]*\bnonce=)", re.IGNORECASE)
+_HTML_DOCUMENT_PREFIX_RE = re.compile(
+    r"\A[\s\ufeff]+(?=<!doctype\s+html\b)",
+    re.IGNORECASE,
+)
+
+
+def _normalize_html_document_prefix(response):
+    """Keep invisible template markers from forcing the HTML head into body."""
+    if response.direct_passthrough or response.mimetype != "text/html":
+        return response
+    try:
+        body = response.get_data(as_text=True)
+    except Exception:
+        return response
+    if not body:
+        return response
+    normalized = _HTML_DOCUMENT_PREFIX_RE.sub("", body, count=1)
+    if normalized != body:
+        response.set_data(normalized)
+        response.headers.pop("Content-Length", None)
+    return response
 
 
 def create_app(config_class=Config):
@@ -696,6 +717,8 @@ def create_app(config_class=Config):
             )
 
         is_html_response = response.mimetype == "text/html"
+        if is_html_response:
+            response = _normalize_html_document_prefix(response)
         nonce = getattr(g, "csp_nonce", None)
         if (
             is_html_response
