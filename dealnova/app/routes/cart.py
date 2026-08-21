@@ -2,15 +2,14 @@ import json
 import re
 import time
 import hashlib
-from datetime import datetime, timedelta
-from functools import lru_cache
+from datetime import datetime
 from collections import OrderedDict
 from flask import Blueprint, render_template, redirect, url_for, flash, request, session, current_app, jsonify, make_response
 from flask_login import current_user
 from urllib.parse import quote
 
 from ..extensions import db
-from sqlalchemy.orm import load_only, selectinload
+from sqlalchemy.orm import selectinload
 from ..models.category import Category
 from ..models.product import Product
 from ..models.blocked import BlockedContact
@@ -21,7 +20,6 @@ from ..services.pricing import (
     final_price_cents,
     get_active_promos_for_products,
     prix_final,
-    compute_shipping_by_city as pricing_shipping_by_city,
 )
 from ..services.guest_session import GuestSessionManager
 from ..services.vendor_push import notify_product_contact_leads
@@ -77,9 +75,11 @@ def _get_cached_cart_data(cart_dict, include_shop=False, include_category=False)
     )
     
     # Vérifier le cache
-    cached = _cart_cache.get(cache_key)
-    if cached is not None:
-        return cached
+    use_cache = not include_shop and not include_category
+    if use_cache:
+        cached = _cart_cache.get(cache_key)
+        if cached is not None:
+            return cached
     
     # Charger les produits
     product_map = _cart_product_map(
@@ -90,7 +90,8 @@ def _get_cached_cart_data(cart_dict, include_shop=False, include_category=False)
     promo_map = _active_promo_map(list(product_map.keys()))
     
     # Sauvegarder dans le cache
-    _cart_cache.set(cache_key, (product_map, promo_map))
+    if use_cache:
+        _cart_cache.set(cache_key, (product_map, promo_map))
     
     return product_map, promo_map
 
@@ -310,10 +311,14 @@ def prepare_vendor_whatsapp_checkout(cart_items, client_data):
         subtotal_cents = int(group.get("subtotal_cents") or 0)
         total_cents += subtotal_cents
         shop = group.get("shop")
+        shop_id = getattr(shop, "id", None)
+        vendor_id = getattr(shop, "vendor_id", None)
         phone_raw = _shop_phone_raw(shop)
         phone = normalize_whatsapp_number(phone_raw)
         message = generate_shop_whatsapp_message(shop, group.get("items", []), client_data)
         group.update({
+            "shop_id": shop_id,
+            "vendor_id": vendor_id,
             "shop_name": _shop_display_name(shop),
             "phone_raw": phone_raw,
             "phone": phone,
@@ -357,7 +362,7 @@ def record_product_contact_leads(checkout_data, client_data):
             db.session.add(ProductContactLead(
                 client_name=((client_data or {}).get("name") or "")[:100],
                 client_phone=((client_data or {}).get("phone") or "")[:30],
-                shop_id=getattr(shop, "id", None),
+                shop_id=group.get("shop_id") or getattr(shop, "id", None),
                 product_summary_json=json.dumps(summary, ensure_ascii=False),
                 estimated_total=int(group.get("subtotal_cents") or 0),
                 whatsapp_phone=(group.get("phone") or group.get("phone_raw") or "")[:30],
@@ -374,7 +379,7 @@ def record_product_contact_leads(checkout_data, client_data):
 
 def _checkout_contact_session_key(group) -> str:
     shop = (group or {}).get("shop")
-    shop_id = getattr(shop, "id", None)
+    shop_id = (group or {}).get("shop_id") or getattr(shop, "id", None)
     summary = []
     for item in (group or {}).get("items", []):
         product = _cart_item_product(item)
@@ -415,23 +420,6 @@ def _shop_open_message(product) -> str | None:
         return "Cette boutique est actuellement fermé."
 
     return None
-
-
-def _phone_candidates(raw: str):
-    normalized = normalize_phone(raw)
-    digits = _digits_only(raw)
-    candidates = set()
-    if raw:
-        candidates.add(raw)
-    if normalized:
-        candidates.add(normalized)
-        if normalized.startswith("+"):
-            candidates.add(normalized[1:])
-        else:
-            candidates.add(f"+{normalized}")
-    if digits:
-        candidates.add(digits)
-    return normalized, digits, list(candidates)
 
 
 def _safe_float(value: str):
@@ -494,6 +482,7 @@ def _cart_product_map(cart_dict, include_shop=False, include_category=False):
         query = query.options(
             selectinload(Product.shop).load_only(
                 Shop.id,
+                Shop.vendor_id,
                 Shop.name,
                 Shop.contact_phone,
                 Shop.is_active,
@@ -535,21 +524,6 @@ def _remove_service_items_from_cart(cart_dict, product_map=None):
             cart_dict.pop(pid_str, None)
 
     return removed
-
-
-def _recent_checkout_url(max_age_seconds=120):
-    """Retourne l\'URL WhatsApp recente si une commande vient d\'etre creee."""
-    url = session.get("last_checkout_url")
-    ts = session.get("last_checkout_at")
-    if not url or not ts:
-        return None
-    try:
-        last = datetime.fromisoformat(ts)
-    except (TypeError, ValueError):
-        return None
-    if datetime.utcnow() - last <= timedelta(seconds=max_age_seconds):
-        return url
-    return None
 
 
 def get_cart():
@@ -600,24 +574,6 @@ def _validate_quantity(qty, allow_zero=True, max_qty=999):
         return False
 
 
-def calculate_cart_total(cart_dict=None):
-    """Calculer le total du panier"""
-    if cart_dict is None:
-        cart_dict = get_cart()
-    
-    total_cents = 0
-    product_map, promo_map = _get_cached_cart_data(cart_dict)
-    for pid_str, qty in cart_dict.items():
-        try:
-            pid = int(pid_str)
-            product = product_map.get(pid)
-            if product and not _is_service_product(product):
-                total_cents += qty * final_price_cents(product, promo_map.get(pid))
-        except (ValueError, AttributeError):
-            continue
-    return cents_to_money(total_cents)
-
-
 def _safe_cart_quantity(value) -> int:
     try:
         return max(0, int(value or 0))
@@ -663,10 +619,6 @@ def get_cart_summary(cart=None):
         'total': cents_to_money(total_cents),
         'count': sum(i.get("quantity", 0) for i in items)
     }
-
-
-def compute_shipping_by_city(city: str) -> int:
-    return pricing_shipping_by_city(city)
 
 
 # =====================================================
@@ -787,13 +739,6 @@ def add(pid):
         if redirect_url:
             payload["redirect_url"] = redirect_url
         return jsonify(payload)
-        return jsonify(
-            {
-                "success": True,
-                "message": "Produit ajouté au panier.",
-                "cart_count": int(cart_count),
-            }
-        )
 
     flash("Produit ajouté au panier.", "success")
     return redirect(request.referrer or url_for("shop.home"))
@@ -1126,15 +1071,6 @@ def checkout():
     if request.method == "GET":
         return _render_whatsapp_checkout_page()
     return whatsapp_checkout()
-
-
-@bp.route("/shipping/<city>")
-def ajax_shipping(city):
-    shipping_cents = pricing_shipping_by_city(city)
-
-    return {
-        "shipping": shipping_cents / 100
-    }
 
 
 @bp.route("/whatsapp", methods=["POST"])

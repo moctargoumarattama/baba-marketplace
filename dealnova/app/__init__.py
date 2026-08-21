@@ -12,7 +12,7 @@ from flask_wtf.csrf import generate_csrf, validate_csrf
 from wtforms.validators import ValidationError
 from sqlalchemy import event, or_, case
 from sqlalchemy.engine import Engine
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import NoSuchColumnError, OperationalError, ResourceClosedError
 from sqlalchemy.orm import load_only
 from .config import Config
 from .extensions import db, login_manager, migrate
@@ -22,8 +22,16 @@ from .models.shop import Shop
 from .models.rental import RentalListing, RentalMedia
 from .models.featured_item import FeaturedItem
 from .models.product_contact_lead import ProductContactLead
-from .routes import auth, shop, vendor, cart, booking, admin, admin_categories, admin_users, rentals, delivery
+from .routes import auth, shop, vendor, cart, booking, admin, admin_categories, admin_users, rentals
+from .assistant import bp as assistant_bp
 from .services.logging_service import logging_service
+from .services.db_session import discard_db_session, safe_session_rollback
+
+RECOVERABLE_DB_SESSION_ERRORS = (
+    OperationalError,
+    ResourceClosedError,
+    NoSuchColumnError,
+)
 from .services.image import image_variant
 from .services.cache import cache
 from .services.migration import (
@@ -37,7 +45,6 @@ from .services.migration import (
 )
 from .services.shop_access import is_safe_public_shop_slug, normalize_public_shop_slug
 from .services.i18n_labels import (
-    label_delivery_status,
     label_location_status,
     label_order_status,
     label_source,
@@ -480,10 +487,6 @@ def create_app(config_class=Config):
             target_lang = lang or getattr(g, "lang", app.config.get("DEFAULT_LANG", "fr"))
             return translate_text(value, target_lang)
 
-        def _label_delivery(status, lang=None):
-            target_lang = lang or getattr(g, "lang", app.config.get("DEFAULT_LANG", "fr"))
-            return label_delivery_status(status, target_lang)
-
         def _label_order(status, lang=None):
             target_lang = lang or getattr(g, "lang", app.config.get("DEFAULT_LANG", "fr"))
             return label_order_status(status, target_lang)
@@ -508,7 +511,6 @@ def create_app(config_class=Config):
             "client_i18n_payload": build_client_i18n_payload(
                 getattr(g, "lang", app.config.get("DEFAULT_LANG", "fr"))
             ),
-            "label_delivery_status": _label_delivery,
             "label_order_status": _label_order,
             "label_source": _label_source,
             "label_location_status": _label_location_status,
@@ -578,8 +580,6 @@ def create_app(config_class=Config):
             flash("Session expirée ou action non autorisée.", "danger")
             if request.path.startswith("/cart/checkout"):
                 return redirect(url_for("cart.checkout"))
-            if request.path.startswith("/delivery"):
-                return redirect(url_for("delivery_special.delivery_form"))
             if request.referrer and _is_safe_url(request.referrer):
                 return redirect(request.referrer)
             try:
@@ -730,11 +730,8 @@ def create_app(config_class=Config):
     @app.teardown_request
     def cleanup_request(exception=None):
         if exception:
-            try:
-                db.session.rollback()
-            except Exception:
-                pass
-        db.session.remove()
+            safe_session_rollback()
+        discard_db_session()
 
     #  IMPORTATION DES BLUEPRINTS EXISTANTS
     fail_fast_critical_blueprints = bool(app.config.get("FAIL_FAST_CRITICAL_BLUEPRINTS", False))
@@ -768,10 +765,10 @@ def create_app(config_class=Config):
     app.register_blueprint(cart.bp)
     app.register_blueprint(booking.bp)
     app.register_blueprint(rentals.bp)
-    app.register_blueprint(delivery.bp)
     app.register_blueprint(admin.bp)  # Blueprint deja prefixe /admin
     app.register_blueprint(admin_categories.bp)
     app.register_blueprint(admin_users.bp)  # Blueprint deja prefixe /admin
+    app.register_blueprint(assistant_bp)
 
     #  ENREGISTRER LES AUTRES BLUEPRINTS
     if has_shops:
@@ -1223,24 +1220,26 @@ def create_app(config_class=Config):
 
         try:
             return db.session.get(User, uid)
-        except OperationalError:
-            try:
-                db.session.remove()
-            except Exception:
-                pass
+        except RECOVERABLE_DB_SESSION_ERRORS:
+            discard_db_session()
             try:
                 return db.session.get(User, uid)
-            except Exception:
+            except RECOVERABLE_DB_SESSION_ERRORS:
+                discard_db_session()
                 current_app.logger.exception(
                     "auth.load_user.db_connection_failed",
                     extra={"user_id": uid},
                 )
                 return None
-        except Exception:
-            try:
-                db.session.remove()
             except Exception:
-                pass
+                discard_db_session()
+                current_app.logger.exception(
+                    "auth.load_user.unexpected_error",
+                    extra={"user_id": uid},
+                )
+                return None
+        except Exception:
+            discard_db_session()
             current_app.logger.exception(
                 "auth.load_user.unexpected_error",
                 extra={"user_id": uid},

@@ -6,16 +6,12 @@ from sqlalchemy import or_, case, func
 from ..models.product import Product
 from ..models.shop import Shop
 from ..models.category import Category
-from ..models.promo import Promo
 from ..models.rental import RentalListing
 from ..services.marketplace_feed import search_public_locations, search_public_products
 from ..services.pricing import (
     cents_to_money,
-    compute_shipping_by_city,
     final_price_cents,
     get_active_promos_for_products,
-    list_delivery_cities,
-    prix_final,
 )
 from ..services.pagination import limit_from_args
 from ..services.traffic_stats import track_custom_event
@@ -34,27 +30,6 @@ SECONDARY_SEARCH_MIN_CHARS = 3
 def _clean_str(value, max_length=100):
     """Nettoie et tronque une chaîne."""
     return (value or "").strip()[:max_length]
-
-
-def _legacy_active_promo_map(product_ids: list[int], now: datetime | None = None) -> dict[int, Promo]:
-    """Charge les promotions actives en une seule requête."""
-    if not product_ids:
-        return {}
-    now_utc = now or datetime.utcnow()
-    promos = (
-        Promo.query
-        .filter(
-            Promo.product_id.in_(product_ids),
-            Promo.end_date >= now_utc,
-            Promo.status == Promo.STATUS_APPROVED,
-        )
-        .order_by(Promo.product_id.asc(), Promo.end_date.asc())
-        .all()
-    )
-    promo_map: dict[int, Promo] = {}
-    for promo in promos:
-        promo_map.setdefault(promo.product_id, promo)
-    return promo_map
 
 
 def _cart_total(cart):
@@ -94,103 +69,6 @@ def _active_promo_map(product_ids: list[int], now: datetime | None = None):
     return get_active_promos_for_products(product_ids)
 
 
-def _legacy_cart_total(cart):
-    """Calcule le total du panier avec conversion centimes cohérente."""
-    if not isinstance(cart, dict) or not cart:
-        return 0
-
-    qty_by_product_id = {}
-    for key, value in cart.items():
-        try:
-            pid = int(key)
-            qty = int(value)
-        except (TypeError, ValueError):
-            continue
-        if qty > 0:
-            qty_by_product_id[pid] = qty
-
-    if not qty_by_product_id:
-        return 0
-
-    products = Product.query.filter(Product.id.in_(list(qty_by_product_id.keys()))).all()
-    promo_map = _legacy_active_promo_map([p.id for p in products])
-
-    total_cents = 0
-    for product in products:
-        if (getattr(product, "kind", None) or "physical") == "service":
-            continue
-        qty = qty_by_product_id.get(product.id, 0)
-        if qty <= 0:
-            continue
-        total_cents += final_price_cents(product, promo_map.get(product.id)) * qty
-    return cents_to_money(total_cents)
-
-
-def _delivery_price_payload(city_raw: str | None, source_raw: str | None):
-    """Calcule le prix de livraison avec messages d'erreur cohérents."""
-    city = _clean_str(city_raw)
-    source = _clean_str(source_raw).lower()
-    if source not in {"marketplace", "special"}:
-        source = "marketplace"
-
-    if not city:
-        return {
-            "ok": False,
-            "success": False,
-            "city": "",
-            "source": source,
-            "price_cents": None,
-            "price_display": "N/A",
-            "message": "Ville obligatoire.",
-            "cities": list_delivery_cities(),
-        }, 400
-
-    price_cents = int(compute_shipping_by_city(city))
-    if price_cents <= 0:
-        return {
-            "ok": False,
-            "success": False,
-            "city": city,
-            "source": source,
-            "price_cents": None,
-            "price_display": "N/A",
-            "message": "Ville non supportée.",
-            "cities": list_delivery_cities(),
-        }, 400
-
-    return {
-        "ok": True,
-        "success": True,
-        "city": city,
-        "source": source,
-        "price_cents": price_cents,
-        "price_dh": round(price_cents / 100, 2),
-        "price_display": f"{price_cents / 100:.2f} MAD",
-    }, 200
-
-
-# =====================================================
-# PRIX LIVRAISON
-# =====================================================
-
-@bp.route("/pricing/delivery")
-def pricing_delivery():
-    """Endpoint public pour le prix de livraison."""
-    payload, status = _delivery_price_payload(
-        request.args.get("city"),
-        request.args.get("source"),
-    )
-    return jsonify(payload), status
-
-
-@bp.route("/delivery/price")
-def delivery_price():
-    """Alias pour compatibilité."""
-    payload, status = _delivery_price_payload(
-        request.args.get("city"),
-        request.args.get("source"),
-    )
-    return jsonify(payload), status
 
 
 # =====================================================

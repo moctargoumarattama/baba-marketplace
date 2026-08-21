@@ -28,6 +28,49 @@ def test_vendor_manage_shop_does_not_show_opening_control_card():
     assert "Ouverture de la boutique" in script
 
 
+def test_vendor_manage_shop_keeps_items_on_dedicated_pages():
+    template = _read("app/templates/vendor/manage_shop.html")
+    vendor_routes = _read("app/routes/vendor.py")
+
+    assert "Locations de cette boutique" not in template
+    assert "shop_locations" not in template
+    assert "location_views_total" not in template
+    assert "location_top" not in template
+    assert "Ajouter une location" not in template
+    assert "shop_locations=" not in vendor_routes
+    assert "location_views_total=" not in vendor_routes
+    assert "location_top=" not in vendor_routes
+    assert "Mes locations" in template
+    assert "Nouvelle location" in template
+
+
+def test_vendor_manage_shop_uses_premium_compact_layout_without_losing_actions():
+    template = _read("app/templates/vendor/manage_shop.html")
+    css = _read("app/static/css/vendor/vendor_manage_shop_page.css")
+
+    assert "vendor-premium-shell" in template
+    assert "shop-command-bar" in template
+    assert "premium-action-card" in template
+    assert "premium-info-card" in template
+    assert "premium-location-panel" in template
+    assert "Modifier la boutique" in template
+    assert "Voir ma boutique" in template
+    assert "Désactiver" in template
+    assert "Livre des encaissements" in template
+    assert "Mes locations" in template
+    assert "Nouvelle location" in template
+    assert "Utiliser ma position" in template
+    assert "Partager WhatsApp" in template
+    assert ".vendor-premium-shell" in css
+    assert ".shop-command-bar" in css
+    assert ".premium-action-card" in css
+    assert ".premium-location-panel" in css
+    assert template.index("premium-info-card") < template.index("premium-action-card")
+    assert "quick-action-chevron" in template
+    assert "clip-path: polygon" in css
+    assert "--chevron-cut" in css
+
+
 def test_product_service_shop_requires_phone_and_address():
     vendor_routes = _read("app/routes/vendor.py")
     edit_template = _read("app/templates/vendor/edit_shop.html")
@@ -46,11 +89,14 @@ def test_client_welcome_heads_up_notification_is_loaded_for_public_shell():
     script = _read("app/static/js/client_welcome_notification.js")
 
     assert "js/client_welcome_notification.js" in base_template
-    assert "Bienvenue sur Baba Market" in script
+    assert 'const title = "Bienvenue";' in script
+    assert 'const message = "Ravi de vous revoir";' in script
     assert "showNativeWelcomeNotification" in script
     assert "registration.showNotification" in script
     assert "Notification.requestPermission" in script
     assert "navigator.vibrate" in script
+    assert "sessionStorage" in script
+    assert "bmClientWelcomeShown" in script
     assert "vendor" in script and "admin" in script and "manager" in script
     assert "client-welcome-headsup" not in script
 
@@ -90,6 +136,35 @@ def test_vendor_dashboard_no_longer_depends_on_fontawesome_icons():
     assert "fas fa-" not in dashboard
     assert "fas fa-" not in product_grid
     assert "fas fa-" not in dashboard_js
+
+
+def test_vendor_dashboard_uses_compact_premium_daily_layout():
+    template = _read("app/templates/vendor/dashboard.html")
+    css = _read("app/static/css/vendor/vendor_dashboard.css")
+    script = _read("app/static/js/pages/vendor/dashboard_page.js")
+
+    assert "vendor-daily-dashboard" in template
+    assert "daily-overview" in template
+    assert "daily-kpis" in template
+    assert "dashboardShopStatusBar" in template
+    assert "daily-alerts-panel" in template
+    assert "daily-all-clear" in template
+    assert "daily-actions-grid" in template
+    assert "vendorSoundPromptMount" in template
+    assert template.index("daily-overview") < template.index("today-section")
+    assert template.index("dashboardShopStatusBar") < template.index("today-section")
+    assert template.index("recentOrdersList") > template.index("today-section")
+    assert "À traiter maintenant" in template
+    assert "Compact unified layout" not in css
+    assert "Premium polish" not in css
+    assert ".vendor-daily-dashboard" in css
+    assert ".daily-overview" in css
+    assert ".daily-kpis" in css
+    assert ".daily-actions-grid" in css
+    assert ".daily-all-clear" in css
+    assert ".vendor-sound-prompt" in css
+    assert "vendorSoundPromptMount" in script
+    assert "document.body.appendChild(prompt)" not in script
 
 
 def test_login_vendor_card_matches_current_vendor_request_workflow():
@@ -133,8 +208,19 @@ def test_vendor_access_form_is_compact_and_mobile_adaptive():
     assert "min-height: auto;" in template
     assert "min-height: 2.15rem" in template
     assert 'rows="2"' in template
+    assert "Email *" in template
+    assert 'name="email"' in template
+    assert "Email (optionnel)" not in template
     assert "Validation admin avant activation." in template
     assert "Votre demande sera verifiee par un admin/gestionnaire" not in template
+
+
+def test_vendor_access_backend_requires_email():
+    source = _read("app/routes/auth.py")
+
+    assert 'or not form_data["email"]' in source
+    assert "Nom, telephone, email, boutique, ville et type sont obligatoires." in source
+    assert "if not email_normalized:" in source
 
 
 def test_admin_vendor_request_pages_use_plain_french_guidance():

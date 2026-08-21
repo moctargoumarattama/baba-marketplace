@@ -484,53 +484,211 @@ body.owner-locations-keyboard-open .owner-archives-shell {
   margin: 0 0.15rem;
 }
 
-.owner-shell .owner-hero p {
-  opacity: 0.93;
+.owner-shell-premium {
+  --owner-border: rgba(148, 163, 184, 0.22);
+  --owner-shadow: 0 14px 28px rgba(15, 23, 42, 0.08);
 }
 
-.owner-shell .owner-stat {
+.owner-shell-premium .owner-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 20px;
+  box-shadow: 0 18px 36px rgba(5, 150, 105, 0.26);
+}
+
+.owner-shell-premium .owner-hero::after {
+  content: "";
+  position: absolute;
+  width: 180px;
+  height: 180px;
+  right: -56px;
+  top: -90px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0));
+  pointer-events: none;
+}
+
+.owner-shell-premium .owner-hero h1 {
+  font-size: 1.45rem;
+  letter-spacing: 0;
+}
+
+.owner-shell-premium .owner-hero p {
+  opacity: 0.96;
+  font-weight: 600;
+}
+
+.owner-shell-premium .owner-stat,
+.owner-shell-premium .owner-card {
+  border-color: var(--owner-border);
+  box-shadow: var(--owner-shadow);
+}
+
+.owner-shell-premium .owner-stat {
+  border-radius: 15px;
+  padding: 0.82rem 0.9rem;
+  background: linear-gradient(150deg, #ffffff, #f8fbff);
+}
+
+.owner-shell-premium .owner-stat .value {
+  font-size: 1.32rem;
+}
+
+.owner-shell-premium .owner-filter-form .btn,
+.owner-shell-premium .owner-hero-actions .btn {
+  border-radius: 11px;
+  font-weight: 700;
+}
+
+.owner-shell-premium .owner-card-head strong {
+  font-size: 1rem;
+}
+
+.owner-shell-premium .listing-list {
+  gap: 0.72rem;
+}
+
+.owner-shell-premium .listing-item {
+  position: relative;
+  border: 1px solid var(--owner-border);
   border-radius: 14px;
-  padding: 0.75rem 0.85rem;
+  padding: 0.84rem;
+  background: linear-gradient(145deg, #ffffff, #f8fbff);
 }
 
-.owner-shell .owner-stat .value {
-  font-size: 1.15rem;
+.owner-shell-premium .listing-item::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  border-radius: 14px 0 0 14px;
+  background: linear-gradient(180deg, #10b981, #0ea5e9);
 }
 
-.owner-shell .listing-list {
-  gap: 0.65rem;
+.owner-shell-premium .listing-title {
+  font-size: 1rem;
 }
 
-.owner-shell .listing-item {
+.owner-shell-premium .listing-meta {
+  font-size: 0.83rem;
+  line-height: 1.35;
+}
+
+.owner-shell-premium .status-pill {
+  font-size: 0.7rem;
+}
+
+.owner-shell-premium .listing-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.owner-shell-premium .listing-actions > * {
+  min-width: 0;
+}
+
+.owner-shell-premium .listing-actions .btn {
+  width: 100%;
+  min-height: 2.15rem;
+  border-radius: 10px;
+  font-weight: 700;
+}
+
+.owner-shell-premium .listing-action-delete {
+  grid-column: 1 / -1;
+}
+
+.owner-shell-premium .shop-item {
+  border-style: solid;
+  background: linear-gradient(160deg, #f8fafc, #ffffff);
+}
+
+.owner-shell-premium .owner-side-card {
+  border-radius: 17px;
+  overflow: hidden;
+}
+
+.owner-shell-premium .owner-shops-card .owner-card-head,
+.owner-shell-premium .owner-history-card .owner-card-head {
+  background: linear-gradient(160deg, rgba(15, 23, 42, 0.02), rgba(16, 185, 129, 0.08));
+}
+
+.owner-shell-premium .owner-shops-card .owner-card-head strong,
+.owner-shell-premium .owner-history-card .owner-card-head strong {
+  font-weight: 900;
+}
+
+.owner-shell-premium .owner-shops-card .shop-list {
+  gap: 0.5rem;
+}
+
+.owner-shell-premium .owner-shops-card .shop-item {
+  border-radius: 12px;
+  padding: 0.72rem;
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.12);
+}
+
+.owner-shell-premium .owner-shops-card .shop-item.is-primary {
+  background: linear-gradient(150deg, rgba(219, 234, 254, 0.7), rgba(236, 253, 245, 0.8));
+  border-color: rgba(16, 185, 129, 0.36);
+  box-shadow: inset 0 0 0 1px rgba(16, 185, 129, 0.2);
+}
+
+.owner-shell-premium .owner-shops-card .shop-item .name {
+  font-size: 0.98rem;
+}
+
+.owner-shell-premium .owner-shops-card .mini-list {
+  margin-top: 0.75rem;
+  padding-top: 0.7rem;
+  border-top: 1px dashed rgba(148, 163, 184, 0.38);
+}
+
+.owner-shell-premium .owner-shops-card .mini-row {
+  border-radius: 11px;
+  background: #fff;
+}
+
+.owner-shell-premium .owner-history-card .archive-teaser {
+  border-color: rgba(59, 130, 246, 0.28);
   border-radius: 14px;
+  padding: 0.88rem;
+  gap: 0.5rem;
+  background: linear-gradient(150deg, #eff6ff, #f8fbff 55%, #ecfeff);
 }
 
-.owner-shell .status-pill {
-  font-size: 0.73rem;
+.owner-shell-premium .owner-history-card .archive-teaser .value {
+  font-size: 1.45rem;
+  line-height: 1;
 }
 
-.owner-shell .shop-item {
-  background: #f8fafc;
+.owner-shell-premium .owner-history-card .archive-open-btn {
+  width: 100%;
+  min-height: 2.2rem;
+  border-radius: 10px;
+  font-weight: 800;
+  box-shadow: 0 7px 16px rgba(37, 99, 235, 0.22);
 }
 
-.owner-shell .mini-list {
+.owner-shell-premium .mini-list {
   gap: 0.45rem;
   margin-top: 0.7rem;
 }
 
-.owner-shell .mini-row {
+.owner-shell-premium .mini-row {
   color: #475569;
   font-size: 0.83rem;
   font-weight: 700;
 }
 
-.owner-shell .archive-teaser .hint {
+.owner-shell-premium .archive-teaser .hint {
   color: #64748b;
   font-size: 0.83rem;
   font-weight: 700;
 }
 
-.owner-shell .pagination-wrap {
+.owner-shell-premium .pagination-wrap {
   margin-top: 1rem;
 }
 
@@ -601,14 +759,8 @@ body.owner-locations-keyboard-open .owner-archives-shell {
     -webkit-text-size-adjust: 100%;
   }
 
-  .listing-actions .btn,
-  .listing-actions form {
-    flex: 1 1 calc(50% - 0.45rem);
-  }
-
-  .listing-actions form .btn,
-  .listing-actions .btn {
-    width: 100%;
+  .owner-shell-premium .listing-actions {
+    grid-template-columns: 1fr;
   }
 
   .trace-table-wrap {

@@ -1,0 +1,133 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Historique suppression | DealNova Admin{% endblock %}
+{% block page_title %}Historique suppression{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <div class="card admin-card">
+    <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <h5 class="mb-0"><i class="bi bi-archive"></i> Historique suppression</h5>
+      <div class="btn-group btn-group-sm" role="group">
+        <a href="{{ url_for('admin_users.deletion_history',
+                            q=search or None,
+                            deleted_by=deleted_by_filter or None,
+                            date_from=date_from or None,
+                            date_to=date_to or None) }}"
+           class="btn {{ 'btn-primary' if not entity_filter else 'btn-outline-primary' }}">Tout</a>
+        <a href="{{ url_for('admin_users.deletion_history',
+                            entity='user',
+                            q=search or None,
+                            deleted_by=deleted_by_filter or None,
+                            date_from=date_from or None,
+                            date_to=date_to or None) }}"
+           class="btn {{ 'btn-primary' if entity_filter == 'user' else 'btn-outline-primary' }}">Utilisateurs</a>
+        <a href="{{ url_for('admin_users.deletion_history',
+                            entity='shop',
+                            q=search or None,
+                            deleted_by=deleted_by_filter or None,
+                            date_from=date_from or None,
+                            date_to=date_to or None) }}"
+           class="btn {{ 'btn-primary' if entity_filter == 'shop' else 'btn-outline-primary' }}">Boutiques</a>
+      </div>
+    </div>
+    <div class="card-body p-0">
+      <form method="get" class="p-3 border-bottom bg-light">
+        <div class="row g-2 align-items-end">
+          <div class="col-12 col-lg-4">
+            <label for="q" class="form-label mb-1">Recherche</label>
+            <input id="q"
+                   name="q"
+                   type="text"
+                   class="form-control"
+                   value="{{ search }}"
+                   placeholder="Nom, boutique, role ou ID...">
+          </div>
+          <div class="col-6 col-lg-2">
+            <label for="entity" class="form-label mb-1">Type</label>
+            <select id="entity" name="entity" class="form-select">
+              <option value="">Tous</option>
+              <option value="user" {% if entity_filter == 'user' %}selected{% endif %}>Utilisateur</option>
+              <option value="shop" {% if entity_filter == 'shop' %}selected{% endif %}>Boutique</option>
+            </select>
+          </div>
+          <div class="col-6 col-lg-2">
+            <label for="deleted_by" class="form-label mb-1">Supprime par</label>
+            <select id="deleted_by" name="deleted_by" class="form-select">
+              <option value="">Tous</option>
+              <option value="system" {% if deleted_by_filter == 'system' %}selected{% endif %}>Systeme</option>
+              {% for user_id, username in deleted_by_options %}
+              <option value="{{ user_id }}" {% if deleted_by_filter == user_id|string %}selected{% endif %}>
+                {{ username }} (ID {{ user_id }})
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-6 col-lg-2">
+            <label for="date_from" class="form-label mb-1">Du</label>
+            <input id="date_from" name="date_from" type="date" class="form-control" value="{{ date_from }}">
+          </div>
+          <div class="col-6 col-lg-2">
+            <label for="date_to" class="form-label mb-1">Au</label>
+            <input id="date_to" name="date_to" type="date" class="form-control" value="{{ date_to }}">
+          </div>
+          <div class="col-12 d-flex gap-2 justify-content-end pt-1">
+            <button type="submit" class="btn btn-primary btn-sm">
+              <i class="bi bi-filter"></i> Filtrer
+            </button>
+            <a href="{{ url_for('admin_users.deletion_history') }}" class="btn btn-outline-secondary btn-sm">
+              <i class="bi bi-x-circle"></i> Reinitialiser
+            </a>
+          </div>
+        </div>
+      </form>
+      {% if rows %}
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Type</th>
+              <th>Nom sauvegarde</th>
+              <th>Infos</th>
+              <th>Supprime par</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in rows %}
+            <tr>
+              <td>
+                {{ row.created_at.strftime('%d/%m/%Y %H:%M') if row.created_at else '-' }}
+              </td>
+              <td>
+                <span class="badge bg-{{ 'danger' if row.entity_type == 'user' else 'warning text-dark' }}">
+                  {{ 'Utilisateur' if row.entity_type == 'user' else 'Boutique' }}
+                </span>
+                <div class="small text-muted">ID {{ row.entity_id }}</div>
+              </td>
+              <td class="fw-semibold">{{ row.name }}</td>
+              <td class="small text-muted">
+                {% if row.shop_name %}<div>Boutique: {{ row.shop_name }}</div>{% endif %}
+                {% if row.role %}<div>Role: {{ row.role }}</div>{% endif %}
+              </td>
+              <td>{{ row.deleted_by }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="p-4 text-muted">Aucune suppression enregistree.</div>
+      {% endif %}
+    </div>
+    {% if pagination.pages > 1 %}
+    <div class="card-footer adm-pager">
+      {% set endpoint = 'admin_users.deletion_history' %}
+      {% set params = pagination_params %}
+      {% set iter_args = {'left_edge': 2, 'left_current': 2, 'right_current': 3, 'right_edge': 2} %}
+      {% include "admin/partials/_pagination.html" %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

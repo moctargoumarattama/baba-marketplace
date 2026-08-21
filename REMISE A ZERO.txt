@@ -1,0 +1,27 @@
+START TRANSACTION;
+
+DELETE FROM vendor_receipt;
+DELETE FROM vendor_payout;
+DELETE FROM vendor_fulfillment;
+DELETE FROM financial_entry;
+DELETE FROM subscription_payment;
+DELETE FROM booking;
+DELETE FROM review;
+DELETE FROM delivery_inquiry;
+DELETE FROM order_item;
+DELETE FROM `order`;
+DELETE FROM order_period;
+DELETE FROM vendor_period;
+DELETE FROM financial_period;
+
+UPDATE user
+SET
+  subscription_expires_at = NULL,
+  subscription_last_paid_at = NULL,
+  subscription_note = NULL,
+  subscription_free_until = NULL,
+  vendor_history_pin_hash = NULL,
+  courier_admin_note = NULL
+WHERE role IN ('admin','manager','vendor','courier');
+
+COMMIT;

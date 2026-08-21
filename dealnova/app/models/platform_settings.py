@@ -13,14 +13,6 @@ class PlatformSettings(db.Model):
     # Deprecated: seller commission is no longer applied to product/service orders.
     seller_commission_percent = db.Column(db.Float, nullable=False, default=10.0)
 
-    # Frais de livraison client (en centimes)
-    shipping_kenitra = db.Column(db.Integer, nullable=False, default=2000)
-    shipping_temara = db.Column(db.Integer, nullable=False, default=2500)
-    shipping_rabat = db.Column(db.Integer, nullable=False, default=3000)
-    shipping_sale = db.Column(db.Integer, nullable=False, default=2500)
-    # Fixed Baba share per delivered order (in cents).
-    delivery_platform_fee_fixed_cents = db.Column(db.Integer, nullable=False, default=0)
-
     # Low stock threshold (vendor alerts)
     low_stock_threshold = db.Column(db.Integer, nullable=False, default=5)
 

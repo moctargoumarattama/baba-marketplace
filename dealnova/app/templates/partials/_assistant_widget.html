@@ -1,0 +1,57 @@
+<div
+  class="bm-assistant"
+  id="bmAssistant"
+  data-bootstrap-url="{{ url_for('assistant_api.bootstrap') }}"
+  data-message-url="{{ url_for('assistant_api.message') }}"
+  data-welcome-hint="Comment puis-je vous aider ?"
+>
+  <button
+    type="button"
+    class="bm-assistant-toggle"
+    id="bmAssistantToggle"
+    aria-expanded="false"
+    aria-controls="bmAssistantPanel"
+    aria-label="Ouvrir l'assistant"
+  >
+    <i class="bi bi-chat-dots"></i>
+    <span class="bm-assistant-toggle-label">Assistant</span>
+  </button>
+
+  <button
+    type="button"
+    class="bm-assistant-hint"
+    id="bmAssistantHint"
+    hidden
+    aria-label="Ouvrir l'assistant"
+  >
+    <span>Comment puis-je vous aider ?</span>
+  </button>
+
+  <section class="bm-assistant-panel" id="bmAssistantPanel" hidden>
+    <header class="bm-assistant-header">
+      <div class="bm-assistant-title">
+        <i class="bi bi-stars"></i>
+        <span>Assistant IA</span>
+      </div>
+      <button type="button" class="bm-assistant-close" id="bmAssistantClose" aria-label="Fermer">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    </header>
+
+    <div class="bm-assistant-messages" id="bmAssistantMessages"></div>
+    <div class="bm-assistant-quick" id="bmAssistantQuick"></div>
+
+    <form class="bm-assistant-form" id="bmAssistantForm">
+      <input
+        type="text"
+        id="bmAssistantInput"
+        maxlength="240"
+        autocomplete="off"
+        placeholder="Ecrivez votre message..."
+      />
+      <button type="submit" id="bmAssistantSend">
+        <i class="bi bi-send"></i>
+      </button>
+    </form>
+  </section>
+</div>

@@ -114,9 +114,20 @@ class Config:
     SITE_LOGO = os.getenv("SITE_LOGO", "")
     PUBLIC_BASE_URL = (os.getenv("PUBLIC_BASE_URL") or os.getenv("SITE_URL") or "").strip().rstrip("/")
     DELIVERY_WHATSAPP_NUMBER = os.getenv("DELIVERY_WHATSAPP_NUMBER", "212602908954")
+    DELIVERY_WHATSAPP_DEFAULT_MESSAGE = os.getenv(
+        "DELIVERY_WHATSAPP_DEFAULT_MESSAGE",
+        "Bonjour, je souhaite programmer une livraison. Merci de me confirmer la disponibilite et le delai.",
+    )
+    ASSISTANT_DELIVERY_HOURS_TEXT = os.getenv(
+        "ASSISTANT_DELIVERY_HOURS_TEXT",
+        "Livraison disponible tous les jours de 8h a 3h du matin, selon disponibilite du livreur.",
+    )
     ADMIN_PHONE = os.getenv("ADMIN_PHONE", "+212770010264")
     SUPPORT_WHATSAPP_NUMBER = os.getenv("SUPPORT_WHATSAPP_NUMBER", ADMIN_PHONE)
     RENTAL_VISIT_WHATSAPP_NUMBER = os.getenv("RENTAL_VISIT_WHATSAPP_NUMBER", "212602908954")
+    VENDOR_PUSH_VAPID_PUBLIC_KEY = os.getenv("VENDOR_PUSH_VAPID_PUBLIC_KEY", os.getenv("VAPID_PUBLIC_KEY", ""))
+    VENDOR_PUSH_VAPID_PRIVATE_KEY = os.getenv("VENDOR_PUSH_VAPID_PRIVATE_KEY", os.getenv("VAPID_PRIVATE_KEY", ""))
+    VENDOR_PUSH_VAPID_EMAIL = os.getenv("VENDOR_PUSH_VAPID_EMAIL", os.getenv("ADMIN_EMAIL", "admin@babamarket.local"))
 
     _upload_folder_env = os.getenv("UPLOAD_FOLDER", "app/static/uploads")
     if os.path.isabs(_upload_folder_env):
@@ -216,6 +227,8 @@ class Config:
     SECURITY_ALERT_WEBHOOK_URL = os.getenv("SECURITY_ALERT_WEBHOOK_URL", "")
     MAINTENANCE_BACKUP_DIR = os.getenv("MAINTENANCE_BACKUP_DIR", "")
     DB_BACKUP_RETENTION_DAYS = int(os.getenv("DB_BACKUP_RETENTION_DAYS", "30"))
+    UPLOADS_BACKUP_RETENTION_DAYS = int(os.getenv("UPLOADS_BACKUP_RETENTION_DAYS", "14"))
+    FULL_BACKUP_RETENTION_DAYS = int(os.getenv("FULL_BACKUP_RETENTION_DAYS", "14"))
 
     max_env = os.getenv("MAX_CONTENT_LENGTH")
     if max_env:

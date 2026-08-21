@@ -1,10 +1,8 @@
 ﻿# app/services/pricing.py
 from datetime import datetime
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
-import unicodedata
 
 from ..extensions import db
-from ..models.platform_settings import PlatformSettings
 from ..models.promo import Promo
 
 _PROMO_UNSET = object()
@@ -195,45 +193,3 @@ def compute_shipping(_total):
     """Deprecated: use city-based delivery pricing."""
     return 2000
 
-
-DELIVERY_CITIES = ["Rabat", "Sale", "Temara", "Kenitra"]
-
-
-def _normalize_city_key(city: str | None) -> str:
-    raw = (city or "").strip().lower()
-    if not raw:
-        return ""
-    normalized = unicodedata.normalize("NFKD", raw)
-    return "".join(ch for ch in normalized if not unicodedata.combining(ch))
-
-
-def list_delivery_cities() -> list[str]:
-    return DELIVERY_CITIES[:]
-
-
-# ===== VERSION AMÉLIORÉE DE get_delivery_price_cents (plus maintenable) =====
-def get_delivery_price_cents(city: str | None, settings: PlatformSettings | None = None) -> int:
-    cfg = settings or PlatformSettings.get()
-    city_key = _normalize_city_key(city)
-    
-    # Mapping plus maintenable (mais garde l'ancienne logique)
-    city_to_field = {
-        "rabat": "shipping_rabat",
-        "sale": "shipping_sale",
-        "temara": "shipping_temara",
-        "kenitra": "shipping_kenitra",
-    }
-    
-    field = city_to_field.get(city_key)
-    if field:
-        return int(getattr(cfg, field, 0) or 0)
-    return 0
-
-
-def get_delivery_platform_fee_cents(settings: PlatformSettings | None = None) -> int:
-    cfg = settings or PlatformSettings.get()
-    return max(0, int(getattr(cfg, "delivery_platform_fee_fixed_cents", 0) or 0))
-
-
-def compute_shipping_by_city(city: str | None, settings: PlatformSettings | None = None) -> int:
-    return get_delivery_price_cents(city, settings=settings)

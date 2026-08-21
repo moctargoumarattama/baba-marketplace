@@ -1,34 +1,37 @@
 # Core
-Flask==3.0.0
-Werkzeug==3.0.1
-python-dotenv==1.0.0
+Flask==3.1.3
+Werkzeug==3.1.8
+python-dotenv==1.1.1
 
 # Database
 Flask-SQLAlchemy==3.1.1
-Flask-Migrate==4.0.5
-PyMySQL==1.1.1
-psutil==5.9.8
+Flask-Migrate==4.1.0
+SQLAlchemy==2.0.46
+Alembic==1.18.3
+PyMySQL==1.1.2
+psutil==7.2.2
 
 # Auth & Forms
 Flask-Login==0.6.3
-Flask-WTF==1.2.1
-WTForms==3.1.0
-email-validator==2.1.0
+Flask-WTF==1.2.2
+WTForms==3.2.1
+email-validator==2.3.0
 
 # Cache
-Flask-Caching==2.1.0
+Flask-Caching==2.3.1
 
 # Images
-Pillow==10.2.0
+Pillow==11.3.0; python_version < "3.10"
+Pillow==12.2.0; python_version >= "3.10"
 
 # Utils
-python-slugify==8.0.1
-reportlab==4.1.0
-pywebpush==2.0.3
+python-slugify==8.0.4
+reportlab==4.4.10
+pywebpush==2.3.0
 
 # Server (production only)
-gunicorn==21.2.0
+gunicorn==24.1.1
 
 # Testing (development only)
-pytest==8.0.0
-flask-compress==1.14
+pytest==8.4.2
+Flask-Compress==1.24

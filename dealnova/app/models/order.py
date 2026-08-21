@@ -1,15 +1,13 @@
 from datetime import datetime
 import secrets
-from sqlalchemy.orm import validates
 
 from ..extensions import db
 
 class Order(db.Model):
-    # Zones de livraison actuelles
+    # Villes disponibles pour le champ city de la commande
     CITIES = ['Rabat', 'Salé', 'Témara', 'Kénitra']
 
     STATUSES = ["pending", "shipped", "delivered", "cancelled", "archived", "draft", "expired"]
-    DELIVERY_STATUSES = ["new", "delivered", "canceled"]
 
     id = db.Column(db.Integer, primary_key=True)
     buyer_id = db.Column(db.Integer, db.ForeignKey("user.id", name="fk_order_buyer_id_user"), nullable=True, index=True)
@@ -29,34 +27,6 @@ class Order(db.Model):
     vendor_paid_by_id = db.Column(db.Integer, nullable=True)
     order_ip = db.Column(db.String(45), nullable=True, index=True)
     shipping = db.Column(db.Integer, default=0)          # centimes
-    delivery_price_cents = db.Column(db.Integer, nullable=True, default=0)
-    delivery_platform_fee_cents = db.Column(db.Integer, nullable=True, default=0)
-    delivery_source = db.Column(db.String(20), nullable=False, default="marketplace", index=True)
-    delivery_city = db.Column(db.String(120), nullable=True)
-    delivery_address = db.Column(db.Text, nullable=True)
-    delivery_lat = db.Column(db.Float, nullable=True)
-    delivery_lng = db.Column(db.Float, nullable=True)
-    delivery_maps_url = db.Column(db.Text, nullable=True)
-    customer_name = db.Column(db.String(150), nullable=True)
-    customer_phone = db.Column(db.String(30), nullable=True)
-    special_item = db.Column(db.Text, nullable=True)
-    special_pickup_address = db.Column(db.Text, nullable=True)
-    special_pickup_lat = db.Column(db.Float, nullable=True)
-    special_pickup_lng = db.Column(db.Float, nullable=True)
-    special_pickup_maps_url = db.Column(db.Text, nullable=True)
-    special_dropoff_address = db.Column(db.Text, nullable=True)
-    special_dropoff_lat = db.Column(db.Float, nullable=True)
-    special_dropoff_lng = db.Column(db.Float, nullable=True)
-    special_dropoff_maps_url = db.Column(db.Text, nullable=True)
-    special_note = db.Column(db.Text, nullable=True)
-    special_datetime = db.Column(db.String(80), nullable=True)
-    special_is_urgent = db.Column(db.Boolean, nullable=False, default=False)
-    delivery_status = db.Column(
-        db.Enum(*DELIVERY_STATUSES, name="delivery_status"),
-        default="new",
-        nullable=False,
-        index=True,
-    )
     created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     delivered_at = db.Column(db.DateTime, nullable=True, index=True)  # pour la logique 72h
     baba_fee_settled_at = db.Column(db.DateTime, nullable=True, index=True)
@@ -81,17 +51,6 @@ class Order(db.Model):
         if not self.delivered_at:
             return True
         return (datetime.utcnow() - self.delivered_at).total_seconds() <= 72*3600
-
-    @validates("status")
-    def _sync_delivery_status_with_order_status(self, _key, value):
-        normalized = (value or "").strip().lower()
-        if normalized == "delivered":
-            self.delivery_status = "delivered"
-        elif normalized == "cancelled":
-            self.delivery_status = "canceled"
-        elif normalized == "pending" and (self.delivery_status in {"delivered", "canceled"}):
-            self.delivery_status = "new"
-        return value
 
     @staticmethod
     def get_user_orders(user=None, anonymous_token=None):
@@ -148,3 +107,4 @@ class OrderItem(db.Model):
     quantity = db.Column(db.Integer, nullable=False)
     price = db.Column(db.Integer, nullable=False)  # centimes
     product = db.relationship("Product", backref="order_items", lazy=True)
+

@@ -800,8 +800,8 @@
   <section class="card-shell" id="database-backups">
     <div class="section-head">
       <div>
-        <h5 class="section-title"><i class="bi bi-database-check"></i> Sauvegardes base de donnees</h5>
-        <p class="section-sub">Voir ce qui se passe, ce qui s'est passe, et restaurer une sauvegarde si la base casse.</p>
+        <h5 class="section-title"><i class="bi bi-database-check"></i> Sauvegardes</h5>
+        <p class="section-sub">Base de donnees, uploads et sauvegardes completes dans le meme dossier securise.</p>
       </div>
       <span class="status-pill {{ backup_panel.status_class }}">{{ backup_panel.status_label }}</span>
     </div>
@@ -810,19 +810,25 @@
       <div class="report-item">
         <strong>Derniere sauvegarde</strong>
         <span>{{ backup_panel.latest.modified_at_utc if backup_panel.latest else 'Jamais detectee' }}</span>
-        <div class="small text-muted mt-1">{{ backup_panel.latest.name if backup_panel.latest else 'Aucun fichier trouve dans le dossier.' }}</div>
+        <div class="small text-muted mt-1">
+          {% if backup_panel.latest %}
+            {{ backup_panel.latest.type_label }} · {{ backup_panel.latest.name }}
+          {% else %}
+            Aucun fichier trouve dans le dossier.
+          {% endif %}
+        </div>
       </div>
       <div class="report-item">
         <strong>Dossier stockage</strong>
         <span><code>{{ backup_panel.backup_dir }}</code></span>
       </div>
       <div class="report-item">
-        <strong>Conservation</strong>
-        <span>{{ backup_panel.retention_days }} jours</span>
+        <strong>Conservation DB / uploads / full</strong>
+        <span>{{ backup_panel.db_retention_days }} / {{ backup_panel.uploads_retention_days }} / {{ backup_panel.full_retention_days }} jours</span>
       </div>
       <div class="report-item">
-        <strong>Commande automatique 02h</strong>
-        <span><code>{{ backup_panel.command }}</code></span>
+        <strong>Volumes detectes</strong>
+        <span>{{ backup_panel.counts.database }} base(s) · {{ backup_panel.counts.uploads }} archive(s) uploads · {{ backup_panel.counts.full }} backup(s) complet(s)</span>
       </div>
     </div>
 
@@ -832,15 +838,48 @@
 
     <div class="actions-grid mb-3">
       <article class="action-box">
-        <h6>Creer une sauvegarde maintenant</h6>
-        <p>Declenche une copie complete de la base, puis range les anciens fichiers selon la conservation.</p>
+        <h6>Sauvegarder la base</h6>
+        <p>Declenche la sauvegarde base existante, ajoute le checksum SHA-256 et applique la retention DB.</p>
         <form method="post" action="{{ url_for('admin.maintenance_backup_create') }}">
           {% include "admin/partials/_csrf.html" %}
           <input type="hidden" name="days" value="{{ days }}">
+          <input type="hidden" name="backup_type" value="database">
           <input type="hidden" name="backup_dir" value="{{ backup_panel.backup_dir }}">
-          <input type="hidden" name="retention_days" value="{{ backup_panel.retention_days }}">
+          <input type="hidden" name="db_retention_days" value="{{ backup_panel.db_retention_days }}">
           <button type="submit" class="btn btn-sm btn-primary">
-            <i class="bi bi-cloud-arrow-up"></i> Creer une sauvegarde maintenant
+            <i class="bi bi-cloud-arrow-up"></i> Sauvegarder la base
+          </button>
+        </form>
+      </article>
+
+      <article class="action-box">
+        <h6>Sauvegarder les uploads</h6>
+        <p>Archive physiquement <code>static/uploads/</code> dans un <code>.tar.gz</code> securise avec manifeste et checksum.</p>
+        <form method="post" action="{{ url_for('admin.maintenance_backup_create') }}">
+          {% include "admin/partials/_csrf.html" %}
+          <input type="hidden" name="days" value="{{ days }}">
+          <input type="hidden" name="backup_type" value="uploads">
+          <input type="hidden" name="backup_dir" value="{{ backup_panel.backup_dir }}">
+          <input type="hidden" name="uploads_retention_days" value="{{ backup_panel.uploads_retention_days }}">
+          <button type="submit" class="btn btn-sm btn-outline-success">
+            <i class="bi bi-images"></i> Sauvegarder les uploads
+          </button>
+        </form>
+      </article>
+
+      <article class="action-box">
+        <h6>Sauvegarde complete</h6>
+        <p>Cree le pack DB + uploads + manifeste global avec le meme timestamp serveur pour relier tous les fichiers.</p>
+        <form method="post" action="{{ url_for('admin.maintenance_backup_create') }}">
+          {% include "admin/partials/_csrf.html" %}
+          <input type="hidden" name="days" value="{{ days }}">
+          <input type="hidden" name="backup_type" value="full">
+          <input type="hidden" name="backup_dir" value="{{ backup_panel.backup_dir }}">
+          <input type="hidden" name="db_retention_days" value="{{ backup_panel.db_retention_days }}">
+          <input type="hidden" name="uploads_retention_days" value="{{ backup_panel.uploads_retention_days }}">
+          <input type="hidden" name="full_retention_days" value="{{ backup_panel.full_retention_days }}">
+          <button type="submit" class="btn btn-sm btn-outline-primary">
+            <i class="bi bi-collection"></i> Sauvegarde complete
           </button>
         </form>
       </article>
@@ -863,9 +902,24 @@
     <div class="section-head mb-2">
       <div>
         <h6 class="section-title mb-0"><i class="bi bi-clock-history"></i> Historique des sauvegardes</h6>
-        <p class="section-sub">Les fichiers disponibles pour verifier ou restaurer une ancienne version.</p>
+        <p class="section-sub">Les fichiers disponibles pour verifier l'integrite, telecharger ou restaurer une ancienne version.</p>
       </div>
       <span class="small text-muted">{{ backup_panel.backups|length }} fichier(s)</span>
+    </div>
+
+    <div class="report-list mb-3">
+      <div class="report-item">
+        <strong>Commande DB</strong>
+        <span><code>{{ backup_panel.db_command }}</code></span>
+      </div>
+      <div class="report-item">
+        <strong>Commande uploads</strong>
+        <span><code>{{ backup_panel.uploads_command }}</code></span>
+      </div>
+      <div class="report-item">
+        <strong>Commande full</strong>
+        <span><code>{{ backup_panel.full_command }}</code></span>
+      </div>
     </div>
 
     {% if backup_panel.backups %}
@@ -874,32 +928,88 @@
           <thead>
             <tr>
               <th>Date</th>
-              <th>Fichier</th>
-              <th>Taille</th>
               <th>Type</th>
-              <th class="text-end">Restaurer</th>
+              <th>Taille</th>
+              <th>Etat</th>
+              <th>Checksum / integrite</th>
+              <th class="text-end">Actions</th>
             </tr>
           </thead>
           <tbody>
             {% for backup in backup_panel.backups %}
               <tr>
                 <td data-label="Date">{{ backup.modified_at_utc }}</td>
-                <td data-label="Fichier"><code>{{ backup.name }}</code></td>
+                <td data-label="Type">
+                  <div><strong>{{ backup.type_label }}</strong></div>
+                  <div class="small text-muted"><code>{{ backup.name }}</code></div>
+                </td>
                 <td data-label="Taille">{{ (backup.size_bytes / 1024 / 1024)|round(2) }} MB</td>
-                <td data-label="Type">{{ backup.db_engine }}</td>
-                <td data-label="Restaurer" class="text-end">
-                  <details class="restore-details">
-                    <summary class="btn btn-sm btn-outline-danger">Restaurer cette sauvegarde</summary>
-                    <form method="post" action="{{ url_for('admin.maintenance_backup_restore') }}" class="restore-box mt-2">
+                <td data-label="Etat">
+                  <span class="status-pill status-na">{{ backup.status_label }}</span>
+                  <div class="small text-muted mt-1">
+                    {% if backup.kind == 'database' %}
+                      {{ backup.db_engine or 'inconnu' }}{% if backup.database %} · {{ backup.database }}{% endif %}
+                    {% elif backup.kind == 'uploads' %}
+                      {{ backup.uploads_file_count }} fichier(s) detecte(s)
+                    {% elif backup.kind == 'full' %}
+                      {{ backup.db_engine or 'inconnu' }} · {{ backup.uploads_file_count }} fichier(s) uploads
+                    {% endif %}
+                  </div>
+                </td>
+                <td data-label="Checksum / integrite">
+                  <span class="status-pill {{ backup.integrity_class }}">{{ backup.integrity_label }}</span>
+                  <div class="small text-muted mt-1">
+                    {% if backup.checksum_short %}
+                      <code>{{ backup.checksum_short }}…</code>
+                    {% elif backup.kind == 'full' %}
+                      Manifeste global + composants
+                    {% else %}
+                      Aucun checksum exploitable
+                    {% endif %}
+                  </div>
+                  <div class="small text-muted">{{ backup.integrity_details }}</div>
+                </td>
+                <td data-label="Actions" class="text-end">
+                  <div class="d-flex flex-wrap gap-2 justify-content-end">
+                    {% for download in backup.downloads %}
+                      <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('admin.maintenance_backup_download', filename=download.name, days=days) }}">
+                        <i class="bi bi-download"></i> {{ download.label }}
+                      </a>
+                    {% endfor %}
+                    <form method="post" action="{{ url_for('admin.maintenance_backup_verify') }}" class="d-inline">
                       {% include "admin/partials/_csrf.html" %}
                       <input type="hidden" name="days" value="{{ days }}">
-                      <input type="hidden" name="backup_file" value="{{ backup.file }}">
-                      <div class="small text-muted mb-2">Cette action remplace la base actuelle. Tape RESTAURER et ton mot de passe admin.</div>
-                      <input type="text" name="confirm_text" class="form-control form-control-sm mb-2" placeholder="RESTAURER" required>
-                      <input type="password" name="password" class="form-control form-control-sm mb-2" placeholder="Mot de passe admin" autocomplete="current-password" required>
-                      <button type="submit" class="btn btn-sm btn-danger w-100">Confirmer la restauration</button>
+                      <input type="hidden" name="backup_file" value="{{ backup.name }}">
+                      <button type="submit" class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-shield-check"></i> Verifier
+                      </button>
                     </form>
-                  </details>
+                  </div>
+                  {% if backup.restore_supported %}
+                    <details class="restore-details mt-2">
+                      <summary class="btn btn-sm btn-outline-danger">{{ backup.restore_button_label }}</summary>
+                      <form method="post" action="{{ url_for('admin.maintenance_backup_restore') }}" class="restore-box mt-2">
+                        {% include "admin/partials/_csrf.html" %}
+                        <input type="hidden" name="days" value="{{ days }}">
+                        <input type="hidden" name="backup_type" value="{{ backup.kind }}">
+                        <input type="hidden" name="backup_file" value="{{ backup.name }}">
+                        <div class="small text-muted mb-2">
+                          {% if backup.kind == 'database' %}
+                            Cette action remplace la base actuelle. Tape RESTAURER et ton mot de passe admin.
+                          {% elif backup.kind == 'uploads' %}
+                            Les uploads actuels seront sauvegardes avant remplacement. Tape {{ backup.restore_confirm_text }}.
+                          {% else %}
+                            Cette action coordonne DB + uploads. Tape {{ backup.restore_confirm_text }} et confirme avec ton mot de passe admin.
+                          {% endif %}
+                        </div>
+                        <input type="text" name="confirm_text" class="form-control form-control-sm mb-2" placeholder="{{ backup.restore_confirm_text }}" required>
+                        <input type="password" name="password" class="form-control form-control-sm mb-2" placeholder="Mot de passe admin" autocomplete="current-password" required>
+                        <button type="submit" class="btn btn-sm btn-danger w-100">Confirmer la restauration</button>
+                      </form>
+                    </details>
+                  {% elif backup.kind == 'database' %}
+                    <div class="small text-muted mt-2">Restauration directe reservee aux sauvegardes MySQL <code>.sql.gz</code>.</div>
+                  {% endif %}
                 </td>
               </tr>
             {% endfor %}
@@ -908,7 +1018,7 @@
       </div>
     {% else %}
       <div class="alert alert-secondary mb-0">
-        Aucune sauvegarde visible pour le moment. Lance une sauvegarde maintenant ou importe un fichier .sql.gz.
+        Aucune sauvegarde visible pour le moment. Lance une sauvegarde base, uploads ou complete, ou importe un fichier MySQL <code>.sql.gz</code>.
       </div>
     {% endif %}
   </section>

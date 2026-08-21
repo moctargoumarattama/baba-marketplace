@@ -29,7 +29,7 @@ def test_maintenance_sections_keep_existing_blocks():
 
     assert "Dernier rapport de maintenance" in template
     assert "Sante systeme" in template
-    assert "Sauvegardes base de donnees" in template
+    assert "Sauvegardes" in template
     assert "Trafic live" in template
     assert "Mode maintenance" in template
     assert "Historique nettoyage" in template

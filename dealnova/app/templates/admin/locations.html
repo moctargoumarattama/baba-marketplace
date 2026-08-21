@@ -18,6 +18,55 @@
 
 .lw{display:flex;flex-direction:column;gap:.85rem;padding-bottom:2rem;}
 
+/* SECTIONS */
+.sec-nav{
+  position:sticky;top:.55rem;z-index:9;
+  display:flex;gap:.45rem;flex-wrap:wrap;
+  padding:.48rem;
+  border:1px solid var(--border);
+  border-radius:12px;
+  background:rgba(255,255,255,.9);
+  backdrop-filter:blur(6px);
+  box-shadow:var(--sh);
+}
+.sec-link{
+  height:32px;padding:0 .72rem;border-radius:8px;
+  border:1px solid var(--border);background:#fff;
+  color:var(--mid);font-size:.74rem;font-weight:700;text-decoration:none;
+  display:inline-flex;align-items:center;gap:.3rem;
+}
+.sec-link:hover{border-color:var(--primary);color:var(--primary);background:#ecfeff;}
+.sec-block{
+  border:1px solid var(--border);
+  border-radius:12px;
+  background:#fff;
+  box-shadow:var(--sh);
+  padding:.78rem;
+  display:grid;
+  gap:.7rem;
+}
+.sec-content{display:grid;gap:.7rem;}
+.sec-toggle{
+  height:30px;padding:0 .62rem;border-radius:8px;
+  border:1px solid var(--border);background:#fff;
+  color:var(--mid);font-size:.72rem;font-weight:700;
+  display:inline-flex;align-items:center;gap:.28rem;
+  cursor:pointer;
+}
+.sec-toggle:hover{border-color:var(--primary);color:var(--primary);}
+.sec-block.is-collapsed .sec-content{display:none;}
+.sec-block.is-collapsed{padding-bottom:.62rem;}
+.sec-head{
+  display:flex;align-items:flex-end;justify-content:space-between;
+  gap:.5rem;flex-wrap:wrap;
+  border-bottom:1px solid #eef2f7;
+  padding:0 0 .55rem;
+}
+.sec-head h5{margin:0;font-size:.92rem;font-weight:800;color:var(--text);display:flex;align-items:center;gap:.35rem;}
+.sec-head .sub{font-size:.72rem;color:var(--muted);font-weight:600;}
+.sec-grid{display:grid;gap:.7rem;}
+.sec-grid-2{grid-template-columns:repeat(2,minmax(0,1fr));}
+
 /* STATS */
 .st-row{display:grid;grid-template-columns:repeat(3,1fr);gap:.65rem;}
 .st-box{background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:.75rem .9rem;box-shadow:var(--sh);position:relative;overflow:hidden;}
@@ -113,6 +162,9 @@
 
   /* MOBILE */
 @media(max-width:640px){
+  .sec-nav{overflow-x:auto;flex-wrap:nowrap;padding:.42rem;}
+  .sec-link{white-space:nowrap;flex:0 0 auto;}
+  .sec-grid-2{grid-template-columns:1fr;}
   .st-row{grid-template-columns:repeat(3,1fr);}
   .st-box .val{font-size:1.1rem;}
   /* hide less critical columns on small screens */
@@ -139,168 +191,196 @@
   <!-- STATS -->
   {% include "admin/partials/_locations_stats.html" %}
 
-  <div class="lc lc-org">
-    <div class="lc-hd">
-      <h6><i class="bi bi-calendar3"></i> Organisation generale</h6>
-      <span class="sub">{{ date_range_label }}</span>
-    </div>
-    <div class="lc-body" style="display:flex;gap:.5rem;flex-wrap:wrap">
-      <div class="cn" style="width:100%">
-        Les annonces et archives se consultent par dates.
-      </div>
-      <a class="btn-r" href="{{ url_for('admin.product_contacts') }}"><i class="bi bi-chat-dots"></i> Contacts produits</a>
-      <a class="btn-r" href="{{ url_for('admin.deliveries') }}"><i class="bi bi-truck"></i> Livraison express</a>
-      <a class="btn-r" href="{{ url_for('admin.finance') }}"><i class="bi bi-graph-up-arrow"></i> Paiements</a>
-    </div>
-  </div>
+  <nav class="sec-nav" aria-label="Sections locations admin">
+    <a class="sec-link" href="#sec-pilotage" data-open-sec="pilotage"><i class="bi bi-layout-text-window-reverse"></i> Pilotage</a>
+    <a class="sec-link" href="#sec-reglages" data-open-sec="reglages"><i class="bi bi-sliders"></i> Reglages</a>
+    <a class="sec-link" href="#sec-donnees" data-open-sec="donnees"><i class="bi bi-table"></i> Donnees</a>
+  </nav>
 
-  <!-- FILTER -->
-  <div class="lc lc-filter">
-    <div class="lc-hd">
-      <h6><i class="bi bi-funnel"></i> Filtres</h6>
-      <div style="display:flex;align-items:center;gap:.55rem;">
-        <span class="search-ind" id="searchInd"></span>
-        <span class="live-b"><span class="dot"></span> Temps réel</span>
+  <section class="sec-block" id="sec-pilotage" data-sec="pilotage">
+    <div class="sec-head">
+      <h5><i class="bi bi-speedometer2"></i> Pilotage quotidien</h5>
+      <div style="display:flex;align-items:center;gap:.45rem;">
+        <span class="sub">{{ date_range_label }}</span>
+        <button type="button" class="sec-toggle" data-sec-toggle aria-controls="sec-content-pilotage" aria-expanded="true">
+          <i class="bi bi-chevron-up"></i><span>Replier</span>
+        </button>
       </div>
     </div>
-    <div class="lc-body">
-        <div class="fbar" id="fbar">
-        <div class="fg">
-          <label>Vue</label>
-          <select class="fs" id="frange">
-            <option value="today" {{ 'selected' if range_filter=='today' }}>Aujourd'hui</option>
-            <option value="month" {{ 'selected' if range_filter=='month' }}>Ce mois</option>
-            <option value="year" {{ 'selected' if range_filter=='year' }}>Cette annee</option>
-            <option value="custom" {{ 'selected' if range_filter=='custom' }}>Dates</option>
-          </select>
-        </div>
-        <div class="fg">
-          <label>Du</label>
-          <input class="fc" type="date" id="ffrom" value="{{ date_from }}">
-        </div>
-        <div class="fg">
-          <label>Au</label>
-          <input class="fc" type="date" id="fto" value="{{ date_to }}">
-        </div>
-        <div class="fg">
-          <label>Recherche</label>
-          <input class="fc" type="text" id="fq" value="{{ q }}" placeholder="Titre, ville..." autocomplete="off">
-        </div>
-        <div class="fg">
-          <label>Statut</label>
-          <select class="fs" id="fstatus">
-            <option value="">Tous</option>
-            {% for st in ['active','reserved','taken','expired'] %}
-              <option value="{{ st }}" {{ 'selected' if status==st }}>{{ st }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="fg">
-          <label>Propriétaire</label>
-          <select class="fs" id="fowner">
-            <option value="">Tous</option>
-            {% for owner in owners %}
-              <option value="{{ owner.id }}" {{ 'selected' if owner_id==owner.id }}>{{ owner.username }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="fg-btns">
-          <button class="btn-r" id="btnReset" type="button"><i class="bi bi-x"></i> Reset</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- COMMISSION -->
-  <div class="lc lc-commission">
-      <div class="lc-hd"><h6><i class="bi bi-percent"></i> Commission location</h6></div>
-      <div class="lc-body">
-        <div class="com-body">
-          <div>
-          <p class="cn" style="margin:0">La commission location se regle depuis la page des tarifs.</p>
-          <p class="cn" style="margin:.28rem 0 0">Taux global actuel : <strong>{{ bps_to_percent(settings.rental_success_commission_bps) }}%</strong></p>
-        </div>
-        <div class="com-links">
-          <a class="btn-r" href="{{ url_for('admin.pricing_settings') }}"><i class="bi bi-sliders"></i> Tarifs</a>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- DISAPPEARANCE SETTINGS -->
-  <div class="lc lc-duration">
-    <div class="lc-hd"><h6><i class="bi bi-hourglass-split"></i> Durée de disparition</h6></div>
-    <div class="lc-body">
-      <form method="post" action="{{ url_for('rentals.admin_locations_duration_settings') }}">
-        {% include "admin/partials/_csrf.html" %}
-        <div class="fbar">
-          <div class="fg">
-            <label>Location journalière (jours)</label>
-            <input class="fc" type="number" min="1" max="3650" step="1" name="rental_daily_duration_days" value="{{ settings.rental_daily_duration_days or 14 }}">
-          </div>
-          <div class="fg">
-            <label>Location mensuelle (jours)</label>
-            <input class="fc" type="number" min="1" max="3650" step="1" name="rental_monthly_duration_days" value="{{ settings.rental_monthly_duration_days or 14 }}">
-          </div>
-          <div class="fg-btns">
-            <button class="btn-f" type="submit"><i class="bi bi-check2-circle"></i> Enregistrer</button>
+    <div class="sec-content" id="sec-content-pilotage">
+      <div class="sec-grid">
+      <div class="lc lc-filter">
+        <div class="lc-hd">
+          <h6><i class="bi bi-funnel"></i> Filtres</h6>
+          <div style="display:flex;align-items:center;gap:.55rem;">
+            <span class="search-ind" id="searchInd"></span>
+            <span class="live-b"><span class="dot"></span> Temps reel</span>
           </div>
         </div>
-      </form>
-      <p class="cn" style="margin:.55rem 0 0">Appliqué aux nouvelles annonces et au changement de type (journalier/mensuel).</p>
+        <div class="lc-body">
+            <div class="fbar" id="fbar">
+            <div class="fg">
+              <label>Vue</label>
+              <select class="fs" id="frange">
+                <option value="today" {{ 'selected' if range_filter=='today' }}>Aujourd'hui</option>
+                <option value="month" {{ 'selected' if range_filter=='month' }}>Ce mois</option>
+                <option value="year" {{ 'selected' if range_filter=='year' }}>Cette annee</option>
+                <option value="custom" {{ 'selected' if range_filter=='custom' }}>Dates</option>
+              </select>
+            </div>
+            <div class="fg">
+              <label>Du</label>
+              <input class="fc" type="date" id="ffrom" value="{{ date_from }}">
+            </div>
+            <div class="fg">
+              <label>Au</label>
+              <input class="fc" type="date" id="fto" value="{{ date_to }}">
+            </div>
+            <div class="fg">
+              <label>Recherche</label>
+              <input class="fc" type="text" id="fq" value="{{ q }}" placeholder="Titre, ville..." autocomplete="off">
+            </div>
+            <div class="fg">
+              <label>Statut</label>
+              <select class="fs" id="fstatus">
+                <option value="">Tous</option>
+                {% for st in ['active','reserved','taken','expired'] %}
+                  <option value="{{ st }}" {{ 'selected' if status==st }}>{{ st }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="fg">
+              <label>Proprietaire</label>
+              <select class="fs" id="fowner">
+                <option value="">Tous</option>
+                {% for owner in owners %}
+                  <option value="{{ owner.id }}" {{ 'selected' if owner_id==owner.id }}>{{ owner.username }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="fg-btns">
+              <button class="btn-r" id="btnReset" type="button"><i class="bi bi-x"></i> Reset</button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
-  </div>
-
-  <!-- SETTINGS HISTORY -->
-  <div class="lc lc-history">
-    <div class="lc-hd">
-      <h6><i class="bi bi-clock-history"></i> Historique des changements</h6>
-      <span class="sub">{{ duration_settings_history|length }} derniers changements</span>
     </div>
-    <div class="lt-mobile-scroll">
-      <table class="lt">
-        <thead>
-          <tr>
-            <th>Date</th>
-            <th>Opérateur</th>
-            <th>Journalier</th>
-            <th>Mensuel</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% if duration_settings_history %}
-            {% for event in duration_settings_history %}
-              {% set changes = event.changes or {} %}
-              <tr>
-                <td style="white-space:nowrap;color:var(--muted)">{{ format_dt(event.created_at) }}</td>
-                <td>{{ event.user.username if event.user else "system" }}</td>
-                <td>
-                  {% if changes.get('rental_daily_duration_days_before') is not none and changes.get('rental_daily_duration_days_after') is not none %}
-                    {{ changes.get('rental_daily_duration_days_before') }} -> {{ changes.get('rental_daily_duration_days_after') }}
-                  {% else %}
-                    {{ changes.get('rental_daily_duration_days_after', changes.get('rental_daily_duration_days', '-')) }}
-                  {% endif %}
-                </td>
-                <td>
-                  {% if changes.get('rental_monthly_duration_days_before') is not none and changes.get('rental_monthly_duration_days_after') is not none %}
-                    {{ changes.get('rental_monthly_duration_days_before') }} -> {{ changes.get('rental_monthly_duration_days_after') }}
-                  {% else %}
-                    {{ changes.get('rental_monthly_duration_days_after', changes.get('rental_monthly_duration_days', '-')) }}
-                  {% endif %}
-                </td>
-              </tr>
-            {% endfor %}
-          {% else %}
-            <tr class="empty"><td colspan="4"><i class="bi bi-clock-history"></i> Aucun changement enregistré.</td></tr>
-          {% endif %}
-        </tbody>
-      </table>
+  </section>
+
+  <section class="sec-block" id="sec-reglages" data-sec="reglages">
+    <div class="sec-head">
+      <h5><i class="bi bi-sliders2"></i> Reglages locations</h5>
+      <div style="display:flex;align-items:center;gap:.45rem;">
+        <span class="sub">Commission, durees et historique</span>
+        <button type="button" class="sec-toggle" data-sec-toggle aria-controls="sec-content-reglages" aria-expanded="true">
+          <i class="bi bi-chevron-up"></i><span>Replier</span>
+        </button>
+      </div>
     </div>
-  </div>
+    <div class="sec-content" id="sec-content-reglages">
+    <div class="sec-grid sec-grid-2">
+      <div class="lc lc-commission">
+          <div class="lc-hd"><h6><i class="bi bi-percent"></i> Commission location</h6></div>
+          <div class="lc-body">
+            <div class="com-body">
+              <div>
+              <p class="cn" style="margin:0">La commission location se regle depuis la page des tarifs.</p>
+              <p class="cn" style="margin:.28rem 0 0">Taux global actuel : <strong>{{ bps_to_percent(settings.rental_success_commission_bps) }}%</strong></p>
+            </div>
+            <div class="com-links">
+              <a class="btn-r" href="{{ url_for('admin.pricing_settings') }}"><i class="bi bi-sliders"></i> Tarifs</a>
+            </div>
+          </div>
+        </div>
+      </div>
 
-  {% include "admin/partials/_locations_listings_panel.html" %}
+      <div class="lc lc-duration">
+        <div class="lc-hd"><h6><i class="bi bi-hourglass-split"></i> Duree de disparition</h6></div>
+        <div class="lc-body">
+          <form method="post" action="{{ url_for('rentals.admin_locations_duration_settings') }}">
+            {% include "admin/partials/_csrf.html" %}
+            <div class="fbar">
+              <div class="fg">
+                <label>Location journaliere (jours)</label>
+                <input class="fc" type="number" min="1" max="3650" step="1" name="rental_daily_duration_days" value="{{ settings.rental_daily_duration_days or 14 }}">
+              </div>
+              <div class="fg">
+                <label>Location mensuelle (jours)</label>
+                <input class="fc" type="number" min="1" max="3650" step="1" name="rental_monthly_duration_days" value="{{ settings.rental_monthly_duration_days or 14 }}">
+              </div>
+              <div class="fg-btns">
+                <button class="btn-f" type="submit"><i class="bi bi-check2-circle"></i> Enregistrer</button>
+              </div>
+            </div>
+          </form>
+          <p class="cn" style="margin:.55rem 0 0">Applique aux nouvelles annonces et au changement de type (journalier/mensuel).</p>
+        </div>
+      </div>
+    </div>
+    <div class="lc lc-history">
+      <div class="lc-hd">
+        <h6><i class="bi bi-clock-history"></i> Historique des changements</h6>
+        <span class="sub">{{ duration_settings_history|length }} derniers changements</span>
+      </div>
+      <div class="lt-mobile-scroll">
+        <table class="lt">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Operateur</th>
+              <th>Journalier</th>
+              <th>Mensuel</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% if duration_settings_history %}
+              {% for event in duration_settings_history %}
+                {% set changes = event.changes or {} %}
+                <tr>
+                  <td style="white-space:nowrap;color:var(--muted)">{{ format_dt(event.created_at) }}</td>
+                  <td>{{ event.user.username if event.user else "system" }}</td>
+                  <td>
+                    {% if changes.get('rental_daily_duration_days_before') is not none and changes.get('rental_daily_duration_days_after') is not none %}
+                      {{ changes.get('rental_daily_duration_days_before') }} -> {{ changes.get('rental_daily_duration_days_after') }}
+                    {% else %}
+                      {{ changes.get('rental_daily_duration_days_after', changes.get('rental_daily_duration_days', '-')) }}
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if changes.get('rental_monthly_duration_days_before') is not none and changes.get('rental_monthly_duration_days_after') is not none %}
+                      {{ changes.get('rental_monthly_duration_days_before') }} -> {{ changes.get('rental_monthly_duration_days_after') }}
+                    {% else %}
+                      {{ changes.get('rental_monthly_duration_days_after', changes.get('rental_monthly_duration_days', '-')) }}
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            {% else %}
+              <tr class="empty"><td colspan="4"><i class="bi bi-clock-history"></i> Aucun changement enregistre.</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    </div>
+  </section>
 
-  {% include "admin/partials/_locations_archives_panel.html" %}
+  <section class="sec-block" id="sec-donnees" data-sec="donnees">
+    <div class="sec-head">
+      <h5><i class="bi bi-database"></i> Donnees locations</h5>
+      <div style="display:flex;align-items:center;gap:.45rem;">
+        <span class="sub">Annonces actives et archives</span>
+        <button type="button" class="sec-toggle" data-sec-toggle aria-controls="sec-content-donnees" aria-expanded="true">
+          <i class="bi bi-chevron-up"></i><span>Replier</span>
+        </button>
+      </div>
+    </div>
+    <div class="sec-content" id="sec-content-donnees">
+      {% include "admin/partials/_locations_listings_panel.html" %}
+      {% include "admin/partials/_locations_archives_panel.html" %}
+    </div>
+  </section>
 
 </div><!-- /lw -->
 

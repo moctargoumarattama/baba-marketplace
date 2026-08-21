@@ -3,15 +3,17 @@ from __future__ import annotations
 import json
 import os
 import gzip
+import hashlib
 import shutil
 import sqlite3
 import subprocess
+import tarfile
 import time
 import random
 import tempfile
 from collections import deque
 from datetime import datetime, timedelta
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from threading import Lock
 from typing import Any
 
@@ -53,6 +55,16 @@ RATE_LIMIT_STATE_RETENTION_DAYS_DEFAULT = 7
 ERROR_LOG_SPAM_WINDOW_SECONDS = 60
 ERROR_LOG_SPAM_MAX_PER_SIGNATURE = 20
 ERROR_LOG_SPAM_MAX_SIGNATURES = 2000
+
+DB_BACKUP_PREFIX = "dealnova_db_"
+UPLOADS_BACKUP_PREFIX = "dealnova_uploads_"
+FULL_BACKUP_PREFIX = "dealnova_full_"
+PRE_RESET_BACKUP_PREFIX = "dealnova_pre_reset_"
+BACKUP_PATH_CHUNK_SIZE = 1024 * 1024
+BACKUP_DISK_MARGIN_BYTES = 64 * 1024 * 1024
+BACKUP_DISK_MIN_REQUIRED_BYTES = 96 * 1024 * 1024
+UPLOADS_RESTORE_CONFIRM_TEXT = "RESTAURER UPLOADS"
+FULL_RESTORE_CONFIRM_TEXT = "RESTAURER COMPLET"
 
 _HTTP_STATUS_LABELS_FR = {
     400: "400 Requete invalide",
@@ -243,6 +255,26 @@ def _backup_retention_days(value: int | None = None) -> int:
         return 30
 
 
+def _uploads_backup_retention_days(value: int | None = None) -> int:
+    if value is not None:
+        return max(1, int(value))
+    configured = current_app.config.get("UPLOADS_BACKUP_RETENTION_DAYS", 14)
+    try:
+        return max(1, int(configured))
+    except (TypeError, ValueError):
+        return 14
+
+
+def _full_backup_retention_days(value: int | None = None) -> int:
+    if value is not None:
+        return max(1, int(value))
+    configured = current_app.config.get("FULL_BACKUP_RETENTION_DAYS", 14)
+    try:
+        return max(1, int(configured))
+    except (TypeError, ValueError):
+        return 14
+
+
 def _find_required_executable(name: str) -> str:
     executable = shutil.which(name)
     if not executable:
@@ -297,6 +329,273 @@ def _write_backup_manifest(manifest_path: Path, manifest: dict[str, Any]) -> Non
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def _backup_timestamp(now: datetime | None = None) -> tuple[str, str]:
+    created_at = now or datetime.utcnow()
+    return created_at.strftime("%Y%m%d_%H%M%S"), created_at.isoformat() + "Z"
+
+
+def _manifest_path_for_backup_file(path: Path) -> Path:
+    return path.with_suffix(path.suffix + ".json")
+
+
+def _read_backup_manifest(manifest_path: Path) -> dict[str, Any]:
+    try:
+        return json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        while True:
+            chunk = handle.read(BACKUP_PATH_CHUNK_SIZE)
+            if not chunk:
+                break
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _stamp_manifest_integrity(manifest: dict[str, Any], backup_path: Path, *, verified_at_utc: str | None = None) -> None:
+    stat = backup_path.stat()
+    manifest["size_bytes"] = int(stat.st_size)
+    manifest["checksum_sha256"] = _file_sha256(backup_path)
+    manifest["integrity_status"] = "valid"
+    manifest["verified_at_utc"] = verified_at_utc or datetime.utcnow().isoformat() + "Z"
+    manifest["verified_size_bytes"] = int(stat.st_size)
+    manifest["verified_mtime_ns"] = int(getattr(stat, "st_mtime_ns", int(stat.st_mtime * 1_000_000_000)))
+
+
+def _quick_integrity_report(path: Path, manifest: dict[str, Any], *, manifest_present: bool) -> dict[str, Any]:
+    if not manifest_present:
+        return {
+            "state": "missing_manifest",
+            "label": "⚠ Manifeste absent",
+            "class_name": "status-warn",
+            "details": "Aucun manifeste associe n'a ete trouve.",
+        }
+
+    expected_checksum = str(manifest.get("checksum_sha256") or "").strip().lower()
+    if not expected_checksum:
+        return {
+            "state": "missing_checksum",
+            "label": "⚠ Checksum absent",
+            "class_name": "status-warn",
+            "details": "Manifeste legacy detecte, verification SHA-256 non disponible sans action explicite.",
+        }
+
+    try:
+        stat = path.stat()
+    except OSError:
+        return {
+            "state": "missing_file",
+            "label": "✗ Fichier manquant",
+            "class_name": "status-danger",
+            "details": "Le fichier de sauvegarde n'existe plus dans le dossier autorise.",
+        }
+
+    expected_size = manifest.get("verified_size_bytes", manifest.get("size_bytes"))
+    try:
+        if expected_size is not None and int(expected_size) != int(stat.st_size):
+            return {
+                "state": "invalid",
+                "label": "✗ Checksum invalide",
+                "class_name": "status-danger",
+                "details": "La taille du fichier ne correspond plus au manifeste.",
+            }
+    except (TypeError, ValueError):
+        pass
+
+    expected_mtime = manifest.get("verified_mtime_ns")
+    if expected_mtime is not None:
+        try:
+            current_mtime = int(getattr(stat, "st_mtime_ns", int(stat.st_mtime * 1_000_000_000)))
+            if int(expected_mtime) != current_mtime:
+                return {
+                    "state": "invalid",
+                    "label": "✗ Checksum invalide",
+                    "class_name": "status-danger",
+                    "details": "Le fichier a ete modifie apres la derniere verification connue.",
+                }
+        except (TypeError, ValueError):
+            pass
+
+    if str(manifest.get("integrity_status") or "").strip().lower() == "invalid":
+        return {
+            "state": "invalid",
+            "label": "✗ Checksum invalide",
+            "class_name": "status-danger",
+            "details": "Une verification precedente a detecte un ecart d'integrite.",
+        }
+
+    return {
+        "state": "valid",
+        "label": "✓ Integre",
+        "class_name": "status-ok",
+        "details": "Checksum SHA-256 present et metadonnees de verification coherentes.",
+    }
+
+
+def _verify_file_integrity(path: Path, *, manifest_path: Path | None = None) -> dict[str, Any]:
+    resolved_manifest = manifest_path or _manifest_path_for_backup_file(path)
+    manifest_present = resolved_manifest.exists()
+    manifest = _read_backup_manifest(resolved_manifest) if manifest_present else {}
+    return _verify_checksum_against_manifest_data(
+        path,
+        manifest,
+        manifest_path=resolved_manifest if manifest_present else None,
+        manifest_present=manifest_present,
+    )
+
+
+def _verify_checksum_against_manifest_data(
+    path: Path,
+    manifest: dict[str, Any],
+    *,
+    manifest_path: Path | None = None,
+    manifest_present: bool = True,
+) -> dict[str, Any]:
+    expected_checksum = str(manifest.get("checksum_sha256") or "").strip().lower()
+    if not manifest_present:
+        return {
+            "ok": False,
+            "state": "missing_manifest",
+            "label": "⚠ Manifeste absent",
+            "path": str(path),
+            "manifest_file": str(manifest_path) if manifest_path else "",
+        }
+
+    if not expected_checksum:
+        return {
+            "ok": False,
+            "state": "missing_checksum",
+            "label": "⚠ Checksum absent",
+            "path": str(path),
+            "manifest_file": str(manifest_path) if manifest_path else "",
+        }
+
+    try:
+        actual_checksum = _file_sha256(path)
+        stat = path.stat()
+    except OSError:
+        return {
+            "ok": False,
+            "state": "missing_file",
+            "label": "✗ Fichier manquant",
+            "path": str(path),
+            "manifest_file": str(manifest_path) if manifest_path else "",
+        }
+
+    ok = actual_checksum == expected_checksum
+    manifest["integrity_status"] = "valid" if ok else "invalid"
+    manifest["last_verified_at_utc"] = datetime.utcnow().isoformat() + "Z"
+    manifest["last_verified_checksum_sha256"] = actual_checksum
+    manifest["verified_at_utc"] = manifest["last_verified_at_utc"]
+    manifest["verified_size_bytes"] = int(stat.st_size)
+    manifest["verified_mtime_ns"] = int(getattr(stat, "st_mtime_ns", int(stat.st_mtime * 1_000_000_000)))
+    if manifest_path is not None:
+        _write_backup_manifest(manifest_path, manifest)
+    return {
+        "ok": ok,
+        "state": "valid" if ok else "invalid",
+        "label": "✓ Integre" if ok else "✗ Checksum invalide",
+        "path": str(path),
+        "manifest_file": str(manifest_path) if manifest_path else "",
+        "expected_checksum_sha256": expected_checksum,
+        "actual_checksum_sha256": actual_checksum,
+    }
+
+
+def _is_allowed_backup_filename(name: str) -> bool:
+    if not name or name != Path(name).name:
+        return False
+
+    allowed_prefixes = (
+        DB_BACKUP_PREFIX,
+        UPLOADS_BACKUP_PREFIX,
+        FULL_BACKUP_PREFIX,
+        PRE_RESET_BACKUP_PREFIX,
+    )
+    allowed_suffixes = (
+        ".sql.gz",
+        ".sql.gz.json",
+        ".sqlite3",
+        ".sqlite3.json",
+        ".tar.gz",
+        ".tar.gz.json",
+        ".json",
+    )
+    return name.startswith(allowed_prefixes) and name.endswith(allowed_suffixes)
+
+
+def resolve_managed_backup_path(filename: str, *, backup_dir: str | None = None) -> Path:
+    raw_name = (filename or "").strip()
+    if not _is_allowed_backup_filename(raw_name):
+        raise RuntimeError("Nom de fichier de sauvegarde invalide.")
+
+    destination_dir = _resolve_backup_dir(backup_dir)
+    path = (destination_dir / raw_name).resolve()
+    try:
+        path.relative_to(destination_dir.resolve())
+    except ValueError as exc:
+        raise RuntimeError("Acces refuse au fichier demande.") from exc
+
+    if not path.exists() or not path.is_file():
+        raise RuntimeError(f"Fichier de sauvegarde introuvable: {path}")
+    return path
+
+
+def _prune_backup_prefix(
+    *,
+    destination_dir: Path,
+    prefix: str,
+    retention_days: int,
+    allowed_name_endings: tuple[str, ...],
+) -> list[str]:
+    cutoff = datetime.utcnow() - timedelta(days=retention_days)
+    removed: list[str] = []
+
+    for path in destination_dir.iterdir():
+        try:
+            if not path.is_file():
+                continue
+            if not path.name.startswith(prefix):
+                continue
+            if not path.name.endswith(allowed_name_endings):
+                continue
+            if datetime.utcfromtimestamp(path.stat().st_mtime) >= cutoff:
+                continue
+            path.unlink()
+            removed.append(str(path))
+        except OSError:
+            continue
+    return removed
+
+
+def _ensure_free_space_for_backup(*, destination_dir: Path, estimated_bytes: int, label: str) -> dict[str, int]:
+    usage = shutil.disk_usage(destination_dir)
+    estimated = max(0, int(estimated_bytes or 0))
+    required = max(
+        BACKUP_DISK_MIN_REQUIRED_BYTES,
+        estimated + max(BACKUP_DISK_MARGIN_BYTES, estimated // 10),
+    )
+    if usage.free < required:
+        raise RuntimeError(
+            f"Espace disque insuffisant pour la sauvegarde {label}: "
+            f"{human_size(usage.free)} libres, environ {human_size(required)} necessaires."
+        )
+    return {
+        "free_bytes": int(usage.free),
+        "required_bytes": int(required),
+        "estimated_bytes": estimated,
+    }
+
+
+def _resolve_full_backup_component_path(raw_path: str | None, *, backup_dir: Path) -> Path:
+    candidate_name = Path(str(raw_path or "").strip()).name
+    return resolve_managed_backup_path(candidate_name, backup_dir=str(backup_dir))
+
+
 def prune_database_backups(
     *,
     backup_dir: str | None = None,
@@ -304,20 +603,12 @@ def prune_database_backups(
 ) -> list[str]:
     destination_dir = _resolve_backup_dir(backup_dir)
     safe_retention = _backup_retention_days(retention_days)
-    cutoff = datetime.utcnow() - timedelta(days=safe_retention)
-    removed: list[str] = []
-
-    for path in destination_dir.glob("dealnova_db_*"):
-        try:
-            if datetime.utcfromtimestamp(path.stat().st_mtime) >= cutoff:
-                continue
-            if path.suffix not in {".gz", ".json", ".sqlite3"}:
-                continue
-            path.unlink()
-            removed.append(str(path))
-        except OSError:
-            continue
-    return removed
+    return _prune_backup_prefix(
+        destination_dir=destination_dir,
+        prefix=DB_BACKUP_PREFIX,
+        retention_days=safe_retention,
+        allowed_name_endings=(".sql.gz", ".sql.gz.json", ".sqlite3", ".sqlite3.json"),
+    )
 
 
 def _create_sqlite_database_backup(destination_dir: Path, timestamp: str) -> Path:
@@ -380,17 +671,19 @@ def create_database_backup(
     *,
     backup_dir: str | None = None,
     retention_days: int | None = None,
+    timestamp: str | None = None,
+    created_at_utc: str | None = None,
 ) -> dict[str, Any]:
     destination_dir = _resolve_backup_dir(backup_dir)
     safe_retention = _backup_retention_days(retention_days)
-    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    backup_timestamp = timestamp or _backup_timestamp()[0]
     backend = _db_backend_name()
     database_name = ""
 
     if backend == "mysql":
-        backup_file, database_name = _create_mysql_database_backup(destination_dir, timestamp)
+        backup_file, database_name = _create_mysql_database_backup(destination_dir, backup_timestamp)
     elif backend == "sqlite":
-        backup_file = _create_sqlite_database_backup(destination_dir, timestamp)
+        backup_file = _create_sqlite_database_backup(destination_dir, backup_timestamp)
         database_name = str(_sqlite_db_file_path() or "")
     else:
         raise RuntimeError(f"Sauvegarde non supportee pour ce moteur de base: {backend or 'inconnu'}")
@@ -399,47 +692,74 @@ def create_database_backup(
         backup_dir=str(destination_dir),
         retention_days=safe_retention,
     )
-    manifest_file = backup_file.with_suffix(backup_file.suffix + ".json")
+    manifest_file = _manifest_path_for_backup_file(backup_file)
+    manifest_created_at_utc = created_at_utc or datetime.utcnow().isoformat() + "Z"
     manifest = {
-        "created_at_utc": datetime.utcnow().isoformat() + "Z",
+        "created_at_utc": manifest_created_at_utc,
+        "type": "database",
         "db_engine": backend,
         "database": database_name,
         "backup_file": str(backup_file),
         "backup_dir": str(destination_dir),
-        "size_bytes": backup_file.stat().st_size,
         "retention_days": safe_retention,
         "removed_old_backups": removed,
     }
+    _stamp_manifest_integrity(manifest, backup_file, verified_at_utc=manifest_created_at_utc)
     _write_backup_manifest(manifest_file, manifest)
     manifest["manifest_file"] = str(manifest_file)
+    current_app.logger.info(
+        "maintenance.database_backup.created",
+        extra={
+            "backup_file": str(backup_file),
+            "backup_dir": str(destination_dir),
+            "db_engine": backend,
+        },
+    )
     return manifest
 
 
 def list_database_backups(*, backup_dir: str | None = None) -> list[dict[str, Any]]:
     destination_dir = _resolve_backup_dir(backup_dir)
     backups: list[dict[str, Any]] = []
-    for path in sorted(destination_dir.glob("dealnova_db_*"), key=lambda item: item.stat().st_mtime, reverse=True):
+    for path in sorted(destination_dir.glob(f"{DB_BACKUP_PREFIX}*"), key=lambda item: item.stat().st_mtime, reverse=True):
         if path.name.endswith(".json"):
             continue
         try:
             stat = path.stat()
         except OSError:
             continue
-        manifest_path = path.with_suffix(path.suffix + ".json")
-        manifest: dict[str, Any] = {}
-        if manifest_path.exists():
-            try:
-                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError):
-                manifest = {}
+        manifest_path = _manifest_path_for_backup_file(path)
+        manifest_present = manifest_path.exists()
+        manifest: dict[str, Any] = _read_backup_manifest(manifest_path) if manifest_present else {}
+        integrity = _quick_integrity_report(path, manifest, manifest_present=manifest_present)
         backups.append(
             {
+                "kind": "database",
+                "type": "database",
+                "type_label": "Base de donnees",
                 "file": str(path),
                 "name": path.name,
                 "size_bytes": stat.st_size,
                 "modified_at_utc": datetime.utcfromtimestamp(stat.st_mtime).isoformat() + "Z",
                 "db_engine": manifest.get("db_engine", "inconnu"),
                 "database": manifest.get("database", ""),
+                "manifest_file": str(manifest_path) if manifest_present else "",
+                "manifest_name": manifest_path.name if manifest_present else "",
+                "manifest_present": manifest_present,
+                "checksum_sha256": manifest.get("checksum_sha256", ""),
+                "checksum_short": str(manifest.get("checksum_sha256", ""))[:12],
+                "integrity_state": integrity["state"],
+                "integrity_label": integrity["label"],
+                "integrity_class": integrity["class_name"],
+                "integrity_details": integrity["details"],
+                "status_label": "Disponible",
+                "downloads": [
+                    {"label": "Archive DB", "name": path.name},
+                    *([{"label": "Manifeste", "name": manifest_path.name}] if manifest_present else []),
+                ],
+                "restore_supported": path.name.endswith(".sql.gz"),
+                "restore_confirm_text": "RESTAURER",
+                "restore_button_label": "Restaurer la base",
             }
         )
     return backups
@@ -461,22 +781,32 @@ def import_database_backup(
         raise RuntimeError("Import refuse: nom de fichier invalide.")
 
     destination_dir = _resolve_backup_dir(backup_dir)
-    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    timestamp, created_at_utc = _backup_timestamp()
     destination = destination_dir / f"dealnova_db_mysql_imported_{timestamp}_{secure_name}"
     source_stream.save(str(destination))
 
-    manifest_file = destination.with_suffix(destination.suffix + ".json")
+    manifest_file = _manifest_path_for_backup_file(destination)
     manifest = {
-        "imported_at_utc": datetime.utcnow().isoformat() + "Z",
+        "imported_at_utc": created_at_utc,
+        "created_at_utc": created_at_utc,
+        "type": "database",
         "db_engine": "mysql",
         "database": "",
         "backup_file": str(destination),
         "backup_dir": str(destination_dir),
         "original_filename": raw_name,
-        "size_bytes": destination.stat().st_size,
     }
+    _stamp_manifest_integrity(manifest, destination, verified_at_utc=created_at_utc)
     _write_backup_manifest(manifest_file, manifest)
     manifest["manifest_file"] = str(manifest_file)
+    current_app.logger.info(
+        "maintenance.database_backup.imported",
+        extra={
+            "backup_file": str(destination),
+            "backup_dir": str(destination_dir),
+            "original_filename": raw_name,
+        },
+    )
     return manifest
 
 
@@ -484,6 +814,7 @@ def restore_database_backup(
     backup_file: str,
     *,
     yes: bool = False,
+    verify_manifest: bool = True,
 ) -> dict[str, Any]:
     if not yes:
         raise RuntimeError("Restauration refusee: ajoute --yes pour confirmer.")
@@ -497,6 +828,12 @@ def restore_database_backup(
         raise RuntimeError("Restauration simple supportee uniquement pour MySQL en production.")
     if not path.name.endswith(".sql.gz"):
         raise RuntimeError("La restauration MySQL attend un fichier .sql.gz.")
+
+    verification: dict[str, Any] | None = None
+    if verify_manifest:
+        verification = _verify_file_integrity(path)
+        if verification.get("state") == "invalid":
+            raise RuntimeError("Restauration refusee: checksum de la sauvegarde invalide.")
 
     mysql = _find_required_executable("mysql")
     defaults_path, database = _mysql_client_defaults_file()
@@ -528,19 +865,32 @@ def restore_database_backup(
         "db_engine": backend,
         "database": database,
         "restored_at_utc": datetime.utcnow().isoformat() + "Z",
+        "integrity_check": verification,
     }
 
 
 def _uploads_root() -> Path:
+    configured = str(current_app.config.get("UPLOAD_FOLDER") or "").strip()
+    if configured:
+        path = Path(configured)
+        if not path.is_absolute():
+            path = (_project_root() / path).resolve()
+        return path.resolve()
     return Path(current_app.static_folder).resolve() / "uploads"
 
 
 def _safe_rel_from_static(path: Path) -> str | None:
+    resolved = path.resolve()
     try:
-        rel = path.resolve().relative_to(Path(current_app.static_folder).resolve()).as_posix()
+        rel = resolved.relative_to(Path(current_app.static_folder).resolve()).as_posix()
         return rel
     except Exception:
-        return None
+        try:
+            rel = resolved.relative_to(_uploads_root().resolve()).as_posix()
+            rel = rel.strip("/")
+            return f"uploads/{rel}" if rel else "uploads"
+        except Exception:
+            return None
 
 
 def _normalize_upload_rel(raw: str | None) -> str:
@@ -619,6 +969,748 @@ def _uploads_size_bytes() -> tuple[int, int]:
             except Exception:
                 continue
     return total_size, file_count
+
+
+def prune_uploads_backups(
+    *,
+    backup_dir: str | None = None,
+    retention_days: int | None = None,
+) -> list[str]:
+    destination_dir = _resolve_backup_dir(backup_dir)
+    safe_retention = _uploads_backup_retention_days(retention_days)
+    return _prune_backup_prefix(
+        destination_dir=destination_dir,
+        prefix=UPLOADS_BACKUP_PREFIX,
+        retention_days=safe_retention,
+        allowed_name_endings=(".tar.gz", ".tar.gz.json"),
+    )
+
+
+def prune_full_backups(
+    *,
+    backup_dir: str | None = None,
+    retention_days: int | None = None,
+) -> list[str]:
+    destination_dir = _resolve_backup_dir(backup_dir)
+    safe_retention = _full_backup_retention_days(retention_days)
+    return _prune_backup_prefix(
+        destination_dir=destination_dir,
+        prefix=FULL_BACKUP_PREFIX,
+        retention_days=safe_retention,
+        allowed_name_endings=(".json",),
+    )
+
+
+def _estimated_database_backup_size_bytes() -> int:
+    backend = _db_backend_name()
+    if backend == "sqlite":
+        return int(_sqlite_db_size_bytes() or 0)
+    if backend == "mysql":
+        size = _mysql_db_size_bytes()
+        return int(size) if size is not None else 64 * 1024 * 1024
+    return 0
+
+
+def _safe_archive_member_path(raw_name: str) -> PurePosixPath:
+    normalized = PurePosixPath(str(raw_name or "").replace("\\", "/"))
+    if normalized.is_absolute():
+        raise RuntimeError("Archive uploads invalide: chemins absolus interdits.")
+
+    safe_parts: list[str] = []
+    for part in normalized.parts:
+        if part in ("", "."):
+            continue
+        if part == "..":
+            raise RuntimeError("Archive uploads invalide: tentative de sortie du dossier uploads detectee.")
+        if part.endswith(":"):
+            raise RuntimeError("Archive uploads invalide: lecteur absolu interdit.")
+        safe_parts.append(part)
+
+    if not safe_parts:
+        return PurePosixPath(".")
+
+    if safe_parts[0] == "uploads":
+        safe_parts = safe_parts[1:]
+    return PurePosixPath(*safe_parts) if safe_parts else PurePosixPath(".")
+
+
+def _extract_validated_uploads_archive(archive_path: Path, destination_root: Path) -> dict[str, Any]:
+    file_count = 0
+    total_size = 0
+    destination_root.mkdir(parents=True, exist_ok=True)
+    root_resolved = destination_root.resolve()
+
+    try:
+        with tarfile.open(archive_path, "r:gz") as archive:
+            for member in archive.getmembers():
+                if member.issym() or member.islnk():
+                    raise RuntimeError("Archive uploads invalide: liens symboliques et hard links refuses.")
+                if member.isdev():
+                    raise RuntimeError("Archive uploads invalide: fichiers speciaux refuses.")
+
+                safe_rel = _safe_archive_member_path(member.name)
+                if safe_rel == PurePosixPath("."):
+                    if member.isdir():
+                        continue
+                    raise RuntimeError("Archive uploads invalide: membre vide non supporte.")
+
+                destination_path = (destination_root / Path(*safe_rel.parts)).resolve()
+                try:
+                    destination_path.relative_to(root_resolved)
+                except ValueError as exc:
+                    raise RuntimeError("Archive uploads invalide: tentative de sortie du dossier de restauration.") from exc
+
+                if member.isdir():
+                    destination_path.mkdir(parents=True, exist_ok=True)
+                    continue
+
+                if not member.isfile():
+                    raise RuntimeError("Archive uploads invalide: type de fichier non supporte.")
+
+                destination_path.parent.mkdir(parents=True, exist_ok=True)
+                extracted = archive.extractfile(member)
+                if extracted is None:
+                    raise RuntimeError("Archive uploads invalide: lecture d'un membre impossible.")
+                with extracted, destination_path.open("wb") as output:
+                    shutil.copyfileobj(extracted, output, BACKUP_PATH_CHUNK_SIZE)
+
+                file_count += 1
+                total_size += int(destination_path.stat().st_size)
+    except tarfile.TarError as exc:
+        raise RuntimeError("Archive uploads invalide ou corrompue.") from exc
+
+    return {
+        "file_count": file_count,
+        "size_bytes": total_size,
+    }
+
+
+def _rename_path(source: Path, target: Path) -> None:
+    source.replace(target)
+
+
+def _remove_tree(path: Path) -> None:
+    if not path.exists():
+        return
+    shutil.rmtree(path)
+
+
+def _replace_directory_atomically(*, live_dir: Path, prepared_dir: Path, rollback_dir: Path) -> None:
+    moved_live = False
+    try:
+        if rollback_dir.exists():
+            _remove_tree(rollback_dir)
+
+        if live_dir.exists():
+            _rename_path(live_dir, rollback_dir)
+            moved_live = True
+
+        _rename_path(prepared_dir, live_dir)
+    except Exception:
+        if live_dir.exists() and live_dir != prepared_dir:
+            try:
+                _remove_tree(live_dir)
+            except Exception:
+                pass
+        if moved_live and rollback_dir.exists():
+            _rename_path(rollback_dir, live_dir)
+        raise
+
+
+def create_uploads_backup(
+    *,
+    backup_dir: str | None = None,
+    retention_days: int | None = None,
+    timestamp: str | None = None,
+    created_at_utc: str | None = None,
+    reason: str | None = None,
+) -> dict[str, Any]:
+    destination_dir = _resolve_backup_dir(backup_dir)
+    safe_retention = _uploads_backup_retention_days(retention_days)
+    uploads_root = _uploads_root()
+    if uploads_root.exists() and not uploads_root.is_dir():
+        raise RuntimeError(f"Dossier uploads invalide: {uploads_root}")
+    uploads_bytes, uploads_files = _uploads_size_bytes()
+    disk_check = _ensure_free_space_for_backup(
+        destination_dir=destination_dir,
+        estimated_bytes=uploads_bytes,
+        label="uploads",
+    )
+
+    archive_timestamp = timestamp or _backup_timestamp()[0]
+    manifest_created_at_utc = created_at_utc or datetime.utcnow().isoformat() + "Z"
+    archive_file = destination_dir / f"{UPLOADS_BACKUP_PREFIX}{archive_timestamp}.tar.gz"
+    manifest_file = _manifest_path_for_backup_file(archive_file)
+
+    added_files = 0
+    try:
+        with tarfile.open(archive_file, "w:gz", format=tarfile.PAX_FORMAT) as archive:
+            if uploads_root.exists():
+                for root, dirnames, filenames in os.walk(uploads_root, topdown=True, followlinks=False):
+                    root_path = Path(root)
+                    dirnames[:] = [
+                        name
+                        for name in dirnames
+                        if not (root_path / name).is_symlink()
+                    ]
+
+                    rel_root = root_path.relative_to(uploads_root).as_posix()
+                    if rel_root and rel_root != ".":
+                        dir_info = archive.gettarinfo(str(root_path), arcname=rel_root)
+                        if dir_info.isdir():
+                            archive.addfile(dir_info)
+
+                    for filename in filenames:
+                        source_path = root_path / filename
+                        if source_path.is_symlink():
+                            current_app.logger.warning(
+                                "maintenance.uploads_backup.skip_symlink",
+                                extra={"path": str(source_path)},
+                            )
+                            continue
+
+                        rel_path = source_path.relative_to(uploads_root).as_posix()
+                        file_info = archive.gettarinfo(str(source_path), arcname=rel_path)
+                        if not file_info.isfile():
+                            continue
+                        with source_path.open("rb") as handle:
+                            archive.addfile(file_info, handle)
+                        added_files += 1
+    except Exception:
+        archive_file.unlink(missing_ok=True)
+        manifest_file.unlink(missing_ok=True)
+        raise
+
+    removed = prune_uploads_backups(
+        backup_dir=str(destination_dir),
+        retention_days=safe_retention,
+    )
+    manifest = {
+        "created_at_utc": manifest_created_at_utc,
+        "type": "uploads",
+        "archive_file": str(archive_file),
+        "backup_file": str(archive_file),
+        "backup_dir": str(destination_dir),
+        "file_count": int(added_files if uploads_root.exists() else uploads_files),
+        "uploads_source": str(uploads_root),
+        "retention_days": safe_retention,
+        "removed_old_backups": removed,
+        "disk_free_bytes_before_backup": disk_check["free_bytes"],
+        "disk_required_bytes": disk_check["required_bytes"],
+        "reason": reason or "",
+    }
+    _stamp_manifest_integrity(manifest, archive_file, verified_at_utc=manifest_created_at_utc)
+    _write_backup_manifest(manifest_file, manifest)
+    manifest["manifest_file"] = str(manifest_file)
+    current_app.logger.info(
+        "maintenance.uploads_backup.created",
+        extra={
+            "archive_file": str(archive_file),
+            "backup_dir": str(destination_dir),
+            "file_count": manifest["file_count"],
+        },
+    )
+    return manifest
+
+
+def list_uploads_backups(*, backup_dir: str | None = None) -> list[dict[str, Any]]:
+    destination_dir = _resolve_backup_dir(backup_dir)
+    backups: list[dict[str, Any]] = []
+    for path in sorted(destination_dir.glob(f"{UPLOADS_BACKUP_PREFIX}*.tar.gz"), key=lambda item: item.stat().st_mtime, reverse=True):
+        try:
+            stat = path.stat()
+        except OSError:
+            continue
+
+        manifest_path = _manifest_path_for_backup_file(path)
+        manifest_present = manifest_path.exists()
+        manifest = _read_backup_manifest(manifest_path) if manifest_present else {}
+        integrity = _quick_integrity_report(path, manifest, manifest_present=manifest_present)
+        backups.append(
+            {
+                "kind": "uploads",
+                "type": "uploads",
+                "type_label": "Uploads",
+                "file": str(path),
+                "name": path.name,
+                "size_bytes": int(stat.st_size),
+                "modified_at_utc": datetime.utcfromtimestamp(stat.st_mtime).isoformat() + "Z",
+                "manifest_file": str(manifest_path) if manifest_present else "",
+                "manifest_name": manifest_path.name if manifest_present else "",
+                "manifest_present": manifest_present,
+                "checksum_sha256": manifest.get("checksum_sha256", ""),
+                "checksum_short": str(manifest.get("checksum_sha256", ""))[:12],
+                "integrity_state": integrity["state"],
+                "integrity_label": integrity["label"],
+                "integrity_class": integrity["class_name"],
+                "integrity_details": integrity["details"],
+                "status_label": "Disponible",
+                "uploads_file_count": int(manifest.get("file_count", 0) or 0),
+                "downloads": [
+                    {"label": "Archive uploads", "name": path.name},
+                    *([{"label": "Manifeste", "name": manifest_path.name}] if manifest_present else []),
+                ],
+                "restore_supported": True,
+                "restore_confirm_text": UPLOADS_RESTORE_CONFIRM_TEXT,
+                "restore_button_label": "Restaurer les uploads",
+            }
+        )
+    return backups
+
+
+def create_full_backup(
+    *,
+    backup_dir: str | None = None,
+    db_retention_days: int | None = None,
+    uploads_retention_days: int | None = None,
+    full_retention_days: int | None = None,
+) -> dict[str, Any]:
+    destination_dir = _resolve_backup_dir(backup_dir)
+    timestamp, created_at_utc = _backup_timestamp()
+    safe_full_retention = _full_backup_retention_days(full_retention_days)
+    safe_db_retention = max(_backup_retention_days(db_retention_days), safe_full_retention)
+    safe_uploads_retention = max(_uploads_backup_retention_days(uploads_retention_days), safe_full_retention)
+    uploads_bytes, _ = _uploads_size_bytes()
+    _ensure_free_space_for_backup(
+        destination_dir=destination_dir,
+        estimated_bytes=uploads_bytes + _estimated_database_backup_size_bytes(),
+        label="complete",
+    )
+
+    db_backup = create_database_backup(
+        backup_dir=str(destination_dir),
+        retention_days=safe_db_retention,
+        timestamp=timestamp,
+        created_at_utc=created_at_utc,
+    )
+    try:
+        uploads_backup = create_uploads_backup(
+            backup_dir=str(destination_dir),
+            retention_days=safe_uploads_retention,
+            timestamp=timestamp,
+            created_at_utc=created_at_utc,
+        )
+    except Exception as exc:
+        current_app.logger.exception(
+            "maintenance.full_backup.partial",
+            extra={
+                "backup_dir": str(destination_dir),
+                "db_backup_file": db_backup.get("backup_file"),
+            },
+        )
+        return {
+            "success": False,
+            "state": "partial",
+            "error": str(exc),
+            "timestamp": timestamp,
+            "created_at_utc": created_at_utc,
+            "backup_dir": str(destination_dir),
+            "db_engine": db_backup.get("db_engine"),
+            "db_backup": db_backup,
+            "uploads_backup": None,
+        }
+
+    manifest_file = destination_dir / f"{FULL_BACKUP_PREFIX}{timestamp}.json"
+    removed = prune_full_backups(
+        backup_dir=str(destination_dir),
+        retention_days=safe_full_retention,
+    )
+    manifest = {
+        "created_at_utc": created_at_utc,
+        "type": "full",
+        "format_version": 1,
+        "backup_dir": str(destination_dir),
+        "retention_days": safe_full_retention,
+        "removed_old_backups": removed,
+        "db_engine": db_backup.get("db_engine"),
+        "database_backup": {
+            "file": db_backup.get("backup_file"),
+            "manifest_file": db_backup.get("manifest_file"),
+            "checksum_sha256": db_backup.get("checksum_sha256"),
+            "size_bytes": db_backup.get("size_bytes"),
+            "verified_mtime_ns": db_backup.get("verified_mtime_ns"),
+            "database": db_backup.get("database"),
+        },
+        "uploads_backup": {
+            "file": uploads_backup.get("backup_file"),
+            "manifest_file": uploads_backup.get("manifest_file"),
+            "checksum_sha256": uploads_backup.get("checksum_sha256"),
+            "size_bytes": uploads_backup.get("size_bytes"),
+            "verified_mtime_ns": uploads_backup.get("verified_mtime_ns"),
+            "file_count": uploads_backup.get("file_count"),
+            "uploads_source": uploads_backup.get("uploads_source"),
+        },
+        "total_size_bytes": int((db_backup.get("size_bytes") or 0) + (uploads_backup.get("size_bytes") or 0)),
+    }
+    _write_backup_manifest(manifest_file, manifest)
+    current_app.logger.info(
+        "maintenance.full_backup.created",
+        extra={
+            "manifest_file": str(manifest_file),
+            "backup_dir": str(destination_dir),
+            "db_backup_file": db_backup.get("backup_file"),
+            "uploads_backup_file": uploads_backup.get("backup_file"),
+        },
+    )
+    return {
+        "success": True,
+        "state": "complete",
+        "timestamp": timestamp,
+        "created_at_utc": created_at_utc,
+        "backup_dir": str(destination_dir),
+        "manifest_file": str(manifest_file),
+        "db_engine": db_backup.get("db_engine"),
+        "db_backup": db_backup,
+        "uploads_backup": uploads_backup,
+        "removed_old_backups": removed,
+        "retention_days": safe_full_retention,
+        "size_bytes": manifest["total_size_bytes"],
+    }
+
+
+def _quick_full_backup_integrity(manifest_path: Path, manifest: dict[str, Any]) -> dict[str, Any]:
+    if str(manifest.get("type") or "").strip().lower() != "full":
+        return {
+            "state": "invalid",
+            "label": "✗ Checksum invalide",
+            "class_name": "status-danger",
+            "details": "Le manifeste complet est invalide ou incomplet.",
+        }
+
+    backup_dir = manifest_path.parent.resolve()
+    for key in ("database_backup", "uploads_backup"):
+        item = manifest.get(key) or {}
+        backup_file = str(item.get("file") or "").strip()
+        if not backup_file:
+            return {
+                "state": "invalid",
+                "label": "✗ Checksum invalide",
+                "class_name": "status-danger",
+                "details": "Le manifeste complet ne reference pas tous les fichiers attendus.",
+            }
+        try:
+            path = _resolve_full_backup_component_path(backup_file, backup_dir=backup_dir)
+        except Exception:
+            return {
+                "state": "invalid",
+                "label": "✗ Checksum invalide",
+                "class_name": "status-danger",
+                "details": "Le manifeste complet reference un fichier hors du dossier de sauvegarde autorise.",
+            }
+        report = _quick_integrity_report(
+            path,
+            {
+                "checksum_sha256": item.get("checksum_sha256"),
+                "size_bytes": item.get("size_bytes"),
+                "verified_size_bytes": item.get("size_bytes"),
+                "verified_mtime_ns": item.get("verified_mtime_ns"),
+                "integrity_status": "valid",
+            },
+            manifest_present=True,
+        )
+        if report["state"] != "valid":
+            return report
+
+    return {
+        "state": "valid",
+        "label": "✓ Integre",
+        "class_name": "status-ok",
+        "details": "Les composants references par le backup complet sont coherents selon leurs checksums stockes.",
+    }
+
+
+def list_full_backups(*, backup_dir: str | None = None) -> list[dict[str, Any]]:
+    destination_dir = _resolve_backup_dir(backup_dir)
+    backups: list[dict[str, Any]] = []
+    for path in sorted(destination_dir.glob(f"{FULL_BACKUP_PREFIX}*.json"), key=lambda item: item.stat().st_mtime, reverse=True):
+        try:
+            stat = path.stat()
+        except OSError:
+            continue
+
+        manifest = _read_backup_manifest(path)
+        if not manifest:
+            continue
+        integrity = _quick_full_backup_integrity(path, manifest)
+        db_backup = manifest.get("database_backup") or {}
+        uploads_backup = manifest.get("uploads_backup") or {}
+        downloads = [{"label": "Manifeste full", "name": path.name}]
+        db_name = Path(str(db_backup.get("file") or "")).name
+        uploads_name = Path(str(uploads_backup.get("file") or "")).name
+        if db_name:
+            downloads.append({"label": "Archive DB", "name": db_name})
+        if uploads_name:
+            downloads.append({"label": "Archive uploads", "name": uploads_name})
+
+        backups.append(
+            {
+                "kind": "full",
+                "type": "full",
+                "type_label": "Complete",
+                "file": str(path),
+                "name": path.name,
+                "size_bytes": int(manifest.get("total_size_bytes", stat.st_size) or stat.st_size),
+                "modified_at_utc": str(manifest.get("created_at_utc") or datetime.utcfromtimestamp(stat.st_mtime).isoformat() + "Z"),
+                "manifest_file": str(path),
+                "manifest_name": path.name,
+                "manifest_present": True,
+                "checksum_sha256": "",
+                "checksum_short": "",
+                "integrity_state": integrity["state"],
+                "integrity_label": integrity["label"],
+                "integrity_class": integrity["class_name"],
+                "integrity_details": integrity["details"],
+                "status_label": "Pack complet",
+                "downloads": downloads,
+                "restore_supported": True,
+                "restore_confirm_text": FULL_RESTORE_CONFIRM_TEXT,
+                "restore_button_label": "Restaurer complet",
+                "db_engine": manifest.get("db_engine", "inconnu"),
+                "database": db_backup.get("database", ""),
+                "uploads_file_count": int(uploads_backup.get("file_count", 0) or 0),
+                "database_file_name": db_name,
+                "uploads_file_name": uploads_name,
+            }
+        )
+    return backups
+
+
+def list_maintenance_backups(*, backup_dir: str | None = None) -> list[dict[str, Any]]:
+    backups = [
+        *list_database_backups(backup_dir=backup_dir),
+        *list_uploads_backups(backup_dir=backup_dir),
+        *list_full_backups(backup_dir=backup_dir),
+    ]
+    return sorted(backups, key=lambda item: str(item.get("modified_at_utc") or ""), reverse=True)
+
+
+def verify_backup_integrity(backup_file: str) -> dict[str, Any]:
+    path = Path(backup_file).expanduser().resolve()
+    if not path.exists() or not path.is_file():
+        raise RuntimeError(f"Fichier de sauvegarde introuvable: {path}")
+
+    if path.name.startswith(FULL_BACKUP_PREFIX) and path.name.endswith(".json"):
+        manifest = _read_backup_manifest(path)
+        if not manifest:
+            raise RuntimeError("Manifeste de sauvegarde complete illisible.")
+        db_backup = manifest.get("database_backup") or {}
+        uploads_backup = manifest.get("uploads_backup") or {}
+        backup_dir = path.parent.resolve()
+        db_path = _resolve_full_backup_component_path(db_backup.get("file"), backup_dir=backup_dir)
+        uploads_path = _resolve_full_backup_component_path(uploads_backup.get("file"), backup_dir=backup_dir)
+        db_result = _verify_checksum_against_manifest_data(
+            db_path,
+            {
+                "checksum_sha256": db_backup.get("checksum_sha256"),
+                "size_bytes": db_backup.get("size_bytes"),
+            },
+            manifest_present=True,
+        )
+        uploads_result = _verify_checksum_against_manifest_data(
+            uploads_path,
+            {
+                "checksum_sha256": uploads_backup.get("checksum_sha256"),
+                "size_bytes": uploads_backup.get("size_bytes"),
+            },
+            manifest_present=True,
+        )
+        ok = bool(db_result.get("ok")) and bool(uploads_result.get("ok"))
+        current_app.logger.info(
+            "maintenance.full_backup.verified",
+            extra={
+                "manifest_file": str(path),
+                "success": ok,
+            },
+        )
+        return {
+            "ok": ok,
+            "state": "valid" if ok else "invalid",
+            "label": "✓ Integre" if ok else "✗ Checksum invalide",
+            "path": str(path),
+            "db_backup": db_result,
+            "uploads_backup": uploads_result,
+        }
+
+    result = _verify_file_integrity(path)
+    current_app.logger.info(
+        "maintenance.backup.verified",
+        extra={"backup_file": str(path), "success": bool(result.get("ok"))},
+    )
+    return result
+
+
+def restore_uploads_backup(
+    archive_file: str,
+    *,
+    yes: bool = False,
+    create_safety_backup: bool = True,
+    verify_manifest: bool = True,
+) -> dict[str, Any]:
+    if not yes:
+        raise RuntimeError("Restauration refusee: confirmation explicite requise.")
+
+    path = Path(archive_file).expanduser().resolve()
+    if not path.exists() or not path.is_file():
+        raise RuntimeError(f"Archive uploads introuvable: {path}")
+    if not path.name.endswith(".tar.gz"):
+        raise RuntimeError("La restauration uploads attend un fichier .tar.gz.")
+
+    integrity_check: dict[str, Any] | None = None
+    if verify_manifest:
+        integrity_check = _verify_file_integrity(path)
+        if integrity_check.get("state") == "invalid":
+            raise RuntimeError("Restauration uploads refusee: checksum invalide.")
+
+    uploads_root = _uploads_root()
+    uploads_parent = uploads_root.parent
+    uploads_parent.mkdir(parents=True, exist_ok=True)
+
+    temp_root = Path(tempfile.mkdtemp(prefix="dealnova_restore_uploads_", dir=str(uploads_parent)))
+    prepared_dir = temp_root / "prepared_uploads"
+    rollback_dir = uploads_parent / f"{uploads_root.name}_rollback_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{random.randint(1000, 9999)}"
+    pre_restore_backup: dict[str, Any] | None = None
+    extracted = {"file_count": 0, "size_bytes": 0}
+
+    try:
+        prepared_dir.mkdir(parents=True, exist_ok=True)
+        extracted = _extract_validated_uploads_archive(path, prepared_dir)
+
+        if create_safety_backup:
+            pre_restore_backup = create_uploads_backup(
+                backup_dir=str(_resolve_backup_dir()),
+                reason="pre_restore_uploads",
+            )
+
+        _replace_directory_atomically(
+            live_dir=uploads_root,
+            prepared_dir=prepared_dir,
+            rollback_dir=rollback_dir,
+        )
+    except Exception:
+        current_app.logger.exception(
+            "maintenance.uploads_restore.failed",
+            extra={"archive_file": str(path), "uploads_root": str(uploads_root)},
+        )
+        raise
+    finally:
+        try:
+            if temp_root.exists():
+                _remove_tree(temp_root)
+        except Exception:
+            pass
+
+    if rollback_dir.exists():
+        try:
+            _remove_tree(rollback_dir)
+        except Exception:
+            current_app.logger.warning(
+                "maintenance.uploads_restore.rollback_cleanup_failed",
+                extra={"rollback_dir": str(rollback_dir)},
+            )
+
+    current_app.logger.info(
+        "maintenance.uploads_restore.completed",
+        extra={
+            "archive_file": str(path),
+            "uploads_root": str(uploads_root),
+            "file_count": extracted["file_count"],
+        },
+    )
+    return {
+        "restored_file": str(path),
+        "uploads_root": str(uploads_root),
+        "restored_at_utc": datetime.utcnow().isoformat() + "Z",
+        "restored_file_count": extracted["file_count"],
+        "restored_size_bytes": extracted["size_bytes"],
+        "pre_restore_backup": pre_restore_backup,
+        "integrity_check": integrity_check,
+    }
+
+
+def restore_full_backup(
+    manifest_file: str,
+    *,
+    yes: bool = False,
+) -> dict[str, Any]:
+    if not yes:
+        raise RuntimeError("Restauration complete refusee: confirmation explicite requise.")
+
+    path = Path(manifest_file).expanduser().resolve()
+    if not path.exists() or not path.is_file():
+        raise RuntimeError(f"Manifeste full introuvable: {path}")
+    if not path.name.startswith(FULL_BACKUP_PREFIX) or not path.name.endswith(".json"):
+        raise RuntimeError("La restauration complete attend un manifeste dealnova_full_*.json.")
+
+    verification = verify_backup_integrity(str(path))
+    if not verification.get("ok"):
+        raise RuntimeError("Restauration complete refusee: integrite du backup complet invalide.")
+
+    manifest = _read_backup_manifest(path)
+    db_backup = manifest.get("database_backup") or {}
+    uploads_backup = manifest.get("uploads_backup") or {}
+    try:
+        db_backup_path = _resolve_full_backup_component_path(db_backup.get("file"), backup_dir=path.parent.resolve())
+        uploads_backup_path = _resolve_full_backup_component_path(uploads_backup.get("file"), backup_dir=path.parent.resolve())
+    except Exception as exc:
+        raise RuntimeError("Manifeste full invalide: composants hors dossier autorise.") from exc
+    if not db_backup_path or not uploads_backup_path:
+        raise RuntimeError("Manifeste full incomplet: composants manquants.")
+
+    uploads_restore = restore_uploads_backup(
+        str(uploads_backup_path),
+        yes=True,
+        create_safety_backup=True,
+        verify_manifest=False,
+    )
+    try:
+        db_restore = restore_database_backup(
+            str(db_backup_path),
+            yes=True,
+            verify_manifest=False,
+        )
+    except Exception as exc:
+        rollback_result = None
+        rollback_error = None
+        pre_restore_backup = uploads_restore.get("pre_restore_backup") or {}
+        rollback_source = str(pre_restore_backup.get("backup_file") or "").strip()
+        if rollback_source:
+            try:
+                rollback_result = restore_uploads_backup(
+                    rollback_source,
+                    yes=True,
+                    create_safety_backup=False,
+                    verify_manifest=False,
+                )
+            except Exception as rollback_exc:
+                rollback_error = str(rollback_exc)
+        current_app.logger.exception(
+            "maintenance.full_restore.failed",
+            extra={"manifest_file": str(path)},
+        )
+        return {
+            "success": False,
+            "state": "partial",
+            "error": str(exc),
+            "manifest_file": str(path),
+            "verification": verification,
+            "uploads_restore": uploads_restore,
+            "uploads_rollback": rollback_result,
+            "uploads_rollback_error": rollback_error,
+        }
+
+    current_app.logger.info(
+        "maintenance.full_restore.completed",
+        extra={"manifest_file": str(path)},
+    )
+    return {
+        "success": True,
+        "state": "complete",
+        "manifest_file": str(path),
+        "verification": verification,
+        "uploads_restore": uploads_restore,
+        "db_restore": db_restore,
+        "restored_at_utc": datetime.utcnow().isoformat() + "Z",
+    }
 
 
 def _used_upload_paths() -> set[str]:
@@ -1346,6 +2438,40 @@ def init_cli_commands(app):
         click.echo(f"Manifeste: {result['manifest_file']}")
         click.echo(f"Retention: {result['retention_days']} jours")
         click.echo(f"Anciens fichiers supprimes: {len(result['removed_old_backups'])}")
+
+    @app.cli.command("uploads-backup")
+    @click.option("--backup-dir", default=None, help="Dossier de stockage des sauvegardes")
+    @click.option("--retention-days", default=None, type=int, help="Nombre de jours a conserver")
+    def uploads_backup_command(backup_dir, retention_days):
+        """Cree une sauvegarde compressee des uploads."""
+        result = create_uploads_backup(backup_dir=backup_dir, retention_days=retention_days)
+        click.echo(f"Sauvegarde creee: {result['backup_file']}")
+        click.echo(f"Manifeste: {result['manifest_file']}")
+        click.echo(f"Fichiers archives: {result['file_count']}")
+        click.echo(f"Retention: {result['retention_days']} jours")
+
+    @app.cli.command("full-backup")
+    @click.option("--backup-dir", default=None, help="Dossier de stockage des sauvegardes")
+    @click.option("--db-retention-days", default=None, type=int, help="Retention pour les sauvegardes DB")
+    @click.option("--uploads-retention-days", default=None, type=int, help="Retention pour les sauvegardes uploads")
+    @click.option("--full-retention-days", default=None, type=int, help="Retention pour les manifestes full")
+    def full_backup_command(backup_dir, db_retention_days, uploads_retention_days, full_retention_days):
+        """Cree une sauvegarde complete DB + uploads + manifeste global."""
+        result = create_full_backup(
+            backup_dir=backup_dir,
+            db_retention_days=db_retention_days,
+            uploads_retention_days=uploads_retention_days,
+            full_retention_days=full_retention_days,
+        )
+        if not result.get("success"):
+            click.echo("Sauvegarde complete partielle")
+            click.echo(f"Backup DB: {result['db_backup']['backup_file']}")
+            click.echo(f"Erreur uploads: {result['error']}")
+            raise click.ClickException("La sauvegarde complete n'a pas pu se terminer.")
+        click.echo(f"Manifeste full: {result['manifest_file']}")
+        click.echo(f"Backup DB: {result['db_backup']['backup_file']}")
+        click.echo(f"Backup uploads: {result['uploads_backup']['backup_file']}")
+        click.echo(f"Taille totale: {human_size(result['size_bytes'])}")
 
     @app.cli.command("db-backups")
     @click.option("--backup-dir", default=None, help="Dossier de stockage des sauvegardes")

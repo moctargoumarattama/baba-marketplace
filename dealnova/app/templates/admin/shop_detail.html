@@ -77,10 +77,13 @@
                                       class="d-inline"
                                       data-ajax="true"
                                       data-action="delete-shop"
-                                      data-confirm="Supprimer cette boutique ?"
+                                      data-confirm="Confirmation suppression definitive :&#10;- Le nom sera garde dans l'historique suppression&#10;- Cette action est irreversible&#10;&#10;Supprimer cette boutique ?"
                                       data-redirect="true">
                                     {% include "admin/partials/_csrf.html" %}
-                                    <button type="submit" class="btn btn-outline-danger">
+                                    <button type="submit"
+                                            class="btn btn-outline-danger"
+                                            data-loading-text="<span class='spinner-border spinner-border-sm me-1' role='status' aria-hidden='true'></span>Suppression..."
+                                            title="Supprimer definitivement">
                                         <i class="bi bi-trash"></i> Supprimer
                                     </button>
                                 </form>

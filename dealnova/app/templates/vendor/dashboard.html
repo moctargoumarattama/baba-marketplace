@@ -8,7 +8,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="dashboard-wrapper">
+<div class="dashboard-wrapper vendor-daily-dashboard">
         <div class="dashboard-container">
             <div id="vendorDashboardConfig"
                  data-dashboard-url="{{ url_for('vendor.dashboard') }}"
@@ -22,8 +22,10 @@
                   data-push-status-url="{{ url_for('vendor.vendor_push_status') }}"
                   data-push-subscribe-url="{{ url_for('vendor.vendor_push_subscribe') }}"
                   data-push-unsubscribe-url="{{ url_for('vendor.vendor_push_unsubscribe') }}"
-                 data-vendor-id="{{ current_user.id }}">
+                  data-vendor-id="{{ current_user.id }}">
             </div>
+            {% set has_stock_tasks = show_stock_alerts and (low_stock_products or no_image_products) %}
+            {% set dashboard_all_clear = (not (allows_products and recent_orders)) and (not (allows_products and today_prepare)) and (not (allows_services and today_bookings)) and (not has_stock_tasks) %}
             <!-- Header -->
             <div class="dashboard-header">
                 <div class="dashboard-welcome">
@@ -64,92 +66,7 @@
                 </div>
                 {% endif %}
 
-                <div class="dashboard-header-layout">
-                    <div class="dashboard-header-main">
-                        {% if allows_products %}
-                        <div class="vendor-notif-bar" aria-label="Notifications vendeur">
-                            <div class="notif-chip pending" id="pendingPill" title="Nouvelles commandes ({{ recent_orders_window_hours }}h)" aria-live="polite">
-                                <i class="bi bi-bell"></i>
-                                <span>Nouvelles commandes ({{ recent_orders_window_hours }}h)</span>
-                                <span class="notif-count" id="pendingCount">{{ recent_orders_count }}</span>
-                            </div>
-                            <button class="notif-chip vendor-push-status" id="vendorPushStatus" type="button">
-                                <i class="bi bi-phone-vibrate"></i>
-                                <span>Alertes téléphone</span>
-                            </button>
-                        </div>
-                        {% endif %}
-
-                        {% if allows_products %}
-                        <div class="today-list" id="recentOrdersList" data-empty-text="Aucune nouvelle commande sur les {{ recent_orders_window_hours }} dernieres heures.">
-                            {% if recent_orders %}
-                                {% for o in recent_orders %}
-                                <div class="today-row">
-                                    <div>
-                                        <div class="today-row-top">
-                                            <div>
-                                                <div class="today-row-title">Commande #{{ o.order_id }}</div>
-                                                <div class="today-row-sub">
-                                                    {{ o.items_qty }} article(s)  {{ "%.2f"|format(o.amount_mad) }} MAD
-                                                    {% if o.created_label %}  {{ o.created_label }}{% endif %}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="today-row-actions">
-                                        <a class="today-outline" href="{{ o.details_url }}">
-                                            <i class="bi bi-receipt"></i> Details
-                                        </a>
-                                    </div>
-                                </div>
-                                {% endfor %}
-                            {% else %}
-                                <div class="today-empty">Aucune nouvelle commande sur les {{ recent_orders_window_hours }} dernieres heures.</div>
-                            {% endif %}
-                        </div>
-                        <div class="today-pager" id="recentOrdersPager" data-page="{{ recent_orders_pagination.page }}" data-pages="{{ recent_orders_pagination.pages }}">
-                            <button type="button" class="today-pager-btn" data-pager="recent" data-direction="prev">Precedent</button>
-                            <span class="today-pager-status">Page {{ recent_orders_pagination.page }} / {{ recent_orders_pagination.pages }}</span>
-                            <button type="button" class="today-pager-btn" data-pager="recent" data-direction="next">Suivant</button>
-                        </div>
-                        {% endif %}
-
-                        {% if shop %}
-                        <div class="shop-status-bar" id="dashboardShopStatusBar">
-                            <div class="shop-status-left">
-                                <span class="status-pill {{ 'open' if shop_is_open else 'closed' }}">
-                                    {% if shop_is_open %}
-                                      <i class="bi bi-door-open"></i> OUVERT
-                                    {% else %}
-                                      <i class="bi bi-door-closed"></i> FERME
-                                    {% endif %}
-                                </span>
-                                <span class="status-sub">Mode repos / vacances</span>
-                            </div>
-                            <div class="status-actions">
-                                <form method="post"
-                                      action="{{ url_for('vendor.set_shop_open_state') }}"
-                                      data-ajax="true"
-                                      data-action="set-shop-open"
-                                      data-refresh-target="#dashboardShopStatusBar">
-                                    {% include "partials/_csrf.html" %}
-                                    {% if shop_is_open %}
-                                      <input type="hidden" name="state" value="closed">
-                                      <button type="submit" class="status-btn closed" data-coach="vendor_open_closed" data-coach-priority="6" data-coach-text="Astuce : utilisez ce bouton pour fermer temporairement la boutique (repos/vacances), sans desactiver votre compte.">
-                                          Mettre la boutique en pause
-                                      </button>
-                                    {% else %}
-                                      <input type="hidden" name="state" value="open">
-                                      <button type="submit" class="status-btn open" data-coach="vendor_open_closed" data-coach-priority="6" data-coach-text="Astuce : utilisez ce bouton pour rouvrir la boutique quand vous etes disponible.">
-                                          Reouvrir la boutique
-                                      </button>
-                                    {% endif %}
-                                </form>
-                            </div>
-                        </div>
-                        {% endif %}
-
-                        {% if password_change_window_active %}
+                {% if password_change_window_active %}
                         <div class="vendor-password-card">
                             <div class="vendor-password-title">
                                 <i class="bi bi-key"></i>
@@ -170,22 +87,132 @@
                             </div>
                             {% endif %}
                         </div>
-                        {% endif %}
-                    </div>
-
-                </div>
+                {% endif %}
             </div>
 
         <!-- Aujourd'hui -->
+        <section class="daily-overview" aria-labelledby="dailyOverviewTitle">
+            <div class="today-title-row">
+                <div class="today-title" id="dailyOverviewTitle">
+                    <i class="bi bi-calendar2-check"></i>
+                    <span>Aujourd'hui</span>
+                </div>
+                <div class="today-hint">Vue rapide de votre activite</div>
+            </div>
+            <div class="stats-grid daily-kpis">
+                {% if allows_products %}
+                <div class="stat-card">
+                    <div class="stat-value" id="statOrders">{{ total_orders }}</div>
+                    <div class="stat-label">Commandes</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="statRevenue">{{ "%.0f"|format(total_revenue) }}</div>
+                    <div class="stat-label">Revenus (MAD)</div>
+                </div>
+                {% elif allows_services %}
+                <div class="stat-card">
+                    <div class="stat-value">{{ today_bookings_count }}</div>
+                    <div class="stat-label">Rendez-vous du jour</div>
+                </div>
+                {% endif %}
+                {% if allows_location %}
+                <div class="stat-card">
+                    <div class="stat-value">{{ today_locations_count }}</div>
+                    <div class="stat-label">Locations actives</div>
+                </div>
+                {% endif %}
+            </div>
+            {% if shop %}
+            <div class="shop-status-bar" id="dashboardShopStatusBar">
+                <div class="shop-status-left">
+                    <span class="status-pill {{ 'open' if shop_is_open else 'closed' }}">
+                        {% if shop_is_open %}
+                          <i class="bi bi-door-open"></i> OUVERT
+                        {% else %}
+                          <i class="bi bi-door-closed"></i> FERME
+                        {% endif %}
+                    </span>
+                    <span class="status-sub">Mode repos / vacances</span>
+                </div>
+                <div class="status-actions">
+                    <form method="post"
+                          action="{{ url_for('vendor.set_shop_open_state') }}"
+                          data-ajax="true"
+                          data-action="set-shop-open"
+                          data-refresh-target="#dashboardShopStatusBar">
+                        {% include "partials/_csrf.html" %}
+                        {% if shop_is_open %}
+                          <input type="hidden" name="state" value="closed">
+                          <button type="submit" class="status-btn closed" data-coach="vendor_open_closed" data-coach-priority="6" data-coach-text="Astuce : utilisez ce bouton pour fermer temporairement la boutique (repos/vacances), sans desactiver votre compte.">
+                              Mettre en pause
+                          </button>
+                        {% else %}
+                          <input type="hidden" name="state" value="open">
+                          <button type="submit" class="status-btn open" data-coach="vendor_open_closed" data-coach-priority="6" data-coach-text="Astuce : utilisez ce bouton pour rouvrir la boutique quand vous etes disponible.">
+                              Reouvrir
+                          </button>
+                        {% endif %}
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+            <div id="vendorSoundPromptMount" class="vendor-sound-prompt-mount" aria-live="polite"></div>
+        </section>
+
+        <!-- A traiter maintenant -->
         <div class="today-section">
             {% set today_cards = (1 if allows_products else 0) + (1 if allows_services else 0) + (1 if allows_location else 0) %}
             <div class="today-title-row">
                 <div class="today-title">
                     <i class="bi bi-calendar-day"></i>
-                    <span>Aujourd'hui</span>
+                    <span>À traiter maintenant</span>
                 </div>
-                <div class="today-hint">{{ today_cards }} actions rapides pour gerer ta journee</div>
+                <div class="today-hint">{{ today_cards }} points à surveiller aujourd'hui</div>
             </div>
+            {% if allows_products %}
+            <div class="vendor-notif-bar" aria-label="Notifications vendeur">
+                <div class="notif-chip pending" id="pendingPill" title="Nouvelles commandes ({{ recent_orders_window_hours }}h)" aria-live="polite">
+                    <i class="bi bi-bell"></i>
+                    <span>Nouvelles commandes ({{ recent_orders_window_hours }}h)</span>
+                    <span class="notif-count" id="pendingCount">{{ recent_orders_count }}</span>
+                </div>
+                <button class="notif-chip vendor-push-status" id="vendorPushStatus" type="button">
+                    <i class="bi bi-phone-vibrate"></i>
+                    <span>Alertes telephone</span>
+                </button>
+            </div>
+            <div class="today-list" id="recentOrdersList" data-empty-text="Aucune nouvelle commande sur les {{ recent_orders_window_hours }} dernieres heures.">
+                {% if recent_orders %}
+                    {% for o in recent_orders %}
+                    <div class="today-row">
+                        <div>
+                            <div class="today-row-top">
+                                <div>
+                                    <div class="today-row-title">Commande #{{ o.order_id }}</div>
+                                    <div class="today-row-sub">
+                                        {{ o.items_qty }} article(s)  {{ "%.2f"|format(o.amount_mad) }} MAD
+                                        {% if o.created_label %}  {{ o.created_label }}{% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="today-row-actions">
+                            <a class="today-outline" href="{{ o.details_url }}">
+                                <i class="bi bi-receipt"></i> Details
+                            </a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% elif not dashboard_all_clear %}
+                    <div class="today-empty">Aucune nouvelle commande sur les {{ recent_orders_window_hours }} dernieres heures.</div>
+                {% endif %}
+            </div>
+            <div class="today-pager" id="recentOrdersPager" data-page="{{ recent_orders_pagination.page }}" data-pages="{{ recent_orders_pagination.pages }}">
+                <button type="button" class="today-pager-btn" data-pager="recent" data-direction="prev">Precedent</button>
+                <span class="today-pager-status">Page {{ recent_orders_pagination.page }} / {{ recent_orders_pagination.pages }}</span>
+                <button type="button" class="today-pager-btn" data-pager="recent" data-direction="next">Suivant</button>
+            </div>
+            {% endif %}
 
             <div class="today-grid">
                 {% if allows_products %}
@@ -251,6 +278,15 @@
                 </div>
                 {% endif %}
             </div>
+            {% if dashboard_all_clear %}
+            <div class="daily-all-clear">
+                <i class="bi bi-check2-circle"></i>
+                <div>
+                    <strong>Tout est a jour</strong>
+                    <span>Aucune action urgente pour le moment.</span>
+                </div>
+            </div>
+            {% endif %}
             {% if allows_products %}
             <div class="today-list" id="todayPrepareList" data-empty-text="Aucune commande a preparer aujourd'hui.">
                 {% if today_prepare %}
@@ -274,7 +310,7 @@
                         </div>
                     </div>
                     {% endfor %}
-                {% else %}
+                {% elif not dashboard_all_clear %}
                     <div class="today-empty">Aucune commande a preparer aujourd'hui.</div>
                 {% endif %}
             </div>
@@ -310,7 +346,7 @@
                         </div>
                     </div>
                     {% endfor %}
-                {% else %}
+                {% elif not dashboard_all_clear %}
                     <div class="today-empty">Aucun rendez-vous planifie aujourd'hui.</div>
                 {% endif %}
             </div>
@@ -320,38 +356,9 @@
                 <button type="button" class="today-pager-btn" data-pager="bookings" data-direction="next" {% if not today_bookings_pagination.has_next %}disabled{% endif %}>Suivant</button>
             </div>
             {% endif %}
-        </div>
 
-        <!-- Stats -->
-        <div class="stats-grid">
-                    {% if allows_products %}
-            <div class="stat-card">
-                <div class="stat-value" id="statOrders">{{ total_orders }}</div>
-                <div class="stat-label">Commandes</div>
-            </div>
-
-            <div class="stat-card">
-                <div class="stat-value" id="statRevenue">{{ "%.0f"|format(total_revenue) }}</div>
-                <div class="stat-label">Revenus (MAD)</div>
-            </div>
-            {% elif allows_services %}
-            <div class="stat-card">
-                <div class="stat-value">{{ today_bookings_count }}</div>
-                <div class="stat-label">Rendez-vous du jour</div>
-            </div>
-            {% endif %}
-
-            {% if allows_location %}
-            <div class="stat-card">
-                <div class="stat-value">{{ today_locations_count }}</div>
-                <div class="stat-label">Locations actives</div>
-            </div>
-            {% endif %}
-        </div>
-
-        <!-- Alertes -->
-        {% if show_stock_alerts and (low_stock_products or no_image_products) %}
-        <div class="alerts-grid">
+            {% if has_stock_tasks %}
+            <div class="alerts-grid daily-alerts-panel">
             {% if low_stock_products %}
             <div class="alert-card">
                 <div class="alert-title">
@@ -363,7 +370,7 @@
                     {% for p in low_stock_products[:5] %}
                     <li class="alert-item">
                         <span>{{ p.name }}</span>
-                        <span style="font-weight: 700; color: #F59E0B;">{{ p.stock }} u</span>
+                        <span class="alert-qty">{{ p.stock }} u</span>
                     </li>
                     {% endfor %}
                 </ul>
@@ -381,35 +388,36 @@
                     {% for p in no_image_products[:5] %}
                     <li class="alert-item">
                         <span>{{ p.name }}</span>
-                        <a href="{{ url_for('vendor.product_edit', pid=p.id) }}" style="color: var(--primary); font-weight: 700; text-decoration: none;">Ajouter</a>
+                        <a class="alert-link" href="{{ url_for('vendor.product_edit', pid=p.id) }}">Ajouter</a>
                     </li>
                     {% endfor %}
                 </ul>
             </div>
             {% endif %}
+            </div>
+            {% endif %}
         </div>
-        {% endif %}
 
         <!-- Actions -->
-        <div class="action-buttons">
+        <div class="action-buttons daily-actions-grid">
             {% if allows_catalog %}
-            <a href="{{ url_for('vendor.product_new') }}" class="btn-action primary">
+            <a href="{{ url_for('vendor.product_new') }}" class="btn-action primary dashboard-chevron-action">
                 <i class="bi bi-plus-circle"></i>
                 <span>{{ catalog_create_label }}</span>
             </a>
             {% endif %}
 
             {% if shop %}
-            <a href="{{ url_for('vendor.manage_shop') }}" class="btn-action" data-prefetch-critical="vendor-manage-shop">
+            <a href="{{ url_for('vendor.manage_shop') }}" class="btn-action dashboard-chevron-action" data-prefetch-critical="vendor-manage-shop">
                 <i class="bi bi-shop"></i>
                 <span>Ma boutique</span>
             </a>
             {% if allows_location %}
-            <a href="{{ url_for('rentals.owner_locations') }}" class="btn-action">
+            <a href="{{ url_for('rentals.owner_locations') }}" class="btn-action dashboard-chevron-action">
                 <i class="bi bi-house-door"></i>
                 <span>Mes locations</span>
             </a>
-            <a href="{{ url_for('rentals.owner_location_new') }}" class="btn-action">
+            <a href="{{ url_for('rentals.owner_location_new') }}" class="btn-action dashboard-chevron-action">
                 <i class="bi bi-building"></i>
                 <span>Nouvelle location</span>
             </a>
@@ -418,19 +426,23 @@
         </div>
 
         {% if allows_catalog %}
-        <div id="productsContainer" data-preview-bound="1" class="alert-card info" style="margin-top: 1rem;">
-            <div class="alert-title">
-                <i class="bi bi-layers"></i>
-                Catalogue complet
-            </div>
-            <div class="d-flex flex-wrap gap-2">
-                <a href="{{ url_for('vendor.catalog') }}" class="btn-action" style="display: inline-flex; width: auto; min-width: 220px;">
+        <div id="productsContainer" data-preview-bound="1" class="catalog-summary-card">
+            <div>
+                <div class="alert-title">
                     <i class="bi bi-layers"></i>
-                    <span>Voir tous les {{ 'elements' if allows_products and allows_services else ('services' if allows_services and not allows_products else 'produits') }}</span>
+                    Catalogue complet
+                </div>
+                <div class="alert-meta">{{ total_products }} {{ 'elements' if allows_products and allows_services else ('services' if allows_services and not allows_products else 'produits') }}</div>
+            </div>
+            <div class="catalog-summary-actions">
+                <a href="{{ url_for('vendor.catalog') }}" class="btn-action">
+                    <i class="bi bi-eye"></i>
+                    <span>Voir le catalogue</span>
                 </a>
-                <span class="welcome-pill" style="background: rgba(16, 185, 129, 0.08); color: #065f46;">
-                    <i class="bi bi-box"></i> {{ total_products }} {{ 'elements' if allows_products and allows_services else ('services' if allows_services and not allows_products else 'produits') }}
-                </span>
+                <a href="{{ url_for('vendor.product_new') }}" class="btn-action catalog-add">
+                    <i class="bi bi-plus"></i>
+                    <span>Ajouter</span>
+                </a>
             </div>
         </div>
         {% endif %}

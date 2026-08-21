@@ -1,0 +1,283 @@
+{% extends "base.html" %}
+{% block title %}Ouverture WhatsApp | {{ config.SITE_NAME }}{% endblock %}
+
+{% block head %}
+{{ super() }}
+<style>
+  .wa-loader-page {
+    min-height: calc(100vh - 90px);
+    min-height: calc(100dvh - 90px);
+    display: grid;
+    place-items: center;
+    padding: 1rem;
+    background:
+      radial-gradient(circle at 20% 20%, rgba(15, 118, 110, 0.18), transparent 34%),
+      radial-gradient(circle at 80% 80%, rgba(37, 211, 102, 0.14), transparent 34%),
+      linear-gradient(180deg, #f6fffb 0%, #f3f7ff 100%);
+  }
+
+  .wa-loader-card {
+    width: min(100%, 460px);
+    background: rgba(255, 255, 255, 0.96);
+    border: 1px solid rgba(37, 211, 102, 0.22);
+    border-radius: 24px;
+    box-shadow:
+      0 20px 45px rgba(15, 23, 42, 0.16),
+      0 0 30px rgba(37, 211, 102, 0.16);
+    padding: 1.2rem;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .wa-loader-card::before {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border-radius: 24px;
+    background: linear-gradient(120deg, rgba(37, 211, 102, 0.24), rgba(18, 140, 126, 0.2), rgba(37, 211, 102, 0.24));
+    opacity: 0.55;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  .wa-loader-card > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  .wa-loader-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.48rem 0.74rem;
+    border-radius: 999px;
+    background: rgba(16, 185, 129, 0.12);
+    color: #0b7f59;
+    font-size: 0.78rem;
+    font-weight: 900;
+  }
+
+  .wa-loader-title {
+    margin: 0.9rem 0 0.3rem;
+    color: #0f172a;
+    font-size: clamp(1.2rem, 3vw, 1.55rem);
+    font-weight: 900;
+    line-height: 1.08;
+  }
+
+  .wa-loader-copy {
+    margin: 0;
+    color: #64748b;
+    line-height: 1.5;
+  }
+
+  .wa-loader-orbit {
+    position: relative;
+    width: 170px;
+    height: 170px;
+    margin: 1rem auto 0.95rem;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(16, 185, 129, 0.18) 0%, rgba(16, 185, 129, 0.03) 65%, transparent 75%);
+    filter: drop-shadow(0 0 16px rgba(16, 185, 129, 0.25));
+  }
+
+  .wa-loader-orbit-text {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 2px dashed rgba(15, 118, 110, 0.35);
+    animation: bm-spin 4.2s linear infinite, bm-pulse-ring 1.8s ease-in-out infinite;
+  }
+
+  .wa-loader-orbit-text::before {
+    content: "BABA MARKET \2022 BABA MARKET \2022 BABA MARKET \2022";
+    position: absolute;
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #0f766e;
+    font-size: 0.72rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    text-shadow: 0 0 8px rgba(16, 185, 129, 0.55), 0 0 14px rgba(16, 185, 129, 0.35);
+  }
+
+  .wa-loader-core {
+    position: absolute;
+    inset: 30px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: linear-gradient(135deg, #25d366, #128c7e);
+    color: #ffffff;
+    box-shadow:
+      0 16px 30px rgba(18, 140, 126, 0.32),
+      0 0 22px rgba(37, 211, 102, 0.45);
+    text-align: center;
+    padding: 0.6rem;
+    animation: bm-core-pulse 1.6s ease-in-out infinite;
+  }
+
+  .wa-loader-core strong {
+    display: block;
+    font-size: 0.88rem;
+    font-weight: 900;
+    line-height: 1.1;
+    text-shadow: 0 0 10px rgba(255, 255, 255, 0.45);
+    animation: bm-text-jitter 1.25s ease-in-out infinite;
+  }
+
+  .wa-loader-core span {
+    display: block;
+    margin-top: 0.25rem;
+    font-size: 0.72rem;
+    opacity: 0.94;
+    font-weight: 700;
+  }
+
+  .wa-loader-countdown {
+    text-align: center;
+    color: #0f172a;
+    font-size: 0.9rem;
+    font-weight: 800;
+    margin: 0.25rem 0 0.7rem;
+  }
+
+  .wa-loader-actions {
+    display: grid;
+    gap: 0.7rem;
+    margin-top: 0.7rem;
+  }
+
+  .wa-loader-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.55rem;
+    min-height: 48px;
+    border-radius: 16px;
+    text-decoration: none;
+    font-weight: 900;
+  }
+
+  .wa-loader-btn.main {
+    background: linear-gradient(135deg, #25d366, #128c7e);
+    color: #fff;
+    box-shadow:
+      0 14px 28px rgba(18, 140, 126, 0.24),
+      0 0 16px rgba(37, 211, 102, 0.35);
+    border: none;
+  }
+
+  .wa-loader-btn.main:hover {
+    filter: brightness(1.03);
+    transform: translateY(-1px);
+  }
+
+  .wa-loader-btn.cancel {
+    border: 1px solid rgba(15, 23, 42, 0.12);
+    color: #0f172a;
+    background: #fff;
+  }
+
+  @keyframes bm-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  @keyframes bm-core-pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.04); }
+  }
+
+  @keyframes bm-pulse-ring {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.08); }
+    50% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0.02); }
+  }
+
+  @keyframes bm-text-jitter {
+    0%, 100% { transform: translateX(0) translateY(0) rotate(0deg); }
+    20% { transform: translateX(0.2px) translateY(-0.15px) rotate(0.12deg); }
+    40% { transform: translateX(-0.2px) translateY(0.1px) rotate(-0.1deg); }
+    60% { transform: translateX(0.15px) translateY(0.05px) rotate(0.08deg); }
+    80% { transform: translateX(-0.1px) translateY(-0.1px) rotate(-0.08deg); }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="wa-loader-page">
+  <div class="wa-loader-card" data-wa-loader data-delay="{{ delay_seconds|default(2) }}" data-wa-url="{{ wa_url }}">
+    <div class="wa-loader-chip">
+      <i class="bi bi-whatsapp"></i>
+      <span>Livraison WhatsApp</span>
+    </div>
+    <h1 class="wa-loader-title">Connexion en cours</h1>
+    <p class="wa-loader-copy">Préparation de la conversation WhatsApp Baba Market.</p>
+
+    <div class="wa-loader-orbit" aria-hidden="true">
+      <div class="wa-loader-orbit-text"></div>
+      <div class="wa-loader-core">
+        <strong>BABA MARKET</strong>
+        <span>Ouverture WhatsApp</span>
+      </div>
+    </div>
+
+    <div class="wa-loader-countdown">
+      Ouverture dans <span id="waLoaderSeconds">{{ delay_seconds|default(2) }}</span>s
+    </div>
+
+    <div class="wa-loader-actions">
+      <a class="wa-loader-btn main" href="{{ wa_url }}" id="waOpenNow">
+        <i class="bi bi-whatsapp"></i>
+        <span>Ouvrir maintenant</span>
+      </a>
+      <a class="wa-loader-btn cancel" href="{{ back_url }}" id="waCancel">
+        <i class="bi bi-x-circle"></i>
+        <span>Annuler</span>
+      </a>
+    </div>
+  </div>
+</section>
+<script>
+  (function () {
+    var root = document.querySelector("[data-wa-loader]");
+    if (!root) return;
+
+    var delay = Math.max(1, Number(root.getAttribute("data-delay") || 2));
+    var waUrl = String(root.getAttribute("data-wa-url") || "").trim();
+    var secondsEl = document.getElementById("waLoaderSeconds");
+    var cancelBtn = document.getElementById("waCancel");
+    var cancelled = false;
+    var remaining = delay;
+    var timer = null;
+
+    function render() {
+      if (secondsEl) secondsEl.textContent = String(Math.max(0, remaining));
+    }
+
+    function tick() {
+      remaining -= 1;
+      render();
+      if (remaining <= 0) {
+        clearInterval(timer);
+        if (!cancelled && waUrl) {
+          window.location.href = waUrl;
+        }
+      }
+    }
+
+    render();
+    timer = setInterval(tick, 1000);
+
+    if (cancelBtn) {
+      cancelBtn.addEventListener("click", function () {
+        cancelled = true;
+        clearInterval(timer);
+      });
+    }
+  })();
+</script>
+{% endblock %}

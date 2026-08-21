@@ -71,6 +71,7 @@
 </script>
 <link rel="preload" as="image" href="{{ url_for('static', filename='images/produit.jpeg') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/home_shell.css', v=app_static_version) }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/assistant/widget.css', v=(app_static_version ~ '-assistant-kb-v2')) }}">
 {% endblock %}
 
 {% block content %}
@@ -153,12 +154,12 @@
         <span class="universe-count">{{ market_stats.get('locations', 0) }} offre(s)</span>
       </span>
     </a>
-    <a href="{{ url_for('delivery_special.delivery_form') }}" class="universe-card delivery reveal" style="--i: 4">
-      <span class="universe-icon"><i class="bi bi-truck"></i></span>
+    <a href="{{ url_for('shop.promotions') }}" class="universe-card promotions reveal" style="--i: 4">
+      <span class="universe-icon"><i class="bi bi-stars"></i></span>
       <span class="universe-content">
-        <span class="universe-label">Livraison</span>
-        <span class="universe-note">Spéciale</span>
-        <span class="universe-count">Tarif par ville</span>
+        <span class="universe-label">Promotion</span>
+        <span class="universe-note">Bons plans</span>
+        <span class="universe-count">Offres en cours</span>
       </span>
     </a>
   </div>
@@ -172,10 +173,6 @@
       <h2 class="products-title underline-animated"></h2>
       <p class="products-subtitle"></p>
     </div>
-    <a href="{{ url_for('shop.promotions') }}" class="products-more-btn premium-hover">
-      <span>Promotions du moment</span>
-      <i class="bi bi-arrow-right"></i>
-    </a>
   </div>
   <div class="products-grid">
     {% for item in data %}
@@ -499,11 +496,13 @@
     <i class="bi bi-x"></i>
   </button>
 </div>
+{% include "partials/_assistant_widget.html" %}
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/home_shell.js', v=app_static_version) }}" defer></script>
+<script src="{{ url_for('static', filename='js/assistant/widget.js', v=(app_static_version ~ '-assistant-kb-v2')) }}" defer></script>
 {% endblock %}
 
 

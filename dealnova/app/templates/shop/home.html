@@ -45,6 +45,7 @@
   }}
 </script>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/shop_home_page.css', v=app_static_version) }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/assistant/widget.css', v=(app_static_version ~ '-assistant-kb-v2')) }}">
 {% endblock %}
 
 {% block body_attrs %}data-ajax-owner="page" data-page="shop_home"{% endblock %}
@@ -67,12 +68,6 @@
   <!-- En-tête -->
   <div class="shop-header">
     <p class="shop-subtitle">{{ t('Des milliers de produits et boutiques à découvrir') }}</p>
-    <div class="shop-header-actions">
-      <a href="{{ url_for('shop.promotions') }}" class="btn-promotions-home" id="homePromotionsBtn" data-stop-nav="hard">
-        <i class="bi bi-stars"></i>
-        <span>{{ t('Promotions du moment') }}</span>
-      </a>
-    </div>
   </div>
 
   <!-- Barre de recherche -->
@@ -136,9 +131,9 @@
     <div class="mode-intro-line">{{ t('Utilisez les 4 boutons ci-dessous.') }}</div>
   </div>
 
-  <!-- Mode: Produits / Services / Locations / Livraison -->
+  <!-- Mode: Produits / Services / Locations / Promotion -->
   <div class="mode-switch-wrap" id="modeSwitchWrap">
-    <div class="mode-switch" role="group" aria-label="{{ t('Filtre Produits / Services / Locations / Livraison') }}">
+    <div class="mode-switch" role="group" aria-label="{{ t('Filtre Produits / Services / Locations / Promotion') }}">
       <button type="button"
               class="mode-btn mode-products {% if kind == 'physical' %}active{% endif %}"
               data-filter="kind"
@@ -170,13 +165,13 @@
           <div class="mode-sub">{{ t('Immobilier') }}</div>
         </div>
       </a>
-      <a href="{{ url_for('delivery_special.delivery_form') }}"
-         class="mode-btn mode-delivery mode-link"
-         aria-label="{{ t('Voir la livraison spéciale') }}">
-        <div class="mode-icon"><i class="bi bi-truck"></i></div>
+      <a href="{{ url_for('shop.promotions') }}"
+         class="mode-btn mode-promotions mode-link"
+         aria-label="{{ t('Voir les promotions') }}">
+        <div class="mode-icon"><i class="bi bi-stars"></i></div>
         <div class="mode-text">
-          <div class="mode-title">{{ t('Livraison') }}</div>
-          <div class="mode-sub">{{ t('Spéciale') }}</div>
+          <div class="mode-title">{{ t('Promotion') }}</div>
+          <div class="mode-sub">{{ t('Bons plans') }}</div>
         </div>
       </a>
     </div>
@@ -632,6 +627,7 @@
     <i class="bi bi-x"></i>
   </button>
 </div>
+{% include "partials/_assistant_widget.html" %}
 {% endblock %}
 
 {% block scripts %}
@@ -648,8 +644,6 @@
     "location": url_for('static', filename='img/placeholders/location.svg')
   }
 } | tojson }}</script>
+<script src="{{ url_for('static', filename='js/assistant/widget.js', v=(app_static_version ~ '-assistant-kb-v2')) }}" defer></script>
 {% endblock %}
-
-
-
 

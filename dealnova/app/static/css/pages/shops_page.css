@@ -364,6 +364,8 @@
   /* ===== CARTE BOUTIQUE ===== */
   .shop-card {
     --shop-card-radius: 16px;
+    display: flex;
+    flex-direction: column;
     background: var(--card-bg);
     border-radius: var(--shop-card-radius);
     overflow: hidden;
@@ -392,6 +394,7 @@
   /* Banner as hero image */
   .shop-banner {
     height: 170px;
+    flex: 0 0 auto;
     background: linear-gradient(135deg, var(--primary-green), var(--accent-purple));
     position: relative;
     border-radius: var(--shop-card-radius) var(--shop-card-radius) 0 0;
@@ -487,6 +490,10 @@
 
   /* Contenu */
   .shop-card-content {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
     padding: 16px;
   }
 
@@ -518,11 +525,20 @@
     font-size: 1.05rem;
     color: var(--text-primary);
     margin-bottom: 0.4rem;
-    line-height: 1.3;
+    line-height: 1.25;
+    min-height: 2.5em;
+    max-height: 2.5em;
+    overflow: hidden;
   }
 
   .shop-name a {
     color: inherit;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+    overflow-wrap: anywhere;
     text-decoration: none;
     transition: color 0.3s ease;
   }
@@ -591,30 +607,48 @@
   /* Statistiques */
   .shop-stats {
     display: grid;
+    align-items: stretch;
+    grid-auto-rows: 1fr;
     gap: 0.5rem;
     margin-bottom: 1rem;
+    min-width: 0;
     padding: 0.6rem;
     background: var(--light-bg);
     border-radius: 10px;
   }
-  .shop-stats.cols-1 { grid-template-columns: 1fr; }
-  .shop-stats.cols-2 { grid-template-columns: repeat(2, 1fr); }
-  .shop-stats.cols-3 { grid-template-columns: repeat(3, 1fr); }
+  .shop-stats.cols-1 { grid-template-columns: minmax(0, 1fr); }
+  .shop-stats.cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .shop-stats.cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 
   .stat-item {
+    align-items: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-height: 46px;
+    min-width: 0;
     text-align: center;
   }
 
   .stat-number {
     display: block;
+    font-variant-numeric: tabular-nums;
     font-weight: 900;
     font-size: 1rem;
+    line-height: 1;
     margin-bottom: 0.1rem;
   }
 
   .stat-label {
+    display: block;
     font-size: 0.75rem;
     color: var(--text-secondary);
+    line-height: 1.15;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    width: 100%;
   }
 
   .stat-physical .stat-number {
@@ -690,6 +724,7 @@
   /* Bouton visiter */
   .shop-visit-btn {
     display: block;
+    margin-top: auto;
     text-align: center;
     padding: 0.65rem 0.75rem;
     background: linear-gradient(135deg, var(--primary-green), var(--primary-green-dark));
@@ -1163,7 +1198,15 @@
     
     .shop-card-content { padding: 9px; }
     
-    .shop-stats { grid-template-columns: repeat(2, 1fr); padding: 0.42rem; gap: 0.28rem; }
+    .shop-stats { padding: 0.42rem; gap: 0.28rem; }
+
+    .shop-stats.cols-1 { grid-template-columns: minmax(0, 1fr); }
+
+    .shop-stats.cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+    .shop-stats.cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+    .stat-item { min-height: 40px; }
     
     .stat-number { font-size: 0.82rem; }
     

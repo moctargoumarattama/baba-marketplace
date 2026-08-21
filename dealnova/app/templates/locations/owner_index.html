@@ -8,7 +8,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="owner-shell">
+<div class="owner-shell owner-shell-premium">
   {% set status_labels = {'active': 'Active', 'reserved': 'Reservee', 'taken': 'Prise', 'expired': 'Expiree'} %}
   {% set list_url = url_for('rentals.owner_locations', page=pagination.page, q=q, status=status, shop=selected_shop_id) %}
   {% set archive_url = url_for('rentals.owner_locations_archives', q=q, shop=selected_shop_id) %}
@@ -36,7 +36,7 @@
 
   <section class="owner-layout">
     <div class="owner-main">
-      <article class="owner-card">
+      <article class="owner-card owner-filters-card">
         <div class="owner-card-head">
           <strong>Filtres annonces</strong>
         </div>
@@ -67,7 +67,7 @@
         </div>
       </article>
 
-      <article class="owner-card">
+      <article class="owner-card owner-listings-card">
         <div class="owner-card-head">
           <strong>Annonces en cours</strong>
           <span class="text-muted small fw-semibold">{{ pagination.total }} resultat(s)</span>
@@ -94,14 +94,14 @@
                     <span>Commission interne: {{ bps_to_percent(settings.rental_success_commission_bps) }}% · {{ cents_to_dh(listing_commission) }}</span>
                   </div>
                   <div class="listing-actions">
-                    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('rentals.owner_location_edit', listing_id=listing.id) }}">
+                    <a class="btn btn-outline-primary btn-sm listing-action-edit" href="{{ url_for('rentals.owner_location_edit', listing_id=listing.id) }}">
                       <i class="bi bi-pencil-square me-1"></i> Modifier
                     </a>
-                    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('rentals.location_detail', slug=listing.slug) }}" target="_blank">
+                    <a class="btn btn-outline-secondary btn-sm listing-action-view" href="{{ url_for('rentals.location_detail', slug=listing.slug) }}" target="_blank">
                       <i class="bi bi-box-arrow-up-right me-1"></i> Vue client
                     </a>
                     {% if listing.status == 'active' %}
-                      <form method="post" action="{{ url_for('rentals.owner_location_close', listing_id=listing.id) }}">
+                      <form class="listing-action-reserve" method="post" action="{{ url_for('rentals.owner_location_close', listing_id=listing.id) }}">
                         {% include "partials/_csrf.html" %}
                         <input type="hidden" name="status" value="reserved">
                         <input type="hidden" name="next" value="{{ list_url }}">
@@ -111,7 +111,7 @@
                       </form>
                     {% endif %}
                     {% if listing.status != 'taken' %}
-                      <form method="post" action="{{ url_for('rentals.owner_location_close', listing_id=listing.id) }}">
+                      <form class="listing-action-taken" method="post" action="{{ url_for('rentals.owner_location_close', listing_id=listing.id) }}">
                         {% include "partials/_csrf.html" %}
                         <input type="hidden" name="status" value="taken">
                         <input type="hidden" name="next" value="{{ list_url }}">
@@ -120,7 +120,7 @@
                         </button>
                       </form>
                     {% endif %}
-                    <form method="post"
+                    <form class="listing-action-delete" method="post"
                           action="{{ url_for('rentals.owner_location_delete', listing_id=listing.id) }}"
                           data-confirm-submit="Supprimer cette annonce ?">
                       {% include "partials/_csrf.html" %}
@@ -166,7 +166,7 @@
     </div>
 
     <aside class="owner-side">
-      <article class="owner-card">
+      <article class="owner-card owner-side-card owner-shops-card">
         <div class="owner-card-head">
           <strong>{{ 'Boutique location' if shops|length <= 1 else 'Boutiques location' }}</strong>
         </div>
@@ -174,7 +174,7 @@
           <div class="shop-list">
             {% for shop in shops %}
               {% set stats = shop_stats.get(shop.id, {'count': 0, 'views': 0}) %}
-              <div class="shop-item">
+              <div class="shop-item {{ 'is-primary' if loop.first else '' }}">
                 <div class="name">{{ shop.name }}</div>
                 <div class="meta">{{ stats.count }} annonce(s)</div>
                 <div class="meta"><i class="bi bi-eye me-1"></i>{{ stats.views }} consultations</div>
@@ -194,7 +194,7 @@
         </div>
       </article>
 
-      <article class="owner-card">
+      <article class="owner-card owner-side-card owner-history-card">
         <div class="owner-card-head">
           <strong>Historique location</strong>
         </div>
@@ -209,7 +209,7 @@
                 -
               {% endif %}
             </div>
-            <a class="btn btn-primary btn-sm" href="{{ archive_url }}">
+            <a class="btn btn-primary btn-sm archive-open-btn" href="{{ archive_url }}">
               <i class="bi bi-clock-history me-1"></i> Ouvrir l'historique
             </a>
           </div>

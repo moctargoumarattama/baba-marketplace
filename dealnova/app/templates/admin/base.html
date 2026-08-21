@@ -40,9 +40,9 @@
     <meta name="apple-mobile-web-app-title" content="Baba Market">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     {% for startup_file, startup_media in apple_startup_images %}
-    <link rel="apple-touch-startup-image" href="{{ url_for('static', filename=startup_file, v=app_static_version) }}" media="{{ startup_media }}">
+    <link rel="apple-touch-startup-image" href="{{ url_for('static', filename=startup_file, v=app_static_version ~ '-splashw1') }}" media="{{ startup_media }}">
     {% endfor %}
-    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json', v=app_static_version) }}">
     <link href="{{ url_for('static', filename='vendor/bootstrap/5.1.3/css/bootstrap.min.css', v=app_static_version) }}" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons/1.8.1/font/bootstrap-icons.css', v=app_static_version) }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='fonts/admin.css', v=app_static_version) }}">
@@ -894,7 +894,6 @@
             <li class="nav-item"><a class="nav-link {% if 'vendor_change_request' in ep %}active{% endif %}" href="{{ url_for('admin_users.vendor_change_requests') }}"><i class="bi bi-pencil-square"></i><span>Demandes modifs vendeurs</span></a></li>
             <li class="nav-item"><a class="nav-link {% if 'shop' in ep %}active{% endif %}" href="{{ url_for('admin_users.manage_shops') }}"><i class="bi bi-shop"></i><span>Boutiques</span></a></li>
             <li class="nav-item"><a class="nav-link {% if 'rentals.admin_locations' in ep or 'admin/locations' in request.path %}active{% endif %}" href="{{ url_for('rentals.admin_locations') }}"><i class="bi bi-house-door"></i><span>Locations</span></a></li>
-            <li class="nav-item"><a class="nav-link {% if ep.startswith('admin.deliver') or ep == 'admin.order_detail' %}active{% endif %}" href="{{ url_for('admin.deliveries') }}"><i class="bi bi-truck"></i><span>Livraisons</span></a></li>
             <li class="nav-item"><a class="nav-link {% if ep.startswith('admin.promo') %}active{% endif %}" href="{{ url_for('admin.promo_reviews') }}"><i class="bi bi-percent"></i><span>Promotions</span></a></li>
             <li class="nav-item">
                 <a class="nav-link {% if ep == 'admin.product_contacts' %}active{% endif %}" href="{{ url_for('admin.product_contacts') }}">
@@ -911,6 +910,7 @@
             {% if current_user.role == 'admin' %}
             <li class="nav-item"><a class="nav-link {% if 'log' in ep %}active{% endif %}" href="{{ url_for('admin_users.view_logs') }}"><i class="bi bi-clock-history"></i><span>Logs</span></a></li>
             {% endif %}
+            <li class="nav-item"><a class="nav-link {% if ep == 'admin_users.deletion_history' %}active{% endif %}" href="{{ url_for('admin_users.deletion_history') }}"><i class="bi bi-archive"></i><span>Historique suppression</span></a></li>
             <li class="nav-item"><a class="nav-link {% if 'pricing' in ep or 'settings' in ep %}active{% endif %}" href="{{ url_for('admin.pricing_settings') }}"><i class="bi bi-sliders"></i><span>Parametres</span></a></li>
             {% if current_user.role == 'admin' %}
             <li class="nav-item"><a class="nav-link {% if 'admin.maintenance' in ep or 'run_maintenance' in ep or 'maintenance_reset_data' in ep %}active{% endif %}" href="{{ url_for('admin.maintenance') }}"><i class="bi bi-tools"></i><span>Maintenance systeme</span></a></li>
@@ -993,6 +993,7 @@
     </div>
 
     <script src="{{ url_for('static', filename='vendor/bootstrap/5.1.3/js/bootstrap.bundle.min.js', v=app_static_version) }}"></script>
+    <script src="{{ url_for('static', filename='js/core/safe_refresh.js', v=app_static_version) }}"></script>
     <script src="{{ url_for('static', filename='js/admin/admin_helpers.js', v=app_static_version) }}"></script>
     <script src="{{ url_for('static', filename='js/admin/admin_push_notifications.js', v=app_static_version) }}" defer></script>
 {% block scripts %}{% endblock %}

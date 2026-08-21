@@ -1,7 +1,7 @@
 ﻿import json
 import os
 from pathlib import Path
-from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, current_app, session
+from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, current_app, session, send_from_directory
 from flask_login import login_required, current_user, logout_user
 from datetime import datetime, timedelta
 from werkzeug.security import check_password_hash
@@ -46,12 +46,21 @@ from ..services.maintenance import (
     localize_http_error_message,
     UPLOADS_SIZE_GB_DANGER,
     UPLOADS_SIZE_GB_WARNING,
+    FULL_RESTORE_CONFIRM_TEXT,
+    UPLOADS_RESTORE_CONFIRM_TEXT,
+    create_full_backup,
     create_database_backup,
+    create_uploads_backup,
     import_database_backup,
     list_database_backups,
+    list_maintenance_backups,
     create_pre_reset_backup,
+    resolve_managed_backup_path,
+    restore_full_backup,
     restore_database_backup,
+    restore_uploads_backup,
     reset_database_keep_admins,
+    verify_backup_integrity,
 )
 from ..services.maintenance_mode import (
     disable_maintenance_mode,
@@ -64,16 +73,8 @@ from ..services.maintenance_mode import (
 from ..services.pagination import page_from_args
 from ..services.date_filters import resolve_date_filter
 from ..services.finance_entries import (
-    ENTRY_TYPE_DELIVERY_FEE,
     ENTRY_TYPE_RENTAL_COMMISSION,
     ENTRY_TYPE_SUBSCRIPTION,
-    record_delivery_fee_entry,
-)
-from ..services.delivery_context import (
-    DELIVERY_SOURCE_SPECIAL,
-    enrich_order_delivery_context,
-    enrich_orders_delivery_context,
-    normalize_delivery_source,
 )
 from ..services.traffic_stats import get_live_traffic_metrics
 
@@ -82,10 +83,6 @@ bp = Blueprint("admin", __name__, url_prefix="/admin")
 MAINTENANCE_PANEL_SESSION_KEY = "maintenance_panel_unlock_until"
 MAINTENANCE_PANEL_DEFAULT_UNLOCK_MINUTES = 90
 
-FINAL_DELIVERY_ORDER_STATUSES = {"delivered", "cancelled", "archived"}
-ACTIVE_DELIVERY_STATUSES = {"new"}
-ORDER_STATUS_FILTERS = {"", "pending", "delivered", "cancelled"}
-DELIVERY_STATUS_FILTERS = {"", "new", "delivered", "canceled"}
 FEATURED_SEARCH_LIMIT = 18
 FEATURED_HISTORY_PER_PAGE = 30
 FEATURED_STATUS_FILTERS = {"all", "active", "expired", "stopped"}
@@ -101,6 +98,11 @@ MANAGER_BLOCKED_ADMIN_ENDPOINTS = {
     "admin.maintenance_mode_disable",
     "admin.maintenance_mode_schedule",
     "admin.run_maintenance",
+    "admin.maintenance_backup_create",
+    "admin.maintenance_backup_import",
+    "admin.maintenance_backup_verify",
+    "admin.maintenance_backup_download",
+    "admin.maintenance_backup_restore",
     "admin.maintenance_reset_data",
 }
 
@@ -134,86 +136,6 @@ def _parse_days(raw_value, default: int = 6, minimum: int = 1, maximum: int = 36
     except (TypeError, ValueError):
         parsed = default
     return max(minimum, min(maximum, parsed))
-
-
-def _archived_orders_query():
-    return Order.query.filter(
-        Order.delivery_source == DELIVERY_SOURCE_SPECIAL,
-        or_(
-            Order.status.in_(tuple(FINAL_DELIVERY_ORDER_STATUSES)),
-            Order.delivery_status.in_(("delivered", "canceled")),
-        ),
-    )
-
-
-def _delivery_delete_guard(order) -> tuple[bool, str, datetime | None]:
-    if order is None:
-        return False, "Livraison introuvable.", None
-    if not _is_express_delivery_order(order):
-        return False, "Suppression reservee aux livraisons express.", None
-    if (order.status or "").lower() not in FINAL_DELIVERY_ORDER_STATUSES:
-        return False, f"Suppression refusee: livraison non finalisee (statut {order.status}).", None
-    return True, "", None
-
-
-def _apply_delivery_filters(
-    base_query,
-    *,
-    order_status_filter: str = "",
-    delivery_status_filter: str = "",
-    source_filter: str = "",
-    city_filter: str = "",
-    client_filter: str = "",
-    phone_filter: str = "",
-):
-    query = base_query
-    if order_status_filter:
-        query = query.filter(Order.status == order_status_filter)
-    if delivery_status_filter:
-        query = query.filter(Order.delivery_status == delivery_status_filter)
-    if source_filter:
-        query = query.filter(Order.delivery_source == source_filter)
-    if city_filter:
-        query = query.filter(or_(Order.city == city_filter, Order.delivery_city == city_filter))
-    if client_filter:
-        query = query.filter(Order.full_name.ilike(f"%{client_filter}%"))
-    if phone_filter:
-        query = query.filter(Order.phone.ilike(f"%{phone_filter}%"))
-
-    return query
-
-
-def _normalize_order_status_filter(raw_value: str | None) -> str:
-    value = (raw_value or "").strip().lower()
-    return value if value in ORDER_STATUS_FILTERS else ""
-
-
-def _normalize_delivery_status_filter(raw_value: str | None) -> str:
-    value = (raw_value or "").strip().lower()
-    return value if value in DELIVERY_STATUS_FILTERS else ""
-
-
-def _is_express_delivery_order(order: Order) -> bool:
-    return normalize_delivery_source(getattr(order, "delivery_source", None)) == DELIVERY_SOURCE_SPECIAL
-
-
-def _reject_product_delivery_action(message: str = "Les produits physiques sont geres directement entre client et boutique."):
-    if _is_ajax_request():
-        return jsonify(success=False, message=message), 410
-    flash(message, "warning")
-    return redirect(url_for("admin.product_contacts"))
-
-
-def _operational_deliveries_query(base_query, *, now: datetime | None = None, window_hours: int = 24):
-    current_time = now or datetime.utcnow()
-    cutoff = current_time - timedelta(hours=window_hours)
-    return base_query.filter(
-        or_(
-            Order.delivery_status.in_(tuple(ACTIVE_DELIVERY_STATUSES)),
-            Order.created_at >= cutoff,
-            Order.delivered_at >= cutoff,
-        )
-    )
 
 
 def _maintenance_health_placeholder(days: int, note: str = "metrics moved to CLI") -> dict:
@@ -295,34 +217,55 @@ def _maintenance_health_freshness(last_run, days: int) -> dict:
 
 
 def _maintenance_backup_context() -> dict:
-    retention_days = int(current_app.config.get("DB_BACKUP_RETENTION_DAYS", 30) or 30)
+    db_retention_days = int(current_app.config.get("DB_BACKUP_RETENTION_DAYS", 30) or 30)
+    uploads_retention_days = int(current_app.config.get("UPLOADS_BACKUP_RETENTION_DAYS", 14) or 14)
+    full_retention_days = int(current_app.config.get("FULL_BACKUP_RETENTION_DAYS", 14) or 14)
     backup_dir = str(current_app.config.get("MAINTENANCE_BACKUP_DIR") or "").strip()
     display_dir = backup_dir or str((Path(current_app.root_path).resolve().parent / "backups").resolve())
     project_dir = str((Path(current_app.root_path).resolve().parent).resolve())
     venv_name = str(current_app.config.get("PYTHONANYWHERE_VENV_NAME") or "babaenv").strip() or "babaenv"
-    command = (
+    db_command = (
         f"cd {project_dir} && workon {venv_name} && "
-        f"flask --app app:create_app db-backup --backup-dir {display_dir} --retention-days {retention_days}"
+        f"flask --app app:create_app db-backup --backup-dir {display_dir} --retention-days {db_retention_days}"
     )
-    restore_command = f"flask --app app:create_app db-restore {display_dir}/nom_du_backup.sql.gz --yes"
+    uploads_command = (
+        f"cd {project_dir} && workon {venv_name} && "
+        f"flask --app app:create_app uploads-backup --backup-dir {display_dir} --retention-days {uploads_retention_days}"
+    )
+    full_command = (
+        f"cd {project_dir} && workon {venv_name} && "
+        f"flask --app app:create_app full-backup --backup-dir {display_dir} "
+        f"--db-retention-days {db_retention_days} --uploads-retention-days {uploads_retention_days} "
+        f"--full-retention-days {full_retention_days}"
+    )
     panel = {
         "available": True,
         "backup_dir": display_dir,
-        "retention_days": retention_days,
-        "command": command,
-        "restore_command": restore_command,
+        "retention_days": db_retention_days,
+        "db_retention_days": db_retention_days,
+        "uploads_retention_days": uploads_retention_days,
+        "full_retention_days": full_retention_days,
+        "db_command": db_command,
+        "uploads_command": uploads_command,
+        "full_command": full_command,
         "backups": [],
         "latest": None,
         "status_label": "Aucune sauvegarde",
         "status_class": "status-warn",
         "note": "",
+        "counts": {"database": 0, "uploads": 0, "full": 0},
     }
 
     try:
-        backups = list_database_backups(backup_dir=backup_dir or None)
+        backups = list_maintenance_backups(backup_dir=backup_dir or None)
         panel["backups"] = backups
         latest = backups[0] if backups else None
         panel["latest"] = latest
+        panel["counts"] = {
+            "database": sum(1 for item in backups if item.get("kind") == "database"),
+            "uploads": sum(1 for item in backups if item.get("kind") == "uploads"),
+            "full": sum(1 for item in backups if item.get("kind") == "full"),
+        }
         if latest:
             modified_raw = latest.get("modified_at_utc") or ""
             modified_dt = None
@@ -336,6 +279,9 @@ def _maintenance_backup_context() -> dict:
             else:
                 panel["status_label"] = "Sauvegarde ancienne"
                 panel["status_class"] = "status-warn"
+            if latest.get("integrity_state") == "invalid":
+                panel["status_label"] = "Integrite a verifier"
+                panel["status_class"] = "status-danger"
     except Exception as exc:
         panel["available"] = False
         panel["status_label"] = "Erreur sauvegardes"
@@ -1018,198 +964,20 @@ def product_contacts():
 # ======================
 @bp.route("/deliveries")
 def deliveries():
-    now = datetime.utcnow()
-    date_filter = resolve_date_filter(request.args, default="month")
-    read_only = False
-    base_query = Order.query
-    source_filter = DELIVERY_SOURCE_SPECIAL
-    base_query = base_query.filter(Order.delivery_source == DELIVERY_SOURCE_SPECIAL)
-    order_status_filter = _normalize_order_status_filter(request.args.get("order_status") or request.args.get("status"))
-    delivery_status_filter = _normalize_delivery_status_filter(request.args.get("delivery_status"))
-    scoped_base = base_query
-    if order_status_filter:
-        scoped_base = scoped_base.filter(Order.status == order_status_filter)
-    if delivery_status_filter:
-        scoped_base = scoped_base.filter(Order.delivery_status == delivery_status_filter)
-    operational_base = _operational_deliveries_query(scoped_base, now=now, window_hours=24)
-
-    pending_query = (
-        operational_base.filter(Order.delivery_status.in_(tuple(ACTIVE_DELIVERY_STATUSES)))
-        .order_by(Order.created_at.desc())
-    )
-    pending = pending_query.limit(25).all()
-
-    delivered_recent_query = (
-        operational_base.filter(Order.delivery_status == "delivered")
-        .filter(Order.delivered_at.is_(None) | (Order.delivered_at >= (now - timedelta(hours=24))))
-    )
-    total_baba_fee = (
-        delivered_recent_query.with_entities(
-            db.func.coalesce(db.func.sum(Order.delivery_platform_fee_cents), 0)
-        ).scalar() or 0
-    ) / 100
-    pending_count = operational_base.filter(Order.delivery_status.in_(tuple(ACTIVE_DELIVERY_STATUSES))).count()
-    delivered_recent_count = delivered_recent_query.count()
-    city_filter = request.args.get("city", "")
-    client_filter = request.args.get("client", "")
-    phone_filter = request.args.get("phone", "")
-    page = page_from_args(request.args)
-
-    history_query = _apply_delivery_filters(
-        operational_base,
-        order_status_filter=order_status_filter,
-        delivery_status_filter=delivery_status_filter,
-        source_filter=source_filter,
-        city_filter=city_filter,
-        client_filter=client_filter,
-        phone_filter=phone_filter,
-    )
-    history_query = history_query.filter(
-        Order.created_at >= date_filter.start_at,
-        Order.created_at < date_filter.end_at,
-    )
-
-    pagination = history_query.order_by(Order.created_at.desc()).paginate(
-        page=page, per_page=30, error_out=False
-    )
-    history_orders = pagination.items
-    enrich_orders_delivery_context(pending)
-    enrich_orders_delivery_context(history_orders)
-
-    if request.args.get("export") == "csv":
-        import csv
-        import io
-
-        output = io.StringIO()
-        writer = csv.writer(output)
-        writer.writerow([
-            "ID", "Date", "Statut", "Source", "Client", "Telephone", "Ville",
-            "Objet", "Depart", "Arrivee", "DeliveryStatus", "Total(MAD)",
-            "Livraison(MAD)", "RevenuLivraisonBaba(MAD)", "RemiseBaba"
-        ])
-
-        for order in history_orders:
-            writer.writerow([
-                order.id,
-                order.created_at.strftime("%d/%m/%Y %H:%M") if order.created_at else "",
-                order.status,
-                order.delivery_source or DELIVERY_SOURCE_SPECIAL,
-                order.full_name,
-                order.phone,
-                order.delivery_city or order.city,
-                order.special_item or "",
-                order.special_pickup_address or "",
-                order.special_dropoff_address or order.delivery_address or "",
-                order.delivery_status,
-                f"{(order.total or 0) / 100:.2f}",
-                f"{(order.delivery_price_cents or order.shipping or 0) / 100:.2f}",
-                f"{(order.delivery_platform_fee_cents or 0) / 100:.2f}",
-                "remis" if order.baba_fee_settled_at else "a_remettre",
-            ])
-
-        response = current_app.response_class(
-            output.getvalue(),
-            mimetype="text/csv; charset=utf-8"
-        )
-        response.headers["Content-Disposition"] = "attachment; filename=deliveries_operational.csv"
-        return response
-
-    return render_template(
-        "admin/deliveries.html",
-        pending=pending,
-        total_baba_fee=total_baba_fee,
-        pending_count=pending_count,
-        delivered_recent_count=delivered_recent_count,
-        pagination=pagination,
-        history_orders=history_orders,
-        source_filter=source_filter,
-        order_status_filter=order_status_filter,
-        delivery_status_filter=delivery_status_filter,
-        range_filter=date_filter.range_filter,
-        date_range_label=date_filter.label,
-        date_from=date_filter.date_from,
-        date_to=date_filter.date_to,
-        city_filter=city_filter,
-        client_filter=client_filter,
-        phone_filter=phone_filter,
-        cities=Order.CITIES,
-        read_only=read_only,
-    )
+    flash("Le module livraison a ete supprime.", "info")
+    return redirect(url_for("admin.product_contacts"))
 
 
 @bp.route("/deliver/<int:oid>", methods=["POST"])
 def mark_delivered(oid):
-    order = Order.query.get_or_404(oid)
-    if not _is_express_delivery_order(order):
-        return _reject_product_delivery_action("Baba ne marque plus les produits physiques comme livres.")
-    order.status = "delivered"
-    order.delivery_status = "delivered"
-    order.delivered_at = datetime.utcnow()
-    record_delivery_fee_entry(order, note="order delivered by admin")
-    db.session.commit()
-
-    log_access(
-        "update_order_status",
-        "order",
-        order.id,
-        success=True,
-        changes={"status": order.status}
-    )
-
-    if _is_ajax_request():
-        return jsonify(success=True, order_id=order.id, status=order.status)
-
-
-    flash(
-        (
-            f"Livraison express #{oid} livree - revenu livraison Baba: "
-            f"{(order.delivery_platform_fee_cents or 0) / 100:.2f} MAD"
-        ),
-        "success",
-    )
-    next_url = request.args.get("next")
-    if next_url and next_url.endswith("?"):
-        next_url = next_url[:-1]
-    if next_url and next_url.startswith("/"):
-        return redirect(next_url)
-    return redirect(url_for("admin.deliveries"))
+    flash("Le module livraison a ete supprime.", "info")
+    return redirect(url_for("admin.product_contacts"))
 
 
 @bp.route("/order/<int:oid>/cancel", methods=["POST"])
 def cancel_order(oid):
-    order = Order.query.get_or_404(oid)
-    if not _is_express_delivery_order(order):
-        return _reject_product_delivery_action("Baba ne modifie plus les demandes produits WhatsApp.")
-    order.status = "cancelled"
-    order.delivery_status = "canceled"
-    order.delivered_at = None
-    order.baba_fee_settled_at = None
-    order.baba_fee_settled_by_user_id = None
-    FinancialEntry.query.filter(
-        FinancialEntry.entry_type == ENTRY_TYPE_DELIVERY_FEE,
-        FinancialEntry.order_id == order.id,
-    ).delete(synchronize_session=False)
-    db.session.commit()
-
-    log_access(
-        "cancel_order",
-        "order",
-        order.id,
-        success=True,
-        changes={"status": order.status}
-    )
-
-    if _is_ajax_request():
-        return jsonify(success=True, order_id=order.id, status=order.status)
-
-
-    flash(f"Livraison express #{oid} annulee", "warning")
-    next_url = request.args.get("next")
-    if next_url and next_url.endswith("?"):
-        next_url = next_url[:-1]
-    if next_url and next_url.startswith("/"):
-        return redirect(next_url)
-    return redirect(url_for("admin.deliveries"))
+    flash("Le module livraison a ete supprime.", "info")
+    return redirect(url_for("admin.product_contacts"))
 
 
 # ======================
@@ -1223,24 +991,7 @@ def all_orders():
 
 @bp.route("/orders/archives")
 def order_archives():
-    redirect_params = {}
-    range_filter = (request.args.get("range") or "").strip()
-    if range_filter:
-        redirect_params["range"] = range_filter
-
-    date_from = (request.args.get("date_from") or request.args.get("from") or "").strip()
-    if date_from:
-        redirect_params["date_from"] = date_from
-
-    date_to = (request.args.get("date_to") or request.args.get("to") or "").strip()
-    if date_to:
-        redirect_params["date_to"] = date_to
-
-    page = page_from_args(request.args, key="archives_page", default=1)
-    if page > 1:
-        redirect_params["page"] = page
-
-    return redirect(url_for("admin.deliveries_archives", **redirect_params))
+    return redirect(url_for("admin.product_contacts"))
 
 
 @bp.route("/finance")
@@ -1248,15 +999,13 @@ def finance():
     page = page_from_args(request.args)
     date_filter = resolve_date_filter(request.args, default="month")
     entry_type = (request.args.get("entry_type") or "").strip().lower()
-    if entry_type not in {ENTRY_TYPE_DELIVERY_FEE, ENTRY_TYPE_SUBSCRIPTION, ENTRY_TYPE_RENTAL_COMMISSION}:
+    if entry_type not in {ENTRY_TYPE_SUBSCRIPTION, ENTRY_TYPE_RENTAL_COMMISSION}:
         entry_type = ""
 
     selected_totals = {
-        "delivery_total_cents": 0,
         "subscription_total_cents": 0,
         "rental_total_cents": 0,
         "total_cents": 0,
-        "delivery_count": 0,
         "subscription_count": 0,
         "rental_count": 0,
         "entry_count": 0,
@@ -1279,18 +1028,14 @@ def finance():
         count = int(row.cnt or 0)
         total = int(row.total or 0)
         selected_totals["entry_count"] += count
-        if row.entry_type == ENTRY_TYPE_DELIVERY_FEE:
-            selected_totals["delivery_total_cents"] = total
-            selected_totals["delivery_count"] = count
-        elif row.entry_type == ENTRY_TYPE_SUBSCRIPTION:
+        if row.entry_type == ENTRY_TYPE_SUBSCRIPTION:
             selected_totals["subscription_total_cents"] = total
             selected_totals["subscription_count"] = count
         elif row.entry_type == ENTRY_TYPE_RENTAL_COMMISSION:
             selected_totals["rental_total_cents"] = total
             selected_totals["rental_count"] = count
     selected_totals["total_cents"] = (
-        selected_totals["delivery_total_cents"]
-        + selected_totals["subscription_total_cents"]
+        selected_totals["subscription_total_cents"]
         + selected_totals["rental_total_cents"]
     )
 
@@ -1318,7 +1063,6 @@ def finance():
     ).paginate(page=page, per_page=50, error_out=False)
 
     entry_type_labels = {
-        ENTRY_TYPE_DELIVERY_FEE: "Livraison express",
         ENTRY_TYPE_SUBSCRIPTION: "Abonnement vendeur",
         ENTRY_TYPE_RENTAL_COMMISSION: "Commission location",
     }
@@ -1338,245 +1082,25 @@ def finance():
 
 @bp.route("/orders/<int:oid>/delete", methods=["POST"])
 def delete_archived_order(oid: int):
-    next_url = (request.args.get("next") or request.form.get("next") or "").strip()
-
-    def _redirect_after_delete(default_endpoint: str = "admin.deliveries_archives"):
-        if next_url.startswith("/"):
-            return redirect(next_url)
-        return redirect(url_for(default_endpoint))
-
-    order = (
-        Order.query
-        .filter(Order.id == oid)
-        .first()
-    )
-    if order is None:
-        return render_template("errors/404.html"), 404
-    allowed, message, _available_at = _delivery_delete_guard(order)
-    if not allowed:
-        flash(message or "Suppression refusee.", "warning")
-        return _redirect_after_delete()
-
-    try:
-        VendorPayout.query.filter_by(order_id=order.id).delete(synchronize_session=False)
-        VendorReceipt.query.filter_by(order_id=order.id).delete(synchronize_session=False)
-        VendorFulfillment.query.filter_by(order_id=order.id).delete(synchronize_session=False)
-        db.session.delete(order)
-        db.session.commit()
-        log_access(
-            "delete_archived_order",
-            "order",
-            oid,
-            success=True,
-            changes={"status": order.status},
-        )
-        flash(f"Livraison express #{oid} supprimee definitivement.", "success")
-    except Exception as exc:
-        db.session.rollback()
-        flash(f"Echec suppression livraison express #{oid}: {exc}", "danger")
-
-    return _redirect_after_delete()
+    flash("Le module livraison a ete supprime.", "info")
+    return redirect(url_for("admin.product_contacts"))
 
 
 @bp.route("/deliveries/live")
 def deliveries_live():
-    now = datetime.utcnow()
-    date_filter = resolve_date_filter(request.args, default="month")
-    read_only = False
-    source_filter = DELIVERY_SOURCE_SPECIAL
-    order_status_filter = _normalize_order_status_filter(request.args.get("order_status") or request.args.get("status"))
-    delivery_status_filter = _normalize_delivery_status_filter(request.args.get("delivery_status"))
-    city_filter = request.args.get("city", "")
-    client_filter = request.args.get("client", "")
-    phone_filter = request.args.get("phone", "")
-    page = page_from_args(request.args)
-
-    base_query = Order.query
-    base_query = base_query.filter(Order.delivery_source == DELIVERY_SOURCE_SPECIAL)
-    scoped_base = base_query
-    if order_status_filter:
-        scoped_base = scoped_base.filter(Order.status == order_status_filter)
-    if delivery_status_filter:
-        scoped_base = scoped_base.filter(Order.delivery_status == delivery_status_filter)
-    operational_base = _operational_deliveries_query(scoped_base, now=now, window_hours=24)
-
-    pending_query = (
-        operational_base.filter(Order.delivery_status.in_(tuple(ACTIVE_DELIVERY_STATUSES)))
-        .order_by(Order.created_at.desc())
-    )
-    pending_orders = pending_query.limit(25).all()
-
-    delivered_recent_query = (
-        operational_base.filter(Order.delivery_status == "delivered")
-        .filter(Order.delivered_at.is_(None) | (Order.delivered_at >= (now - timedelta(hours=24))))
-    )
-    delivered_recent_count = delivered_recent_query.count()
-    total_baba_fee = (
-        delivered_recent_query.with_entities(
-            db.func.coalesce(db.func.sum(Order.delivery_platform_fee_cents), 0)
-        ).scalar() or 0
-    ) / 100
-
-    history_query = _apply_delivery_filters(
-        operational_base,
-        order_status_filter=order_status_filter,
-        delivery_status_filter=delivery_status_filter,
-        source_filter=source_filter,
-        city_filter=city_filter,
-        client_filter=client_filter,
-        phone_filter=phone_filter,
-    )
-    history_query = history_query.filter(
-        Order.created_at >= date_filter.start_at,
-        Order.created_at < date_filter.end_at,
-    )
-
-    pagination = history_query.order_by(Order.created_at.desc()).paginate(
-        page=page, per_page=30, error_out=False
-    )
-
-    def to_json(order):
-        can_mutate = (not read_only) and (order.delivery_status in ACTIVE_DELIVERY_STATUSES)
-        next_params = {
-            "order_status": order_status_filter or None,
-            "delivery_status": delivery_status_filter or None,
-            "range": date_filter.range_filter,
-            "date_from": date_filter.date_from or None,
-            "date_to": date_filter.date_to or None,
-            "city": city_filter or None,
-            "client": client_filter or None,
-            "phone": phone_filter or None,
-            "page": page,
-        }
-        next_url = url_for(
-            "admin.deliveries",
-            **next_params,
-        )
-        return {
-            "id": order.id,
-            "full_name": order.full_name,
-            "phone": order.phone,
-            "city": order.delivery_city or order.city,
-            "delivery_source": order.delivery_source or DELIVERY_SOURCE_SPECIAL,
-            "total": round((order.total or 0) / 100, 2),
-            "delivery_price": round((order.delivery_price_cents or order.shipping or 0) / 100, 2),
-            "delivery_platform_fee": round((order.delivery_platform_fee_cents or 0) / 100, 2),
-            "baba_fee_settled": bool(order.baba_fee_settled_at),
-            "status": order.status,
-            "delivery_status": order.delivery_status,
-            "can_mutate": can_mutate,
-            "created_at": order.created_at.strftime("%d/%m/%Y %H:%M") if order.created_at else "",
-            "special_item": order.special_item or "",
-            "pickup_address": order.special_pickup_address or "",
-            "dropoff_address": order.special_dropoff_address or order.delivery_address or "",
-            "detail_url": url_for("admin.order_detail", oid=order.id, next=next_url),
-            "deliver_url": url_for("admin.mark_delivered", oid=order.id, next=next_url),
-            "cancel_url": url_for("admin.cancel_order", oid=order.id, next=next_url),
-            "call_url": f"tel:{order.phone}"
-        }
-
-    return jsonify(
-        pending_count=operational_base.filter(Order.delivery_status.in_(tuple(ACTIVE_DELIVERY_STATUSES))).count(),
-        delivered_recent_count=delivered_recent_count,
-        total_baba_fee=round(total_baba_fee, 2),
-        read_only=read_only,
-        range_filter=date_filter.range_filter,
-        date_range_label=date_filter.label,
-        source_filter=source_filter,
-        order_status_filter=order_status_filter,
-        delivery_status_filter=delivery_status_filter,
-        history_total=pagination.total,
-        page=pagination.page,
-        pages=pagination.pages,
-        pending_orders=[to_json(o) for o in pending_orders],
-        history_orders=[to_json(o) for o in pagination.items]
-    )
+    return jsonify(success=False, message="Module livraison supprime.", redirect_url=url_for("admin.product_contacts")), 410
 
 
 @bp.route("/deliveries/archives")
 def deliveries_archives():
-    status_filter = request.args.get("status", "")
-    source_filter = DELIVERY_SOURCE_SPECIAL
-    date_filter = resolve_date_filter(request.args, default="month")
-    city_filter = request.args.get("city", "")
-    client_filter = request.args.get("client", "")
-    phone_filter = request.args.get("phone", "")
-    page = page_from_args(request.args)
-
-    try:
-        base_archived = _archived_orders_query()
-
-        history_query = _apply_delivery_filters(
-            base_archived,
-            order_status_filter=status_filter,
-            source_filter=source_filter,
-            city_filter=city_filter,
-            client_filter=client_filter,
-            phone_filter=phone_filter,
-        ).filter(
-            Order.created_at >= date_filter.start_at,
-            Order.created_at < date_filter.end_at,
-        )
-
-        pagination = history_query.order_by(Order.created_at.desc()).paginate(
-            page=page, per_page=30, error_out=False
-        )
-        history_orders = pagination.items
-        enrich_orders_delivery_context(history_orders)
-
-        delete_guards = {}
-        for order in history_orders:
-            allowed, message, available_at = _delivery_delete_guard(order)
-            delete_guards[order.id] = {
-                "allowed": allowed,
-                "message": message,
-                "available_at": available_at,
-            }
-
-    except SQLAlchemyError:
-        db.session.rollback()
-        current_app.logger.exception(
-            "deliveries_archives.db_error - source=%s page=%s",
-            source_filter, page,
-        )
-        flash("Erreur lors du chargement des archives. Merci de réessayer.", "danger")
-        return redirect(url_for("admin.deliveries"))
-
-    except Exception:
-        current_app.logger.exception(
-            "deliveries_archives.unexpected_error - source=%s page=%s",
-            source_filter, page,
-        )
-        flash("Une erreur inattendue s'est produite.", "danger")
-        return redirect(url_for("admin.deliveries"))
-
-    return render_template(
-        "admin/deliveries_archives.html",
-        pagination=pagination,
-        history_orders=history_orders,
-        source_filter=source_filter,
-        status_filter=status_filter,
-        range_filter=date_filter.range_filter,
-        date_range_label=date_filter.label,
-        date_from=date_filter.date_from,
-        date_to=date_filter.date_to,
-        city_filter=city_filter,
-        client_filter=client_filter,
-        phone_filter=phone_filter,
-        cities=Order.CITIES,
-        delete_guards=delete_guards,
-    )
+    flash("Le module livraison a ete supprime.", "info")
+    return redirect(url_for("admin.product_contacts"))
 
 
 @bp.route("/order/<int:oid>")
 def order_detail(oid):
-    order = Order.query.get_or_404(oid)
-    if not _is_express_delivery_order(order):
-        flash("Les anciennes commandes produits sont remplacees par Contacts produits.", "info")
-        return redirect(url_for("admin.product_contacts"))
-    enrich_order_delivery_context(order)
-    log_access("view_order", "order", order.id, success=True)
-    return render_template("admin/order_detail.html", order=order)
+    flash("Le module livraison a ete supprime.", "info")
+    return redirect(url_for("admin.product_contacts"))
 
 
 # ======================
@@ -1590,26 +1114,6 @@ def order_detail(oid):
 # ======================
 @bp.route("/pricing", methods=["GET", "POST"])
 def pricing_settings():
-    if request.method == "GET" and (request.args.get("section") or "").strip().lower() == "archives":
-        redirect_params = {}
-        range_filter = (request.args.get("range") or "").strip()
-        if range_filter:
-            redirect_params["range"] = range_filter
-
-        date_from = (request.args.get("date_from") or request.args.get("from") or "").strip()
-        if date_from:
-            redirect_params["date_from"] = date_from
-
-        date_to = (request.args.get("date_to") or request.args.get("to") or "").strip()
-        if date_to:
-            redirect_params["date_to"] = date_to
-
-        page = page_from_args(request.args, key="archives_page", default=1)
-        if page > 1:
-            redirect_params["page"] = page
-
-        return redirect(url_for("admin.deliveries_archives", **redirect_params))
-
     settings = PlatformSettings.get()
 
     if request.method == "POST":
@@ -1620,29 +1124,6 @@ def pricing_settings():
             return float(raw)
 
         try:
-            settings.shipping_kenitra = int(
-                round(max(0.0, _to_float("shipping_kenitra", settings.shipping_kenitra / 100)) * 100)
-            )
-            settings.shipping_temara = int(
-                round(max(0.0, _to_float("shipping_temara", settings.shipping_temara / 100)) * 100)
-            )
-            settings.shipping_rabat = int(
-                round(max(0.0, _to_float("shipping_rabat", settings.shipping_rabat / 100)) * 100)
-            )
-            settings.shipping_sale = int(
-                round(max(0.0, _to_float("shipping_sale", settings.shipping_sale / 100)) * 100)
-            )
-            settings.delivery_platform_fee_fixed_cents = int(
-                round(
-                    max(
-                        0.0,
-                        _to_float(
-                            "delivery_platform_fee_fixed_dh",
-                            (settings.delivery_platform_fee_fixed_cents or 0) / 100,
-                        ),
-                    ) * 100
-                )
-            )
             settings.low_stock_threshold = max(
                 0,
                 int(_to_float("low_stock_threshold", settings.low_stock_threshold)),
@@ -1667,11 +1148,6 @@ def pricing_settings():
             settings.id,
             success=True,
             changes={
-                "shipping_kenitra": settings.shipping_kenitra,
-                "shipping_temara": settings.shipping_temara,
-                "shipping_rabat": settings.shipping_rabat,
-                "shipping_sale": settings.shipping_sale,
-                "delivery_platform_fee_fixed_cents": settings.delivery_platform_fee_fixed_cents,
                 "low_stock_threshold": settings.low_stock_threshold,
                 "rental_success_commission_bps": settings.rental_success_commission_bps,
                 "rental_success_commission_percent": round(settings.rental_success_commission_bps / 100, 2),
@@ -2166,22 +1642,77 @@ def maintenance_backup_create():
     if not _maintenance_panel_is_unlocked():
         return _maintenance_protected_redirect(days=days)
 
+    backup_type = (request.form.get("backup_type") or "database").strip().lower()
+    if backup_type not in {"database", "uploads", "full"}:
+        flash("Type de sauvegarde invalide.", "warning")
+        return redirect(url_for("admin.maintenance", days=days) + "#maintenance-backups")
     backup_dir = (request.form.get("backup_dir") or "").strip()
-    retention_raw = (request.form.get("retention_days") or "").strip()
-    retention_days = int(retention_raw) if retention_raw.isdigit() else None
+    db_retention_raw = (request.form.get("db_retention_days") or request.form.get("retention_days") or "").strip()
+    uploads_retention_raw = (request.form.get("uploads_retention_days") or "").strip()
+    full_retention_raw = (request.form.get("full_retention_days") or "").strip()
+    db_retention_days = int(db_retention_raw) if db_retention_raw.isdigit() else None
+    uploads_retention_days = int(uploads_retention_raw) if uploads_retention_raw.isdigit() else None
+    full_retention_days = int(full_retention_raw) if full_retention_raw.isdigit() else None
+
     try:
-        result = create_database_backup(backup_dir=backup_dir or None, retention_days=retention_days)
-        flash(f"Sauvegarde creee: {result.get('backup_file')}", "success")
-        log_access(
-            "maintenance_db_backup_create",
-            "system",
-            0,
-            success=True,
-            changes={"backup_file": result.get("backup_file"), "backup_dir": result.get("backup_dir")},
-        )
+        if backup_type == "uploads":
+            result = create_uploads_backup(
+                backup_dir=backup_dir or None,
+                retention_days=uploads_retention_days,
+            )
+            flash(f"Sauvegarde uploads creee: {result.get('backup_file')}", "success")
+            log_access(
+                "maintenance_uploads_backup_create",
+                "system",
+                0,
+                success=True,
+                changes={"backup_file": result.get("backup_file"), "backup_dir": result.get("backup_dir")},
+            )
+        elif backup_type == "full":
+            result = create_full_backup(
+                backup_dir=backup_dir or None,
+                db_retention_days=db_retention_days,
+                uploads_retention_days=uploads_retention_days,
+                full_retention_days=full_retention_days,
+            )
+            if result.get("success"):
+                flash(f"Sauvegarde complete creee: {result.get('manifest_file')}", "success")
+                log_access(
+                    "maintenance_full_backup_create",
+                    "system",
+                    0,
+                    success=True,
+                    changes={"manifest_file": result.get("manifest_file"), "backup_dir": result.get("backup_dir")},
+                )
+            else:
+                flash(
+                    f"Sauvegarde complete partielle: base creee mais uploads echoues ({result.get('error')}).",
+                    "danger",
+                )
+                log_access(
+                    "maintenance_full_backup_create",
+                    "system",
+                    0,
+                    success=False,
+                    changes={
+                        "manifest_file": result.get("manifest_file"),
+                        "backup_dir": result.get("backup_dir"),
+                        "error": result.get("error"),
+                    },
+                )
+        else:
+            result = create_database_backup(backup_dir=backup_dir or None, retention_days=db_retention_days)
+            flash(f"Sauvegarde base creee: {result.get('backup_file')}", "success")
+            log_access(
+                "maintenance_db_backup_create",
+                "system",
+                0,
+                success=True,
+                changes={"backup_file": result.get("backup_file"), "backup_dir": result.get("backup_dir")},
+            )
     except Exception as exc:
         db.session.rollback()
-        flash(f"Echec sauvegarde base de donnees: {exc}", "danger")
+        flash(f"Echec sauvegarde {backup_type}: {exc}", "danger")
     return redirect(url_for("admin.maintenance", days=days) + "#maintenance-backups")
 
 
@@ -2217,18 +1748,89 @@ def maintenance_backup_import():
     return redirect(url_for("admin.maintenance", days=days) + "#maintenance-backups")
 
 
+@bp.route("/maintenance/backups/verify", methods=["POST"])
+def maintenance_backup_verify():
+    days = _parse_days(request.form.get("days"), default=6, minimum=1, maximum=365)
+    if not _maintenance_panel_is_unlocked():
+        return _maintenance_protected_redirect(days=days)
+
+    backup_file = (request.form.get("backup_file") or "").strip()
+    if not backup_file:
+        flash("Sauvegarde a verifier introuvable.", "warning")
+        return redirect(url_for("admin.maintenance", days=days) + "#maintenance-backups")
+
+    try:
+        safe_path = resolve_managed_backup_path(backup_file)
+        result = verify_backup_integrity(str(safe_path))
+        if result.get("ok"):
+            flash(f"Verification reussie: {safe_path.name}", "success")
+        else:
+            flash(f"Verification incomplete: {result.get('label')}", "warning")
+        log_access(
+            "maintenance_backup_verify",
+            "system",
+            0,
+            success=bool(result.get("ok")),
+            changes={"backup_file": str(safe_path), "state": result.get("state")},
+        )
+    except Exception as exc:
+        db.session.rollback()
+        flash(f"Echec verification sauvegarde: {exc}", "danger")
+    return redirect(url_for("admin.maintenance", days=days) + "#maintenance-backups")
+
+
+@bp.route("/maintenance/backups/download/<path:filename>", methods=["GET"])
+def maintenance_backup_download(filename: str):
+    days = _parse_days(request.args.get("days"), default=6, minimum=1, maximum=365)
+    if not _maintenance_panel_is_unlocked():
+        return _maintenance_protected_redirect(days=days)
+
+    try:
+        safe_path = resolve_managed_backup_path(filename)
+    except Exception:
+        log_access(
+            "maintenance_backup_download",
+            "system",
+            0,
+            success=False,
+            changes={"requested": filename},
+        )
+        return ("Not Found", 404)
+
+    log_access(
+        "maintenance_backup_download",
+        "system",
+        0,
+        success=True,
+        changes={"backup_file": str(safe_path)},
+    )
+    return send_from_directory(
+        str(safe_path.parent),
+        safe_path.name,
+        as_attachment=True,
+        download_name=safe_path.name,
+        max_age=0,
+    )
+
+
 @bp.route("/maintenance/backups/restore", methods=["POST"])
 def maintenance_backup_restore():
     days = _parse_days(request.form.get("days"), default=6, minimum=1, maximum=365)
     if not _maintenance_panel_is_unlocked():
         return _maintenance_protected_redirect(days=days)
 
+    backup_type = (request.form.get("backup_type") or "database").strip().lower()
     password = (request.form.get("password") or "").strip()
     confirm_text = (request.form.get("confirm_text") or "").strip().upper()
     backup_file = (request.form.get("backup_file") or "").strip()
 
-    if confirm_text != "RESTAURER":
-        flash("Confirmation invalide. Tape RESTAURER pour continuer.", "warning")
+    expected_confirm = {
+        "database": "RESTAURER",
+        "uploads": UPLOADS_RESTORE_CONFIRM_TEXT,
+        "full": FULL_RESTORE_CONFIRM_TEXT,
+    }.get(backup_type, "RESTAURER")
+    if confirm_text != expected_confirm:
+        flash(f"Confirmation invalide. Tape {expected_confirm} pour continuer.", "warning")
         return redirect(url_for("admin.maintenance", days=days) + "#maintenance-backups")
 
     if not password or not current_user.check_password(password):
@@ -2240,18 +1842,53 @@ def maintenance_backup_restore():
         return redirect(url_for("admin.maintenance", days=days) + "#maintenance-backups")
 
     try:
-        result = restore_database_backup(backup_file, yes=True)
-        flash(f"Base restauree depuis: {result.get('restored_file')}", "success")
-        log_access(
-            "maintenance_db_backup_restore",
-            "system",
-            0,
-            success=True,
-            changes={"restored_file": result.get("restored_file"), "database": result.get("database")},
-        )
+        safe_path = resolve_managed_backup_path(backup_file)
+        if backup_type == "uploads":
+            result = restore_uploads_backup(str(safe_path), yes=True)
+            flash(f"Uploads restaures depuis: {result.get('restored_file')}", "success")
+            log_access(
+                "maintenance_uploads_backup_restore",
+                "system",
+                0,
+                success=True,
+                changes={"restored_file": result.get("restored_file"), "uploads_root": result.get("uploads_root")},
+            )
+        elif backup_type == "full":
+            result = restore_full_backup(str(safe_path), yes=True)
+            if result.get("success"):
+                flash(f"Restauration complete terminee depuis: {result.get('manifest_file')}", "success")
+                log_access(
+                    "maintenance_full_backup_restore",
+                    "system",
+                    0,
+                    success=True,
+                    changes={"manifest_file": result.get("manifest_file")},
+                )
+            else:
+                flash(
+                    f"Restauration complete partielle: {result.get('error')}",
+                    "danger",
+                )
+                log_access(
+                    "maintenance_full_backup_restore",
+                    "system",
+                    0,
+                    success=False,
+                    changes={"manifest_file": result.get("manifest_file"), "error": result.get("error")},
+                )
+        else:
+            result = restore_database_backup(str(safe_path), yes=True)
+            flash(f"Base restauree depuis: {result.get('restored_file')}", "success")
+            log_access(
+                "maintenance_db_backup_restore",
+                "system",
+                0,
+                success=True,
+                changes={"restored_file": result.get("restored_file"), "database": result.get("database")},
+            )
     except Exception as exc:
         db.session.rollback()
-        flash(f"Echec restauration base de donnees: {exc}", "danger")
+        flash(f"Echec restauration {backup_type}: {exc}", "danger")
 
     return redirect(url_for("admin.maintenance", days=days) + "#maintenance-backups")
 

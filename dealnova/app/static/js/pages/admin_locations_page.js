@@ -75,6 +75,77 @@
     var listingsSub = document.getElementById("listingsSub");
     var archivesSub = document.getElementById("archivesSub");
     var locationsStats = document.getElementById("locationsStats");
+    var sectionPrefKey = "bm_admin_locations_sections_v1";
+
+    function readSectionPrefs() {
+      try {
+        var raw = window.localStorage.getItem(sectionPrefKey);
+        if (!raw) return {};
+        var parsed = JSON.parse(raw);
+        return parsed && typeof parsed === "object" ? parsed : {};
+      } catch (_err) {
+        return {};
+      }
+    }
+
+    function writeSectionPrefs(prefs) {
+      try {
+        window.localStorage.setItem(sectionPrefKey, JSON.stringify(prefs || {}));
+      } catch (_err) {}
+    }
+
+    function syncSectionToggle(block, expanded) {
+      if (!block) return;
+      block.classList.toggle("is-collapsed", !expanded);
+      var toggle = block.querySelector("[data-sec-toggle]");
+      if (!toggle) return;
+      toggle.setAttribute("aria-expanded", expanded ? "true" : "false");
+      var icon = toggle.querySelector("i");
+      if (icon) {
+        icon.className = expanded ? "bi bi-chevron-up" : "bi bi-chevron-down";
+      }
+      var label = toggle.querySelector("span");
+      if (label) {
+        label.textContent = expanded ? "Replier" : "Afficher";
+      }
+    }
+
+    function initSectionToggles() {
+      var prefs = readSectionPrefs();
+      var blocks = document.querySelectorAll(".sec-block[data-sec]");
+      blocks.forEach(function (block) {
+        var key = String(block.getAttribute("data-sec") || "").trim();
+        if (!key) return;
+        var expanded = prefs[key] !== false;
+        syncSectionToggle(block, expanded);
+
+        var toggle = block.querySelector("[data-sec-toggle]");
+        if (!toggle || toggle.dataset.bound === "1") return;
+        toggle.dataset.bound = "1";
+        toggle.addEventListener("click", function () {
+          var nowExpanded = block.classList.contains("is-collapsed");
+          syncSectionToggle(block, nowExpanded);
+          prefs[key] = nowExpanded;
+          writeSectionPrefs(prefs);
+        });
+      });
+
+      document.querySelectorAll(".sec-nav [data-open-sec]").forEach(function (link) {
+        if (link.dataset.bound === "1") return;
+        link.dataset.bound = "1";
+        link.addEventListener("click", function () {
+          var key = String(link.getAttribute("data-open-sec") || "").trim();
+          if (!key) return;
+          var block = document.querySelector('.sec-block[data-sec="' + key + '"]');
+          if (!block) return;
+          syncSectionToggle(block, true);
+          prefs[key] = true;
+          writeSectionPrefs(prefs);
+        });
+      });
+    }
+
+    initSectionToggles();
 
     if (!listingsTbody || !archivesTbody || !listingsPg || !archivesPg) return;
 

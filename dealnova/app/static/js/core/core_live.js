@@ -89,16 +89,13 @@
   function inferLiveType(pageId, explicitType) {
     const liveType = String(explicitType || "").trim().toLowerCase();
     if (liveType) return liveType;
-    if (pageId === "admin.deliveries") {
-      return "deliveries";
-    }
     return "";
   }
 
   function canRunHeavyLive(pageId, liveType) {
     const body = currentBody();
     if (!liveType) return false;
-    if (liveType !== "orders" && liveType !== "deliveries") return false;
+    if (liveType !== "orders") return false;
     if (body && body.dataset && body.dataset.liveForce === "1") return true;
     if (!pageId) return true; // Legacy fallback if page flag is missing.
     return (
@@ -112,6 +109,30 @@
     if (meta && meta.content) return meta.content;
     if (window.csrfToken) return window.csrfToken;
     return "";
+  }
+
+  function startLongActionHints(action, submitBtn) {
+    const deleteActions = new Set(["delete-user", "delete-shop", "delete-product"]);
+    if (!deleteActions.has(String(action || ""))) return () => {};
+
+    const timers = [];
+    const hints = [
+      { delayMs: 2200, message: "Suppression en cours..." },
+      { delayMs: 6000, message: "Nettoyage des donnees associees..." },
+      { delayMs: 12000, message: "Finalisation... merci de patienter." },
+    ];
+
+    hints.forEach((hint) => {
+      const timer = window.setTimeout(() => {
+        if (!submitBtn || !submitBtn.isConnected || !submitBtn.disabled) return;
+        showToast(hint.message, "info");
+      }, hint.delayMs);
+      timers.push(timer);
+    });
+
+    return () => {
+      timers.forEach((timer) => window.clearTimeout(timer));
+    };
   }
 
   function renderStatus(status) {
@@ -179,6 +200,8 @@
 
     const submitBtn = form.querySelector('button[type="submit"]');
     setButtonLoading(submitBtn, true);
+    const action = String(form.dataset.action || "");
+    const stopLongActionHints = startLongActionHints(action, submitBtn);
 
     const formData = new FormData(form);
     const csrfToken = getCsrfToken();
@@ -204,11 +227,11 @@
       if (!res.ok || data.success === false) {
         const msg = data.message || "Erreur lors de la modification.";
         showAlert(msg, "error");
+        stopLongActionHints();
         setButtonLoading(submitBtn, false);
         return;
       }
 
-      const action = form.dataset.action;
       const successMsg = data.message || form.dataset.successMessage;
       if (successMsg) {
         showToast(successMsg, "success");
@@ -272,9 +295,11 @@
         })
       );
 
+      stopLongActionHints();
       setButtonLoading(submitBtn, false);
     } catch (_error) {
       showAlert("Erreur lors de la requete.", "error");
+      stopLongActionHints();
       setButtonLoading(submitBtn, false);
     }
   }

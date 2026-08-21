@@ -86,10 +86,13 @@
                     class="d-inline"
                     data-ajax="true"
                     data-action="delete-user"
-                    data-confirm="Supprimer cet utilisateur ?"
+                    data-confirm="Confirmation suppression definitive :&#10;- Le nom sera garde dans l'historique suppression&#10;- Cette action est irreversible&#10;&#10;Supprimer cet utilisateur ?"
                     data-remove-target="tr">
                 {% include "admin/partials/_csrf.html" %}
-                <button type="submit" class="btn btn-outline-danger" title="Supprimer">
+                <button type="submit"
+                        class="btn btn-outline-danger"
+                        data-loading-text="<span class='spinner-border spinner-border-sm' role='status' aria-hidden='true'></span>"
+                        title="Supprimer definitivement">
                   <i class="bi bi-trash"></i>
                 </button>
               </form>

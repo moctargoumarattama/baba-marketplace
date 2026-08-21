@@ -185,7 +185,6 @@
     "/api",
     "/vendor",
     "/cart",
-    "/delivery",
     "/login",
     "/logout",
     "/register",
@@ -1771,6 +1770,10 @@
         pwaLog("info", "Service worker controller changed");
         if (!swRefreshTriggered) return;
         swRefreshTriggered = false;
+        if (window.BMSafeRefresh && typeof window.BMSafeRefresh.request === "function") {
+          window.BMSafeRefresh.request("sw_controllerchange", { delayMs: 120, replaceReason: true });
+          return;
+        }
         window.setTimeout(function () {
           try {
             window.location.reload();

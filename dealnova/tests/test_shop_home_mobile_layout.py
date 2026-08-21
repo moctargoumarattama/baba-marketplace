@@ -45,3 +45,35 @@ def test_shop_home_mobile_keeps_only_one_floating_navigation_control():
     assert ".page-badge" not in css
     assert "mobileClearBtn" not in script
     assert "updatePageBadge" not in script
+
+
+def test_shop_home_promotions_mode_replaces_delivery_and_header_promo_cta_removed():
+    template = (ROOT / "app/templates/shop/home.html").read_text(
+        encoding="utf-8-sig"
+    )
+    css = _shop_home_css()
+
+    assert 'class="mode-btn mode-promotions mode-link"' in template
+    assert "url_for('shop.promotions')" in template
+    assert "url_for('shop.delivery_whatsapp_loader'" not in template
+    assert 'id="homePromotionsBtn"' not in template
+    assert "Promotions du moment" not in template
+    assert ".mode-promotions .mode-icon" in css
+    assert ".mode-delivery .mode-icon" not in css
+
+
+def test_shop_home_cards_keep_compact_actions_aligned_across_types():
+    css = _shop_home_css()
+
+    assert ".products-grid {" in css
+    assert "align-items: stretch;" in css
+    assert ".product-price-container-compact {" in css
+    assert "min-height: 2.4rem;" in css
+    assert ".product-actions-compact {" in css
+    assert "align-items: stretch;" in css
+    assert ".product-actions-compact .add-to-cart-form {" in css
+    assert "flex: 1 1 0;" in css
+    assert ".product-actions-compact .add-to-cart-form .btn-cart-compact {" in css
+    assert "width: 100%;" in css
+    assert ".btn-book-compact {" in css
+    assert "border-radius: 14px;" in css

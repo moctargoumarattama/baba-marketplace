@@ -5,7 +5,7 @@ from urllib.parse import quote, urljoin, urlparse
 
 from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_user, logout_user
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 from sqlalchemy.exc import IntegrityError
 from werkzeug.security import generate_password_hash
 
@@ -146,8 +146,20 @@ def register():
 def login():
     form = LoginForm()
     if form.validate_on_submit():
-        user = User.query.filter_by(email=form.email.data).first()
-        if user and user.check_password(form.password.data):
+        login_identifier = (form.email.data or "").strip().lower()
+        login_password = (form.password.data or "").strip()
+
+        user = (
+            User.query
+            .filter(
+                or_(
+                    func.lower(User.email) == login_identifier,
+                    func.lower(User.username) == login_identifier,
+                )
+            )
+            .first()
+        )
+        if user and user.check_password(login_password):
             if not user.is_active:
                 logging_service.log_activity(
                     "auth",
@@ -341,11 +353,12 @@ def vendor_access():
         if (
             not form_data["full_name"]
             or not form_data["phone"]
+            or not form_data["email"]
             or not form_data["shop_name"]
             or not form_data["city"]
             or not form_data["shop_type"]
         ):
-            flash("Nom, telephone, boutique, ville et type sont obligatoires.", "warning")
+            flash("Nom, telephone, email, boutique, ville et type sont obligatoires.", "warning")
             return render_template(
                 "auth/vendor_access.html",
                 form_data=form_data,
@@ -405,8 +418,23 @@ def vendor_access():
             )
 
         email_normalized = _normalize_optional_email(form_data["email"])
-        if form_data["email"] and not email_normalized:
+        if not email_normalized:
             flash("Email invalide.", "warning")
+            return render_template(
+                "auth/vendor_access.html",
+                form_data=form_data,
+                request_submitted=False,
+            )
+        existing_user = (
+            User.query
+            .filter(func.lower(User.email) == email_normalized)
+            .first()
+        )
+        if existing_user:
+            flash(
+                "Cet email est deja utilise. Connectez-vous avec cet email ou choisissez un autre email vendeur.",
+                "warning",
+            )
             return render_template(
                 "auth/vendor_access.html",
                 form_data=form_data,
@@ -454,8 +482,8 @@ def vendor_access():
             full_name=form_data["full_name"],
             phone=form_data["phone"],
             phone_digits=phone_digits,
-            email=form_data["email"] or None,
-            email_normalized=email_normalized or None,
+            email=form_data["email"],
+            email_normalized=email_normalized,
             shop_name=form_data["shop_name"],
             city=form_data["city"],
             shop_type=form_data["shop_type"],

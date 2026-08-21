@@ -9,10 +9,25 @@
   const role = String((body && body.dataset && body.dataset.userRole) || "guest").toLowerCase();
   if (["vendor", "admin", "manager"].indexOf(role) !== -1) return;
 
-  const title = "Bienvenue sur Baba Market";
-  const message = "Produits, services et locations pres de vous.";
+  const title = "Bienvenue";
+  const message = "Ravi de vous revoir";
+  const sessionKey = "bmClientWelcomeShown";
   let shown = false;
   let permissionRequested = false;
+
+  function hasShownWelcomeThisSession() {
+    try {
+      return window.sessionStorage && window.sessionStorage.getItem(sessionKey) === "1";
+    } catch (_error) {
+      return false;
+    }
+  }
+
+  function markWelcomeShownThisSession() {
+    try {
+      if (window.sessionStorage) window.sessionStorage.setItem(sessionKey, "1");
+    } catch (_error) {}
+  }
 
   function vibrateWelcome() {
     if (!navigator.vibrate) return;
@@ -22,8 +37,9 @@
   }
 
   function showNativeWelcomeNotification() {
-    if (shown || !("Notification" in window) || Notification.permission !== "granted") return;
+    if (shown || hasShownWelcomeThisSession() || !("Notification" in window) || Notification.permission !== "granted") return;
     shown = true;
+    markWelcomeShownThisSession();
     vibrateWelcome();
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.ready
@@ -72,6 +88,7 @@
 
   function scheduleWelcome() {
     if (!("Notification" in window)) return;
+    if (hasShownWelcomeThisSession()) return;
     if (Notification.permission === "granted") {
       window.setTimeout(showNativeWelcomeNotification, 700);
       return;

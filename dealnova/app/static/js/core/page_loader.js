@@ -90,8 +90,6 @@
     "vendor.product_new": [SHARED.coreLive, SHARED.liveShim, SHARED.featureForms],
     "vendor.product_edit": [SHARED.coreLive, SHARED.liveShim, SHARED.featureForms],
     "admin.product_contacts": ADMIN_STACK,
-    "admin.deliveries": ADMIN_STACK,
-    "admin.deliveries_archives": ADMIN_STACK,
     "admin_users.fraud_monitor": ADMIN_STACK,
     "admin_users.catalog_quality": ADMIN_STACK,
     "admin_users.reconciliation": ADMIN_STACK,

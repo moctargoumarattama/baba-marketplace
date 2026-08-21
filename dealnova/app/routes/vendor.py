@@ -4,7 +4,7 @@ from flask_login import login_required, current_user
 from ..extensions import db
 from ..models.product import Product
 from ..models.category import Category
-from ..models.shop import SHOP_TYPE_LABELS, SHOP_TYPE_ORDER, Shop, normalize_shop_type, shop_type_from_product_kind
+from ..models.shop import SHOP_TYPE_LABELS, Shop, shop_type_from_product_kind
 from ..models.promo import Promo
 from ..models.order import Order, OrderItem
 from ..models.booking import Booking
@@ -16,10 +16,11 @@ from ..models.rental import RentalListing
 from ..models.platform_settings import PlatformSettings
 from ..services.image import MAX_PRODUCT_VIDEO_BYTES, delete_product_video, save_image, save_product_video
 from ..services.cache import bump_catalog_version
+from ..services.db_session import safe_session_rollback
 from ..services.featured_items import active_featured_shop_notice
 from ..services.pricing import calculate_promo_price, cents_to_money, get_active_promos_for_products, set_product_price
 from sqlalchemy.orm import load_only, selectinload
-from sqlalchemy import or_, and_, case, text
+from sqlalchemy import or_, and_, case
 from ..services.audit import log_access
 from ..services.shop_access import ensure_shop_allows, ensure_vendor_allows, resolve_vendor_shop, shop_allows_any
 from ..services.pagination import page_from_args, paginate_with_clamped_page
@@ -34,6 +35,7 @@ from ..services.vendor_push import (
     notify_admin_vendor_change_request,
     send_vendor_push_notification,
     upsert_vendor_push_subscription,
+    vendor_push_configuration_status,
     vendor_push_public_key_is_valid,
     vendor_push_is_configured,
     vendor_push_public_key,
@@ -41,7 +43,6 @@ from ..services.vendor_push import (
 from ..middleware.security import order_access_required
 from datetime import datetime, timedelta
 from time import perf_counter
-from slugify import slugify
 from sqlalchemy.exc import SQLAlchemyError
 import re
 
@@ -1260,7 +1261,7 @@ def dashboard_orders_live():
             bookings_per_page=bookings_per_page,
         )
     except SQLAlchemyError:
-        db.session.rollback()
+        safe_session_rollback(remove=True)
         current_app.logger.exception(
             "vendor.dashboard_orders_live.db_error",
             extra={"vendor_id": getattr(current_user, "id", None)},
@@ -2020,26 +2021,6 @@ def product_promotion_disable(pid):
     flash("Promotion désactivée.", "success")
     return redirect(url_for("vendor.product_promotion", pid=product.id))
 
-def _product_delete_denied(message: str):
-    if _is_ajax_request():
-        return jsonify(success=False, message=message), 409
-    flash(message, "warning")
-    return redirect(url_for("vendor.dashboard"))
-
-
-def _has_active_order_for_product(product_id: int) -> bool:
-    return (
-        db.session.query(OrderItem.id)
-        .join(Order, Order.id == OrderItem.order_id)
-        .filter(
-            OrderItem.product_id == product_id,
-            Order.status.in_(tuple(ACTIVE_ORDER_STATUSES)),
-        )
-        .first()
-        is not None
-    )
-
-
 @bp.route("/product/<int:pid>/delete", methods=["POST"])
 @login_required
 def product_delete(pid):
@@ -2128,24 +2109,9 @@ def manage_shop():
 
     # Vrifier si le vendeur a une boutique
     shop = Shop.query.filter_by(vendor_id=current_user.id).first()
-    shop_locations = []
-    location_views_total = 0
-    location_top = []
-    location_active_count = 0
-
     if shop:
         type_flags = _vendor_type_flags(shop)
         shop_public_url = _public_shop_url(shop.slug)
-        shop_locations = (
-            RentalListing.query
-            .filter_by(owner_id=current_user.id, shop_id=shop.id)
-            .order_by(RentalListing.created_at.desc())
-            .limit(12)
-            .all()
-        )
-        location_views_total = sum(int(row.view_count or 0) for row in shop_locations)
-        location_top = sorted(shop_locations, key=lambda row: int(row.view_count or 0), reverse=True)[:5]
-        location_active_count = sum(1 for row in shop_locations if row.status == "active")
     else:
         shop_public_url = ""
         type_flags = {
@@ -2158,18 +2124,10 @@ def manage_shop():
             "catalog_create_label": "Nouveau",
             "catalog_empty_label": "Aucun element",
         }
-    product_promos = {}
-    if shop and type_flags["allows_catalog"]:
-        product_promos = _product_promo_snapshot(getattr(shop, "products", []) or [])
-
     return render_template(
         "vendor/manage_shop.html",
         shop=shop,
         shop_public_url=shop_public_url,
-        shop_locations=shop_locations,
-        location_views_total=location_views_total,
-        location_top=location_top,
-        location_active_count=location_active_count,
         shop_type_labels=SHOP_TYPE_LABELS,
         allows_products=type_flags["allows_products"],
         allows_services=type_flags["allows_services"],
@@ -2178,8 +2136,6 @@ def manage_shop():
         catalog_title=type_flags["catalog_title"],
         catalog_create_label=type_flags["catalog_create_label"],
         product_catalog_block_reasons=_catalog_block_reasons,
-        product_promos=product_promos,
-        calculate_promo_price=calculate_promo_price,
     )
 
 @bp.route("/shop/create", methods=["GET", "POST"])
@@ -2687,10 +2643,11 @@ def vendor_push_config():
     if not _current_user_can_use_push():
         return jsonify({"enabled": False, "publicKey": ""}), 403
     public_key = vendor_push_public_key()
+    config_status = vendor_push_configuration_status()
     return jsonify(
         {
             "enabled": bool(public_key),
-            "configured": vendor_push_is_configured(),
+            **config_status,
             "validPublicKey": vendor_push_public_key_is_valid(public_key),
             "publicKey": public_key,
         }
@@ -2710,9 +2667,7 @@ def vendor_push_status():
     return jsonify(
         {
             "success": True,
-            "configured": vendor_push_is_configured(),
-            "hasPublicKey": bool(vendor_push_public_key()),
-            "validPublicKey": vendor_push_public_key_is_valid(),
+            **vendor_push_configuration_status(),
             "activeSubscriptions": int(active_count or 0),
         }
     )

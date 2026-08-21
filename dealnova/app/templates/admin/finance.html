@@ -30,7 +30,6 @@
           <label class="form-label mb-1">Type de revenu</label>
           <select class="form-select" name="entry_type">
             <option value="" {% if not entry_type %}selected{% endif %}>Tous</option>
-            <option value="delivery_fee" {% if entry_type == 'delivery_fee' %}selected{% endif %}>Livraison express</option>
             <option value="subscription" {% if entry_type == 'subscription' %}selected{% endif %}>Abonnements</option>
             <option value="rental_commission" {% if entry_type == 'rental_commission' %}selected{% endif %}>Commission location</option>
           </select>
@@ -51,7 +50,6 @@
   </div>
 
   <div class="row g-2 mb-3">
-    <div class="col-6 col-md-3"><div class="p-2 border rounded"><div class="small text-muted">Revenu livraison express</div><div class="fw-bold">{{ '%.2f'|format((selected_totals.delivery_total_cents or 0) / 100) }} MAD</div><div class="small">{{ selected_totals.delivery_count }} ligne(s)</div></div></div>
     <div class="col-6 col-md-3"><div class="p-2 border rounded"><div class="small text-muted">Revenu abonnements</div><div class="fw-bold">{{ '%.2f'|format((selected_totals.subscription_total_cents or 0) / 100) }} MAD</div><div class="small">{{ selected_totals.subscription_count }} ligne(s)</div></div></div>
     <div class="col-6 col-md-3"><div class="p-2 border rounded"><div class="small text-muted">Revenu locations</div><div class="fw-bold">{{ '%.2f'|format((selected_totals.rental_total_cents or 0) / 100) }} MAD</div><div class="small">{{ selected_totals.rental_count }} ligne(s)</div></div></div>
     <div class="col-6 col-md-3"><div class="p-2 border rounded bg-light"><div class="small text-muted">Total affiche</div><div class="fw-bold">{{ '%.2f'|format((selected_totals.total_cents or 0) / 100) }} MAD</div><div class="small">{{ selected_totals.entry_count }} ligne(s)</div></div></div>
@@ -78,7 +76,7 @@
               <td><strong>{{ '%.2f'|format((entry.amount_cents or 0) / 100) }} MAD</strong></td>
               <td>
                 {% if entry.order_id %}
-                  Commande livraison #{{ entry.order_id }}
+                  Commande #{{ entry.order_id }}
                 {% elif entry.rental_archive_id %}
                   Archive location #{{ entry.rental_archive_id }}
                 {% elif entry.subscription_id %}
@@ -94,8 +92,6 @@
                   {% set note_fr = entry.note %}
                   {% if note_fr == 'subscription marked paid by admin' %}
                     {% set note_fr = "Paiement d'abonnement enregistre par l'admin" %}
-                  {% elif note_fr == 'order delivered by admin' %}
-                    {% set note_fr = "Livraison marquee comme livree par l'admin" %}
                   {% elif note_fr == 'rental listing closed as taken' %}
                     {% set note_fr = 'Location finalisee (prise) et enregistree par le systeme' %}
                   {% endif %}

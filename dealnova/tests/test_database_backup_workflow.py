@@ -12,9 +12,13 @@ def test_database_backup_commands_are_available():
     source = _read("app/services/maintenance.py")
 
     assert '@app.cli.command("db-backup")' in source
+    assert '@app.cli.command("uploads-backup")' in source
+    assert '@app.cli.command("full-backup")' in source
     assert '@app.cli.command("db-backups")' in source
     assert '@app.cli.command("db-restore")' in source
     assert "create_database_backup(" in source
+    assert "create_uploads_backup(" in source
+    assert "create_full_backup(" in source
     assert "list_database_backups(" in source
     assert "restore_database_backup(" in source
 
@@ -48,6 +52,12 @@ def test_backup_retention_is_configurable():
     source = _read("app/services/maintenance.py")
 
     assert "DB_BACKUP_RETENTION_DAYS" in config
+    assert "UPLOADS_BACKUP_RETENTION_DAYS" in config
+    assert "FULL_BACKUP_RETENTION_DAYS" in config
     assert "DB_BACKUP_RETENTION_DAYS" in confprod
+    assert "UPLOADS_BACKUP_RETENTION_DAYS" in confprod
+    assert "FULL_BACKUP_RETENTION_DAYS" in confprod
     assert "prune_database_backups(" in source
+    assert "prune_uploads_backups(" in source
+    assert "prune_full_backups(" in source
     assert "retention_days" in source

@@ -126,6 +126,36 @@ def test_prepare_vendor_whatsapp_checkout_disables_shop_without_phone():
     assert by_shop[2]["whatsapp_url"] == ""
 
 
+def test_prepare_vendor_whatsapp_checkout_snapshots_shop_identity_for_notifications():
+    shop = _shop(1, "Boutique A", "0612345678")
+    shop.vendor_id = 42
+    items = [_item(_product(10, "Produit A1", shop), 1, 5000)]
+
+    checkout = cart_routes.prepare_vendor_whatsapp_checkout(items, {})
+
+    group = checkout["shop_groups"][0]
+    assert group["shop_id"] == 1
+    assert group["vendor_id"] == 42
+
+
+def test_cart_data_cache_skips_lru_when_loading_relationships(monkeypatch):
+    calls = []
+
+    def fake_product_map(cart_dict, include_shop=False, include_category=False):
+        calls.append((include_shop, include_category))
+        return {1: SimpleNamespace(id=1)}
+
+    monkeypatch.setattr(cart_routes, "_cart_product_map", fake_product_map)
+    monkeypatch.setattr(cart_routes, "_active_promo_map", lambda product_ids: {})
+    cart_routes._cart_cache.cache.clear()
+    cart_routes._cart_cache.timestamps.clear()
+
+    cart_routes._get_cached_cart_data({"1": 1}, include_shop=True)
+    cart_routes._get_cached_cart_data({"1": 1}, include_shop=True)
+
+    assert calls == [(True, False), (True, False)]
+
+
 def test_checkout_source_has_no_client_form_gate():
     source = (ROOT / "app/routes/cart.py").read_text(encoding="utf-8-sig")
     start = source.index("def whatsapp_checkout(")

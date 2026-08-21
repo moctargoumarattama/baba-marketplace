@@ -1,11 +1,20 @@
 from pathlib import Path
+from base64 import urlsafe_b64encode
+import sys
+
+from flask import Flask
 
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 
 
 def _read(relative_path: str) -> str:
     return (ROOT / relative_path).read_text(encoding="utf-8-sig")
+
+
+def _valid_vapid_public_key() -> str:
+    return urlsafe_b64encode((bytes([4]) + (b"0" * 64))).decode("ascii").rstrip("=")
 
 
 def test_vendor_push_subscription_model_and_routes_exist():
@@ -25,6 +34,40 @@ def test_vendor_push_subscription_model_and_routes_exist():
     assert "vendor_push_public_key_is_valid" in push_service
     assert "urlsafe_b64decode" in push_service
     assert "ttl=86400" in push_service
+
+
+def test_vendor_push_production_config_reads_vapid_environment():
+    confprod = _read("app/confprod.py")
+
+    assert "VENDOR_PUSH_VAPID_PUBLIC_KEY" in confprod
+    assert "VENDOR_PUSH_VAPID_PRIVATE_KEY" in confprod
+    assert "VENDOR_PUSH_VAPID_EMAIL" in confprod
+
+
+def test_vendor_push_configuration_status_reports_server_reason(monkeypatch):
+    from app.services import vendor_push
+
+    app = Flask(__name__)
+    app.config.update(
+        VENDOR_PUSH_VAPID_PUBLIC_KEY="",
+        VENDOR_PUSH_VAPID_PRIVATE_KEY="",
+        VENDOR_PUSH_VAPID_EMAIL="admin@example.test",
+    )
+
+    monkeypatch.setattr(vendor_push, "webpush", object())
+    with app.app_context():
+        status = vendor_push.vendor_push_configuration_status()
+    assert status["configured"] is False
+    assert status["reason"] == "missing_public_key"
+
+    app.config.update(
+        VENDOR_PUSH_VAPID_PUBLIC_KEY=_valid_vapid_public_key(),
+        VENDOR_PUSH_VAPID_PRIVATE_KEY="private-key",
+    )
+    with app.app_context():
+        status = vendor_push.vendor_push_configuration_status()
+    assert status["configured"] is True
+    assert status["reason"] == "configured"
 
 
 def test_vendor_dashboard_registers_push_notifications_with_service_worker():
@@ -78,6 +121,13 @@ def test_product_whatsapp_contact_notifies_vendor_push_subscribers():
     assert "notify_product_contact_leads" in cart_source
     assert "send_vendor_push_notification" in push_service
     assert "pywebpush" in push_service
+
+
+def test_product_contact_push_uses_checkout_snapshot_before_orm_shop():
+    push_service = _read("app/services/vendor_push.py")
+
+    assert 'vendor_id = group.get("vendor_id")' in push_service
+    assert 'shop_id = group.get("shop_id")' in push_service
 
 
 def test_service_booking_notifies_vendor_push_subscribers():

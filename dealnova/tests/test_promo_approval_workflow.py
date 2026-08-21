@@ -35,7 +35,8 @@ def test_public_pricing_only_uses_approved_promos():
 
     assert "Promo.status == Promo.STATUS_APPROVED" in pricing
     assert "Promo.status == Promo.STATUS_APPROVED" in feed
-    assert "Promo.status == Promo.STATUS_APPROVED" in api
+    assert "get_active_promos_for_products" in api
+    assert "_legacy_active_promo_map" not in api
     assert "Promo.status == Promo.STATUS_APPROVED" in shops
 
 

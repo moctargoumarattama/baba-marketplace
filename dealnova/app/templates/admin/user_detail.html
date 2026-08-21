@@ -219,9 +219,11 @@
                             <form method="post"
                                   action="{{ url_for('admin_users.delete_user', user_id=user.id) }}"
                                   class="d-inline"
-                                  data-confirm-submit="Etes-vous sur de vouloir supprimer cet utilisateur  Cette action est irreversible.">
+                                  data-confirm-submit="Confirmation suppression definitive :&#10;- Le nom sera garde dans l'historique suppression&#10;- Cette action est irreversible&#10;&#10;Supprimer cet utilisateur ?">
                                 {% include "admin/partials/_csrf.html" %}
-                                <button type="submit" class="btn btn-danger btn-sm">
+                                <button type="submit"
+                                        class="btn btn-danger btn-sm"
+                                        title="Supprimer definitivement">
                                     <i class="bi bi-trash"></i> Supprimer
                                 </button>
                             </form>

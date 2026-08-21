@@ -4,6 +4,7 @@ from flask_login import login_required, current_user
 from datetime import datetime
 from types import SimpleNamespace
 import hashlib
+from urllib.parse import urlparse, quote
 from sqlalchemy import case, or_
 from sqlalchemy.orm import load_only
 from ..extensions import db
@@ -19,10 +20,76 @@ from ..services.marketplace_feed import (
     build_standard_marketplace_page,
     should_use_curated_marketplace_feed,
 )
-from ..services.featured_items import featured_rank_expr, location_featured_exists_expr, product_featured_exists_expr, shop_featured_exists_expr
+from ..services.featured_items import featured_rank_expr, shop_featured_exists_expr
 from ..services.pagination import SimplePagination, page_from_args
 
 bp = Blueprint("shop", __name__)
+
+
+def _is_valid_back_path(path: str | None) -> bool:
+    clean = (path or "").strip()
+    if not clean.startswith("/") or clean.startswith("//"):
+        return False
+    lowered = clean.lower()
+    if lowered.startswith("/static/"):
+        return False
+    if lowered.startswith("/sw.js"):
+        return False
+    if lowered.startswith("/manifest.json"):
+        return False
+    if lowered.endswith(".js") or lowered.endswith(".css") or lowered.endswith(".map"):
+        return False
+    return True
+
+
+def _safe_local_back_target(raw_target: str | None, fallback: str) -> str:
+    target = (raw_target or "").strip()
+    if _is_valid_back_path(target):
+        return target
+    if target.startswith("http://") or target.startswith("https://"):
+        try:
+            parsed = urlparse(target)
+            if _is_valid_back_path(parsed.path):
+                if parsed.netloc == request.host:
+                    suffix = f"?{parsed.query}" if parsed.query else ""
+                    return f"{parsed.path}{suffix}"
+        except Exception:
+            pass
+    return fallback
+
+
+def _delivery_whatsapp_number() -> str:
+    raw = (
+        current_app.config.get("DELIVERY_WHATSAPP_NUMBER")
+        or "212602908954"
+    )
+    digits = "".join(ch for ch in str(raw) if ch.isdigit())
+    return digits or "212602908954"
+
+
+def _delivery_whatsapp_prefill_message() -> str:
+    configured = (current_app.config.get("DELIVERY_WHATSAPP_DEFAULT_MESSAGE") or "").strip()
+    if configured:
+        return configured
+    return "Bonjour, je souhaite programmer une livraison. Merci de me confirmer la disponibilite et le delai."
+
+
+@bp.route("/delivery/whatsapp")
+def delivery_whatsapp_loader():
+    back_target = _safe_local_back_target(
+        request.args.get("back") or request.referrer,
+        url_for("landing"),
+    )
+    wa_url = (
+        f"https://wa.me/{_delivery_whatsapp_number()}?text="
+        f"{quote(_delivery_whatsapp_prefill_message(), safe='')}"
+    )
+    return render_template(
+        "support/delivery_whatsapp_loader.html",
+        wa_url=wa_url,
+        back_url=back_target,
+        delay_seconds=2,
+    )
 
 
 def _shop_is_currently_open(shop: Shop | None) -> bool:

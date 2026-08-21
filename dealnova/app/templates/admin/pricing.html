@@ -335,7 +335,7 @@
           <i class="bi bi-sliders"></i>
           Paramtres Marketplace
         </h2>
-        <p class="settings-subtitle">Ajustez les tarifs livraison, le revenu livraison Baba fixe et la commission location.</p>
+        <p class="settings-subtitle">Ajustez la commission location et les alertes vendeur.</p>
       </div>
       <div class="settings-note">
         <i class="bi bi-info-circle"></i>
@@ -349,10 +349,6 @@
     <button type="button" class="settings-nav-item active" data-section="commission">
       <i class="bi bi-percent"></i>
       <span>Location</span>
-    </button>
-    <button type="button" class="settings-nav-item" data-section="shipping">
-      <i class="bi bi-truck"></i>
-      <span>Livraison</span>
     </button>
     <button type="button" class="settings-nav-item" data-section="alerts">
       <i class="bi bi-bell"></i>
@@ -394,81 +390,6 @@
           Location : pas dabonnement. Le propritaire ne peut pas modifier cette commission interne.
           Cette commission est en pourcentage uniquement (pas de fixe) et sapplique  la clture dun deal taken
           sur la base des frais propritaire (pas sur le loyer).
-        </div>
-      </div>
-    </div>
-
-    <!-- Section Livraison -->
-    <div id="shipping-section" class="settings-section hidden">
-      <div class="settings-card-header">
-        <i class="bi bi-truck"></i>
-        <h3>Livraison et revenu Baba</h3>
-      </div>
-      <div class="settings-card-body">
-        <div class="cities-grid">
-          <div class="field-card">
-            <label class="form-label">Knitra (MAD)</label>
-            <input
-              type="number"
-              step="1"
-              min="0"
-              name="shipping_kenitra"
-              class="form-control"
-              value="{{ settings.shipping_kenitra / 100 }}"
-              required
-            >
-          </div>
-          <div class="field-card">
-            <label class="form-label">Tmara (MAD)</label>
-            <input
-              type="number"
-              step="1"
-              min="0"
-              name="shipping_temara"
-              class="form-control"
-              value="{{ settings.shipping_temara / 100 }}"
-              required
-            >
-          </div>
-          <div class="field-card">
-            <label class="form-label">Rabat (MAD)</label>
-            <input
-              type="number"
-              step="1"
-              min="0"
-              name="shipping_rabat"
-              class="form-control"
-              value="{{ settings.shipping_rabat / 100 }}"
-              required
-            >
-          </div>
-          <div class="field-card">
-            <label class="form-label">Sal (MAD)</label>
-            <input
-              type="number"
-              step="1"
-              min="0"
-              name="shipping_sale"
-              class="form-control"
-              value="{{ settings.shipping_sale / 100 }}"
-              required
-            >
-          </div>
-          <div class="field-card">
-            <label class="form-label">Revenu Baba par livraison (DH)</label>
-            <input
-              type="number"
-              step="0.01"
-              min="0"
-              name="delivery_platform_fee_fixed_dh"
-              class="form-control"
-              value="{{ ((settings.delivery_platform_fee_fixed_cents or 0) / 100)|round(2) }}"
-            >
-            <small class="text-muted">
-              <i class="bi bi-info-circle"></i>
-              Ex: 5 = Baba prend 5 DH par livraison livree.
-            </small>
-          </div>
         </div>
       </div>
     </div>
@@ -522,7 +443,6 @@
   const navItems = document.querySelectorAll('.settings-nav-item');
   const sections = {
     commission: document.getElementById('commission-section'),
-    shipping: document.getElementById('shipping-section'),
     alerts: document.getElementById('alerts-section')
   };
 

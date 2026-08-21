@@ -519,7 +519,8 @@
     }
 
     function showSoundActivationPrompt() {
-        if (!soundToggle || audioArmed || document.getElementById('vendorSoundActivationPrompt')) return;
+        const promptMount = document.getElementById('vendorSoundPromptMount');
+        if (!soundToggle || !promptMount || audioArmed || document.getElementById('vendorSoundActivationPrompt')) return;
         const prompt = document.createElement('div');
         prompt.className = 'vendor-sound-prompt';
         prompt.id = 'vendorSoundActivationPrompt';
@@ -543,7 +544,7 @@
                 navigator.vibrate([120, 80, 120]);
             }
         });
-        document.body.appendChild(prompt);
+        promptMount.appendChild(prompt);
     }
 
     function playStockAlert() {

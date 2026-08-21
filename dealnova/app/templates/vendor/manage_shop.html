@@ -8,10 +8,10 @@
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid py-4 px-3 px-md-5 manage-shop-page">
+<div class="container-fluid py-4 px-3 px-md-5 manage-shop-page vendor-premium-shell">
     {% set back_href = url_for('vendor.dashboard') if allows_catalog else (url_for('rentals.owner_locations') if allows_location else url_for('vendor.manage_shop')) %}
     <!-- Animated Back Button -->
-    <div class="mb-4 animate__animated animate__fadeInLeft">
+    <div class="mb-4 animate__animated animate__fadeInLeft shop-command-bar">
         <a href="{{ back_href }}" 
            class="btn btn-outline-secondary btn-hover-effect position-relative"
            style="--i: 1">
@@ -21,7 +21,7 @@
 
     <!-- Shop Header with Animation -->
     {% if shop %}
-    <div class="shop-header {% if shop.logo %}has-logo-cover{% endif %} animate__animated animate__fadeInDown">
+    <div class="shop-header premium-shop-hero {% if shop.logo %}has-logo-cover{% endif %} animate__animated animate__fadeInDown">
         {% if shop.logo %}
         <div class="shop-header-cover" aria-hidden="true">
             <img src="{{ url_for('static', filename='uploads/' + shop.logo) }}"
@@ -30,7 +30,18 @@
         </div>
         {% endif %}
         <div class="shop-header-content text-white text-center">
-            {% if not shop.logo %}
+            {% if shop.logo %}
+            <div class="shop-hero premium-shop-identity">
+                <div class="shop-hero-logo-wrap">
+                    <span class="shop-hero-logo floating-icon">
+                        <img src="{{ url_for('static', filename='uploads/' + shop.logo) }}"
+                             alt="Logo {{ shop.name }}"
+                             loading="lazy">
+                    </span>
+                    <span class="shop-hero-logo-label">Boutique vendeur</span>
+                </div>
+            </div>
+            {% else %}
             <div class="shop-hero">
                 <div class="shop-hero-logo-wrap">
                     <span class="shop-hero-logo floating-icon">
@@ -104,9 +115,9 @@
     <div class="row g-4 manage-main-grid">
         <!-- Informations de la boutique -->
         <div class="col-lg-8 manage-main-col">
-            <div class="card border-0 shadow-sm animated-card glass-effect" style="--i: 4">
+            <div class="card border-0 shadow-sm animated-card glass-effect premium-info-card" style="--i: 4">
                 <div class="card-header bg-transparent border-0">
-                    <div class="d-flex align-items-center">
+                    <div class="d-flex align-items-center premium-section-title">
                         <div class="bg-primary p-3 rounded-circle me-3">
                             <i class="bi bi-info-circle fs-4 text-white"></i>
                         </div>
@@ -182,7 +193,7 @@
                     </div>
 
                     {% if allows_services or allows_products %}
-                    <div class="service-location-panel" id="manageShopServiceLocationPanel">
+                    <div class="service-location-panel premium-location-panel" id="manageShopServiceLocationPanel">
                         <div class="service-location-title">
                             <i class="bi bi-geo-alt"></i>
                             <span>Adresse pour les clients</span>
@@ -285,24 +296,25 @@
         <div class="col-lg-4 manage-side-col">
             <div class="sticky-stack">
             <!-- Actions Card -->
-            <div class="card border-0 shadow-sm animated-card glass-effect" style="--i: 5" id="manageShopActionsCard">
+            <div class="card border-0 shadow-sm animated-card glass-effect premium-action-card" style="--i: 5" id="manageShopActionsCard">
                 <div class="card-header bg-transparent border-0">
-                    <div class="d-flex align-items-center">
+                    <div class="d-flex align-items-center premium-section-title">
                         <div class="bg-warning p-3 rounded-circle me-3">
                             <i class="bi bi-lightning fs-4 text-white"></i>
                         </div>
+                        <h4 class="mb-0 gradient-text fw-bold">Actions rapides</h4>
                     </div>
                 </div>
                 <div class="card-body">
                     <div class="quick-actions-grid">
                         <a href="{{ url_for('vendor.edit_shop') }}" 
-                           class="btn btn-primary btn-lg btn-hover-effect">
+                           class="btn btn-primary btn-lg btn-hover-effect quick-action-chevron">
                             <i class="bi bi-pencil me-2"></i> Modifier la boutique
                         </a>
                         
                         <a href="{{ url_for('shops.shop_detail', shop_slug=shop.slug) }}" 
                            target="_blank" 
-                           class="btn btn-outline-primary btn-lg btn-hover-effect">
+                           class="btn btn-outline-primary btn-lg btn-hover-effect quick-action-chevron">
                             <i class="bi bi-eye me-2"></i> Voir ma boutique
                         </a>
                         
@@ -313,7 +325,7 @@
                               data-confirm="Voulez-vous activer/désactiver votre boutique ">
                             {% include "partials/_csrf.html" %}
                             <button type="submit" 
-                                    class="btn {{ 'btn-outline-danger' if shop.is_active else 'btn-outline-success' }} btn-lg btn-hover-effect">
+                                    class="btn {{ 'btn-outline-danger' if shop.is_active else 'btn-outline-success' }} btn-lg btn-hover-effect quick-action-chevron">
                                 <i class="bi bi-power me-2"></i>
                                 {{ 'Désactiver' if shop.is_active else 'Activer' }} la boutique
                             </button>
@@ -321,17 +333,17 @@
                         
                         {% if allows_products %}
                         <a href="{{ url_for('vendor.earnings') }}"
-                           class="btn btn-outline-success btn-lg btn-hover-effect">
+                           class="btn btn-outline-success btn-lg btn-hover-effect quick-action-chevron">
                             <i class="bi bi-wallet2 me-2"></i> Livre des encaissements
                         </a>
                         {% endif %}
                         {% if allows_location %}
                         <a href="{{ url_for('rentals.owner_locations') }}"
-                           class="btn btn-outline-success btn-lg btn-hover-effect">
+                           class="btn btn-outline-success btn-lg btn-hover-effect quick-action-chevron">
                             <i class="bi bi-house-door me-2"></i> Mes locations
                         </a>
                         <a href="{{ url_for('rentals.owner_location_new') }}"
-                           class="btn btn-outline-primary btn-lg btn-hover-effect">
+                           class="btn btn-outline-primary btn-lg btn-hover-effect quick-action-chevron">
                             <i class="bi bi-building-add me-2"></i> Nouvelle location
                         </a>
                         {% endif %}
@@ -343,83 +355,6 @@
         </div>
     </div>
     
-    {% if allows_location %}
-    <!-- Locations de la boutique -->
-    <div class="card border-0 shadow-sm mt-4 animated-card glass-effect" style="--i: 7">
-        <div class="card-header bg-transparent border-0">
-            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-                <div>
-                    <div class="bg-primary p-3 rounded-circle d-inline-flex me-3">
-                        <i class="bi bi-house-door text-white fs-4"></i>
-                    </div>
-                    <h4 class="d-inline-block mb-0 gradient-text fw-bold">Locations de cette boutique</h4>
-                </div>
-                <div class="d-flex align-items-center gap-2">
-                    <span class="badge bg-light text-dark rounded-pill px-3 py-2"><i class="bi bi-eye me-1"></i> {{ location_views_total }} consultations</span>
-                    <a href="{{ url_for('rentals.owner_locations', shop=shop.id) }}" class="btn btn-outline-primary btn-hover-effect">Gérer</a>
-                </div>
-            </div>
-        </div>
-        <div class="card-body">
-            {% if shop_locations %}
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0 locations-table">
-                        <thead class="bg-light">
-                            <tr>
-                                <th>Titre</th>
-                                <th>Prix</th>
-                                <th>Statut</th>
-                                <th>Consultations</th>
-                                <th>Expire</th>
-                                <th class="text-end">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for item in shop_locations[:8] %}
-                            <tr class="js-manage-search-item"
-                                data-search="{{ (item.title ~ ' ' ~ (item.city or '') ~ ' ' ~ (item.area or '') ~ ' ' ~ (item.status or '') ~ ' location')|lower }}">
-                                <td data-label="Titre">
-                                    <div class="locations-title-wrap">
-                                        <div class="fw-bold">{{ item.title }}</div>
-                                        <small class="text-muted">{{ item.city }}{% if item.area %}, {{ item.area }}{% endif %}</small>
-                                    </div>
-                                </td>
-                                <td data-label="Prix">{{ "%.2f"|format((item.rent_cents or 0) / 100) }} DH</td>
-                                <td data-label="Statut"><span class="badge bg-{{ 'success' if item.status == 'active' else 'warning' if item.status == 'reserved' else 'secondary' }}">{{ label_location_status(item.status, current_lang) }}</span></td>
-                                <td data-label="Consultations">{{ item.view_count }}</td>
-                                <td data-label="Expire">{{ item.expires_at.strftime("%d/%m/%Y") if item.expires_at else '-' }}</td>
-                                <td class="text-end" data-label="Actions">
-                                    <a href="{{ url_for('rentals.owner_location_edit', listing_id=item.id) }}" class="btn btn-sm btn-outline-primary">Modifier</a>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                {% if location_top %}
-                    <hr>
-                    <div class="fw-semibold mb-2">Top 5 les plus vues</div>
-                    <div class="d-grid gap-2">
-                        {% for item in location_top %}
-                            <div class="d-flex justify-content-between align-items-center border rounded-3 px-3 py-2 js-manage-search-item"
-                                 data-search="{{ (item.title ~ ' top vue location')|lower }}">
-                                <span>{{ item.title|truncate(55) }}</span>
-                                <span class="fw-bold"><i class="bi bi-eye me-1"></i>{{ item.view_count }}</span>
-                            </div>
-                        {% endfor %}
-                    </div>
-                {% endif %}
-            {% else %}
-                <div class="text-center py-4">
-                    <p class="text-muted mb-3">Aucune annonce location liée à cette boutique.</p>
-                    <a href="{{ url_for('rentals.owner_location_new') }}" class="btn btn-primary btn-hover-effect">
-                        <i class="bi bi-plus-circle me-2"></i> Ajouter une location
-                    </a>
-                </div>
-            {% endif %}
-        </div>
-    </div>
-    {% endif %}
 
     {% endif %}
 </div>

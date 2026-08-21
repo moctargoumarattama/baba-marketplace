@@ -1,0 +1,317 @@
+.bm-assistant {
+  position: fixed;
+  left: auto;
+  top: auto;
+  right: 14px;
+  bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+  z-index: 1200;
+  font-family: "Plus Jakarta Sans", "Segoe UI", sans-serif;
+  max-width: calc(100vw - 18px);
+  pointer-events: none;
+}
+
+.bm-assistant-toggle {
+  border: 0;
+  border-radius: 999px;
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  background: linear-gradient(135deg, #0ea5e9, #10b981);
+  color: #fff;
+  font-weight: 800;
+  font-size: 1.02rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  box-shadow: 0 12px 26px rgba(14, 165, 233, 0.3);
+  cursor: grab;
+  touch-action: none;
+  pointer-events: auto;
+  transition: transform 0.16s ease, filter 0.16s ease;
+}
+
+.bm-assistant-toggle:active {
+  transform: scale(0.97);
+}
+
+.bm-assistant-toggle-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+.bm-assistant.is-dragging .bm-assistant-toggle {
+  cursor: grabbing;
+}
+
+.bm-assistant-hint {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 0.54rem);
+  border: 1px solid #d9dee5;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.3;
+  padding: 0.52rem 0.72rem;
+  min-height: 36px;
+  max-width: min(72vw, 244px);
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: auto;
+  animation: bm-assistant-hint-in 220ms ease-out both;
+}
+
+@keyframes bm-assistant-hint-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.bm-assistant-panel {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 0.65rem);
+  width: min(92vw, 360px);
+  height: min(76dvh, 560px);
+  max-height: min(76dvh, 560px);
+  margin-bottom: 0;
+  border: 1px solid #d9dee5;
+  border-radius: 18px;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  overscroll-behavior: contain;
+  box-shadow: 0 16px 38px rgba(15, 23, 42, 0.2);
+  pointer-events: auto;
+}
+
+.bm-assistant.is-panel-left .bm-assistant-panel {
+  left: 0;
+  right: auto;
+}
+
+.bm-assistant.is-panel-bottom .bm-assistant-panel {
+  top: calc(100% + 0.65rem);
+  bottom: auto;
+}
+
+.bm-assistant.is-panel-left .bm-assistant-hint {
+  left: 0;
+  right: auto;
+}
+
+.bm-assistant.is-panel-bottom .bm-assistant-hint {
+  top: calc(100% + 0.54rem);
+  bottom: auto;
+}
+
+.bm-assistant-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.7rem 0.8rem;
+  border-bottom: 1px solid #e5e7eb;
+  background: linear-gradient(180deg, #f8fafc, #ffffff);
+}
+
+.bm-assistant-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.bm-assistant-close {
+  border: 0;
+  background: transparent;
+  color: #64748b;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+}
+
+.bm-assistant-messages {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0.8rem;
+  background: #f8fafc;
+}
+
+.bm-assistant-msg {
+  max-width: 88%;
+  border-radius: 14px;
+  padding: 0.56rem 0.66rem;
+  margin-bottom: 0.6rem;
+  line-height: 1.35;
+  font-size: 0.85rem;
+  white-space: pre-line;
+}
+
+.bm-assistant-msg.bot {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  color: #0f172a;
+}
+
+.bm-assistant-msg.user {
+  margin-left: auto;
+  background: #10b981;
+  color: #fff;
+}
+
+.bm-assistant-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #fff;
+  padding: 0.55rem 0.6rem;
+  margin-bottom: 0.55rem;
+}
+
+.bm-assistant-card-title {
+  font-weight: 800;
+  font-size: 0.84rem;
+  color: #0f172a;
+}
+
+.bm-assistant-card-sub {
+  font-size: 0.78rem;
+  color: #334155;
+  margin-top: 0.18rem;
+}
+
+.bm-assistant-card-meta {
+  font-size: 0.74rem;
+  color: #64748b;
+  margin-top: 0.12rem;
+}
+
+.bm-assistant-card a {
+  display: inline-flex;
+  margin-top: 0.34rem;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: #047857;
+  text-decoration: none;
+}
+
+.bm-assistant-quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.6rem 0.7rem 0.5rem;
+  border-top: 1px solid #e5e7eb;
+  background: #ffffff;
+  max-height: min(34%, 170px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.bm-assistant-quick-btn {
+  border: 1px solid #d1d5db;
+  border-radius: 999px;
+  padding: 0.36rem 0.62rem;
+  background: #fff;
+  color: #0f172a;
+  font-size: 0.77rem;
+  font-weight: 700;
+}
+
+.bm-assistant-form {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.45rem;
+  border-top: 1px solid #e5e7eb;
+  padding: 0.58rem 0.62rem calc(0.58rem + env(safe-area-inset-bottom, 0px));
+  background: #fff;
+}
+
+.bm-assistant-form input {
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  padding: 0.54rem 0.62rem;
+  font-size: 16px;
+}
+
+.bm-assistant-form button {
+  border: 0;
+  border-radius: 10px;
+  width: 42px;
+  background: #0ea5e9;
+  color: #fff;
+}
+
+.bm-assistant-handoff {
+  display: inline-flex;
+  margin-top: 0.35rem;
+  border-radius: 10px;
+  padding: 0.42rem 0.58rem;
+  background: #ecfeff;
+  border: 1px solid #bae6fd;
+  color: #075985;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+@media (max-width: 576px) {
+  .bm-assistant {
+    right: 10px;
+    bottom: calc(82px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .bm-assistant-panel {
+    width: min(94vw, 350px);
+    height: min(74dvh, 540px);
+    max-height: min(74dvh, 540px);
+  }
+
+  .bm-assistant-quick {
+    max-height: min(32%, 156px);
+  }
+
+  .bm-assistant-hint {
+    max-width: min(74vw, 236px);
+    font-size: 0.8rem;
+  }
+}
+
+.bm-assistant.is-mobile-open .bm-assistant-toggle,
+.bm-assistant.is-mobile-open .bm-assistant-hint {
+  display: none;
+}
+
+.bm-assistant.is-mobile-open .bm-assistant-panel {
+  position: fixed;
+  right: 8px;
+  left: auto;
+  bottom: calc(8px + var(--bm-assistant-vv-inset-bottom, 0px));
+  top: auto;
+  width: min(94vw, 350px);
+  height: var(--bm-assistant-mobile-height, min(56dvh, 520px));
+  max-height: var(--bm-assistant-mobile-height, min(56dvh, 520px));
+  border-radius: 16px;
+}
+
+.bm-assistant.is-typing .bm-assistant-quick {
+  display: none;
+}

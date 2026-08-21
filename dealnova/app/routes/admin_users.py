@@ -13,12 +13,22 @@ from ..models.shop import (
 from ..models.product import Product
 from ..models.order import Order, OrderItem
 from ..models.audit import AuditLog
+from ..models.booking import Booking
+from ..models.review import Review
+from ..models.promo import Promo
 from ..models.blocked import BlockedContact
+from ..models.featured_item import FeaturedItem
+from ..models.financial import FinancialEntry
 from ..models.product_contact_lead import ProductContactLead
 from ..models.platform_settings import PlatformSettings
+from ..models.rental import RentalListing, RentalMedia, RentalArchive
 from ..models.subscription_payment import SubscriptionPayment
 from ..models.vendor_application import VendorApplication
 from ..models.vendor_change_request import VendorChangeRequest
+from ..models.vendor_fulfillment import VendorFulfillment
+from ..models.vendor_payout import VendorPayout
+from ..models.vendor_push_subscription import VendorPushSubscription
+from ..models.vendor_receipt import VendorReceipt
 from ..services.logging_service import logging_service
 from ..services.cache import bump_catalog_version, cache
 from ..services.audit import log_access
@@ -28,7 +38,8 @@ from ..services.pagination import normalize_limit, page_from_args
 from ..services.traffic_stats import get_live_traffic_metrics
 from datetime import datetime, timedelta
 from sqlalchemy.orm import selectinload, load_only
-from sqlalchemy import or_, and_
+from sqlalchemy import or_, and_, func
+from sqlalchemy.exc import IntegrityError
 import secrets
 import re
 import string
@@ -315,20 +326,28 @@ def _unique_vendor_username(base: str | None) -> str:
 
 
 def _unique_vendor_email(phone_digits: str, vendor_application_id: int) -> str:
+    fallback_domain = (
+        str(current_app.config.get("VENDOR_FALLBACK_EMAIL_DOMAIN") or "").strip().lower()
+        or "vendors.babamarket.ma"
+    )
+    fallback_domain = re.sub(r"[^a-z0-9.-]+", "", fallback_domain).strip(".")
+    if "." not in fallback_domain:
+        fallback_domain = "vendors.babamarket.ma"
+
     local_seed = (phone_digits or "").strip() or f"request{vendor_application_id}"
     local_seed = re.sub(r"[^a-zA-Z0-9]+", "", local_seed)[:32] or f"request{vendor_application_id}"
-    candidate = f"vendor{local_seed}@vendors.local"
-    if not User.query.filter_by(email=candidate).first():
+    candidate = f"vendor{local_seed}@{fallback_domain}"
+    if not User.query.filter(func.lower(User.email) == candidate.lower()).first():
         return candidate
 
     counter = 1
     while True:
-        attempt = f"vendor{local_seed}{counter}@vendors.local"
-        if not User.query.filter_by(email=attempt).first():
+        attempt = f"vendor{local_seed}{counter}@{fallback_domain}"
+        if not User.query.filter(func.lower(User.email) == attempt.lower()).first():
             return attempt
         counter += 1
         if counter > 2000:
-            return f"vendor{vendor_application_id}{int(datetime.utcnow().timestamp())}@vendors.local"
+            return f"vendor{vendor_application_id}{int(datetime.utcnow().timestamp())}@{fallback_domain}"
 
 
 def _shop_types_from_vendor_application(shop_type_text: str | None):
@@ -363,6 +382,248 @@ def _is_ajax_request() -> bool:
 
 def _bool_arg(value: str | None) -> bool:
     return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _archive_deletion_snapshot(entity_type: str, entity_id: int, entity_name: str, extra: dict | None = None) -> None:
+    payload = {"name": (entity_name or "").strip() or f"{entity_type}#{entity_id}"}
+    if extra:
+        payload.update(extra)
+    log_access("deletion_snapshot", entity_type, entity_id, success=True, changes=payload)
+
+
+def _cleanup_shop_dependencies_for_delete(shop: Shop, *, detach_vendor_products: bool = False) -> dict:
+    cleanup: dict[str, int] = {}
+
+    product_update = {"shop_id": None, "is_active": False}
+    if detach_vendor_products:
+        product_update["vendor_id"] = None
+    cleanup["products_detached"] = int(
+        Product.query.filter(Product.shop_id == shop.id).update(product_update, synchronize_session=False) or 0
+    )
+
+    cleanup["bookings_detached"] = int(
+        Booking.query.filter(Booking.shop_id == shop.id).update({"shop_id": None}, synchronize_session=False) or 0
+    )
+    cleanup["vendor_payouts_shop_detached"] = int(
+        VendorPayout.query.filter(VendorPayout.shop_id == shop.id).update({"shop_id": None}, synchronize_session=False) or 0
+    )
+    cleanup["product_leads_detached"] = int(
+        ProductContactLead.query.filter(ProductContactLead.shop_id == shop.id).update({"shop_id": None}, synchronize_session=False) or 0
+    )
+
+    cleanup["featured_shop_targets_disabled"] = int(
+        FeaturedItem.query
+        .filter(
+            FeaturedItem.shop_id == shop.id,
+            FeaturedItem.target_type == FeaturedItem.TARGET_SHOP,
+            FeaturedItem.is_active == True,
+        )
+        .update({"is_active": False}, synchronize_session=False)
+        or 0
+    )
+    cleanup["featured_shop_refs_detached"] = int(
+        FeaturedItem.query.filter(FeaturedItem.shop_id == shop.id).update({"shop_id": None}, synchronize_session=False)
+        or 0
+    )
+
+    cleanup["vendor_change_requests_deleted"] = int(
+        VendorChangeRequest.query.filter(VendorChangeRequest.shop_id == shop.id).delete(synchronize_session=False) or 0
+    )
+
+    listing_ids_subquery = db.session.query(RentalListing.id).filter(RentalListing.shop_id == shop.id)
+    cleanup["featured_location_targets_disabled"] = int(
+        FeaturedItem.query
+        .filter(
+            FeaturedItem.location_id.in_(listing_ids_subquery),
+            FeaturedItem.target_type == FeaturedItem.TARGET_LOCATION,
+            FeaturedItem.is_active == True,
+        )
+        .update({"is_active": False}, synchronize_session=False)
+        or 0
+    )
+    cleanup["featured_location_refs_detached"] = int(
+        FeaturedItem.query
+        .filter(FeaturedItem.location_id.in_(listing_ids_subquery))
+        .update({"location_id": None}, synchronize_session=False)
+        or 0
+    )
+    cleanup["rental_media_deleted"] = int(
+        RentalMedia.query
+        .filter(RentalMedia.listing_id.in_(listing_ids_subquery))
+        .delete(synchronize_session=False)
+        or 0
+    )
+    cleanup["rental_listings_deleted"] = int(
+        RentalListing.query.filter(RentalListing.shop_id == shop.id).delete(synchronize_session=False) or 0
+    )
+
+    archive_ids = [row[0] for row in db.session.query(RentalArchive.id).filter(RentalArchive.shop_id == shop.id).all()]
+    if archive_ids:
+        cleanup["financial_rental_refs_detached"] = int(
+            FinancialEntry.query
+            .filter(FinancialEntry.rental_archive_id.in_(archive_ids))
+            .update({"rental_archive_id": None}, synchronize_session=False)
+            or 0
+        )
+        cleanup["rental_archives_deleted"] = int(
+            RentalArchive.query.filter(RentalArchive.id.in_(archive_ids)).delete(synchronize_session=False) or 0
+        )
+
+    cleanup["vendor_application_shop_refs_detached"] = int(
+        VendorApplication.query
+        .filter(VendorApplication.created_shop_id == shop.id)
+        .update({"created_shop_id": None}, synchronize_session=False)
+        or 0
+    )
+
+    return cleanup
+
+
+def _cleanup_user_dependencies_for_delete(user: User) -> dict:
+    cleanup: dict[str, int] = {}
+
+    linked_shop = Shop.query.filter(Shop.vendor_id == user.id).first()
+    if linked_shop:
+        cleanup["shop_dependency_cleanup"] = _cleanup_shop_dependencies_for_delete(
+            linked_shop,
+            detach_vendor_products=True,
+        )
+        db.session.delete(linked_shop)
+        cleanup["shop_deleted"] = 1
+
+    cleanup["orders_buyer_detached"] = int(
+        Order.query.filter(Order.buyer_id == user.id).update({"buyer_id": None}, synchronize_session=False) or 0
+    )
+    cleanup["orders_settled_by_detached"] = int(
+        Order.query
+        .filter(Order.baba_fee_settled_by_user_id == user.id)
+        .update({"baba_fee_settled_by_user_id": None}, synchronize_session=False)
+        or 0
+    )
+    cleanup["bookings_buyer_detached"] = int(
+        Booking.query.filter(Booking.buyer_id == user.id).update({"buyer_id": None}, synchronize_session=False) or 0
+    )
+    cleanup["featured_vendor_detached"] = int(
+        FeaturedItem.query.filter(FeaturedItem.vendor_id == user.id).update({"vendor_id": None}, synchronize_session=False) or 0
+    )
+    cleanup["featured_admin_detached"] = int(
+        FeaturedItem.query
+        .filter(FeaturedItem.created_by_admin_id == user.id)
+        .update({"created_by_admin_id": None}, synchronize_session=False)
+        or 0
+    )
+    cleanup["promo_review_detached"] = int(
+        Promo.query.filter(Promo.reviewed_by_id == user.id).update({"reviewed_by_id": None}, synchronize_session=False) or 0
+    )
+    cleanup["vendor_change_review_detached"] = int(
+        VendorChangeRequest.query
+        .filter(VendorChangeRequest.reviewed_by_id == user.id)
+        .update({"reviewed_by_id": None}, synchronize_session=False)
+        or 0
+    )
+    cleanup["subscription_created_by_detached"] = int(
+        SubscriptionPayment.query
+        .filter(SubscriptionPayment.created_by_id == user.id)
+        .update({"created_by_id": None}, synchronize_session=False)
+        or 0
+    )
+    cleanup["vendor_payout_claimed_by_detached"] = int(
+        VendorPayout.query
+        .filter(VendorPayout.claimed_by_id == user.id)
+        .update({"claimed_by_id": None}, synchronize_session=False)
+        or 0
+    )
+    cleanup["vendor_application_created_refs_detached"] = int(
+        VendorApplication.query
+        .filter(VendorApplication.created_user_id == user.id)
+        .update({"created_user_id": None}, synchronize_session=False)
+        or 0
+    )
+    cleanup["vendor_application_review_refs_detached"] = int(
+        VendorApplication.query
+        .filter(VendorApplication.reviewed_by_id == user.id)
+        .update({"reviewed_by_id": None}, synchronize_session=False)
+        or 0
+    )
+    cleanup["products_vendor_detached"] = int(
+        Product.query
+        .filter(Product.vendor_id == user.id)
+        .update({"vendor_id": None, "is_active": False}, synchronize_session=False)
+        or 0
+    )
+    cleanup["audit_user_refs_detached"] = int(
+        AuditLog.query.filter(AuditLog.user_id == user.id).update({"user_id": None}, synchronize_session=False) or 0
+    )
+
+    cleanup["reviews_deleted"] = int(Review.query.filter(Review.user_id == user.id).delete(synchronize_session=False) or 0)
+    cleanup["vendor_push_deleted"] = int(
+        VendorPushSubscription.query.filter(VendorPushSubscription.vendor_id == user.id).delete(synchronize_session=False) or 0
+    )
+    cleanup["vendor_fulfillment_deleted"] = int(
+        VendorFulfillment.query.filter(VendorFulfillment.vendor_id == user.id).delete(synchronize_session=False) or 0
+    )
+    cleanup["vendor_receipts_deleted"] = int(
+        VendorReceipt.query.filter(VendorReceipt.vendor_id == user.id).delete(synchronize_session=False) or 0
+    )
+    cleanup["vendor_payouts_deleted"] = int(
+        VendorPayout.query.filter(VendorPayout.vendor_id == user.id).delete(synchronize_session=False) or 0
+    )
+    cleanup["vendor_change_requests_deleted"] = int(
+        VendorChangeRequest.query.filter(VendorChangeRequest.vendor_id == user.id).delete(synchronize_session=False) or 0
+    )
+
+    owner_listing_ids_subquery = db.session.query(RentalListing.id).filter(RentalListing.owner_id == user.id)
+    cleanup["featured_owner_location_targets_disabled"] = int(
+        FeaturedItem.query
+        .filter(
+            FeaturedItem.location_id.in_(owner_listing_ids_subquery),
+            FeaturedItem.target_type == FeaturedItem.TARGET_LOCATION,
+            FeaturedItem.is_active == True,
+        )
+        .update({"is_active": False}, synchronize_session=False)
+        or 0
+    )
+    cleanup["featured_owner_location_refs_detached"] = int(
+        FeaturedItem.query
+        .filter(FeaturedItem.location_id.in_(owner_listing_ids_subquery))
+        .update({"location_id": None}, synchronize_session=False)
+        or 0
+    )
+    cleanup["owner_rental_media_deleted"] = int(
+        RentalMedia.query
+        .filter(RentalMedia.listing_id.in_(owner_listing_ids_subquery))
+        .delete(synchronize_session=False)
+        or 0
+    )
+    cleanup["owner_rental_listings_deleted"] = int(
+        RentalListing.query.filter(RentalListing.owner_id == user.id).delete(synchronize_session=False) or 0
+    )
+
+    owner_archive_ids = [row[0] for row in db.session.query(RentalArchive.id).filter(RentalArchive.owner_id == user.id).all()]
+    if owner_archive_ids:
+        cleanup["financial_owner_rental_refs_detached"] = int(
+            FinancialEntry.query
+            .filter(FinancialEntry.rental_archive_id.in_(owner_archive_ids))
+            .update({"rental_archive_id": None}, synchronize_session=False)
+            or 0
+        )
+        cleanup["owner_rental_archives_deleted"] = int(
+            RentalArchive.query.filter(RentalArchive.id.in_(owner_archive_ids)).delete(synchronize_session=False) or 0
+        )
+
+    subscription_ids = [row[0] for row in db.session.query(SubscriptionPayment.id).filter(SubscriptionPayment.user_id == user.id).all()]
+    if subscription_ids:
+        cleanup["financial_subscription_refs_detached"] = int(
+            FinancialEntry.query
+            .filter(FinancialEntry.subscription_id.in_(subscription_ids))
+            .update({"subscription_id": None}, synchronize_session=False)
+            or 0
+        )
+        cleanup["subscription_payments_deleted"] = int(
+            SubscriptionPayment.query.filter(SubscriptionPayment.id.in_(subscription_ids)).delete(synchronize_session=False) or 0
+        )
+
+    return cleanup
 
 
 # ==================== MIDDLEWARE ADMIN ====================
@@ -842,6 +1103,10 @@ def toggle_user_active(user_id):
     # Inverser le statut
     user.is_active = not user.is_active
 
+    linked_shop = Shop.query.filter_by(vendor_id=user.id).first()
+    if linked_shop and not user.is_active:
+        linked_shop.is_active = False
+
     db.session.commit()
 
     # Log de l'action
@@ -855,11 +1120,14 @@ def toggle_user_active(user_id):
 
     # Réponse AJAX ou redirection
     if _is_ajax_request():
+        message = f"Utilisateur {'activé' if user.is_active else 'désactivé'}"
+        if linked_shop and not user.is_active:
+            message = "Utilisateur et boutique désactivés"
         return jsonify(
             success=True,
             user_id=user.id,
             is_active=user.is_active,
-            message=f"Utilisateur {'activé' if user.is_active else 'désactivé'}"
+            message=message
         )
 
     status = "activé" if user.is_active else "désactivé"
@@ -874,24 +1142,41 @@ def delete_user(user_id):
     if _manager_hidden_user(user):
         return _hidden_user_response()
 
-    # Vérifier si l'utilisateur a des dépendances
-    if user.role == 'vendor':
-        shop = Shop.query.filter_by(vendor_id=user.id).first()
-        if shop:
-            if _is_ajax_request():
-                return jsonify(success=False, message="Suppression impossible : cet utilisateur a une boutique."), 400
-            flash("Suppression impossible : cet utilisateur a une boutique.", "danger")
-            return redirect(url_for('admin_users.user_detail', user_id=user.id))
+    linked_shop = Shop.query.filter(Shop.vendor_id == user.id).first()
+
+    _archive_deletion_snapshot(
+        "user",
+        user.id,
+        user.username or user.email or f"user#{user.id}",
+        extra={
+            "shop_name": linked_shop.name if linked_shop else None,
+            "role": user.role,
+        },
+    )
+
+    cleanup_stats = _cleanup_user_dependencies_for_delete(user)
 
     log_access(
         "delete_user",
         "user",
         user.id,
         success=True,
-        changes={"username": user.username, "role": user.role}
+        changes={
+            "username": user.username,
+            "role": user.role,
+            "cleanup": cleanup_stats,
+        }
     )
     db.session.delete(user)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        message = "Suppression impossible : dependances encore liees. Reessayez apres rafraichissement."
+        if _is_ajax_request():
+            return jsonify(success=False, message=message), 400
+        flash(message, "danger")
+        return redirect(url_for('admin_users.user_detail', user_id=user.id))
 
     if _is_ajax_request():
         return jsonify(success=True, user_id=user.id, redirect_url=url_for('admin_users.manage_users'))
@@ -1152,28 +1437,37 @@ def delete_shop(shop_id):
     """Supprimer une boutique"""
     shop = Shop.query.get_or_404(shop_id)
 
-    has_orders = (
-        db.session.query(OrderItem.id)
-        .join(Product, OrderItem.product_id == Product.id)
-        .filter(Product.shop_id == shop.id)
-        .first()
+    _archive_deletion_snapshot(
+        "shop",
+        shop.id,
+        shop.name or f"shop#{shop.id}",
+        extra={
+            "vendor_id": shop.vendor_id,
+        },
     )
-    if has_orders:
-        message = "Impossible de supprimer: la boutique a un historique produit legacy."
-        if _is_ajax_request():
-            return jsonify(success=False, message=message), 400
-        flash(message, "danger")
-        return redirect(url_for('admin_users.shop_detail', shop_id=shop.id))
+    cleanup_stats = _cleanup_shop_dependencies_for_delete(shop, detach_vendor_products=False)
 
     log_access(
         "delete_shop",
         "shop",
         shop.id,
         success=True,
-        changes={"name": shop.name, "vendor_id": shop.vendor_id}
+        changes={
+            "name": shop.name,
+            "vendor_id": shop.vendor_id,
+            "cleanup": cleanup_stats,
+        }
     )
     db.session.delete(shop)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        message = "Impossible de supprimer: la boutique est encore liee a des donnees existantes."
+        if _is_ajax_request():
+            return jsonify(success=False, message=message), 400
+        flash(message, "danger")
+        return redirect(url_for('admin_users.shop_detail', shop_id=shop.id))
 
     if _is_ajax_request():
         return jsonify(success=True, shop_id=shop.id, redirect_url=url_for('admin_users.manage_shops'))
@@ -1279,10 +1573,14 @@ def vendor_request_approve(request_id: int):
     username = _unique_vendor_username(application.shop_name or application.full_name)
 
     email = email_normalized
-    if email and User.query.filter_by(email=email).first():
+    email_was_replaced = False
+    if email and User.query.filter(func.lower(User.email) == email.lower()).first():
         email = ""
+        email_was_replaced = True
     if not email:
         email = _unique_vendor_email(phone_digits, application.id)
+        if email_normalized:
+            email_was_replaced = True
 
     generated_password = None
     primary_type, allowed_types = _shop_types_from_vendor_application(application.shop_type)
@@ -1354,12 +1652,20 @@ def vendor_request_approve(request_id: int):
         flash(
             (
                 f"Demande validee. Compte vendeur cree: {username} | "
-                f"mot de passe temporaire: {generated_password}"
+                f"email: {email} | mot de passe temporaire: {generated_password}"
             ),
             "success",
         )
+    elif email_was_replaced:
+        flash(
+            (
+                f"Demande validee. Compte vendeur cree: {username} | "
+                f"email de connexion: {email} (email initial deja utilise)."
+            ),
+            "warning",
+        )
     else:
-        flash(f"Demande validee. Compte vendeur cree: {username}.", "success")
+        flash(f"Demande validee. Compte vendeur cree: {username} | email: {email}.", "success")
     return _vendor_requests_redirect()
 
 
@@ -1625,6 +1931,108 @@ def vendor_change_request_reject(request_id: int):
     return _vendor_change_requests_redirect()
 
 
+@bp.route("/deletion-history")
+def deletion_history():
+    page = page_from_args(request.args)
+    entity_filter = (request.args.get("entity") or "").strip().lower()
+    search = (request.args.get("q") or "").strip()
+    deleted_by_filter = (request.args.get("deleted_by") or "").strip().lower()
+    date_from = (request.args.get("date_from") or "").strip()
+    date_to = (request.args.get("date_to") or "").strip()
+
+    query = AuditLog.query.filter(AuditLog.action == "deletion_snapshot")
+    if entity_filter in {"user", "shop"}:
+        query = query.filter(AuditLog.entity_type == entity_filter)
+    else:
+        entity_filter = ""
+
+    if deleted_by_filter == "system":
+        query = query.filter(AuditLog.user_id.is_(None))
+    elif deleted_by_filter.isdigit():
+        query = query.filter(AuditLog.user_id == int(deleted_by_filter))
+    elif deleted_by_filter:
+        deleted_by_filter = ""
+
+    start_date = None
+    end_date = None
+    if date_from:
+        try:
+            start_date = datetime.strptime(date_from, "%Y-%m-%d")
+        except ValueError:
+            date_from = ""
+    if date_to:
+        try:
+            end_date = datetime.strptime(date_to, "%Y-%m-%d")
+        except ValueError:
+            date_to = ""
+
+    if start_date is not None:
+        query = query.filter(AuditLog.created_at >= start_date)
+    if end_date is not None:
+        query = query.filter(AuditLog.created_at < (end_date + timedelta(days=1)))
+
+    if search:
+        like_term = f"%{search}%"
+        search_clauses = [
+            db.cast(AuditLog.changes, db.Text).ilike(like_term),
+            AuditLog.user.has(or_(User.username.ilike(like_term), User.email.ilike(like_term))),
+        ]
+        if search.isdigit():
+            numeric = int(search)
+            search_clauses.extend([AuditLog.entity_id == numeric, AuditLog.user_id == numeric])
+        query = query.filter(or_(*search_clauses))
+
+    pagination = query.order_by(AuditLog.created_at.desc()).paginate(
+        page=page, per_page=50, error_out=False
+    )
+
+    rows = []
+    for item in pagination.items:
+        payload = item.changes or {}
+        rows.append(
+            {
+                "created_at": item.created_at,
+                "entity_type": item.entity_type,
+                "entity_id": item.entity_id,
+                "name": payload.get("name") or payload.get("username") or payload.get("shop_name") or "-",
+                "shop_name": payload.get("shop_name") or "",
+                "role": payload.get("role") or "",
+                "deleted_by": item.user.username if getattr(item, "user", None) else (f"ID {item.user_id}" if item.user_id else "System"),
+            }
+        )
+
+    deleted_by_options = (
+        db.session.query(User.id, User.username)
+        .join(AuditLog, AuditLog.user_id == User.id)
+        .filter(AuditLog.action == "deletion_snapshot")
+        .distinct()
+        .order_by(User.username.asc())
+        .all()
+    )
+
+    pagination_params = {
+        "entity": entity_filter,
+        "q": search,
+        "deleted_by": deleted_by_filter,
+        "date_from": date_from,
+        "date_to": date_to,
+    }
+    pagination_params = {k: v for k, v in pagination_params.items() if v}
+
+    return render_template(
+        "admin/deletion_history.html",
+        rows=rows,
+        pagination=pagination,
+        entity_filter=entity_filter,
+        search=search,
+        deleted_by_filter=deleted_by_filter,
+        date_from=date_from,
+        date_to=date_to,
+        deleted_by_options=deleted_by_options,
+        pagination_params=pagination_params,
+    )
+
+
 # ==================== LOGS & ACTIVITÉ ====================
 @bp.route("/logs")
 def view_logs():
@@ -1710,13 +2118,13 @@ def view_logs():
 def audit_logs():
     """Voir les logs d'audit"""
     flash("La page audit a été retirée.", "info")
-    return redirect(url_for("admin.dashboard"))
+    return redirect(url_for("admin_users.admin_dashboard"))
 
 @bp.route("/activity")
 def activity_log():
     """Vue activité marketplace (ops)."""
     flash("L'activité marketplace est maintenant sur le dashboard.", "info")
-    return redirect(url_for("admin.dashboard"))
+    return redirect(url_for("admin_users.admin_dashboard"))
 
 
 @bp.route("/reconciliation")
@@ -2322,11 +2730,7 @@ def api_stats():
         db.func.date(ProductContactLead.created_at) == today,
         ProductContactLead.source == "product_whatsapp",
     ).count()
-    express_delivery_revenue_today = Order.query.filter(
-        db.func.date(Order.created_at) == today,
-        Order.delivery_source == "special",
-        Order.delivery_status == "delivered",
-    ).with_entities(db.func.sum(Order.delivery_platform_fee_cents)).scalar() or 0
+    express_delivery_revenue_today = 0
 
     return jsonify({
         'total_users': total_users,

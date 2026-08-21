@@ -32,11 +32,34 @@ def vendor_push_public_key_is_valid(public_key: str | None = None) -> bool:
 
 
 def vendor_push_is_configured() -> bool:
-    return bool(
-        webpush
-        and vendor_push_public_key_is_valid()
-        and (current_app.config.get("VENDOR_PUSH_VAPID_PRIVATE_KEY") or "").strip()
-    )
+    return bool(vendor_push_configuration_status().get("configured"))
+
+
+def vendor_push_configuration_status() -> dict:
+    public_key = vendor_push_public_key()
+    has_public_key = bool(public_key)
+    valid_public_key = vendor_push_public_key_is_valid(public_key)
+    has_private_key = bool((current_app.config.get("VENDOR_PUSH_VAPID_PRIVATE_KEY") or "").strip())
+    dependency_available = bool(webpush)
+
+    reason = "configured"
+    if not dependency_available:
+        reason = "missing_dependency"
+    elif not has_public_key:
+        reason = "missing_public_key"
+    elif not valid_public_key:
+        reason = "invalid_public_key"
+    elif not has_private_key:
+        reason = "missing_private_key"
+
+    return {
+        "configured": reason == "configured",
+        "reason": reason,
+        "dependencyAvailable": dependency_available,
+        "hasPublicKey": has_public_key,
+        "validPublicKey": valid_public_key,
+        "hasPrivateKey": has_private_key,
+    }
 
 
 def upsert_vendor_push_subscription(vendor_id: int, payload: dict, user_agent: str = "") -> VendorPushSubscription:
@@ -169,7 +192,18 @@ def notify_product_contact_leads(checkout_data: dict) -> int:
     sent = 0
     for group in (checkout_data or {}).get("shop_groups") or []:
         shop = group.get("shop")
-        vendor_id = getattr(shop, "vendor_id", None)
+        vendor_id = group.get("vendor_id")
+        shop_id = group.get("shop_id")
+        if vendor_id is None:
+            try:
+                vendor_id = getattr(shop, "vendor_id", None)
+            except Exception:
+                vendor_id = None
+        if shop_id is None:
+            try:
+                shop_id = getattr(shop, "id", "shop")
+            except Exception:
+                shop_id = "shop"
         if not vendor_id:
             continue
         sent += send_vendor_push_notification(
@@ -179,7 +213,7 @@ def notify_product_contact_leads(checkout_data: dict) -> int:
                 "title": "Nouvelle demande client",
                 "body": f"Un client ouvre WhatsApp pour {int(group.get('items_count') or 0)} article(s).",
                 "url": url_for("vendor.dashboard", _external=False),
-                "tag": f"vendor-contact-{getattr(shop, 'id', 'shop')}",
+                "tag": f"vendor-contact-{shop_id or 'shop'}",
             },
         )
     return sent
