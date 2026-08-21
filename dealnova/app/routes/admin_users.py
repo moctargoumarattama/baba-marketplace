@@ -82,6 +82,7 @@ PASSWORD_CHANGE_WINDOW_MINUTES = 20
 RESERVED_ROOT_SHOP_SLUGS = {
     "admin",
     "admin-access",
+    "apple-touch-icon.png",
     "api",
     "booking",
     "cart",
@@ -92,6 +93,7 @@ RESERVED_ROOT_SHOP_SLUGS = {
     "locations",
     "login",
     "logout",
+    "manifest.json",
     "maintenance",
     "register",
     "search",

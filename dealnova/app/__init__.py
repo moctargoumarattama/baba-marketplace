@@ -109,13 +109,21 @@ def create_app(config_class=Config):
     from .services.maintenance_mode import get_maintenance_state as _get_maintenance_state
     from .services.traffic_stats import track_request_hit as _track_request_hit
 
+    ROOT_STATIC_LIKE_PATHS = {
+        "/health",
+        "/favicon.ico",
+        "/sw.js",
+        "/manifest.json",
+        "/apple-touch-icon.png",
+    }
+
     def _is_static_like_request() -> bool:
         endpoint = request.endpoint or ""
         path = request.path or ""
         return (
             endpoint.endswith(".static")
             or path.startswith("/static/")
-            or path in {"/health", "/favicon.ico", "/sw.js"}
+            or path in ROOT_STATIC_LIKE_PATHS
         )
 
     @app.route("/sw.js")
@@ -124,6 +132,22 @@ def create_app(config_class=Config):
         response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
         response.headers["Pragma"] = "no-cache"
         response.headers["Expires"] = "0"
+        response.headers["Service-Worker-Allowed"] = "/"
+        return response
+
+    @app.route("/manifest.json")
+    def web_app_manifest():
+        response = current_app.send_static_file("manifest.json")
+        response.mimetype = "application/manifest+json"
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
+
+    @app.route("/apple-touch-icon.png")
+    def apple_touch_icon():
+        response = current_app.send_static_file("apple-touch-icon.png")
+        response.headers["Cache-Control"] = "public, max-age=86400"
         return response
 
     @app.route("/favicon.ico")

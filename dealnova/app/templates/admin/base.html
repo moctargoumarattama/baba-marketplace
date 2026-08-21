@@ -33,7 +33,7 @@
     <link rel="icon" type="image/png" sizes="512x512" href="{{ url_for('static', filename='android-chrome-512x512.png') }}">
     <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='favicon-32x32.png', v=app_static_version) }}">
     <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename='favicon-16x16.png', v=app_static_version) }}">
-    <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png', v=app_static_version) }}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('apple_touch_icon') }}">
     <meta name="application-name" content="Baba Market">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
@@ -42,7 +42,7 @@
     {% for startup_file, startup_media in apple_startup_images %}
     <link rel="apple-touch-startup-image" href="{{ url_for('static', filename=startup_file, v=app_static_version ~ '-splashw1') }}" media="{{ startup_media }}">
     {% endfor %}
-    <link rel="manifest" href="{{ url_for('static', filename='manifest.json', v=app_static_version) }}">
+    <link rel="manifest" href="{{ url_for('web_app_manifest') }}">
     <link href="{{ url_for('static', filename='vendor/bootstrap/5.1.3/css/bootstrap.min.css', v=app_static_version) }}" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons/1.8.1/font/bootstrap-icons.css', v=app_static_version) }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='fonts/admin.css', v=app_static_version) }}">

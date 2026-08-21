@@ -9,6 +9,8 @@
   const perfFlags = window.BM_PERF_FLAGS || {};
   const frontFluidityEnabled = perfFlags.frontFluidity !== false;
   const PWA_SESSION_SCOPE_KEY = "bm:pwa-session-scope";
+  const PWA_STORAGE_PREFIX = "bm:pwa:v2";
+  const PWA_STORAGE_VERSION = (document.body && document.body.dataset && document.body.dataset.staticVersion) || "dev";
   const PWA_DEBUG = (function () {
     try {
       return (
@@ -38,6 +40,23 @@
       return;
     }
     window.setTimeout(callback, delay);
+  }
+
+  function pwaStorageKey(name) {
+    return PWA_STORAGE_PREFIX + ":" + PWA_STORAGE_VERSION + ":" + String(name || "");
+  }
+
+  function migrateLegacyPwaStorage() {
+    try {
+      const migrationKey = pwaStorageKey("legacy-migrated");
+      if (localStorage.getItem(migrationKey) === "1") return;
+      localStorage.removeItem("pwa_hide_until");
+      localStorage.removeItem("pwa_modal_last");
+      localStorage.removeItem("install_bar_dismissed_at");
+      localStorage.setItem(migrationKey, "1");
+    } catch (_error) {
+      // Ignore storage migration failures and keep the PWA flow usable.
+    }
   }
 
   function getConnectionInfo() {
@@ -988,7 +1007,11 @@
     const pwaModalLater = document.getElementById("pwaModalLater");
     const pwaModalToday = document.getElementById("pwaModalToday");
     const iosHint = document.getElementById("iosHint");
-    const PWA_HIDE_UNTIL_KEY = "pwa_hide_until";
+    const PWA_HIDE_UNTIL_KEY = pwaStorageKey("hide_until");
+    const PWA_MODAL_LAST_KEY = pwaStorageKey("modal_last");
+    const PWA_ANDROID_DISMISSED_KEY = pwaStorageKey("install_bar_dismissed_at");
+
+    migrateLegacyPwaStorage();
     const onlineRequiredRegistry = {
       dirty: true,
       nodes: [],
@@ -1117,12 +1140,12 @@
 
     function shouldShowPwaModal() {
       if (!canUseStorage()) return true;
-      return localStorage.getItem("pwa_modal_last") !== dayKey();
+      return localStorage.getItem(PWA_MODAL_LAST_KEY) !== dayKey();
     }
 
     function markPwaModalShownToday() {
       if (!canUseStorage()) return;
-      localStorage.setItem("pwa_modal_last", dayKey());
+      localStorage.setItem(PWA_MODAL_LAST_KEY, dayKey());
     }
 
     function closePwaModal() {
@@ -1148,7 +1171,7 @@
 
     function dismissedAndroidInstallToday() {
       if (!canUseStorage()) return false;
-      const value = Number(localStorage.getItem("install_bar_dismissed_at") || "0");
+      const value = Number(localStorage.getItem(PWA_ANDROID_DISMISSED_KEY) || "0");
       if (!value) return false;
       const oneDay = 24 * 60 * 60 * 1000;
       return Date.now() - value < oneDay;
@@ -1156,7 +1179,7 @@
 
     function dismissAndroidInstallForToday() {
       if (!canUseStorage()) return;
-      localStorage.setItem("install_bar_dismissed_at", String(Date.now()));
+      localStorage.setItem(PWA_ANDROID_DISMISSED_KEY, String(Date.now()));
     }
 
     function stopAndroidInstallEffects() {
@@ -1716,12 +1739,24 @@
       });
     }, true);
 
-    window.addEventListener("load", function () {
+    let pwaInstallUiBooted = false;
+    function bootPwaInstallUi() {
+      if (pwaInstallUiBooted) return;
+      pwaInstallUiBooted = true;
       showSoftInstallUI();
       if (deferredInstallPrompt) {
         showAndroidInstallBar();
       }
-    }, { once: true });
+    }
+
+    if (document.readyState === "complete" || document.readyState === "interactive") {
+      scheduleLowPriority(bootPwaInstallUi, 0);
+    } else {
+      document.addEventListener("DOMContentLoaded", function () {
+        scheduleLowPriority(bootPwaInstallUi, 0);
+      }, { once: true });
+    }
+    window.addEventListener("load", bootPwaInstallUi, { once: true });
 
     document.addEventListener("visibilitychange", function () {
       if (document.hidden) return;
@@ -1815,8 +1850,18 @@
         });
     }
 
-    window.addEventListener("load", function () {
-      scheduleLowPriority(registerServiceWorker, 1200);
-    }, { once: true });
+    let serviceWorkerRegistrationQueued = false;
+    function queueServiceWorkerRegistration() {
+      if (serviceWorkerRegistrationQueued) return;
+      serviceWorkerRegistrationQueued = true;
+      scheduleLowPriority(registerServiceWorker, 250);
+    }
+
+    if (document.readyState === "complete" || document.readyState === "interactive") {
+      queueServiceWorkerRegistration();
+    } else {
+      document.addEventListener("DOMContentLoaded", queueServiceWorkerRegistration, { once: true });
+    }
+    window.addEventListener("load", queueServiceWorkerRegistration, { once: true });
   });
 })();

@@ -22,6 +22,7 @@ bp = Blueprint("shops", __name__)
 RESERVED_ROOT_SHOP_SLUGS = {
     "admin",
     "admin-access",
+    "apple-touch-icon.png",
     "api",
     "booking",
     "cart",
@@ -32,6 +33,7 @@ RESERVED_ROOT_SHOP_SLUGS = {
     "location",
     "login",
     "logout",
+    "manifest.json",
     "maintenance",
     "register",
     "search",
