@@ -303,7 +303,11 @@ def save_product_video(file_storage) -> str:
 
         ffmpeg_bin = shutil.which("ffmpeg")
         if not ffmpeg_bin:
-            return _product_video_rel_path(source_name)
+            try:
+                os.remove(source_path)
+            except Exception:
+                pass
+            raise ValueError("Validation video indisponible.")
 
         compressed_name = f"{base_name}.mp4"
         compressed_path = os.path.join(upload_dir, compressed_name)
@@ -344,7 +348,17 @@ def save_product_video(file_storage) -> str:
             except Exception:
                 pass
 
-        return _product_video_rel_path(source_name)
+        if os.path.exists(source_path):
+            try:
+                os.remove(source_path)
+            except Exception:
+                pass
+        if os.path.exists(compressed_path):
+            try:
+                os.remove(compressed_path)
+            except Exception:
+                pass
+        raise ValueError("Video invalide, illisible ou trop lourde.")
     except Exception as exc:
         if os.path.exists(source_path):
             try:
