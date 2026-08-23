@@ -482,10 +482,10 @@ def _cleanup_shop_dependencies_for_delete(shop: Shop, *, detach_vendor_products:
     return cleanup
 
 
-def _cleanup_user_dependencies_for_delete(user: User) -> dict:
+def _cleanup_user_dependencies_for_delete(user: User, *, linked_shop: Shop | None = None) -> dict:
     cleanup: dict[str, int] = {}
 
-    linked_shop = Shop.query.filter(Shop.vendor_id == user.id).first()
+    linked_shop = linked_shop or Shop.query.filter(Shop.vendor_id == user.id).first()
     if linked_shop:
         cleanup["shop_dependency_cleanup"] = _cleanup_shop_dependencies_for_delete(
             linked_shop,
@@ -1449,6 +1449,15 @@ def toggle_shop(shop_id):
 def delete_shop(shop_id):
     """Supprimer une boutique"""
     shop = Shop.query.get_or_404(shop_id)
+    vendor = (
+        User.query
+        .filter(User.id == shop.vendor_id, User.role == "vendor")
+        .first()
+    )
+    vendor_has_other_shops = bool(
+        vendor
+        and Shop.query.filter(Shop.vendor_id == vendor.id, Shop.id != shop.id).first()
+    )
 
     _archive_deletion_snapshot(
         "shop",
@@ -1458,7 +1467,27 @@ def delete_shop(shop_id):
             "vendor_id": shop.vendor_id,
         },
     )
-    cleanup_stats = _cleanup_shop_dependencies_for_delete(shop, detach_vendor_products=False)
+
+    delete_vendor_with_shop = bool(vendor and not vendor_has_other_shops)
+    cleanup_stats = (
+        _cleanup_user_dependencies_for_delete(vendor, linked_shop=shop)
+        if delete_vendor_with_shop
+        else _cleanup_shop_dependencies_for_delete(shop, detach_vendor_products=False)
+    )
+    if delete_vendor_with_shop and vendor is not None:
+        _archive_deletion_snapshot(
+            "user",
+            vendor.id,
+            vendor.username or vendor.email or f"user#{vendor.id}",
+            extra={
+                "role": vendor.role,
+                "shop_name": shop.name,
+                "trigger": "shop_delete",
+            },
+        )
+        db.session.delete(vendor)
+    else:
+        db.session.delete(shop)
 
     log_access(
         "delete_shop",
@@ -1468,10 +1497,11 @@ def delete_shop(shop_id):
         changes={
             "name": shop.name,
             "vendor_id": shop.vendor_id,
+            "vendor_user_deleted": delete_vendor_with_shop,
+            "vendor_user_id": vendor.id if delete_vendor_with_shop and vendor is not None else None,
             "cleanup": cleanup_stats,
         }
     )
-    db.session.delete(shop)
     try:
         db.session.commit()
     except IntegrityError:
@@ -1483,9 +1513,17 @@ def delete_shop(shop_id):
         return redirect(url_for('admin_users.shop_detail', shop_id=shop.id))
 
     if _is_ajax_request():
-        return jsonify(success=True, shop_id=shop.id, redirect_url=url_for('admin_users.manage_shops'))
+        return jsonify(
+            success=True,
+            shop_id=shop.id,
+            vendor_user_deleted=delete_vendor_with_shop,
+            redirect_url=url_for('admin_users.manage_shops'),
+        )
 
-    flash(f"Boutique {shop.name} supprimée", "success")
+    if delete_vendor_with_shop and vendor is not None:
+        flash(f"Boutique {shop.name} et compte vendeur supprimés", "success")
+    else:
+        flash(f"Boutique {shop.name} supprimée", "success")
     return redirect(url_for('admin_users.manage_shops'))
 
 
@@ -1493,80 +1531,60 @@ def delete_shop(shop_id):
 def create_shop():
     """Ancienne création manuelle de boutique (désactivée)."""
     flash(
-        "La création manuelle de boutique est désactivée. Utilisez la page Demandes vendeurs.",
+        "La création manuelle de boutique est désactivée. Utilisez la page Nouveaux clients.",
         "warning",
     )
     return redirect(url_for("admin_users.vendor_requests"))
 
 
-# ==================== DEMANDES VENDEURS ====================
+# ==================== NOUVEAUX CLIENTS ====================
 @bp.route("/vendor-requests")
 def vendor_requests():
     page = page_from_args(request.args)
     per_page = normalize_limit(request.args.get("per_page"), default=20, max_limit=100)
-    status = (request.args.get("status") or "").strip().lower()
     search = (request.args.get("search") or "").strip()
-    allowed_statuses = set(VendorApplication.allowed_statuses())
-    status_filter = status if status in allowed_statuses else ""
 
-    query = VendorApplication.query
-    if status_filter:
-        query = query.filter(VendorApplication.status == status_filter)
-
+    base_query = User.query.filter(User.role == "customer")
     if search:
         like_term = f"%{search}%"
-        query = query.filter(
+        base_query = base_query.filter(
             or_(
-                VendorApplication.full_name.ilike(like_term),
-                VendorApplication.phone.ilike(like_term),
-                VendorApplication.email.ilike(like_term),
-                VendorApplication.shop_name.ilike(like_term),
-                VendorApplication.city.ilike(like_term),
-                VendorApplication.shop_type.ilike(like_term),
+                User.username.ilike(like_term),
+                User.full_name.ilike(like_term),
+                User.email.ilike(like_term),
+                User.phone.ilike(like_term),
             )
         )
 
-    pagination = query.order_by(VendorApplication.created_at.desc()).paginate(
+    pagination = base_query.order_by(User.created_at.desc()).paginate(
         page=page,
         per_page=per_page,
         error_out=False,
     )
-    requests_items = pagination.items
-
-    grouped = (
-        db.session.query(VendorApplication.status, db.func.count(VendorApplication.id))
-        .group_by(VendorApplication.status)
-        .all()
+    customers_items = pagination.items
+    all_customers = User.query.filter(User.role == "customer")
+    today = datetime.utcnow().date()
+    week_start = datetime.utcnow() - timedelta(days=7)
+    month_start = datetime.utcnow() - timedelta(days=30)
+    today_count = int(
+        all_customers.filter(User.created_at >= datetime.combine(today, datetime.min.time())).count() or 0
     )
-    status_counts = {status_key: int(count or 0) for status_key, count in grouped}
-    pending_count = int(status_counts.get(VendorApplication.STATUS_PENDING, 0))
-    approved_count = int(status_counts.get(VendorApplication.STATUS_APPROVED, 0))
-    rejected_count = int(status_counts.get(VendorApplication.STATUS_REJECTED, 0))
-    blocked_count = int(status_counts.get(VendorApplication.STATUS_BLOCKED, 0))
-
-    reviewers = {}
-    reviewer_ids = {row.reviewed_by_id for row in requests_items if row.reviewed_by_id}
-    if reviewer_ids:
-        reviewers = {
-            user.id: user
-            for user in User.query.filter(User.id.in_(reviewer_ids)).all()
-        }
+    week_count = int(all_customers.filter(User.created_at >= week_start).count() or 0)
+    month_count = int(all_customers.filter(User.created_at >= month_start).count() or 0)
+    active_count = int(all_customers.filter(User.is_active == True).count() or 0)
 
     return render_template(
         "admin/vendor_requests.html",
-        requests_items=requests_items,
+        customers_items=customers_items,
         pagination=pagination,
         per_page=per_page,
         per_page_options=(10, 20, 50, 100),
-        status_filter=status_filter,
         search=search,
-        status_counts=status_counts,
-        pending_count=pending_count,
-        approved_count=approved_count,
-        rejected_count=rejected_count,
-        blocked_count=blocked_count,
-        reviewers=reviewers,
-        status_order=VendorApplication.allowed_statuses(),
+        total_count=int(all_customers.count() or 0),
+        active_count=active_count,
+        today_count=today_count,
+        week_count=week_count,
+        month_count=month_count,
     )
 
 

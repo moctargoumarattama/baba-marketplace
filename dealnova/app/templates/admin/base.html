@@ -890,7 +890,7 @@
             <li class="nav-item"><a class="nav-link {% if ep == 'admin_users.audience_dashboard' %}active{% endif %}" href="{{ url_for('admin_users.audience_dashboard') }}"><i class="bi bi-broadcast-pin"></i><span>Audience</span></a></li>
             {% endif %}
             <li class="nav-item"><a class="nav-link {% if 'user' in ep %}active{% endif %}" href="{{ url_for('admin_users.manage_users') }}"><i class="bi bi-people-fill"></i><span>Utilisateurs</span></a></li>
-            <li class="nav-item"><a class="nav-link {% if 'vendor_request' in ep %}active{% endif %}" href="{{ url_for('admin_users.vendor_requests') }}"><i class="bi bi-person-check-fill"></i><span>Demandes vendeurs</span></a></li>
+            <li class="nav-item"><a class="nav-link {% if 'vendor_request' in ep %}active{% endif %}" href="{{ url_for('admin_users.vendor_requests') }}"><i class="bi bi-people-fill"></i><span>Nouveaux clients</span></a></li>
             <li class="nav-item"><a class="nav-link {% if 'vendor_change_request' in ep %}active{% endif %}" href="{{ url_for('admin_users.vendor_change_requests') }}"><i class="bi bi-pencil-square"></i><span>Demandes modifs vendeurs</span></a></li>
             <li class="nav-item"><a class="nav-link {% if 'shop' in ep %}active{% endif %}" href="{{ url_for('admin_users.manage_shops') }}"><i class="bi bi-shop"></i><span>Boutiques</span></a></li>
             <li class="nav-item"><a class="nav-link {% if 'rentals.admin_locations' in ep or 'admin/locations' in request.path %}active{% endif %}" href="{{ url_for('rentals.admin_locations') }}"><i class="bi bi-house-door"></i><span>Locations</span></a></li>

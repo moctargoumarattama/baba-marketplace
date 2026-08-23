@@ -227,14 +227,48 @@ def test_admin_vendor_request_pages_use_plain_french_guidance():
     vendor_requests = _read("app/templates/admin/vendor_requests.html")
     change_requests = _read("app/templates/admin/vendor_change_requests.html")
 
-    assert "A faire maintenant" in vendor_requests
-    assert "Ces personnes veulent ouvrir une boutique" in vendor_requests
-    assert "Accepter et creer le compte vendeur" in vendor_requests
-    assert "Refuser cette demande" in vendor_requests
-    assert "Bloquer ce contact" in vendor_requests
+    assert "Comptes clients recents" in vendor_requests
+    assert "Cette page sert a suivre les nouveaux comptes crees depuis l'inscription publique." in vendor_requests
+    assert "Les comptes vendeurs se creent maintenant directement." in vendor_requests
+    assert "Clients inscrits" in vendor_requests
+    assert "Voir le compte" in vendor_requests
+    assert "Accepter et creer le compte vendeur" not in vendor_requests
+    assert "Refuser cette demande" not in vendor_requests
+    assert "Bloquer ce contact" not in vendor_requests
 
     assert "A faire maintenant" in change_requests
     assert "Ces vendeurs demandent une modification" in change_requests
     assert "Avant" in change_requests
     assert "Apres" in change_requests
     assert "Accepter la modification" in change_requests
+
+
+def test_login_vendor_card_matches_current_vendor_request_workflow():
+    template = _read("app/templates/auth/login.html")
+
+    assert "Accès vendeur" in template
+    assert "Creez votre espace vendeur et connectez-vous sans attendre une validation admin." in template
+    assert "Creer un acces vendeur" in template
+    assert "Continuer sans compte" in template
+    assert "Comment ça marche" not in template
+    assert "ouvrir WhatsApp" not in template
+    assert "On vous crée un compte et on vous envoie vos identifiants" not in template
+
+
+def test_vendor_access_form_is_compact_and_mobile_adaptive():
+    template = _read("app/templates/auth/vendor_access.html")
+
+    assert "max-width: 560px" in template
+    assert "padding: clamp(0.9rem, 3vw, 1.45rem)" in template
+    assert "overflow-x: clip" in template
+    assert "max-width: 100%" in template
+    assert "min-height: auto;" in template
+    assert "min-height: 2.15rem" in template
+    assert 'rows="2"' in template
+    assert "Email *" in template
+    assert 'name="email"' in template
+    assert "Email (optionnel)" not in template
+    assert "Creation immediate du compte et de la boutique." in template
+    assert "Creer mon espace vendeur" in template
+    assert "Validation admin avant activation." not in template
+    assert "Votre demande sera verifiee par un admin/gestionnaire" not in template
