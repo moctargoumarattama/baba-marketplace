@@ -102,6 +102,20 @@ class Config:
     SITE_NAME = os.getenv("SITE_NAME", "Baba Market")
     SITE_LOGO = os.getenv("SITE_LOGO", "")
     PUBLIC_BASE_URL = (os.getenv("PUBLIC_BASE_URL") or os.getenv("SITE_URL") or "").strip().rstrip("/")
+    MAIL_SERVER = (os.getenv("MAIL_SERVER") or "").strip()
+    try:
+        MAIL_PORT = int(os.getenv("MAIL_PORT", "587"))
+    except ValueError:
+        MAIL_PORT = 587
+    MAIL_USERNAME = (os.getenv("MAIL_USERNAME") or "").strip()
+    MAIL_PASSWORD = os.getenv("MAIL_PASSWORD", "")
+    MAIL_DEFAULT_SENDER = (os.getenv("MAIL_DEFAULT_SENDER") or MAIL_USERNAME).strip()
+    MAIL_USE_TLS = _env_bool.__func__("MAIL_USE_TLS", True)
+    MAIL_USE_SSL = _env_bool.__func__("MAIL_USE_SSL", False)
+    try:
+        MAIL_TIMEOUT = max(1, int(os.getenv("MAIL_TIMEOUT", "20")))
+    except ValueError:
+        MAIL_TIMEOUT = 20
     DELIVERY_WHATSAPP_NUMBER = os.getenv("DELIVERY_WHATSAPP_NUMBER", "212602908954")
     DELIVERY_WHATSAPP_DEFAULT_MESSAGE = os.getenv(
         "DELIVERY_WHATSAPP_DEFAULT_MESSAGE",

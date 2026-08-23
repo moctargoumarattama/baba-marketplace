@@ -1,0 +1,324 @@
+{% extends "base.html" %}
+
+{% block title %}Inscription | {{ config.SITE_NAME }}{% endblock %}
+
+{% block head %}
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+
+  .register-page {
+    min-height: 100dvh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: clamp(0.85rem, 3vw, 2rem);
+    background: #f8faf9;
+    background-image:
+      radial-gradient(ellipse 62% 52% at 16% 12%, rgba(16,185,129,0.08) 0%, transparent 72%),
+      radial-gradient(ellipse 48% 38% at 84% 88%, rgba(4,120,87,0.05) 0%, transparent 72%);
+  }
+
+  .register-wrap {
+    width: min(560px, 100%);
+    animation: fadeUp 0.45s ease forwards;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .register-shell {
+    background: #fff;
+    border: 1px solid rgba(16,185,129,0.18);
+    border-radius: clamp(18px, 4vw, 26px);
+    box-shadow:
+      0 1px 2px rgba(15,23,42,0.04),
+      0 8px 24px -6px rgba(15,23,42,0.09),
+      0 0 0 1px rgba(255,255,255,0.6) inset;
+    overflow: hidden;
+  }
+
+  .register-card {
+    padding: clamp(1rem, 4vw, 1.85rem);
+  }
+
+  .register-hero {
+    text-align: center;
+    margin-bottom: 1rem;
+  }
+
+  .register-badge {
+    width: clamp(48px, 9vw, 58px);
+    height: clamp(48px, 9vw, 58px);
+    margin: 0 auto 0.65rem;
+    border-radius: 18px;
+    background: linear-gradient(150deg, #10b981 0%, #047857 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: clamp(1.4rem, 4vw, 1.8rem);
+    box-shadow: 0 6px 18px -4px rgba(16,185,129,0.35);
+  }
+
+  .register-hero h2 {
+    margin: 0 0 0.35rem;
+    color: #0f172a;
+    font-family: 'Poppins', sans-serif;
+    font-weight: 700;
+    font-size: clamp(1.35rem, 4vw, 1.7rem);
+  }
+
+  .register-hero p {
+    margin: 0;
+    color: #64748b;
+    font-weight: 500;
+    font-size: clamp(0.82rem, 2.4vw, 0.92rem);
+  }
+
+  .register-info {
+    background: #f0fdf8;
+    border: 1px solid rgba(16,185,129,0.16);
+    border-radius: 14px;
+    padding: 0.85rem 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .register-info strong {
+    display: block;
+    color: #0f172a;
+    margin-bottom: 0.3rem;
+  }
+
+  .register-info p {
+    margin: 0;
+    color: #475569;
+    line-height: 1.55;
+    font-size: 0.88rem;
+  }
+
+  .register-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+  }
+
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.32rem;
+  }
+
+  .form-label {
+    font-weight: 600;
+    color: #1e293b;
+    font-size: 0.86rem;
+  }
+
+  .register-input {
+    display: flex;
+    align-items: center;
+    border: 1.5px solid #d1fae5;
+    border-radius: 12px;
+    background: #fff;
+    overflow: hidden;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .register-input:focus-within {
+    border-color: #10b981;
+    box-shadow: 0 0 0 3px rgba(16,185,129,0.08);
+  }
+
+  .register-input .input-group-text {
+    border: none;
+    background: transparent;
+    color: #10b981;
+    padding: 0 0.5rem 0 0.9rem;
+    flex-shrink: 0;
+  }
+
+  .register-input .form-control {
+    width: 100%;
+    border: none;
+    background: transparent;
+    color: #0f172a;
+    padding: 0.78rem 0.55rem;
+    font-size: 0.95rem;
+  }
+
+  .register-input .form-control:focus {
+    outline: none;
+    box-shadow: none;
+  }
+
+  .register-input .form-control::placeholder { color: #94a3b8; }
+
+  .register-errors {
+    margin: 0;
+    padding-left: 1rem;
+    color: #b91c1c;
+    font-size: 0.8rem;
+  }
+
+  .register-cta {
+    background: linear-gradient(150deg, #10b981 0%, #047857 100%);
+    border: none;
+    border-radius: 12px;
+    color: #fff;
+    font-weight: 700;
+    font-size: 0.95rem;
+    padding: 0.82rem 1.25rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.55rem;
+    width: 100%;
+    box-shadow: 0 4px 14px -4px rgba(16,185,129,0.35);
+    transition: box-shadow 0.2s ease, filter 0.2s ease;
+  }
+
+  .register-cta:hover {
+    color: #fff;
+    filter: brightness(1.04);
+    box-shadow: 0 8px 22px -6px rgba(16,185,129,0.42);
+  }
+
+  .register-footer {
+    text-align: center;
+    margin-top: 1rem;
+    padding-top: 0.9rem;
+    border-top: 1px solid #f1f5f9;
+    color: #64748b;
+    font-size: 0.86rem;
+  }
+
+  .register-footer a {
+    color: #047857;
+    font-weight: 700;
+    text-decoration: none;
+  }
+
+  .register-footer a:hover {
+    color: #10b981;
+    text-decoration: underline;
+  }
+
+  @media (max-width: 768px) {
+    .register-page {
+      align-items: flex-start;
+      padding-top: max(0.9rem, env(safe-area-inset-top));
+      padding-bottom: max(1rem, env(safe-area-inset-bottom));
+    }
+
+    .register-input .form-control {
+      font-size: 16px;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .register-wrap { animation: none; }
+    * { transition-duration: 0.01ms !important; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="register-page">
+  <div class="register-wrap">
+    <div class="register-shell">
+      <div class="register-card">
+        <div class="register-hero">
+          <div class="register-badge">
+            <i class="bi bi-person-plus"></i>
+          </div>
+          <h2>Creer un compte client</h2>
+          <p>Votre compte Baba Market sera actif tout de suite.</p>
+        </div>
+
+        <div class="register-info">
+          <strong>Activation immediate</strong>
+          <p>Apres creation, un e-mail automatique vous rappellera l'adresse utilisee, votre mot de passe choisi et le lien de connexion.</p>
+        </div>
+
+        <form method="POST" class="register-form" novalidate>
+          {{ form.hidden_tag() }}
+
+          <div class="form-group">
+            <label class="form-label" for="full_name">Nom complet</label>
+            <div class="register-input">
+              <span class="input-group-text"><i class="bi bi-person"></i></span>
+              {{ form.full_name(class="form-control", id="full_name", placeholder="Votre nom complet", autocomplete="name") }}
+            </div>
+            {% if form.full_name.errors %}
+              <ul class="register-errors">
+                {% for error in form.full_name.errors %}
+                  <li>{{ error }}</li>
+                {% endfor %}
+              </ul>
+            {% endif %}
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="email">Adresse e-mail</label>
+            <div class="register-input">
+              <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+              {{ form.email(class="form-control", id="email", placeholder="vous@exemple.com", autocomplete="email", inputmode="email") }}
+            </div>
+            {% if form.email.errors %}
+              <ul class="register-errors">
+                {% for error in form.email.errors %}
+                  <li>{{ error }}</li>
+                {% endfor %}
+              </ul>
+            {% endif %}
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="password">Mot de passe</label>
+            <div class="register-input">
+              <span class="input-group-text"><i class="bi bi-lock"></i></span>
+              {{ form.password(class="form-control", id="password", placeholder="Choisissez un mot de passe", autocomplete="new-password") }}
+            </div>
+            {% if form.password.errors %}
+              <ul class="register-errors">
+                {% for error in form.password.errors %}
+                  <li>{{ error }}</li>
+                {% endfor %}
+              </ul>
+            {% endif %}
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="password_confirm">Confirmer le mot de passe</label>
+            <div class="register-input">
+              <span class="input-group-text"><i class="bi bi-shield-lock"></i></span>
+              {{ form.password_confirm(class="form-control", id="password_confirm", placeholder="Retapez le mot de passe", autocomplete="new-password") }}
+            </div>
+            {% if form.password_confirm.errors %}
+              <ul class="register-errors">
+                {% for error in form.password_confirm.errors %}
+                  <li>{{ error }}</li>
+                {% endfor %}
+              </ul>
+            {% endif %}
+          </div>
+
+          <button type="submit" class="register-cta">
+            <i class="bi bi-check2-circle"></i>
+            Creer mon compte
+          </button>
+        </form>
+
+        <div class="register-footer">
+          Vous avez deja un compte ?
+          <a href="{{ url_for('auth.login') }}">Se connecter</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block footer %}{% endblock %}

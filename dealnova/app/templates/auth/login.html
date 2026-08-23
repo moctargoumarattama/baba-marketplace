@@ -413,7 +413,7 @@
             <i class="bi bi-box-arrow-in-right"></i>
           </div>
           <h2>Bon retour</h2>
-          <p>Connectez-vous à votre espace pro</p>
+          <p>Connectez-vous à votre espace Baba Market</p>
         </div>
 
         <!-- ACCÈS VENDEUR -->
@@ -423,7 +423,7 @@
             Accès vendeur
           </div>
           <p class="auth-marketing-text">
-            Les comptes vendeurs sont activés après validation par l'administration.
+            Les comptes vendeurs sont actives apres validation par l'administration.
           </p>
           <div class="auth-marketing-actions">
             <a class="auth-mini-btn auth-mini-btn--primary"
@@ -446,7 +446,7 @@
           {{ form.hidden_tag() }}
 
           <div class="form-group">
-            <label class="form-label" for="email">Email professionnel</label>
+            <label class="form-label" for="email">Adresse e-mail</label>
             <div class="input-wrapper">
               <div class="auth-input">
                 <span class="input-group-text"><i class="bi bi-envelope"></i></span>
@@ -480,6 +480,11 @@
             Se connecter
           </button>
         </form>
+
+        <div class="auth-footer">
+          Pas encore de compte client ?
+          <a href="{{ url_for('auth.register') }}">Creer mon compte</a>
+        </div>
 
         <div class="auth-note">
           <i class="bi bi-shield-check"></i>

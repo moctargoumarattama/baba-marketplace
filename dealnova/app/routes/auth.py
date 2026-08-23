@@ -1,6 +1,7 @@
 from datetime import datetime
 import hashlib
 import re
+import unicodedata
 from urllib.parse import quote, urljoin, urlparse
 
 from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
@@ -15,6 +16,7 @@ from ..models.shop import Shop
 from ..models.user import User
 from ..models.vendor_application import VendorApplication
 from ..services.audit import log_access
+from ..services.email_service import build_public_url, send_account_created_email
 from ..services.logging_service import logging_service
 from ..services.shop_access import shop_allows_any
 from ..services.support_whatsapp import (
@@ -24,12 +26,13 @@ from ..services.support_whatsapp import (
     support_user_label,
 )
 from ..services.traffic_stats import track_custom_event
-from .forms import LoginForm
+from .forms import LoginForm, RegisterForm
 
 bp = Blueprint("auth", __name__)
 
 _PHONE_DIGIT_RE = re.compile(r"\d")
 _EMAIL_BASIC_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+_USERNAME_SAFE_RE = re.compile(r"[^a-z0-9_]+")
 _ALLOWED_VENDOR_SHOP_TYPES = ("products", "services", "location")
 _VENDOR_PASSWORD_BLOCKLIST = {"12345678", "0000000000"}
 
@@ -82,6 +85,35 @@ def _normalize_optional_email(value: str | None) -> str:
     return candidate if _EMAIL_BASIC_RE.match(candidate) else ""
 
 
+def _unique_customer_username(full_name: str | None, email: str) -> str:
+    seed_source = (full_name or "").strip() or email.split("@", 1)[0]
+    normalized = (
+        unicodedata.normalize("NFKD", seed_source)
+        .encode("ascii", "ignore")
+        .decode("ascii")
+        .lower()
+    )
+    base = _USERNAME_SAFE_RE.sub("_", normalized)
+    base = re.sub(r"_+", "_", base).strip("_")
+    if not base:
+        base = "client"
+    if not base.startswith("client"):
+        base = f"client_{base}"
+    base = base[:50]
+
+    candidate = base
+    counter = 1
+    while User.query.filter(func.lower(User.username) == candidate.lower()).first():
+        suffix = f"_{counter}"
+        candidate = f"{base[: max(1, 50 - len(suffix))]}{suffix}"
+        counter += 1
+        if counter > 2000:
+            candidate = f"client_{int(datetime.utcnow().timestamp())}"
+            if not User.query.filter(func.lower(User.username) == candidate.lower()).first():
+                break
+    return candidate
+
+
 @bp.route("/support/whatsapp")
 def support_whatsapp():
     role = (getattr(current_user, "role", "") or "").lower()
@@ -128,11 +160,100 @@ def support_whatsapp():
 
 
 @bp.route("/register", methods=["GET", "POST"])
+@rate_limit(
+    limit=5,
+    window_seconds=900,
+    key_prefix="register",
+    methods=("POST",),
+    key_func=lambda: f"{request.remote_addr}:{(request.form.get('email') or '').lower()}",
+)
 def register():
-    flash("Les comptes sont crees par l'administration.", "info")
-    if current_user.is_authenticated and (getattr(current_user, "role", "") or "").lower() == "admin":
-        return redirect(url_for("admin_users.create_user"))
-    return redirect(url_for("auth.login"))
+    if current_user.is_authenticated:
+        role = (getattr(current_user, "role", "") or "").lower()
+        if role in {"admin", "manager"}:
+            return redirect("/admin/")
+        if role == "vendor":
+            vendor_shop = Shop.query.filter_by(vendor_id=current_user.id).first()
+            if vendor_shop and shop_allows_any(vendor_shop, "location") and not shop_allows_any(vendor_shop, "products", "services"):
+                return redirect(url_for("rentals.owner_locations"))
+            return redirect(url_for("vendor.dashboard"))
+        return redirect(url_for("shop.home"))
+
+    form = RegisterForm()
+    if form.validate_on_submit():
+        full_name = (form.full_name.data or "").strip()
+        email = _normalize_optional_email(form.email.data)
+        raw_password = (form.password.data or "").strip()
+
+        if not email:
+            flash("Email invalide.", "warning")
+            return render_template("auth/register.html", form=form)
+
+        existing_user = (
+            User.query
+            .filter(func.lower(User.email) == email)
+            .first()
+        )
+        if existing_user:
+            flash("Cet email est deja utilise. Connectez-vous ou utilisez un autre email.", "warning")
+            return render_template("auth/register.html", form=form)
+
+        user = User(
+            username=_unique_customer_username(full_name, email),
+            email=email,
+            role="customer",
+            full_name=full_name,
+            created_at=datetime.utcnow(),
+            is_active=True,
+        )
+        user.set_password(raw_password)
+
+        db.session.add(user)
+        try:
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+            flash("Impossible de creer le compte pour le moment. Reessayez avec un autre email.", "danger")
+            return render_template("auth/register.html", form=form)
+
+        mail_result = send_account_created_email(
+            recipient_email=user.email,
+            account_email=user.email,
+            password_plaintext=raw_password,
+            login_url=build_public_url("auth.login"),
+        )
+
+        try:
+            logging_service.log_activity(
+                "auth",
+                "customer_register",
+                resource_type="user",
+                resource_id=user.id,
+                message=f"Nouveau compte client cree (uid={user.id}, email={_mask_email(user.email)})",
+                level="INFO",
+            )
+        except Exception:
+            current_app.logger.warning("auth.register.activity_log_failed user_id=%s", user.id)
+
+        try:
+            log_access(
+                "customer_register",
+                "user",
+                user.id,
+                success=True,
+                changes={"role": "customer", "channel": "public_register"},
+            )
+        except Exception:
+            current_app.logger.warning("auth.register.audit_log_failed user_id=%s", user.id)
+
+        if mail_result.get("sent"):
+            flash("Compte cree avec succes. Un e-mail de bienvenue vient d'etre envoye.", "success")
+        else:
+            flash("Compte cree avec succes. Vous pouvez deja vous connecter.", "success")
+            flash("L'e-mail automatique n'a pas pu etre envoye pour le moment.", "warning")
+        return redirect(url_for("auth.login"))
+
+    return render_template("auth/register.html", form=form)
 
 
 @bp.route("/login", methods=["GET", "POST"])

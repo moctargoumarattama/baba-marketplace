@@ -33,6 +33,7 @@ from ..services.logging_service import logging_service
 from ..services.cache import bump_catalog_version, cache
 from ..services.audit import log_access
 from ..services.date_filters import resolve_date_filter
+from ..services.email_service import build_public_url, send_account_created_email
 from ..services.finance_entries import record_subscription_entry
 from ..services.pagination import normalize_limit, page_from_args
 from ..services.traffic_stats import get_live_traffic_metrics
@@ -1246,6 +1247,13 @@ def create_user():
             db.session.add(user)
             db.session.commit()
 
+            mail_result = send_account_created_email(
+                recipient_email=user.email,
+                account_email=user.email,
+                password_plaintext=password,
+                login_url=build_public_url("auth.login"),
+            )
+
             # Logger la création d'utilisateur
             logging_service.log_activity(
                 'admin', 'create_user',
@@ -1262,7 +1270,10 @@ def create_user():
                 changes={"role": role, "username": username}
             )
 
-            flash(f"Utilisateur {username} créé avec succès", "success")
+            if mail_result.get("sent"):
+                flash(f"Utilisateur {username} créé avec succès. E-mail automatique envoyé.", "success")
+            else:
+                flash(f"Utilisateur {username} créé avec succès. E-mail automatique non envoyé.", "warning")
             return redirect(url_for('admin_users.user_detail', user_id=user.id))
 
         except Exception as e:
