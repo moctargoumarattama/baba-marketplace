@@ -463,7 +463,11 @@
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init, { once: true });
+    document.addEventListener("readystatechange", function onReadyStateChange() {
+      if (document.readyState === "loading") return;
+      document.removeEventListener("readystatechange", onReadyStateChange);
+      init();
+    });
   } else {
     init();
   }

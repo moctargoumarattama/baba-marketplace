@@ -8,6 +8,12 @@ def _read(relative_path: str) -> str:
     return (ROOT / relative_path).read_text(encoding="utf-8-sig")
 
 
+def _loader_script(source: str) -> str:
+    start = source.index("<!-- SCRIPT POUR CACHER LE LOADER")
+    end = source.index("</script>", start)
+    return source[start:end]
+
+
 def _function_body(source: str, function_name: str) -> str:
     marker = f"def {function_name}("
     start = source.index(marker)
@@ -63,3 +69,17 @@ def test_static_assets_override_flask_no_cache_header_for_versioned_urls():
     assert 'versioned = bool(request.args.get("v"))' in source
     assert '"STATIC_UNVERSIONED_CACHE_MAX_AGE"' in source
     assert 'cache_control += ", immutable"' in source
+
+
+def test_public_loader_switches_from_domcontentloaded_to_readystatechange():
+    base_source = _read("app/templates/base.html")
+    loader_script = _loader_script(base_source)
+    page_loader_client = _read("app/static/js/core/page_loader_client.js")
+    page_loader = _read("app/static/js/core/page_loader.js")
+
+    assert "readystatechange" in loader_script
+    assert "DOMContentLoaded" not in loader_script
+    assert 'document.addEventListener("readystatechange"' in page_loader_client
+    assert 'document.addEventListener("readystatechange"' in page_loader
+    assert 'document.addEventListener("DOMContentLoaded"' not in page_loader_client
+    assert 'document.addEventListener("DOMContentLoaded"' not in page_loader
