@@ -8,7 +8,6 @@ from flask import Blueprint, current_app, flash, redirect, render_template, requ
 from flask_login import current_user, login_user, logout_user
 from sqlalchemy import or_, func
 from sqlalchemy.exc import IntegrityError
-from werkzeug.security import generate_password_hash
 
 from ..extensions import db
 from ..middleware.rate_limit import rate_limit
@@ -448,7 +447,13 @@ def reset_password(_token):
 @bp.route("/vendor-access", methods=["GET", "POST"])
 @rate_limit(limit=4, window_seconds=900, key_prefix="vendor_access", methods=("POST",))
 def vendor_access():
-    """Demande d'acces vendeur (workflow interne, sans WhatsApp)."""
+    """Creation directe d'un compte vendeur public."""
+    from .admin_users import (
+        _create_shop_for_vendor,
+        _shop_types_from_vendor_application,
+        _unique_vendor_username,
+    )
+
     form_data = {
         "full_name": "",
         "phone": "",
@@ -583,82 +588,146 @@ def vendor_access():
                 request_submitted=False,
             )
 
-        pending_match = (
+        pending_requests = (
             VendorApplication.query
             .filter(
                 VendorApplication.status == VendorApplication.STATUS_PENDING,
                 or_(*contact_match_filters),
             )
-            .first()
+            .order_by(VendorApplication.created_at.desc(), VendorApplication.id.desc())
+            .all()
         )
-        if pending_match:
-            flash("Une demande est deja en attente pour ce contact.", "info")
-            return render_template(
-                "auth/vendor_access.html",
-                form_data=form_data,
-                request_submitted=False,
+        latest_pending_request = pending_requests[0] if pending_requests else None
+        primary_type, allowed_types = _shop_types_from_vendor_application(form_data["shop_type"])
+        username = _unique_vendor_username(form_data["shop_name"] or form_data["full_name"])
+        auto_review_note = "Compte vendeur cree automatiquement via le formulaire public."
+
+        try:
+            user = User(
+                username=username,
+                email=email_normalized,
+                role="vendor",
+                full_name=form_data["full_name"],
+                phone=form_data["phone"],
+                address=form_data["city"],
+                created_at=datetime.utcnow(),
+                is_active=True,
+            )
+            user.set_password(raw_password)
+            db.session.add(user)
+            db.session.flush()
+
+            shop = _create_shop_for_vendor(
+                user,
+                name=form_data["shop_name"],
+                description=form_data["short_description"],
+                contact_email=form_data["email"],
+                contact_phone=form_data["phone"],
+                address=form_data["city"],
+                primary_type=primary_type,
+                allowed_types=allowed_types,
             )
 
-        new_request = VendorApplication(
-            full_name=form_data["full_name"],
-            phone=form_data["phone"],
-            phone_digits=phone_digits,
-            email=form_data["email"],
-            email_normalized=email_normalized,
-            shop_name=form_data["shop_name"],
-            city=form_data["city"],
-            shop_type=form_data["shop_type"],
-            password_hash=generate_password_hash(raw_password),
-            short_description=form_data["short_description"] or None,
-            status=VendorApplication.STATUS_PENDING,
-            source="web_form",
-            request_ip=(request.remote_addr or "").strip()[:64] or None,
-        )
-        db.session.add(new_request)
-        try:
+            if latest_pending_request is None:
+                latest_pending_request = VendorApplication(
+                    full_name=form_data["full_name"],
+                    phone=form_data["phone"],
+                    phone_digits=phone_digits,
+                    email=form_data["email"],
+                    email_normalized=email_normalized,
+                    shop_name=form_data["shop_name"],
+                    city=form_data["city"],
+                    shop_type=form_data["shop_type"],
+                    password_hash=user.password_hash,
+                    short_description=form_data["short_description"] or None,
+                    status=VendorApplication.STATUS_APPROVED,
+                    review_note=auto_review_note,
+                    reviewed_at=datetime.utcnow(),
+                    reviewed_by_id=None,
+                    created_user_id=user.id,
+                    created_shop_id=shop.id,
+                    source="web_form_auto",
+                    request_ip=(request.remote_addr or "").strip()[:64] or None,
+                )
+                db.session.add(latest_pending_request)
+            else:
+                latest_pending_request.full_name = form_data["full_name"]
+                latest_pending_request.phone = form_data["phone"]
+                latest_pending_request.phone_digits = phone_digits
+                latest_pending_request.email = form_data["email"]
+                latest_pending_request.email_normalized = email_normalized
+                latest_pending_request.shop_name = form_data["shop_name"]
+                latest_pending_request.city = form_data["city"]
+                latest_pending_request.shop_type = form_data["shop_type"]
+                latest_pending_request.password_hash = user.password_hash
+                latest_pending_request.short_description = form_data["short_description"] or None
+                latest_pending_request.status = VendorApplication.STATUS_APPROVED
+                latest_pending_request.review_note = auto_review_note
+                latest_pending_request.reviewed_at = datetime.utcnow()
+                latest_pending_request.reviewed_by_id = None
+                latest_pending_request.created_user_id = user.id
+                latest_pending_request.created_shop_id = shop.id
+                latest_pending_request.source = "web_form_auto"
+                latest_pending_request.request_ip = (request.remote_addr or "").strip()[:64] or None
+
+            for stale_request in pending_requests[1:]:
+                stale_request.status = VendorApplication.STATUS_REJECTED
+                stale_request.review_note = "Remplace par une creation immediate de compte vendeur."
+                stale_request.reviewed_at = datetime.utcnow()
+                stale_request.reviewed_by_id = None
+
             db.session.commit()
         except IntegrityError:
             db.session.rollback()
-            flash("Une demande est deja en attente pour ce contact.", "info")
+            flash("Impossible de creer le compte vendeur pour le moment. Verifiez les donnees puis reessayez.", "danger")
+            return render_template(
+                "auth/vendor_access.html",
+                form_data=form_data,
+                request_submitted=False,
+            )
+        except Exception:
+            db.session.rollback()
+            current_app.logger.exception("vendor_access.auto_create.failed email=%s", _mask_email(email_normalized))
+            flash("Impossible de creer le compte vendeur pour le moment.", "danger")
             return render_template(
                 "auth/vendor_access.html",
                 form_data=form_data,
                 request_submitted=False,
             )
 
+        mail_result = send_account_created_email(
+            recipient_email=user.email,
+            account_email=user.email,
+            password_plaintext=raw_password,
+            login_url=build_public_url("auth.login"),
+        )
+
         logging_service.log_activity(
             "auth",
-            "vendor_application_created",
-            resource_type="vendor_application",
-            resource_id=new_request.id,
+            "vendor_account_created",
+            resource_type="user",
+            resource_id=user.id,
             message=(
-                "Demande vendeur soumise "
-                f"(id={new_request.id}, city={form_data['city'][:30]})"
+                "Compte vendeur cree automatiquement "
+                f"(uid={user.id}, shop_id={shop.id}, email={_mask_email(user.email)})"
             ),
             level="INFO",
         )
         log_access(
-            "vendor_application_created",
-            "vendor_application",
-            new_request.id,
+            "vendor_account_created",
+            "user",
+            user.id,
             success=True,
             changes={
+                "shop_id": shop.id,
                 "city": form_data["city"],
                 "shop_type": form_data["shop_type"] or None,
             },
         )
-        request_submitted = True
-        flash("Demande envoyee. Elle sera verifiee par un admin/gestionnaire.", "success")
-
-        form_data = {
-            "full_name": "",
-            "phone": "",
-            "email": "",
-            "city": "",
-            "shop_name": "",
-            "shop_type": "",
-            "short_description": "",
-        }
+        flash("Compte vendeur cree avec succes. Vous pouvez vous connecter immediatement.", "success")
+        if not mail_result.get("sent"):
+            flash("L'e-mail automatique n'a pas pu etre envoye pour le moment.", "warning")
+        return redirect(url_for("auth.login"))
 
     return render_template(
         "auth/vendor_access.html",

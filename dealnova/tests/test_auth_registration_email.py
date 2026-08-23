@@ -163,3 +163,32 @@ def test_admin_create_user_contract_sends_account_email_after_commit():
 
     assert "send_account_created_email(" in body
     assert body.index("db.session.commit()") < body.index("send_account_created_email(")
+
+
+def test_vendor_access_contract_creates_vendor_account_immediately_without_pending_gate():
+    source = _read("app/routes/auth.py")
+    start = source.index("def vendor_access():")
+    next_route = source.find('\n\n@bp.route("/moctar")', start)
+    body = source[start: next_route if next_route != -1 else len(source)]
+
+    assert 'role="vendor"' in body
+    assert "_create_shop_for_vendor(" in body
+    assert "VendorApplication.STATUS_APPROVED" in body
+    assert "send_account_created_email(" in body
+    assert "Demande envoyee. Elle sera verifiee par un admin/gestionnaire." not in body
+    assert "Une demande est deja en attente pour ce contact." not in body
+
+
+def test_vendor_access_template_contract_no_longer_mentions_admin_validation():
+    source = _read("app/templates/auth/vendor_access.html")
+
+    assert "Validation admin avant activation." not in source
+    assert "Creer mon espace vendeur" in source
+    assert "Creation immediate du compte et de la boutique." in source
+
+
+def test_login_template_contract_no_longer_mentions_vendor_admin_validation():
+    source = _read("app/templates/auth/login.html")
+
+    assert "Les comptes vendeurs sont actives apres validation par l'administration." not in source
+    assert "Creer un acces vendeur" in source
