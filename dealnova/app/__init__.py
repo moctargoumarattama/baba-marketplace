@@ -780,6 +780,17 @@ def create_app(config_class=Config):
             if "charset=" not in content_type.lower():
                 response.headers["Content-Type"] = "text/html; charset=utf-8"
 
+        if request.path.startswith("/admin") and response.status_code < 400:
+            try:
+                from flask_login import current_user
+                from .services.traffic_stats import flush_traffic_analytics_to_sql
+
+                role = (getattr(current_user, "role", "") or "").strip().lower()
+                if getattr(current_user, "is_authenticated", False) and role in {"admin", "manager"}:
+                    g.analytics_flush_result = flush_traffic_analytics_to_sql(force=False)
+            except Exception:
+                pass
+
         return response
 
     @app.teardown_request

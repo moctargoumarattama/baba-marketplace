@@ -2596,3 +2596,16 @@ def init_cli_commands(app):
         result = restore_database_backup(backup_file, yes=True)
         click.echo(f"Base restauree depuis: {result['restored_file']}")
         click.echo(f"Base cible: {result['database']}")
+
+    @app.cli.command("traffic-flush")
+    @click.option("--force", is_flag=True, help="Force la persistance meme si le dernier flush est recent.")
+    def traffic_flush_command(force):
+        """Persiste les statistiques de trafic Redis vers MySQL."""
+        from .traffic_stats import flush_traffic_analytics_to_sql
+
+        result = flush_traffic_analytics_to_sql(force=force)
+        if result.get("flushed"):
+            click.echo("Statistiques de trafic persistees.")
+            click.echo("Cles: " + ", ".join(result.get("keys", [])))
+        else:
+            click.echo(f"Aucun flush effectue: {result.get('reason', 'unknown')}")
