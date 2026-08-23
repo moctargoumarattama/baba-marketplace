@@ -27,7 +27,7 @@ def test_admin_page_loader_has_no_heavy_default_stack_for_every_admin_page():
     source = _read("app/static/js/core/page_loader.js")
 
     assert "var ADMIN_STACK = [" in source
-    assert '"admin.deliveries": ADMIN_STACK' in source
+    assert "deliveries: ADMIN_STACK" in source
     assert '"admin.deliveries_live": ADMIN_STACK' not in source
     assert '"admin.order_archives": ADMIN_STACK' not in source
     assert "if (!list.length && ctx.isAdmin)" not in source
@@ -53,3 +53,13 @@ def test_product_detail_does_not_query_unused_reviews_collection():
     assert "Review.query" not in body
     assert "reviews=reviews" not in body
     assert "avg=avg" not in body
+
+
+def test_static_assets_override_flask_no_cache_header_for_versioned_urls():
+    source = _read("app/__init__.py")
+
+    assert 'response.headers["Cache-Control"] = cache_control' in source
+    assert 'response.headers.setdefault("Cache-Control"' not in source
+    assert 'versioned = bool(request.args.get("v"))' in source
+    assert '"STATIC_UNVERSIONED_CACHE_MAX_AGE"' in source
+    assert 'cache_control += ", immutable"' in source

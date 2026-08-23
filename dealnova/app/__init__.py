@@ -755,10 +755,18 @@ def create_app(config_class=Config):
 
         if request.path.startswith("/static/") and response.status_code < 400:
             try:
-                max_age = int(app.config.get("STATIC_CACHE_MAX_AGE", 86400))
+                versioned = bool(request.args.get("v"))
+                config_key = "STATIC_CACHE_MAX_AGE" if versioned else "STATIC_UNVERSIONED_CACHE_MAX_AGE"
+                max_age = int(app.config.get(config_key, 86400))
             except Exception:
+                versioned = False
                 max_age = 86400
-            response.headers.setdefault("Cache-Control", f"public, max-age={max(300, max_age)}")
+            cache_control = f"public, max-age={max(300, max_age)}"
+            if versioned:
+                cache_control += ", immutable"
+            response.headers["Cache-Control"] = cache_control
+            response.headers.pop("Pragma", None)
+            response.headers.pop("Expires", None)
 
         # Enforce UTF-8 for HTML responses to avoid mojibake.
         if is_html_response:

@@ -63,3 +63,18 @@ def test_single_config_normalizes_mysql_database_url(monkeypatch):
         config_module.Config.SQLALCHEMY_DATABASE_URI
         == "mysql+pymysql://user:pass@db.example.test/dealnova"
     )
+
+
+def test_cache_can_be_configured_for_local_redis_in_production(monkeypatch):
+    _clear_database_env(monkeypatch)
+    monkeypatch.setenv("FLASK_ENV", "production")
+    monkeypatch.setenv("CACHE_TYPE", "RedisCache")
+    monkeypatch.setenv("CACHE_REDIS_URL", "redis://127.0.0.1:6379/0")
+
+    config_module = _reload_config_module(monkeypatch)
+
+    assert config_module.Config.CACHE_TYPE == "RedisCache"
+    assert config_module.Config.CACHE_REDIS_URL == "redis://127.0.0.1:6379/0"
+    assert config_module.Config.CACHE_KEY_PREFIX == "babamarket:"
+    assert config_module.Config.STATIC_CACHE_MAX_AGE == 2592000
+    assert config_module.Config.STATIC_UNVERSIONED_CACHE_MAX_AGE == 86400

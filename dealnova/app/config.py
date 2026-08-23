@@ -136,12 +136,17 @@ class Config:
 
     CACHE_TYPE = os.getenv("CACHE_TYPE", "SimpleCache")
     CACHE_DEFAULT_TIMEOUT = int(os.getenv("CACHE_DEFAULT_TIMEOUT", "3600"))
+    CACHE_REDIS_URL = os.getenv("CACHE_REDIS_URL", "redis://127.0.0.1:6379/0")
+    CACHE_KEY_PREFIX = os.getenv("CACHE_KEY_PREFIX", "babamarket:")
     CACHE_DIR = os.getenv(
         "CACHE_DIR",
         os.path.abspath(os.path.join(BASE_DIR, "..", "instance", "flask_cache")),
     )
     CACHE_THRESHOLD = int(os.getenv("CACHE_THRESHOLD", "10000"))
     CACHE_IGNORE_ERRORS = _env_bool.__func__("CACHE_IGNORE_ERRORS", True)
+    CATALOG_VERSION_CACHE_TIMEOUT = int(os.getenv("CATALOG_VERSION_CACHE_TIMEOUT", "30"))
+    STATIC_CACHE_MAX_AGE = int(os.getenv("STATIC_CACHE_MAX_AGE", "2592000" if ENV == "production" else "3600"))
+    STATIC_UNVERSIONED_CACHE_MAX_AGE = int(os.getenv("STATIC_UNVERSIONED_CACHE_MAX_AGE", "86400"))
     LOG_LEVEL = (os.getenv("LOG_LEVEL", "INFO") or "INFO").strip().upper()
     LOG_FILE_MAX_BYTES = int(os.getenv("LOG_FILE_MAX_BYTES", str(5 * 1024 * 1024)))
     LOG_FILE_BACKUP_COUNT = int(os.getenv("LOG_FILE_BACKUP_COUNT", "7"))

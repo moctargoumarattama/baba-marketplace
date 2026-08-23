@@ -1,4 +1,5 @@
 # app/services/cache.py
+from flask import current_app, has_app_context
 from flask_caching import Cache
 
 from ..models.category import Category
@@ -8,25 +9,39 @@ cache = Cache()
 
 CATALOG_VERSION_KEY = "catalog:version"
 
+
+def _catalog_version_timeout() -> int:
+    if not has_app_context():
+        return 30
+    try:
+        return max(1, int(current_app.config.get("CATALOG_VERSION_CACHE_TIMEOUT", 30)))
+    except Exception:
+        return 30
+
+
 def _get_catalog_version() -> int:
+    try:
+        cached_value = cache.get(CATALOG_VERSION_KEY)
+        cached_int = int(cached_value)
+        if cached_int > 0:
+            return cached_int
+    except Exception:
+        pass
+
     try:
         shared_value = get_int_state(CATALOG_VERSION_KEY, default=1)
         if shared_value > 0:
+            cache.set(CATALOG_VERSION_KEY, shared_value, timeout=_catalog_version_timeout())
             return shared_value
     except Exception:
         pass
 
-    val = cache.get(CATALOG_VERSION_KEY)
     try:
-        return int(val)
-    except (TypeError, ValueError):
-        try:
-            set_int_state(CATALOG_VERSION_KEY, 1)
-            return 1
-        except Exception:
-            pass
-        cache.set(CATALOG_VERSION_KEY, 1, timeout=86400)
-        return 1
+        set_int_state(CATALOG_VERSION_KEY, 1)
+    except Exception:
+        pass
+    cache.set(CATALOG_VERSION_KEY, 1, timeout=_catalog_version_timeout())
+    return 1
 
 def bump_catalog_version() -> int:
     try:
@@ -36,7 +51,7 @@ def bump_catalog_version() -> int:
     except Exception:
         current = _get_catalog_version()
         new_val = current + 1
-    cache.set(CATALOG_VERSION_KEY, new_val, timeout=86400)
+    cache.set(CATALOG_VERSION_KEY, new_val, timeout=_catalog_version_timeout())
     return new_val
 
 
