@@ -1,0 +1,47 @@
+{
+  "environment": "Local Flask preview, temporary SQLite copy; no production load test",
+  "before": {
+    "html_bytes": 84770,
+    "response_ms": [
+      75.12,
+      32.16,
+      36.75,
+      26.54,
+      25.54,
+      72.98
+    ],
+    "median_ms": 34.455
+  },
+  "after_browser": {
+    "ttfb_ms": 509,
+    "dom_ms": 1106,
+    "load_ms": 1118,
+    "resources": 36,
+    "total_encoded_bytes": 1167555,
+    "logo": [
+      {
+        "path": "/static/images/logo-public.webp",
+        "bytes": 10076
+      }
+    ],
+    "category_requests": 1,
+    "full_width": 1920
+  },
+  "asset_optimization": {
+    "logo_original_bytes": 1079507,
+    "logo_webp_bytes": 10076,
+    "saved_bytes": 1069431
+  },
+  "after": {
+    "html_bytes": 84650,
+    "response_ms": [
+      32.07,
+      24.53,
+      24.0,
+      22.51,
+      24.98,
+      26.99
+    ],
+    "median_ms": 24.755000000000003
+  }
+}

@@ -1,22 +1,22 @@
 ﻿{% extends 'errors/base.html' %}
 {% set error_code = 500 %}
-{% set error_title = 'Erreur interne du serveur' %}
-{% set error_message = 'Une erreur est survenue. Réessayez dans un instant.' %}
+{% set error_title = 'Page temporairement indisponible' %}
+{% set error_message = 'Le site a rencontré un problème. Réessayez dans quelques instants.' %}
 {% set error_tone = 'danger' %}
 {% set error_hint = 'Code 500' %}
 
 {% block error_actions %}
-<a class="error-btn error-btn-primary" href="{{ url_for('landing') }}">Retour a l'accueil</a>
-<a class="error-btn error-btn-secondary" href="{{ request.path or url_for('landing') }}">Reessayer</a>
+<a class="error-btn error-btn-primary" href="{{ url_for('landing') }}">Retour à l'accueil</a>
+<a class="error-btn error-btn-secondary" href="{{ request.path or url_for('landing') }}">Réessayer</a>
 {% endblock %}
 
 {% block error_side %}
 <h3>Ce que vous pouvez faire</h3>
-<p>Nous preferons etre transparents et rapides.</p>
+<p>Si l'erreur persiste, signalez le problème à notre équipe.</p>
 <ul>
-  <li><span class="error-dot"></span>Reessayer dans quelques instants.</li>
-  <li><span class="error-dot"></span>Continuer votre navigation depuis l accueil.</li>
-  <li><span class="error-dot"></span>Signaler le probleme si cela persiste.</li>
+  <li><span class="error-dot"></span>Attendez un moment avant de réessayer.</li>
+  <li><span class="error-dot"></span>Revenez à l'accueil pour continuer votre navigation.</li>
+  <li><span class="error-dot"></span>Indiquez la page concernée et ce que vous souhaitiez faire.</li>
 </ul>
 {% endblock %}
 

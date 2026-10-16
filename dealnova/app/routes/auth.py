@@ -1,7 +1,6 @@
 from datetime import datetime
 import hashlib
 import re
-import unicodedata
 from urllib.parse import quote, urljoin, urlparse
 
 from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
@@ -25,13 +24,12 @@ from ..services.support_whatsapp import (
     support_user_label,
 )
 from ..services.traffic_stats import track_custom_event
-from .forms import LoginForm, RegisterForm
+from .forms import LoginForm
 
 bp = Blueprint("auth", __name__)
 
 _PHONE_DIGIT_RE = re.compile(r"\d")
 _EMAIL_BASIC_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
-_USERNAME_SAFE_RE = re.compile(r"[^a-z0-9_]+")
 _ALLOWED_VENDOR_SHOP_TYPES = ("products", "services", "location")
 _VENDOR_PASSWORD_BLOCKLIST = {"12345678", "0000000000"}
 
@@ -84,33 +82,20 @@ def _normalize_optional_email(value: str | None) -> str:
     return candidate if _EMAIL_BASIC_RE.match(candidate) else ""
 
 
-def _unique_customer_username(full_name: str | None, email: str) -> str:
-    seed_source = (full_name or "").strip() or email.split("@", 1)[0]
-    normalized = (
-        unicodedata.normalize("NFKD", seed_source)
-        .encode("ascii", "ignore")
-        .decode("ascii")
-        .lower()
+@bp.route("/support/help")
+def public_help():
+    return render_template(
+        "support/open_whatsapp.html",
+        wa_url=build_support_whatsapp_url(["Bonjour, je souhaite contacter le support BabaMarket."]),
+        support_scope="Support BabaMarket",
+        support_title="Support",
+        support_copy="Contactez notre équipe sur WhatsApp pour une question sur une commande, une livraison ou votre compte.",
+        support_note="Appuyez sur le bouton pour ouvrir la conversation.",
+        primary_label="Contacter l'équipe sur WhatsApp",
+        auto_open_whatsapp=False,
+        back_url=url_for("landing"),
+        back_label="Retour à l'accueil",
     )
-    base = _USERNAME_SAFE_RE.sub("_", normalized)
-    base = re.sub(r"_+", "_", base).strip("_")
-    if not base:
-        base = "client"
-    if not base.startswith("client"):
-        base = f"client_{base}"
-    base = base[:50]
-
-    candidate = base
-    counter = 1
-    while User.query.filter(func.lower(User.username) == candidate.lower()).first():
-        suffix = f"_{counter}"
-        candidate = f"{base[: max(1, 50 - len(suffix))]}{suffix}"
-        counter += 1
-        if counter > 2000:
-            candidate = f"client_{int(datetime.utcnow().timestamp())}"
-            if not User.query.filter(func.lower(User.username) == candidate.lower()).first():
-                break
-    return candidate
 
 
 @bp.route("/support/whatsapp")
@@ -127,7 +112,7 @@ def support_whatsapp():
     back_url = safe_support_back_target(request.args.get("back"), url_for("shop.home"))
 
     lines = [
-        "Bonjour, je signale un probleme sur mon espace client.",
+        "Bonjour, je souhaite contacter le support BabaMarket.",
         f"Page: {page_name}",
     ]
     if getattr(current_user, "is_authenticated", False):
@@ -135,7 +120,7 @@ def support_whatsapp():
     else:
         lines.insert(1, "Compte: Visiteur")
     if item_name:
-        lines.append(f"Element: {item_name}")
+        lines.append(f"Élément concerné : {item_name}")
     if source:
         lines.append(f"Route: {source}")
     if page_url:
@@ -150,109 +135,17 @@ def support_whatsapp():
     return render_template(
         "support/open_whatsapp.html",
         wa_url=build_support_whatsapp_url(lines),
-        support_scope="Support client",
-        support_title="Signaler un probleme client",
-        support_copy="Votre message est pret avec la page et votre compte client.",
+        support_scope="Aide",
+        support_title="Signaler un problème",
+        support_copy="Votre message contient les informations sur la page et votre compte. Vérifiez-le dans WhatsApp avant de l'envoyer.",
         back_url=back_url,
-        back_label="Retour a la page",
+        back_label="Retour à la page",
     )
 
 
 @bp.route("/register", methods=["GET", "POST"])
-@rate_limit(
-    limit=5,
-    window_seconds=900,
-    key_prefix="register",
-    methods=("POST",),
-    key_func=lambda: f"{request.remote_addr}:{(request.form.get('email') or '').lower()}",
-)
 def register():
-    if current_user.is_authenticated:
-        role = (getattr(current_user, "role", "") or "").lower()
-        if role in {"admin", "manager"}:
-            return redirect("/admin/")
-        if role == "vendor":
-            vendor_shop = Shop.query.filter_by(vendor_id=current_user.id).first()
-            if vendor_shop and shop_allows_any(vendor_shop, "location") and not shop_allows_any(vendor_shop, "products", "services"):
-                return redirect(url_for("rentals.owner_locations"))
-            return redirect(url_for("vendor.dashboard"))
-        return redirect(url_for("shop.home"))
-
-    form = RegisterForm()
-    if form.validate_on_submit():
-        full_name = (form.full_name.data or "").strip()
-        email = _normalize_optional_email(form.email.data)
-        raw_password = (form.password.data or "").strip()
-
-        if not email:
-            flash("Email invalide.", "warning")
-            return render_template("auth/register.html", form=form)
-
-        existing_user = (
-            User.query
-            .filter(func.lower(User.email) == email)
-            .first()
-        )
-        if existing_user:
-            flash("Cet email est deja utilise. Connectez-vous ou utilisez un autre email.", "warning")
-            return render_template("auth/register.html", form=form)
-
-        user = User(
-            username=_unique_customer_username(full_name, email),
-            email=email,
-            role="customer",
-            full_name=full_name,
-            created_at=datetime.utcnow(),
-            is_active=True,
-        )
-        user.set_password(raw_password)
-
-        db.session.add(user)
-        try:
-            db.session.commit()
-        except IntegrityError:
-            db.session.rollback()
-            flash("Impossible de creer le compte pour le moment. Reessayez avec un autre email.", "danger")
-            return render_template("auth/register.html", form=form)
-
-        mail_result = send_account_created_email(
-            recipient_email=user.email,
-            account_email=user.email,
-            password_plaintext=raw_password,
-            login_url=build_public_url("auth.login"),
-        )
-
-        try:
-            logging_service.log_activity(
-                "auth",
-                "customer_register",
-                resource_type="user",
-                resource_id=user.id,
-                message=f"Nouveau compte client cree (uid={user.id}, email={_mask_email(user.email)})",
-                level="INFO",
-            )
-        except Exception:
-            current_app.logger.warning("auth.register.activity_log_failed user_id=%s", user.id)
-
-        try:
-            log_access(
-                "customer_register",
-                "user",
-                user.id,
-                success=True,
-                changes={"role": "customer", "channel": "public_register"},
-            )
-        except Exception:
-            current_app.logger.warning("auth.register.audit_log_failed user_id=%s", user.id)
-
-        if mail_result.get("sent"):
-            flash("Compte cree avec succes. Un e-mail de bienvenue vient d'etre envoye.", "success")
-        else:
-            flash("Compte cree avec succes. Vous pouvez deja vous connecter.", "success")
-            flash("L'e-mail automatique n'a pas pu etre envoye pour le moment.", "warning")
-        return redirect(url_for("auth.login"))
-
-    return render_template("auth/register.html", form=form)
+    return redirect(url_for("landing"), code=303)
 
 
 @bp.route("/login", methods=["GET", "POST"])
@@ -280,6 +173,10 @@ def login():
             .first()
         )
         if user and user.check_password(login_password):
+            role = (user.role or "").strip().lower()
+            if role not in User.ALLOWED_ROLES:
+                flash("Les clients utilisent BabaMarket sans compte. Continuez en mode invité.", "info")
+                return redirect(url_for("landing"))
             if not user.is_active:
                 logging_service.log_activity(
                     "auth",
@@ -290,7 +187,7 @@ def login():
                     message=f"Tentative de connexion sur compte inactif (uid={user.id}, email={_mask_email(user.email)})",
                     level="WARNING",
                 )
-                flash("Compte desactive.", "danger")
+                flash("Ce compte est désactivé.", "danger")
                 return render_template("auth/login.html", form=form)
 
             login_user(user)
@@ -318,12 +215,6 @@ def login():
             if next_page:
                 return redirect(next_page)
 
-            role = (getattr(user, "role", "") or "").lower()
-            if role not in User.ALLOWED_ROLES:
-                logout_user()
-                flash("Compte non autorise.", "danger")
-                return redirect(url_for("auth.login"))
-
             if role in {"admin", "manager"}:
                 return redirect("/admin/")
 
@@ -344,7 +235,7 @@ def login():
             ),
             level="WARNING",
         )
-        flash("Identifiants incorrects.", "danger")
+        flash("L'adresse e-mail ou le mot de passe est incorrect.", "danger")
 
     return render_template("auth/login.html", form=form)
 
@@ -364,7 +255,7 @@ def logout():
         log_access("logout", "user", current_user.id, success=True)
 
     logout_user()
-    flash("Deconnecte.", "info")
+    flash("Vous êtes déconnecté.", "info")
     return redirect(url_for("shop.home"))
 
 
@@ -379,7 +270,7 @@ def forgot_password():
         note = request.form.get("note", "").strip()
 
         if not email:
-            flash("Veuillez renseigner votre email.", "warning")
+            flash("Saisissez votre adresse e-mail.", "warning")
             return redirect(url_for("auth.forgot_password"))
 
         if len(full_name) > 120:
@@ -413,15 +304,15 @@ def forgot_password():
 
         lines = [
             "Bonjour Baba Market,",
-            "Demande: MOT DE PASSE OUBLIE",
-            f"Email: {email}",
-            f"Nom: {full_name or '-'}",
-            f"Boutique/Role: {shop_or_role or '-'}",
-            f"Message: {note or 'Veuillez reinitialiser mon acces, merci.'}",
+            "Demande : réinitialisation de mon mot de passe",
+            f"E-mail : {email}",
+            f"Nom : {full_name or '-'}",
+            f"Boutique ou type de compte : {shop_or_role or '-'}",
+            f"Message : {note or 'Je souhaite réinitialiser mon mot de passe. Merci de votre aide.'}",
         ]
         wa_number = _admin_whatsapp_number()
         wa_url = f"https://api.whatsapp.com/send?phone={wa_number}&text={quote(chr(10).join(lines))}"
-        flash("Demande prete. Cliquez sur le bouton si WhatsApp ne s'ouvre pas.", "info")
+        flash("Votre message est prêt. Envoyez-le dans WhatsApp pour demander la réinitialisation de votre mot de passe.", "info")
         return render_template(
             "auth/forgot_password.html",
             whatsapp_url=wa_url,
@@ -440,7 +331,7 @@ def forgot_password():
 @bp.route("/reset-password/<token>", methods=["GET"])
 def reset_password(_token):
     """Ancien flux email/token desactive: redirection vers WhatsApp."""
-    flash("Le reset par e-mail est desactive. Utilisez WhatsApp.", "info")
+    flash("Pour réinitialiser votre mot de passe, contactez l'assistance sur WhatsApp.", "info")
     return redirect(url_for("auth.forgot_password"))
 
 

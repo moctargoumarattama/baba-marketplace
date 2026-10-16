@@ -1,5 +1,5 @@
 ﻿{% extends "base.html" %}
-{% block title %}Suivi réservation | {{ config.SITE_NAME }}{% endblock %}
+{% block title %}Suivi de réservation | {{ config.SITE_NAME }}{% endblock %}
 
 {% block content %}
 <section class="py-4 py-lg-5">
@@ -10,7 +10,7 @@
           <div class="card-header text-white py-4"
                style="background:linear-gradient(135deg,#0ea5e9,#0369a1)">
             <h4 class="mb-0 fw-bold">
-              <i class="bi bi-clipboard-check me-2"></i>Suivi réservation
+              <i class="bi bi-clipboard-check me-2"></i>Suivi de réservation
             </h4>
           </div>
           <div class="card-body p-4 p-lg-5">
@@ -39,15 +39,15 @@
               <div class="col-md-6">
                 <div class="p-3 rounded-3 border h-100">
                   <div class="text-muted small">Statut</div>
-                  <div class="fw-bold text-capitalize">{{ booking.status }}</div>
+                  <div class="fw-bold text-capitalize">{{ {'pending': 'En attente de confirmation', 'confirmed': 'Confirmée', 'cancelled': 'Annulée', 'canceled': 'Annulée', 'completed': 'Terminée'}.get(booking.status, 'Statut à confirmer') }}</div>
                 </div>
               </div>
               <div class="col-md-6">
                 <div class="p-3 rounded-3 border h-100">
-                  <div class="text-muted small">Date/Heure</div>
+                  <div class="text-muted small">Date et heure souhaitées</div>
                   <div class="fw-bold">
                     {% if booking.scheduled_for %}
-                      {{ booking.scheduled_for.strftime("%Y-%m-%d %H:%M") }}
+                      {{ booking.scheduled_for.strftime("%d/%m/%Y à %H:%M") }}
                     {% else %}
                       À confirmer
                     {% endif %}
@@ -66,7 +66,7 @@
               {% if booking.note %}
               <div class="col-12">
                 <div class="p-3 rounded-3 border">
-                  <div class="text-muted small">Note</div>
+                  <div class="text-muted small">Votre message</div>
                   <div class="fw-semibold">{{ booking.note }}</div>
                 </div>
               </div>
@@ -78,7 +78,7 @@
                 Retour au service
               </a>
               <a class="btn btn-outline-secondary btn-lg rounded-3" href="{{ url_for('shop.home') }}">
-                Voir d'autres articles
+                Retour à l'accueil
               </a>
             </div>
           </div>

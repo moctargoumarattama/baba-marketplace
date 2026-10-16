@@ -33,6 +33,7 @@ RECOVERABLE_DB_SESSION_ERRORS = (
     NoSuchColumnError,
 )
 from .services.image import image_variant
+from .services.public_text import clean_shop_description
 from .services.cache import cache
 from .services.migration import (
     ensure_featured_items_table,
@@ -264,6 +265,8 @@ def create_app(config_class=Config):
             "app_static_version": app.config.get("APP_STATIC_VERSION", "dev"),
             "pwa_session_scope": _pwa_session_scope(),
         }
+
+    app.add_template_filter(clean_shop_description, "public_shop_description")
 
     PWA_PUBLIC_CACHEABLE_HTML_ENDPOINTS = {
         "landing",
@@ -871,140 +874,15 @@ def create_app(config_class=Config):
     # Landing page - OPTIMISE POUR LE SYSTME DE BOUTIQUES
     @app.route("/")
     def landing():
-        from .models.product import Product
-        from .models.shop import Shop
-        from .services.cache import get_categories, get_catalog_cache
+        from .services.cache import get_catalog_cache
         from .services.marketplace_feed import build_marketplace_feed
 
         def build_landing_payload():
-            now = datetime.utcnow()
             promo_payload = build_marketplace_feed(page=1, per_page=12, promo_only="1")
-            promo_data = list(promo_payload.get("data", []) or [])
-
-            data = promo_data[:12]
-            if len(data) < 12:
-                fallback_payload = build_marketplace_feed(page=1, per_page=24)
-                fallback_data = list(fallback_payload.get("data", []) or [])
-                seen_keys = set()
-                for item in data:
-                    payload = item[0] if item else {}
-                    seen_keys.add(
-                        (
-                            payload.get("item_type") or payload.get("kind") or "product",
-                            payload.get("id") or payload.get("slug") or payload.get("name"),
-                        )
-                    )
-                for item in fallback_data:
-                    payload = item[0] if item else {}
-                    item_key = (
-                        payload.get("item_type") or payload.get("kind") or "product",
-                        payload.get("id") or payload.get("slug") or payload.get("name"),
-                    )
-                    if item_key in seen_keys:
-                        continue
-                    data.append(item)
-                    seen_keys.add(item_key)
-                    if len(data) >= 12:
-                        break
-
-            featured_shops = (
-                Shop.query
-                .options(
-                    load_only(
-                        Shop.id,
-                        Shop.name,
-                        Shop.slug,
-                        Shop.logo,
-                        Shop.is_active,
-                        Shop.is_verified,
-                        Shop.created_at,
-                    )
-                )
-                .filter_by(is_active=True, is_verified=True)
-                .order_by(Shop.created_at.desc())
-                .limit(4)
-                .all()
-            )
-
-            shop_ids = [s.id for s in featured_shops]
-            shop_counts = {}
-            if shop_ids:
-                shop_counts = dict(
-                    db.session.query(Product.shop_id, db.func.count(Product.id))
-                    .filter(Product.shop_id.in_(shop_ids), Product.is_active == True)
-                    .group_by(Product.shop_id)
-                    .all()
-                )
-
-            shops_data = []
-            for featured_shop in featured_shops:
-                shops_data.append({
-                    "id": featured_shop.id,
-                    "name": featured_shop.name,
-                    "slug": featured_shop.slug,
-                    "logo": featured_shop.logo,
-                    "rating": 0.0,
-                    "product_count": shop_counts.get(featured_shop.id, 0),
-                })
-
-            try:
-                product_stats_row = (
-                    db.session.query(
-                        db.func.sum(
-                            case((Product.kind == "physical", 1), else_=0)
-                        ).label("physical"),
-                        db.func.sum(
-                            case((Product.kind == "service", 1), else_=0)
-                        ).label("service"),
-                    )
-                    .filter(Product.is_active == True)
-                    .first()
-                )
-            except Exception:
-                try:
-                    db.session.rollback()
-                except Exception:
-                    pass
-                product_stats_row = None
-
-            products_count = int(getattr(product_stats_row, "physical", 0) or 0)
-            services_count = int(getattr(product_stats_row, "service", 0) or 0)
-
-            try:
-                locations_count = int(
-                    (
-                        RentalListing.query
-                        .join(Shop, Shop.id == RentalListing.shop_id)
-                        .filter(
-                            RentalListing.is_active == True,
-                            RentalListing.status.in_(["active", "reserved"]),
-                            RentalListing.expires_at > now,
-                            Shop.is_active == True,
-                            Shop.sql_allows_clause("location"),
-                        )
-                        .count()
-                    )
-                    or 0
-                )
-            except Exception:
-                try:
-                    db.session.rollback()
-                except Exception:
-                    pass
-                locations_count = 0
-
-            return {
-                "data": data,
-                "featured_shops": shops_data,
-                "market_stats": {
-                    "products": int(products_count or 0),
-                    "services": int(services_count or 0),
-                    "locations": int(locations_count or 0),
-                },
-            }
+            return {"data": list(promo_payload.get("data", []) or [])}
 
         try:
-            payload = get_catalog_cache("landing:v2", build_landing_payload, timeout=60)
+            payload = get_catalog_cache("landing:v4-promotions", build_landing_payload, timeout=60)
         except Exception as exc:
             try:
                 db.session.rollback()
@@ -1019,44 +897,16 @@ def create_app(config_class=Config):
                 except Exception:
                     pass
                 current_app.logger.error("landing fallback build error: %s", inner_exc)
-                payload = {
-                    "data": [],
-                    "featured_shops": [],
-                    "market_stats": {"products": 0, "services": 0, "locations": 0},
-                }
-        data = payload.get("data", [])
-        featured_shops = payload.get("featured_shops", [])
-        market_stats = payload.get("market_stats", {})
+                payload = {"data": []}
+        return render_template("home.html", data=payload.get("data", []))
 
-        categories = get_categories()
-
-        return render_template(
-            "home.html",
-            data=data,
-            categories=categories,
-            featured_shops=featured_shops,
-            market_stats=market_stats,
-        )
-
-    #  ROUTE POUR LA RECHERCHE GLOBALE
+    #  REDIRECTION RECHERCHE GLOBALE VERS ACCUEIL SINGLE-HUB
     @app.route("/search")
     def global_search():
         q = request.args.get("q", "").strip()
-        search_type = request.args.get("type", "products")
-
-        results = {
-            "products": [],
-            "shops": [],
-            "categories": [],
-            "locations": []
-        }
-
-        return render_template(
-            "search/results.html",
-            q=q,
-            results=results,
-            search_type=search_type
-        )
+        if q:
+            return redirect(url_for("shop.home", q=q))
+        return redirect(url_for("shop.home"))
 
     #  ROUTE POUR ACCDER  L'ADMIN (Bouton principal)
     @app.route("/admin-access")
@@ -1279,17 +1129,19 @@ def create_app(config_class=Config):
     # User loader
     @login_manager.user_loader
     def load_user(user_id):
+        from .services.auth_access import load_account_user
+
         try:
             uid = int(user_id)
         except (TypeError, ValueError):
             return None
 
         try:
-            return db.session.get(User, uid)
+            return load_account_user(db.session.get(User, uid))
         except RECOVERABLE_DB_SESSION_ERRORS:
             discard_db_session()
             try:
-                return db.session.get(User, uid)
+                return load_account_user(db.session.get(User, uid))
             except RECOVERABLE_DB_SESSION_ERRORS:
                 discard_db_session()
                 current_app.logger.exception(

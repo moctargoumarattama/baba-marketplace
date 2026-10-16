@@ -1,0 +1,33 @@
+{% set hero_slides = [
+  ('products', 'Repas et produits', 'Repas et', 'produits.', 'Commandez auprès des commerces de Rabat, Salé, Kénitra et Témara.', 'Voir les produits'),
+  ('services', 'Services', 'Services près', 'de vous.', 'Consultez les services et contactez un professionnel.', 'Voir les services'),
+  ('locations', 'Hébergements et locations', 'Hébergements', 'et locations.', 'Consultez les annonces de location et contactez les propriétaires.', 'Voir les locations')
+] %}
+<section class="hub-hero" data-hero-carousel role="region" aria-roledescription="{{ t('diaporama') }}" aria-labelledby="hubHeroTitle" tabindex="0">
+  <h1 class="visually-hidden" id="hubHeroTitle">{{ t('Repas, produits, services et locations.') }}</h1>
+  {% for universe, label, first_line, second_line, description, button_label in hero_slides %}
+  <div class="hub-hero-slide{% if loop.first %} is-active{% endif %}" id="hubHeroSlide{{ loop.index }}" data-hero-slide data-hero-label="{{ t(label) }}" role="group" aria-roledescription="{{ t('diapositive') }}" aria-label="{{ loop.index }} / {{ hero_slides|length }} — {{ t(label) }}"{% if not loop.first %} aria-hidden="true" inert{% endif %}>
+    {% if loop.first %}
+    <img class="hub-hero-photo" src="{{ url_for('static', filename='images/home-refresh/hero.webp', v=app_static_version) }}" alt="" width="1774" height="887" fetchpriority="high" decoding="async">
+    {% elif universe == 'services' %}
+    <img class="hub-hero-photo hub-hero-atlas hub-hero-services" src="{{ url_for('static', filename='images/home-refresh/services-multimetiers-v2.webp') }}" alt="" width="1470" height="1070" decoding="async">
+    {% else %}
+    <svg class="hub-hero-photo hub-hero-atlas" viewBox="1182.667 0 591.333 443.5" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false">
+      <image href="{{ url_for('static', filename='images/home-refresh/categories.webp') }}" width="1774" height="887" />
+    </svg>
+    {% endif %}
+    <div class="hub-hero-copy">
+      <h2>{{ t(first_line) }}<br>{{ t(second_line) }}</h2>
+      <p>{{ t(description) }}</p>
+      <button type="button" class="hub-primary-btn" data-open-universe="{{ universe }}">{{ t(button_label) }}<i class="bi bi-arrow-right" aria-hidden="true"></i></button>
+    </div>
+  </div>
+  {% endfor %}
+  <div class="hub-hero-controls" data-hero-controls hidden>
+    <div class="hub-hero-dots" role="group" aria-label="{{ t('Choisir une catégorie') }}">
+      {% for universe, label, first_line, second_line, description, button_label in hero_slides %}<button type="button" class="hub-hero-dot" data-hero-to="{{ loop.index0 }}" aria-controls="hubHeroSlide{{ loop.index }}" aria-label="{{ t('Afficher') }} : {{ t(label) }}" aria-pressed="{{ 'true' if loop.first else 'false' }}"><span aria-hidden="true"></span></button>{% endfor %}
+    </div>
+    <button type="button" class="hub-hero-pause" data-hero-pause aria-label="{{ t('Mettre le défilement en pause') }}" aria-pressed="false" data-pause-label="{{ t('Mettre le défilement en pause') }}" data-play-label="{{ t('Reprendre le défilement') }}"><i class="bi bi-pause-fill" aria-hidden="true"></i></button>
+  </div>
+  <p class="visually-hidden" data-hero-status aria-live="polite" aria-atomic="true"></p>
+</section>

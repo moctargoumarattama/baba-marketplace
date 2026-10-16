@@ -342,7 +342,7 @@
       if (item.url) {
         var link = document.createElement("a");
         link.href = String(item.url);
-        link.textContent = String(item.cta || "Voir details");
+        link.textContent = String(item.cta || "Voir les détails");
         card.appendChild(link);
       }
 
@@ -358,7 +358,7 @@
     link.href = String(handoff.url);
     link.target = "_blank";
     link.rel = "noopener";
-    link.textContent = String(handoff.label || "Parler a un humain");
+    link.textContent = String(handoff.label || "Contacter un conseiller");
     messagesBox.appendChild(link);
     scrollToBottom();
   }
@@ -431,7 +431,7 @@
       var payload = await fetchAssistant(requestUrl);
       renderAssistantResponse(payload);
     } catch (_error) {
-      createMessageBubble("Le service est indisponible. Reessayez dans un instant.", "bot");
+      createMessageBubble("Impossible de charger la réponse. Réessayez dans un instant.", "bot");
     }
   }
 
@@ -462,7 +462,7 @@
     try {
       await ensureBootstrap();
     } catch (_error) {
-      createMessageBubble("Assistant indisponible pour le moment.", "bot");
+      createMessageBubble("L'assistant est indisponible pour le moment. Réessayez plus tard.", "bot");
     }
     if (input) {
       window.requestAnimationFrame(function () {

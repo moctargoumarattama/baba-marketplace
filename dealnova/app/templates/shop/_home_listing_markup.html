@@ -42,12 +42,12 @@
         {% if product.stock == 0 %}
         <div class="badge-compact badge-stock-out-compact">
           <i class="bi bi-x-circle"></i>
-          <span>Rupture</span>
+          <span>Rupture de stock</span>
         </div>
         {% elif product.stock is defined and product.stock < 5 %}
         <div class="badge-compact badge-stock-low-compact">
           <i class="bi bi-exclamation-triangle"></i>
-          <span>Stock bas</span>
+          <span>{{ product.stock }} en stock</span>
         </div>
         {% elif product.stock is defined and product.stock > 0 %}
         <div class="badge-compact badge-stock-compact">
@@ -77,7 +77,7 @@
                  data-video-src="{{ url_for('static', filename=cover_video) }}"{% if cover_video_poster %} poster="{{ url_for('static', filename=cover_video_poster) }}"{% endif %}>
             <source data-src="{{ url_for('static', filename=cover_video) }}">
           </video>
-          <span class="product-video-badge-compact"><i class="bi bi-play-fill"></i> Video</span>
+          <span class="product-video-badge-compact"><i class="bi bi-play-fill"></i> Vidéo</span>
         </div>
       {% elif product.kind == 'location' and first_location_image %}
         {% set first_location_variant = image_variant(first_location_variant_source, 'thumb') %}
@@ -140,7 +140,7 @@
         
         {% if product.kind == 'location' %}
         <div style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 700;">
-          {{ 'Mensuel' if product.listing_type == 'monthly' else 'Journalier' }}
+          {{ 'Par mois' if product.listing_type == 'monthly' else 'Par jour' }}
         </div>
         {% elif product.price and product.price > final_price %}
         <div class="old-price-compact">{{ "%.2f"|format(product.price) }} DH</div>
@@ -150,7 +150,7 @@
         </div>
         {% elif has_promo %}
         <div style="font-size: 0.75rem; color: var(--danger-color); font-weight: 700;">
-          Promo active
+          Promotion
         </div>
         {% endif %}
         {% endif %}
@@ -177,7 +177,7 @@
         {% elif product.kind == 'location' %}
         <a href="{{ url_for('rentals.location_inquiry', slug=product.slug) }}" class="btn-book-compact" data-stop-nav>
           <i class="bi bi-whatsapp"></i>
-          <span>Visite</span>
+          <span>Demander une visite</span>
         </a>
         {% elif product.stock is not defined or product.stock > 0 %}
         <form method="post"
@@ -185,7 +185,7 @@
               class="d-inline add-to-cart-form"
               data-ajax="true"
               data-action="add-to-cart"
-              data-success-message="Produit ajoute au panier"
+              data-success-message="Produit ajouté au panier"
               data-api-url="{{ url_for('cart.add_ajax', pid=product.id) }}"
               data-stop-nav>
           {% include "partials/_csrf.html" %}
@@ -193,9 +193,10 @@
                   class="btn-cart-compact add-to-cart"
                   data-name="{{ product.name|e }}"
                   data-pid="{{ product.id }}"
+                  aria-label="Ajouter {{ product.name }} au panier"
                   data-stop-nav>
             <i class="bi bi-cart-plus"></i>
-            <span>Panier</span>
+            <span>Ajouter</span>
           </button>
         </form>
         {% else %}
@@ -219,11 +220,11 @@
     {% if pagination.has_prev %}
     <button type="button" class="page-link-compact prev-link"
             data-page="{{ pagination.prev_num }}">
-      <i class="bi bi-chevron-left"></i> Precedent
+      <i class="bi bi-chevron-left"></i> Précédent
     </button>
     {% else %}
     <span class="page-link-compact prev-link disabled">
-      <i class="bi bi-chevron-left"></i> Precedent
+      <i class="bi bi-chevron-left"></i> Précédent
     </span>
     {% endif %}
   </div>
@@ -265,13 +266,13 @@
   <div class="empty-icon">
     <i class="bi bi-search"></i>
   </div>
-  <h3 class="empty-title">Aucun produit trouvé</h3>
+  <h3 class="empty-title">Aucune offre trouvée</h3>
   <p class="empty-text">
-    Essayez avec d'autres critères de recherche ou parcourez nos catégories.
+    Essayez un autre mot ou retirez les filtres.
   </p>
   <button type="button" class="btn-cart-compact" id="clearFilters" style="display: inline-flex; max-width: 250px; margin: 0 auto;">
     <i class="bi bi-arrow-clockwise me-2"></i>
-    Voir tous les produits
+    Effacer les filtres
   </button>
 </div>
 {% endif %}

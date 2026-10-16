@@ -284,14 +284,14 @@
       var activeFilters = getActiveFilterCount();
       if (typeof visibleCount === "number" && typeof totalCount === "number" && activeFilters > 0) {
         filterFootNoteText.textContent =
-          visibleCount + " visible(s) maintenant · " + totalCount + " sur cette page";
+          visibleCount + (visibleCount === 1 ? " annonce affichée (" : " annonces affichées (") + totalCount + " sur cette page)";
         return;
       }
       if (activeFilters > 0) {
-        filterFootNoteText.textContent = activeFilters + " filtre(s) actif(s) · mise à jour auto";
+        filterFootNoteText.textContent = activeFilters + (activeFilters === 1 ? " filtre actif" : " filtres actifs");
         return;
       }
-      filterFootNoteText.textContent = "Résultats instantanés";
+      filterFootNoteText.textContent = "Les résultats s'actualisent automatiquement.";
     }
 
     function syncResetButtonState() {
@@ -314,16 +314,16 @@
         remoteTotal = totalCount;
       }
       if (!hasFilters) {
-        countEl.innerHTML = '<span class="results-dot"></span>' + remoteTotal + " offre(s) trouvee(s)";
+        countEl.innerHTML = '<span class="results-dot"></span>' + remoteTotal + (remoteTotal === 1 ? " annonce trouvée" : " annonces trouvées");
         updateFilterFootNote("ready");
         return;
       }
       countEl.innerHTML =
         '<span class="results-dot"></span>' +
         visibleCount +
-        " visible(s) sur cette page · " +
+        (visibleCount === 1 ? " annonce sur cette page · " : " annonces sur cette page · ") +
         remoteTotal +
-        " total";
+        " au total";
       updateFilterFootNote("ready", visibleCount, totalCount);
     }
 

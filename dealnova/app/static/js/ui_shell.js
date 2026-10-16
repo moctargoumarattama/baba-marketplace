@@ -97,9 +97,9 @@
 
   function slowConnectionMessage(state) {
     if (state && state.saveData) {
-      return "Connexion lente - economie de donnees active";
+      return "Économie de données activée. Certains contenus peuvent charger plus lentement.";
     }
-    return "Connexion lente detectee - mode allege";
+    return "Connexion lente. Le chargement peut prendre plus de temps.";
   }
 
   function currentSessionScope() {
@@ -631,6 +631,14 @@
               };
             })();
       let navRefreshAbortController = null;
+      let navPageActive = true;
+      function stopNavRequests() {
+        navPageActive = false;
+        if (navRefreshAbortController) navRefreshAbortController.abort();
+      }
+      window.addEventListener("pagehide", stopNavRequests);
+      window.addEventListener("beforeunload", stopNavRequests);
+      window.addEventListener("pageshow", function () { navPageActive = true; });
       let cartAttentionTimer = null;
       let navPollStableCount = 0;
       const navPollHotMs = 90000;
@@ -826,6 +834,7 @@
       }
 
       async function refreshNavBadges(options) {
+        if (!navPageActive) return false;
         const requestId = navRefreshSeq.next();
         if (navRefreshAbortController) {
           try {
@@ -1468,13 +1477,13 @@
         const message = (candidate.getAttribute("data-offline-message") || "").trim();
         if (message) return message;
       }
-      return "Connexion requise pour cette action.";
+      return "Une connexion Internet est nécessaire pour continuer.";
     }
 
     function showOfflineActionNotice(node, explicitMessage) {
       const actionNode = resolveOfflineActionNode(node) || node;
       const message = String(explicitMessage || resolveOfflineActionMessage(actionNode) || "").trim()
-        || "Connexion requise pour cette action.";
+        || "Une connexion Internet est nécessaire pour continuer.";
       const showNearNav = Boolean(
         navOfflineHint
         && actionNode
@@ -1554,13 +1563,13 @@
           window.clearTimeout(onlineNoticeTimer);
           onlineNoticeTimer = null;
         }
-        offlineBanner.textContent = "Hors connexion - mode lecture";
+        offlineBanner.textContent = "Vous êtes hors connexion. Seules les pages déjà chargées sont accessibles.";
         offlineBanner.classList.add("show");
         wasOffline = true;
         wasSlowConnection = connectionInfo.slow;
       } else {
         if (wasOffline) {
-          offlineBanner.textContent = "Connexion retablie";
+          offlineBanner.textContent = "Connexion rétablie";
           offlineBanner.classList.add("show");
           onlineNoticeTimer = window.setTimeout(function () {
             updateOfflineBanner();
@@ -1573,7 +1582,7 @@
           offlineBanner.textContent = slowConnectionMessage(connectionInfo);
           offlineBanner.classList.add("show");
         } else if (wasSlowConnection) {
-          offlineBanner.textContent = "Connexion stabilisee";
+          offlineBanner.textContent = "La connexion fonctionne à nouveau.";
           offlineBanner.classList.add("show");
           onlineNoticeTimer = window.setTimeout(function () {
             offlineBanner.classList.remove("show");

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ page_title or support_title or 'Ouverture WhatsApp' }} | {{ config.SITE_NAME }}{% endblock %}
+{% block title %}{{ page_title or support_title or 'Ouvrir WhatsApp' }} | {{ config.SITE_NAME }}{% endblock %}
 
 {% block head %}
 {{ super() }}
@@ -105,8 +105,8 @@
       <i class="bi bi-whatsapp"></i>
       <span>{{ support_scope or 'WhatsApp' }}</span>
     </div>
-    <h1 class="support-wa-title">{{ support_title or 'Ouverture WhatsApp' }}</h1>
-    <p class="support-wa-copy">{{ support_copy or 'Le message WhatsApp est deja pre rempli. Ajoutez juste ce qu il manque.' }}</p>
+    <h1 class="support-wa-title">{{ support_title or 'Ouvrir WhatsApp' }}</h1>
+    <p class="support-wa-copy">{{ support_copy or 'Votre message est prêt. Vérifiez-le dans WhatsApp, puis envoyez-le.' }}</p>
 
     <div class="support-wa-note">
       {{ support_note or "Si WhatsApp ne s'ouvre pas tout seul, utilisez le bouton ci-dessous." }}
@@ -132,10 +132,11 @@
     </div>
 
     <div class="support-wa-hint">
-      {{ support_hint or 'Les informations utiles sont deja ajoutees au message.' }}
+      {{ support_hint or "Vous pourrez modifier le message avant de l'envoyer." }}
     </div>
   </div>
 </section>
+{% if auto_open_whatsapp is not defined or auto_open_whatsapp %}
 <script>
   (function () {
     const link = document.getElementById("supportWaLink");
@@ -145,4 +146,5 @@
     } catch (error) {}
   })();
 </script>
+{% endif %}
 {% endblock %}

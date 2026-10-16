@@ -12,26 +12,26 @@
       <div class="offline-chip">Hors connexion</div>
       <h1 id="offlineTitle">Service temporairement indisponible</h1>
       <p class="offline-copy">
-        Votre connexion est peut-être coupée,
-        ou le service est momentanément indisponible.
-        Les pages déjà ouvertes restent accessibles.
+        Vérifiez votre connexion Internet, puis réessayez.
+        Le site peut aussi être temporairement indisponible.
+        Certaines pages déjà consultées peuvent rester accessibles.
       </p>
 
-      <div class="offline-points" role="list" aria-label="Ce qui reste disponible">
+      <div class="offline-points" role="list" aria-label="Accès hors connexion">
         <div class="offline-point ok" role="listitem">
           <span class="offline-point-icon">OK</span>
-          <span>Pages deja ouvertes</span>
+          <span>Pages déjà consultées, si disponibles</span>
         </div>
         <div class="offline-point no" role="listitem">
           <span class="offline-point-icon">!</span>
-          <span>Commande, paiement et mises a jour indisponibles</span>
+          <span>Commandes, paiements et mises à jour indisponibles</span>
         </div>
       </div>
 
       <button class="offline-retry" id="retryBtn" type="button">Réessayer</button>
 
       <p class="offline-note">
-        Si un souci persiste, vous pouvez preparer un message pour le support.
+        Si le problème persiste, signalez-le à notre équipe.
       </p>
     </section>
   </main>
@@ -39,7 +39,7 @@
   <button type="button"
           class="offline-support-fab"
           data-offline-support-open
-          aria-label="Signaler un probleme">
+          aria-label="Signaler un problème">
     <span class="offline-support-fab-icon">!</span>
     <span>Signaler</span>
   </button>
@@ -50,9 +50,9 @@
     <div class="offline-support-card" role="dialog" aria-modal="true" aria-labelledby="offlineSupportTitle">
       <div class="offline-support-top">
         <div>
-          <div class="offline-support-chip">Support</div>
-          <h2 id="offlineSupportTitle">Signaler un probleme</h2>
-          <p>Expliquez simplement le souci. Le message WhatsApp sera prepare juste apres.</p>
+          <div class="offline-support-chip">Aide</div>
+          <h2 id="offlineSupportTitle">Signaler un problème</h2>
+          <p>Décrivez le problème, puis vérifiez et envoyez le message dans WhatsApp.</p>
         </div>
         <button type="button" class="offline-support-close" data-offline-support-close aria-label="Fermer">x</button>
       </div>
@@ -75,7 +75,7 @@
           <label for="offlineSupportDetails">Ce qui ne va pas</label>
           <textarea id="offlineSupportDetails"
                     name="details"
-                    placeholder="Ex: la page reste bloquee hors ligne, un bouton ne repond pas."></textarea>
+                    placeholder="Par exemple : la page reste bloquée ou un bouton ne répond pas."></textarea>
         </div>
 
         <div class="offline-support-field">
@@ -83,12 +83,12 @@
           <input id="offlineSupportExpected"
                  name="expected"
                  type="text"
-                 placeholder="Ex: rouvrir l'accueil, finaliser ma commande.">
+                 placeholder="Par exemple : ouvrir l'accueil ou passer une commande.">
         </div>
 
         <div class="offline-support-actions">
           <button type="button" class="offline-support-btn secondary" data-offline-support-close>Fermer</button>
-          <button type="submit" class="offline-support-btn primary">Continuer</button>
+          <button type="submit" class="offline-support-btn primary">Préparer le message WhatsApp</button>
         </div>
       </form>
     </div>

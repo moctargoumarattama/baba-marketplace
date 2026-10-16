@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Ouverture WhatsApp | {{ config.SITE_NAME }}{% endblock %}
+{% block title %}Ouvrir WhatsApp | {{ config.SITE_NAME }}{% endblock %}
 
 {% block head %}
 {{ super() }}
@@ -212,27 +212,27 @@
   <div class="wa-loader-card" data-wa-loader data-delay="{{ delay_seconds|default(2) }}" data-wa-url="{{ wa_url }}">
     <div class="wa-loader-chip">
       <i class="bi bi-whatsapp"></i>
-      <span>Livraison WhatsApp</span>
+      <span>Livraison</span>
     </div>
-    <h1 class="wa-loader-title">Connexion en cours</h1>
-    <p class="wa-loader-copy">Préparation de la conversation WhatsApp Baba Market.</p>
+    <h1 class="wa-loader-title">Ouverture de WhatsApp</h1>
+    <p class="wa-loader-copy">Contactez Baba Market pour organiser votre livraison.</p>
 
     <div class="wa-loader-orbit" aria-hidden="true">
       <div class="wa-loader-orbit-text"></div>
       <div class="wa-loader-core">
         <strong>BABA MARKET</strong>
-        <span>Ouverture WhatsApp</span>
+        <span>Un instant…</span>
       </div>
     </div>
 
     <div class="wa-loader-countdown">
-      Ouverture dans <span id="waLoaderSeconds">{{ delay_seconds|default(2) }}</span>s
+      Ouverture dans <span id="waLoaderSeconds">{{ delay_seconds|default(2) }}</span> s
     </div>
 
     <div class="wa-loader-actions">
       <a class="wa-loader-btn main" href="{{ wa_url }}" id="waOpenNow">
         <i class="bi bi-whatsapp"></i>
-        <span>Ouvrir maintenant</span>
+        <span>Ouvrir WhatsApp maintenant</span>
       </a>
       <a class="wa-loader-btn cancel" href="{{ back_url }}" id="waCancel">
         <i class="bi bi-x-circle"></i>

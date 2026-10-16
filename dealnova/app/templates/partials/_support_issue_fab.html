@@ -2,7 +2,7 @@
 {% set report_issue_page_name = report_issue_page_name if report_issue_page_name is defined and report_issue_page_name else (request.path or request.endpoint or 'Page') %}
 {% set report_issue_item = report_issue_item if report_issue_item is defined and report_issue_item else '' %}
 {% set report_issue_back = request.full_path if request.query_string else request.path %}
-{% set report_issue_scope_label = report_issue_scope_label if report_issue_scope_label is defined and report_issue_scope_label else 'Support' %}
+{% set report_issue_scope_label = report_issue_scope_label if report_issue_scope_label is defined and report_issue_scope_label else 'Aide' %}
 {% set report_issue_scope_key = report_issue_scope_key if report_issue_scope_key is defined and report_issue_scope_key else ('location' if report_issue_endpoint == 'rentals.owner_support_whatsapp' else 'client' if report_issue_endpoint == 'auth.support_whatsapp' else 'vendor') %}
 {% set report_issue_storage_key = report_issue_storage_key if report_issue_storage_key is defined and report_issue_storage_key else report_issue_scope_key %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/support_issue_fab.css', v=app_static_version) }}">
@@ -12,7 +12,7 @@
   <button type="button"
           class="support-issue-fab"
           data-support-open
-          aria-label="Signaler un probleme sur WhatsApp">
+          aria-label="Signaler un problème sur WhatsApp">
     <i class="bi bi-exclamation-circle"></i>
     <span>Signaler</span>
   </button>
@@ -28,8 +28,8 @@
 
       <div class="support-issue-head">
         <div>
-          <h2 class="support-issue-title" id="supportIssueTitle">Signaler un probleme</h2>
-          <p class="support-issue-copy">Expliquez en peu de mots. Le reste est deja pre rempli.</p>
+          <h2 class="support-issue-title" id="supportIssueTitle">Signaler un problème</h2>
+          <p class="support-issue-copy">Décrivez le problème, puis envoyez votre message sur WhatsApp.</p>
         </div>
         <button type="button" class="support-issue-close" data-support-close aria-label="Fermer">
           <i class="bi bi-x-lg"></i>
@@ -47,9 +47,9 @@
         <input type="hidden" name="back" value="{{ report_issue_back }}">
 
         <div class="support-issue-context">
-          <div><strong>Page:</strong> {{ report_issue_page_name }}</div>
+          <div><strong>Page :</strong> {{ report_issue_page_name }}</div>
           {% if report_issue_item %}
-          <div><strong>Element:</strong> {{ report_issue_item }}</div>
+          <div><strong>Élément concerné :</strong> {{ report_issue_item }}</div>
           {% endif %}
         </div>
 
@@ -58,8 +58,8 @@
           <select class="support-issue-select" id="supportIssueType-{{ report_issue_scope_key }}" name="issue_type">
             {% if report_issue_scope_key == 'location' %}
             <option value="Annonce">Annonce</option>
-            <option value="Photo ou video">Photo ou video</option>
-            <option value="Prix ou reservation">Prix ou reservation</option>
+            <option value="Photo ou video">Photo ou vidéo</option>
+            <option value="Prix ou reservation">Prix ou réservation</option>
             <option value="Calendrier">Calendrier</option>
             <option value="Affichage">Affichage</option>
             <option value="Autre">Autre</option>
@@ -72,8 +72,8 @@
             <option value="Autre">Autre</option>
             {% else %}
             <option value="Produit ou service">Produit ou service</option>
-            <option value="Photo ou video">Photo ou video</option>
-            <option value="Prix ou promo">Prix ou promo</option>
+            <option value="Photo ou video">Photo ou vidéo</option>
+            <option value="Prix ou promo">Prix ou promotion</option>
             <option value="Commande">Commande</option>
             <option value="Affichage">Affichage</option>
             <option value="Autre">Autre</option>
@@ -82,23 +82,23 @@
         </div>
 
         <div class="support-issue-field">
-          <label for="supportIssueDetails-{{ report_issue_scope_key }}">Ce qui ne va pas</label>
+          <label for="supportIssueDetails-{{ report_issue_scope_key }}">Quel problème rencontrez-vous ?</label>
           <textarea class="support-issue-textarea"
                     id="supportIssueDetails-{{ report_issue_scope_key }}"
                     name="details"
-                    placeholder="Ex: le bouton ne reagit pas, l'image ne charge pas, la promo ne s'applique pas."></textarea>
+                    placeholder="Exemple : le bouton ne répond pas ou la photo ne s'affiche pas."></textarea>
         </div>
 
         <div class="support-issue-field">
-          <label for="supportIssueExpected-{{ report_issue_scope_key }}">Ce que vous vouliez faire</label>
+          <label for="supportIssueExpected-{{ report_issue_scope_key }}">Ce que vous vouliez faire (facultatif)</label>
           <input class="support-issue-input"
                  id="supportIssueExpected-{{ report_issue_scope_key }}"
                  name="expected"
                  type="text"
-                 placeholder="Ex: ouvrir la page, valider la commande, enregistrer la promo.">
+                 placeholder="Exemple : ajouter un article au panier.">
         </div>
 
-        <p class="support-issue-hint">Le message WhatsApp contiendra aussi votre page actuelle et votre compte.</p>
+        <p class="support-issue-hint">La page concernée et les informations de votre compte seront ajoutées au message.</p>
 
         <div class="support-issue-actions">
           <button type="button" class="support-issue-btn secondary" data-support-close>
@@ -107,12 +107,12 @@
           </button>
           <button type="submit" class="support-issue-btn primary">
             <i class="bi bi-whatsapp"></i>
-            <span>Continuer</span>
+            <span>Continuer sur WhatsApp</span>
           </button>
         </div>
       </form>
     </div>
   </div>
 </div>
-<script src="{{ url_for('static', filename='js/support_issue_fab.js', v=app_static_version) }}"></script>
+<script src="{{ url_for('static', filename='js/support_issue_fab.js', v=app_static_version ~ '-textes-v1') }}"></script>
 {% endif %}

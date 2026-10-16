@@ -162,24 +162,24 @@ def build_whatsapp_booking_message(booking: Booking) -> str:
     track_url = f"{request.host_url.rstrip('/')}/booking/track/{booking.token}"
 
     lines = []
-    lines.append("========== NOUVELLE RÉSERVATION ==========")
-    lines.append(f"Site: {site_name}")
+    lines.append("Demande de rendez-vous")
+    lines.append(f"Site : {site_name}")
     if shop:
-        lines.append(f"Boutique: {shop.name}")
-    lines.append("--------------------------------------")
-    lines.append(f"Service: {product.name}")
-    lines.append(f"Prix: {final_price:.2f} MAD")
-    lines.append(f"Date/Heure: {when}")
-    lines.append("--------------------------------------")
-    lines.append(f"Client: {booking.full_name}")
-    lines.append(f"Téléphone: {booking.phone}")
+        lines.append(f"Boutique : {shop.name}")
+    lines.append("")
+    lines.append(f"Service : {product.name}")
+    lines.append(f"Prix : {final_price:.2f} MAD")
+    lines.append(f"Date et heure souhaitées : {when}")
+    lines.append("")
+    lines.append(f"Nom : {booking.full_name}")
+    lines.append(f"Téléphone : {booking.phone}")
     if booking.note:
         note = booking.note.strip()
         if len(note) > 300:
             note = note[:300].rstrip() + "…"
-        lines.append(f"Note: {note}")
-    lines.append("--------------------------------------")
-    lines.append(f"Suivi: {track_url}")
+        lines.append(f"Message : {note}")
+    lines.append("")
+    lines.append(f"Suivi de la demande : {track_url}")
     msg = "\n".join(lines)
     # Eviter les URLs WhatsApp trop longues.
     if len(msg) > 900:
@@ -194,7 +194,7 @@ def book(pid):
     kind = (getattr(product, "kind", "physical") or "physical").strip().lower()
 
     if kind != "service":
-        flash("Cet article est un produit livrable. Ajoutez-le au panier.", "info")
+        flash("Ajoutez cet article au panier pour le commander.", "info")
         return redirect(url_for("shop.product_detail", pid=product.id))
 
     if not product.is_active:
@@ -211,23 +211,23 @@ def book(pid):
                 "support/open_whatsapp.html",
                 wa_url=recent,
                 support_scope="Rendez-vous",
-                support_title="WhatsApp deja pret",
-                support_copy="Votre lien de rendez-vous est deja prepare. Ouvrez WhatsApp pour continuer.",
+                support_title="Votre demande est prête",
+                support_copy="Ouvrez WhatsApp pour vérifier et envoyer votre message à la boutique.",
                 back_url=url_for("shop.home"),
-                back_label="Revenir au catalogue",
+                back_label="Retour à l'accueil",
             )
 
         number = _whatsapp_number_from_shop(product)
         if not number:
-            flash("Contact boutique manquant.", "warning")
+            flash("Le numéro de contact de cette boutique n'est pas disponible.", "warning")
             return redirect(url_for("shop.product_detail", pid=product.id))
 
         shop_name = (getattr(shop, "name", "") or "").strip() or "Boutique"
         service_url = url_for("shop.product_detail", pid=product.id, _external=True)
         message = (
-            f"Bonjour 👋 Je souhaite un rendez-vous pour: {product.name} chez {shop_name}. "
-            "Vous êtes disponible quand ? Merci.\n"
-            f"Lien: {service_url}"
+            f"Bonjour, je souhaite prendre rendez-vous pour {product.name} chez {shop_name}. "
+            "Quelles sont vos disponibilités ? Merci.\n"
+            f"Lien du service : {service_url}"
         )
         wa_url = f"https://wa.me/{number}?text={quote(message)}"
 
@@ -243,10 +243,10 @@ def book(pid):
             "support/open_whatsapp.html",
             wa_url=wa_url,
             support_scope="Rendez-vous",
-            support_title="Demande de rendez-vous prete",
-            support_copy="Votre message WhatsApp est pret pour contacter la boutique.",
+            support_title="Votre demande de rendez-vous est prête",
+            support_copy="Ouvrez WhatsApp pour vérifier et envoyer votre message à la boutique.",
             back_url=url_for("shop.home"),
-            back_label="Revenir au catalogue",
+            back_label="Retour à l'accueil",
         )
 
     if request.method == "POST":
@@ -256,10 +256,10 @@ def book(pid):
                 "support/open_whatsapp.html",
                 wa_url=recent,
                 support_scope="Rendez-vous",
-                support_title="WhatsApp deja pret",
-                support_copy="Votre lien de rendez-vous est deja prepare. Ouvrez WhatsApp pour continuer.",
+                support_title="Votre demande est prête",
+                support_copy="Ouvrez WhatsApp pour vérifier et envoyer votre message à la boutique.",
                 back_url=url_for("shop.home"),
-                back_label="Revenir au catalogue",
+                back_label="Retour à l'accueil",
             )
 
         full_name = (request.form.get("full_name") or "").strip()[:100]
@@ -276,7 +276,7 @@ def book(pid):
             return redirect(url_for("booking.book", pid=product.id))
 
         if len(phone_digits) < 6:
-            flash("Numéro de téléphone invalide.", "danger")
+            flash("Saisissez un numéro de téléphone valide.", "danger")
             return redirect(url_for("booking.book", pid=product.id))
 
         blocked_phone = (
@@ -297,7 +297,7 @@ def book(pid):
         )
 
         if blocked_phone or blocked_ip:
-            flash("Réservation bloquée. Contactez le support.", "danger")
+            flash("Impossible de réserver. Contactez notre équipe.", "danger")
             return redirect(url_for("booking.book", pid=product.id))
 
         scheduled_for = None
@@ -305,17 +305,17 @@ def book(pid):
             try:
                 scheduled_for = datetime.fromisoformat(scheduled_raw)
             except ValueError:
-                flash("Date/heure invalide.", "danger")
+                flash("Vérifiez la date et l'heure du rendez-vous.", "danger")
                 return redirect(url_for("booking.book", pid=product.id))
 
             # Pas trop strict : on refuse seulement une date clairement passée
             if scheduled_for < datetime.utcnow() - timedelta(minutes=5):
-                flash("La date de rendez-vous semble être dans le passé.", "danger")
+                flash("Choisissez une date à venir pour votre rendez-vous.", "danger")
                 return redirect(url_for("booking.book", pid=product.id))
 
         number = _whatsapp_number_from_shop(product)
         if not number:
-            flash("Le prestataire n'a pas configuré de numéro de contact WhatsApp.", "warning")
+            flash("Le numéro WhatsApp de ce prestataire n'est pas disponible.", "warning")
             return redirect(url_for("shop.product_detail", pid=product.id))
 
         try:
@@ -336,7 +336,7 @@ def book(pid):
         except SQLAlchemyError:
             db.session.rollback()
             current_app.logger.exception("Erreur réservation")
-            flash("Erreur serveur. Merci de réessayer.", "danger")
+            flash("Impossible d'enregistrer votre demande pour le moment. Réessayez.", "danger")
             return redirect(url_for("booking.book", pid=product.id))
 
         try:
@@ -364,12 +364,12 @@ def book(pid):
             "support/open_whatsapp.html",
             wa_url=wa_url,
             support_scope="Rendez-vous",
-            support_title="Reservation prete",
-            support_copy="Votre demande est prete dans WhatsApp. Vous pouvez aussi suivre votre reservation.",
+            support_title="Votre demande de réservation est prête",
+            support_copy="Vérifiez et envoyez votre message dans WhatsApp. Le rendez-vous reste à confirmer avec le prestataire.",
             back_url=url_for("shop.home"),
-            back_label="Revenir au catalogue",
+            back_label="Retour à l'accueil",
             secondary_url=url_for("booking.track", token=booking.token),
-            secondary_label="Suivre ma reservation",
+            secondary_label="Suivre ma réservation",
             secondary_icon="bi-calendar-check",
         )
 

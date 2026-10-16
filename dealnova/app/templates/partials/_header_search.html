@@ -1,0 +1,11 @@
+<form action="{{ url_for('global_search') }}" method="get" class="hub-search" id="{{ search_id }}Form" role="search" data-live-search data-search-url="{{ url_for('api.public_catalog') }}">
+  <i class="bi bi-search" aria-hidden="true"></i>
+  <label class="visually-hidden" for="{{ search_id }}Input">{{ t('Rechercher un produit, un service ou une boutique') }}</label>
+  <input type="search" name="q" id="{{ search_id }}Input" placeholder="{{ t('Que recherchez-vous ?') }}" autocomplete="off" maxlength="160" enterkeyhint="search" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="{{ search_id }}Results" value="{{ request.args.get('q', '') }}">
+  <button type="button" id="{{ search_id }}Clear" class="hub-search-clear" aria-label="{{ t('Effacer la recherche') }}" style="display:none"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+  <div class="hub-live-search" data-search-panel hidden>
+    <p class="hub-live-search-status" data-search-status role="status" aria-live="polite"></p>
+    <ul id="{{ search_id }}Results" class="hub-live-search-list" role="listbox" aria-label="{{ t('Résultats de recherche') }}"></ul>
+    <a class="hub-live-search-all" data-search-all href="{{ url_for('global_search') }}">{{ t('Voir tous les résultats') }}<i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+  </div>
+</form>

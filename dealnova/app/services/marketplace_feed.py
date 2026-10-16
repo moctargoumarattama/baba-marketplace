@@ -379,32 +379,47 @@ def _mix_legacy_entries(product_entries: list[tuple], location_entries: list[tup
     return mixed
 
 
+def _normalize_search_variants(term: str) -> list[str]:
+    import unicodedata
+    clean = (term or "").strip()
+    if not clean:
+        return []
+    variants = [clean]
+    no_accents = "".join(c for c in unicodedata.normalize("NFD", clean) if unicodedata.category(c) != "Mn")
+    if no_accents and no_accents != clean:
+        variants.append(no_accents)
+    return variants
+
+
 def _product_search_filter(search_q: str, *, include_description: bool = False):
     term = (search_q or "").strip()
     if not term:
         return None, None
 
-    exact_name = Product.name.ilike(term)
-    prefix_name = Product.name.ilike(f"{term}%")
-    contains_name = Product.name.ilike(f"%{term}%")
+    variants = _normalize_search_variants(term)
+    clauses = []
+    rank_cases = []
 
-    clauses = [exact_name, prefix_name, contains_name]
-    rank_cases = [
-        (exact_name, 0),
-        (prefix_name, 1),
-    ]
+    for idx, v in enumerate(variants):
+        exact_name = Product.name.ilike(v)
+        prefix_name = Product.name.ilike(f"{v}%")
+        contains_name = Product.name.ilike(f"%{v}%")
 
-    if include_description and len(term) >= SEARCH_DESCRIPTION_MIN_LENGTH:
-        prefix_description = Product.description.ilike(f"{term}%")
-        contains_description = Product.description.ilike(f"%{term}%")
-        clauses.extend([prefix_description, contains_description])
+        clauses.extend([exact_name, prefix_name, contains_name])
         rank_cases.extend([
-            (prefix_description, 2),
-            (contains_name, 3),
-            (contains_description, 4),
+            (exact_name, 0 + idx),
+            (prefix_name, 1 + idx),
+            (contains_name, 2 + idx),
         ])
-    else:
-        rank_cases.append((contains_name, 2))
+
+        if include_description and len(v) >= SEARCH_DESCRIPTION_MIN_LENGTH:
+            prefix_description = Product.description.ilike(f"{v}%")
+            contains_description = Product.description.ilike(f"%{v}%")
+            clauses.extend([prefix_description, contains_description])
+            rank_cases.extend([
+                (prefix_description, 4 + idx),
+                (contains_description, 5 + idx),
+            ])
 
     return or_(*clauses), case(*rank_cases, else_=99)
 
@@ -497,6 +512,7 @@ def _serialize_product_legacy_tuple(product, promo) -> tuple:
     product_dict = {
         "id": product.id,
         "name": product.name,
+        "description": (product.description or ""),
         "price": safe_price,
         "stock": product.stock or 0,
         "kind": (product.kind or "physical"),
@@ -522,6 +538,7 @@ def _serialize_product_search_result(product, promo) -> dict:
     return {
         "id": product.id,
         "name": product.name,
+        "description": (product.description or ""),
         "price": cents_to_money(getattr(product, "price_cents", 0) or 0),
         "final_price": final_price,
         "promo_value": _safe_float(getattr(promo, "value", 0), 0.0) if promo else 0.0,

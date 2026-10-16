@@ -43,6 +43,7 @@ class Product(db.Model):
         db.Index("ix_product_vendor_active_created", "vendor_id", "is_active", "created_at"),
         db.Index("ix_product_vendor_kind_created", "vendor_id", "kind", "created_at"),
         db.Index("ix_product_vendor_category_created", "vendor_id", "category_id", "created_at"),
+        db.Index("ix_product_active_name", "is_active", "name"),
     )
 
     def __repr__(self):

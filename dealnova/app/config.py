@@ -119,11 +119,11 @@ class Config:
     DELIVERY_WHATSAPP_NUMBER = os.getenv("DELIVERY_WHATSAPP_NUMBER", "212602908954")
     DELIVERY_WHATSAPP_DEFAULT_MESSAGE = os.getenv(
         "DELIVERY_WHATSAPP_DEFAULT_MESSAGE",
-        "Bonjour, je souhaite programmer une livraison. Merci de me confirmer la disponibilite et le delai.",
+        "Bonjour, je souhaite organiser une livraison. Pouvez-vous me confirmer le tarif, la disponibilité et le délai ?",
     )
     ASSISTANT_DELIVERY_HOURS_TEXT = os.getenv(
         "ASSISTANT_DELIVERY_HOURS_TEXT",
-        "Livraison disponible tous les jours de 8h a 3h du matin, selon disponibilite du livreur.",
+        "Livraison tous les jours de 8 h à 3 h du matin, selon la disponibilité des livreurs.",
     )
     ADMIN_PHONE = os.getenv("ADMIN_PHONE", "+212770010264")
     SUPPORT_WHATSAPP_NUMBER = os.getenv("SUPPORT_WHATSAPP_NUMBER", ADMIN_PHONE)

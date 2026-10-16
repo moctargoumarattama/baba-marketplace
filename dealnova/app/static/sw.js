@@ -587,19 +587,19 @@ function buildEmergencyOfflineHtml() {
     <section class="offline-fallback-card" aria-labelledby="offlineFallbackTitle">
       <div class="offline-fallback-chip">Indisponible</div>
       <h1 id="offlineFallbackTitle">Service temporairement indisponible</h1>
-      <p class="offline-fallback-copy">Votre connexion est peut-&ecirc;tre coup&eacute;e, ou le service est momentan&eacute;ment indisponible. Les pages d&eacute;j&agrave; ouvertes restent accessibles.</p>
-      <div class="offline-fallback-points" role="list" aria-label="Ce qui reste disponible">
+      <p class="offline-fallback-copy">Vérifiez votre connexion Internet, puis réessayez. Le site peut aussi être temporairement indisponible. Certaines pages déjà consultées peuvent rester accessibles.</p>
+      <div class="offline-fallback-points" role="list" aria-label="Accès hors connexion">
         <div class="offline-fallback-point ok" role="listitem">
           <span class="offline-fallback-point-icon">OK</span>
-          <span>Pages d&eacute;j&agrave; ouvertes</span>
+          <span>Pages déjà consultées, si disponibles</span>
         </div>
         <div class="offline-fallback-point no" role="listitem">
           <span class="offline-fallback-point-icon">!</span>
-          <span>Commande, paiement et mises &agrave; jour indisponibles</span>
+          <span>Commandes, paiements et mises à jour indisponibles</span>
         </div>
       </div>
       <button class="offline-fallback-btn" id="offlineFallbackRetry" type="button">R&eacute;essayer</button>
-      <p class="offline-fallback-note">Si un souci persiste, vous pouvez pr&eacute;parer un message pour le support.</p>
+      <p class="offline-fallback-note">Si le problème persiste, signalez-le à notre équipe.</p>
     </section>
   </main>
   <button type="button" class="offline-fallback-support" id="offlineFallbackSupportOpen" aria-label="Signaler un probl&egrave;me">
@@ -611,9 +611,9 @@ function buildEmergencyOfflineHtml() {
     <div class="offline-fallback-support-card" role="dialog" aria-modal="true" aria-labelledby="offlineFallbackSupportTitle">
       <div class="offline-fallback-support-top">
         <div>
-          <div class="offline-fallback-support-chip">Support</div>
+          <div class="offline-fallback-support-chip">Aide</div>
           <h2 id="offlineFallbackSupportTitle">Signaler un probl&egrave;me</h2>
-          <p class="offline-fallback-support-copy">Expliquez simplement le souci. Le message WhatsApp sera pr&eacute;par&eacute; juste apr&egrave;s.</p>
+          <p class="offline-fallback-support-copy">Décrivez le problème, puis vérifiez et envoyez le message dans WhatsApp.</p>
         </div>
         <button type="button" class="offline-fallback-close" id="offlineFallbackClose" aria-label="Fermer">x</button>
       </div>
@@ -630,15 +630,15 @@ function buildEmergencyOfflineHtml() {
         </div>
         <div class="offline-fallback-field">
           <label for="offlineFallbackDetails">Ce qui ne va pas</label>
-          <textarea id="offlineFallbackDetails" name="details" placeholder="Ex: la page reste bloqu&eacute;e hors ligne, un bouton ne r&eacute;pond pas."></textarea>
+          <textarea id="offlineFallbackDetails" name="details" placeholder="Par exemple : la page reste bloquée ou un bouton ne répond pas."></textarea>
         </div>
         <div class="offline-fallback-field">
           <label for="offlineFallbackExpected">Ce que vous vouliez faire</label>
-          <input id="offlineFallbackExpected" name="expected" type="text" placeholder="Ex: rouvrir l'accueil, finaliser ma commande.">
+          <input id="offlineFallbackExpected" name="expected" type="text" placeholder="Par exemple : ouvrir l'accueil ou passer une commande.">
         </div>
         <div class="offline-fallback-actions">
           <button type="button" class="offline-fallback-btn-secondary" id="offlineFallbackCloseAlt">Fermer</button>
-          <button type="submit" class="offline-fallback-btn">Continuer</button>
+          <button type="submit" class="offline-fallback-btn">Préparer le message WhatsApp</button>
         </div>
       </form>
     </div>
@@ -710,14 +710,14 @@ function buildEmergencyOfflineHtml() {
           var details = String(data.get("details") || "").trim();
           var expected = String(data.get("expected") || "").trim();
           var message = [
-            "Bonjour, je signale un probleme sur l'ecran indisponible.",
-            "Page: fallback service worker",
-            "Type: " + issueType,
+            "Bonjour, je n'arrive pas à accéder au site.",
+            "Page : message d'indisponibilité",
+            "Sujet : " + issueType,
             "",
-            "Probleme constate:",
+            "Problème rencontré :",
             bullet(details),
             "",
-            "Resultat attendu:",
+            "Ce que je souhaitais faire :",
             bullet(expected)
           ].join("\\n");
           closeDialog();

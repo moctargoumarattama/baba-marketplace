@@ -222,7 +222,7 @@
     <!-- Badge statut -->
     <div class="badge">
       <span class="badge-dot"></span>
-      En Maintenance
+      En maintenance
     </div>
 
     <!-- Icône animée -->
@@ -246,56 +246,25 @@
     </div>
 
     <!-- Titre & sous-titre -->
-    <h1>Nous revenons <em>bientôt</em></h1>
+    <h1>Site en <em>maintenance</em></h1>
     <p class="subtitle">
-      Le site est temporairement indisponible pour une maintenance technique.
-      Merci de votre patience.
+      Le site est temporairement indisponible. Réessayez plus tard.
     </p>
 
     <!-- Message admin -->
     <div class="msg-wrap">
       <p class="msg-label">Message de l'équipe</p>
-      <p class="msg-text">{{ maintenance.message if maintenance and maintenance.message else "Maintenance technique en cours. Nous faisons de notre mieux pour revenir rapidement." }}</p>
-    </div>
-
-    <!-- Barre de progression fictive -->
-    <div class="progress-wrap">
-      <div class="progress-label">
-        <span>Progression</span>
-        <span id="pct">65%</span>
-      </div>
-      <div class="progress-track">
-        <div class="progress-fill" id="fill"></div>
-      </div>
+      <p class="msg-text">{{ maintenance.message if maintenance and maintenance.message else "Une maintenance est en cours. Le site sera accessible une fois l'intervention terminée." }}</p>
     </div>
 
     <!-- Pied de carte -->
     <div class="card-foot">
       <span class="dot">&#9679;</span>
-      Nos équipes travaillent activement —
+      Merci de votre patience.
       <strong>{{ config.SITE_NAME if config and config.SITE_NAME else "Baba Market" }}</strong>
     </div>
 
   </main>
 
-  <script>
-    // Compteur de progression synchronisé avec l'animation CSS
-    (function () {
-      const pct = document.getElementById("pct");
-      if (!pct) return;
-      const start_val = 65, target = 72;
-      const duration = 1800;
-      const start_time = performance.now() + 300;
-      pct.textContent = start_val + "%";
-      function step(now) {
-        const elapsed = Math.max(0, now - start_time);
-        const t = Math.min(elapsed / duration, 1);
-        const ease = 1 - Math.pow(1 - t, 3);
-        pct.textContent = Math.round(start_val + ease * (target - start_val)) + "%";
-        if (t < 1) requestAnimationFrame(step);
-      }
-      requestAnimationFrame(step);
-    })();
-  </script>
 </body>
 </html>

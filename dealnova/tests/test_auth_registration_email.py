@@ -125,34 +125,10 @@ def test_send_account_created_email_uses_public_base_url_for_login_link(email_ap
     assert login_url == "https://www.babamarket.test/login"
 
 
-def test_register_route_contract_uses_public_form_customer_role_and_email_after_commit():
-    source = _read("app/routes/auth.py")
-    start = source.index('def register():')
-    next_route = source.find('\n\n@bp.route("/login"', start)
-    body = source[start: next_route if next_route != -1 else len(source)]
-
-    assert "RegisterForm()" in body
-    assert 'role="customer"' in body
-    assert "send_account_created_email(" in body
-    assert 'return redirect(url_for("auth.login"))' in body
-    assert body.index("db.session.commit()") < body.index("send_account_created_email(")
-
-
-def test_register_form_contract_collects_expected_fields():
-    source = _read("app/routes/forms.py")
-
-    assert "class RegisterForm(FlaskForm):" in source
-    assert 'full_name = StringField(' in source
-    assert 'email = StringField("Email"' in source
-    assert 'password = PasswordField(' in source
-    assert 'password_confirm = PasswordField(' in source
-    assert 'EqualTo("password"' in source
-
-
-def test_user_model_contract_allows_customer_role():
+def test_user_model_contract_only_allows_staff_and_vendor_roles():
     source = _read("app/models/user.py")
 
-    assert 'ALLOWED_ROLES = ("admin", "manager", "vendor", "customer")' in source
+    assert 'ALLOWED_ROLES = ("admin", "manager", "vendor")' in source
 
 
 def test_admin_create_user_contract_sends_account_email_after_commit():
@@ -191,4 +167,5 @@ def test_login_template_contract_no_longer_mentions_vendor_admin_validation():
     source = _read("app/templates/auth/login.html")
 
     assert "Les comptes vendeurs sont actives apres validation par l'administration." not in source
-    assert "Creer un acces vendeur" in source
+    assert "auth.vendor_access" in source
+    assert 'class="auth-vendor"' in source

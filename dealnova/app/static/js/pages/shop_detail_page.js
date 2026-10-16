@@ -455,11 +455,13 @@ function initShopDetailPage() {
         return String(pageConfig.defaultCatalogLabel || 'Tout le catalogue');
     }
 
-    function getItemLabel(kind) {
-        if (kind === 'location') return 'annonce(s)';
-        if (kind === 'service') return 'service(s)';
-        if (kind === 'physical') return 'produit(s)';
-        return String(pageConfig.defaultItemLabel || 'article(s)');
+    function getItemLabel(kind, total) {
+        const plural = total === 1 ? '' : 's';
+        if (kind === 'location') return 'annonce' + plural;
+        if (kind === 'service') return 'service' + plural;
+        if (kind === 'physical') return 'produit' + plural;
+        const label = String(pageConfig.defaultItemLabel || 'articles');
+        return total === 1 ? label.replace(/s$/, '') : label;
     }
 
     function shouldShowMixedDefaultState() {
@@ -483,7 +485,7 @@ function initShopDetailPage() {
 
     function getResultsHeading(kind, queryText) {
         const cleanQuery = String(queryText || '').trim();
-        if (cleanQuery) return `Recherche : "${cleanQuery}"`;
+        if (cleanQuery) return `Résultats pour « ${cleanQuery} »`;
         return getKindLabel(kind);
     }
 
@@ -527,11 +529,11 @@ function initShopDetailPage() {
 
         if (noResultsText) {
             if (queryText) {
-                noResultsText.textContent = 'Essaie un mot plus simple.';
+                noResultsText.textContent = 'Essayez un autre mot.';
             } else if (hasFilters) {
-                noResultsText.textContent = 'Essaie un autre filtre.';
+                noResultsText.textContent = 'Retirez un filtre pour élargir la recherche.';
             } else {
-                noResultsText.textContent = 'Aucun contenu pour le moment.';
+                noResultsText.textContent = 'Cette boutique n’a pas d’offre disponible pour le moment.';
             }
         }
 
@@ -551,11 +553,11 @@ function initShopDetailPage() {
 
         if (sortSelect) {
             const labels = {
-                '': 'Plus recent',
-                new: 'Nouveautes',
-                low: 'Prix bas',
-                high: 'Prix haut',
-                promo: "Promos d'abord"
+                '': 'Les plus récents',
+                new: 'Nouveautés',
+                low: 'Prix croissant',
+                high: 'Prix décroissant',
+                promo: 'Promotions en premier'
             };
             Object.keys(labels).forEach(value => {
                 const option = sortSelect.querySelector(`option[value="${value}"]`);
@@ -572,7 +574,7 @@ function initShopDetailPage() {
         }
 
         if (resetFilters) {
-            resetFilters.textContent = 'Tout effacer';
+            resetFilters.textContent = 'Effacer les filtres';
         }
     }
 
@@ -584,7 +586,7 @@ function initShopDetailPage() {
 
         if (productCount) {
             const kind = normalizeKind(currentFilters.kind);
-            productCount.textContent = `${displayTotal} ${getItemLabel(kind)}`;
+            productCount.textContent = `${displayTotal} ${getItemLabel(kind, displayTotal)}`;
         }
 
         if (resultsTitle) {
@@ -609,8 +611,8 @@ function initShopDetailPage() {
 
         if (categoryStripTitleText) {
             categoryStripTitleText.textContent =
-                kind === 'physical' ? 'Catégories produits' :
-                kind === 'service' ? 'Catégories services' :
+                kind === 'physical' ? 'Catégories de produits' :
+                kind === 'service' ? 'Catégories de services' :
                 'Catégories';
         }
 
@@ -741,7 +743,7 @@ function initShopDetailPage() {
         loadMoreWrap.classList.toggle('d-none', !shouldShow);
         loadMoreButton.disabled = !!isLoading;
         loadMoreButton.setAttribute('aria-busy', isLoading ? 'true' : 'false');
-        loadMoreButton.textContent = isLoading ? 'Chargement...' : 'Voir plus';
+        loadMoreButton.textContent = isLoading ? 'Chargement...' : 'Afficher plus d’articles';
     }
 
     function buildParams(pageNumber) {

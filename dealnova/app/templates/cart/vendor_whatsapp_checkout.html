@@ -1,12 +1,12 @@
 {% extends "base.html" %}
-{% block title %}Commandes WhatsApp prêtes | {{ config.SITE_NAME }}{% endblock %}
+{% block title %}Commander sur WhatsApp | {{ config.SITE_NAME }}{% endblock %}
 
 {% block content %}
 <section class="whatsapp-order-page py-4 py-lg-5">
   <div class="container whatsapp-order-container">
     <div class="whatsapp-order-head">
-      <h1>Finalisez votre commande</h1>
-      <p>Suivez les étapes et ouvrez WhatsApp pour chaque boutique.</p>
+      <h1>Confirmez votre commande sur WhatsApp</h1>
+      <p>Ouvrez WhatsApp pour chaque boutique, puis envoyez le message préparé avec vos articles.</p>
     </div>
 
     {% set contactable = namespace(count=0) %}
@@ -22,7 +22,7 @@
         <strong id="whatsappContactedCount">0</strong>
         sur
         <strong id="whatsappTotalCount">{{ contactable.count }}</strong>
-        boutiques contactées
+        conversations ouvertes
       </span>
     </div>
 
@@ -31,9 +31,9 @@
       {% for group in shop_groups %}
         {% if group["phone_available"] %}
           {% set contact_steps.value = contact_steps.value + 1 %}
-          {% set step_label = "Étape " ~ contact_steps.value ~ "/" ~ contactable.count ~ " : contacter ce vendeur" %}
+          {% set step_label = "Boutique " ~ contact_steps.value ~ " sur " ~ contactable.count %}
         {% else %}
-          {% set step_label = "Action impossible : WhatsApp indisponible" %}
+          {% set step_label = "Cette boutique n'est pas joignable sur WhatsApp" %}
         {% endif %}
         <article class="merchant-card" data-contact-card>
           <div class="merchant-step">{{ step_label }}</div>
@@ -52,7 +52,7 @@
           </div>
 
           <div class="merchant-products">
-            <div class="merchant-products-title">Produits :</div>
+            <div class="merchant-products-title">Vos articles</div>
             <ul>
               {% for item in group["items"] %}
                 <li>
@@ -71,15 +71,16 @@
           {% if group["phone_available"] %}
             <a class="btn btn-success whatsapp-continue"
                href="{{ group['whatsapp_url'] }}"
+               aria-label="Ouvrir WhatsApp pour {{ group['shop_name'] }}"
                target="_blank"
                rel="noopener noreferrer"
                data-whatsapp-contact
                data-contact-url="{{ url_for('cart.record_whatsapp_contact', shop_id=group['shop'].id) }}"
-               data-sent-label="Étape validée">
+               data-sent-label="WhatsApp ouvert">
               <i class="bi bi-whatsapp me-2"></i>Ouvrir WhatsApp
             </a>
             <div class="sent-state d-none" data-sent-state>
-              <i class="bi bi-check2-circle me-1"></i>Message envoyé
+              <i class="bi bi-check2-circle me-1"></i>Envoyez votre message dans WhatsApp pour confirmer la commande.
             </div>
           {% else %}
             <button type="button" class="btn btn-outline-secondary whatsapp-continue" disabled>
@@ -92,7 +93,7 @@
 
     <p class="direct-payment-note">
       <i class="bi bi-info-circle me-1"></i>
-      Le paiement et la livraison se font directement avec la boutique.
+      Convenez du paiement et de la livraison avec chaque boutique.
     </p>
 
     <div class="whatsapp-order-actions">
@@ -381,7 +382,7 @@
           .then(function (payload) {
             var openUrl = payload.whatsapp_url || fallbackUrl;
             button.classList.add("is-sent");
-            button.innerHTML = '<i class="bi bi-check2-circle me-2"></i>' + (button.getAttribute("data-sent-label") || "Envoyé");
+            button.innerHTML = '<i class="bi bi-check2-circle me-2"></i>' + (button.getAttribute("data-sent-label") || "WhatsApp ouvert");
 
             var card = button.closest("[data-contact-card]");
             if (card) {

@@ -370,6 +370,7 @@ def list_shops():
     )
 
 @bp.route("/<string:shop_slug>")
+@bp.route("/shops/<string:shop_slug>")
 def shop_detail(shop_slug):
     """Détail d'une boutique avec ses produits"""
     # Validation du slug

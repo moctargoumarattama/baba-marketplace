@@ -1,0 +1,26 @@
+<header class="hub-header public-header">
+  <div class="hub-header-inner">
+    <a class="hub-brand" href="{{ url_for('landing') }}" aria-label="BabaMarket — {{ t('Accueil') }}">{% include 'partials/_public_brand.html' %}</a>
+    <a class="public-location" href="{{ url_for('landing', open='delivery') }}"><i class="bi bi-geo-alt-fill" aria-hidden="true"></i><span>Rabat, Maroc</span></a>
+    <div class="hub-header-actions" data-nav-badges>
+      <details class="hub-account hub-disclosure" id="hubAccount">
+        <summary aria-label="{{ t('Mon compte' if current_user.is_authenticated else 'Espace vendeur') }}"><i class="bi bi-person" aria-hidden="true"></i><span>{{ t('Compte' if current_user.is_authenticated else 'Vendeur') }}</span></summary>
+        <div class="hub-popover hub-account-panel">
+          {% if current_user.is_authenticated %}
+          <strong>{{ current_user.username }}</strong>
+          {% if current_user.role in ['admin', 'manager'] %}<a href="{{ url_for('admin_users.admin_dashboard') }}">{{ t('Administration') }}</a>{% elif current_user.role == 'vendor' %}<a href="{{ url_for('vendor.dashboard') }}">{{ t('Mon espace vendeur') }}</a>{% endif %}
+          <form method="post" action="{{ url_for('auth.logout') }}">{% include 'partials/_csrf.html' %}<button type="submit">{{ t('Déconnexion') }}</button></form>
+          {% else %}
+          <strong>{{ t('Espace vendeur') }}</strong><a href="{{ url_for('auth.login') }}">{{ t('Se connecter') }}</a>
+          {% endif %}
+          <a href="{{ url_for('auth.vendor_access') }}">{{ t('Devenir vendeur') }}<i class="bi bi-arrow-up-right" aria-hidden="true"></i></a>
+          <div class="hub-language-links" aria-label="{{ t('Langue') }}">{% for language, label in [('fr', 'FR'), ('en', 'EN'), ('ary', 'دارجة')] %}<a href="{{ url_for('set_language_route', lang_code=language, next=request.full_path) }}" lang="{{ language }}" {% if current_lang == language %}aria-current="true"{% endif %}>{{ label }}</a>{% endfor %}</div>
+        </div>
+      </details>
+      <a class="hub-header-cart" href="{{ url_for('cart.view') }}" data-cart-icon aria-label="{{ t('Ouvrir le panier') }}"><i class="bi bi-bag" aria-hidden="true"></i><span class="hub-header-cart-label">{{ t('Panier') }}</span><span class="hub-cart-badge{% if not cart_count %} d-none{% endif %}" data-cart-badge>{{ cart_count or 0 }}</span></a>
+    </div>
+  </div>
+  <nav class="hub-desktop-nav" aria-label="{{ t('Catégories') }}">
+    {% for key, label, icon in [('products','Produits et repas','bi-basket2'),('services','Services','bi-tools'),('locations','Locations','bi-house-door'),('shops','Boutiques','bi-shop'),('delivery','Livraison de colis','bi-truck'),('promotions','Promotions','bi-tag')] %}<a href="{{ url_for('landing', open=key) }}"><i class="bi {{ icon }}" aria-hidden="true"></i>{{ t(label) }}</a>{% endfor %}
+  </nav>
+</header>

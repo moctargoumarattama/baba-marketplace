@@ -4,7 +4,7 @@
 
 {% block head %}
 {% set seo_title = "Locations à Rabat, Salé, Kénitra et Témara | BabaMarket" %}
-{% set seo_description = "Parcourez les annonces de locations sur BabaMarket à Rabat, Salé, Kénitra et Témara pour chambres, appartements, studios et espaces avec contact rapide." %}
+{% set seo_description = "Consultez les annonces de chambres, appartements, studios et locaux à louer à Rabat, Salé, Kénitra et Témara. Filtrez par ville et par budget." %}
 {% set canonical_url = "https://www.babamarket.ma" ~ url_for('rentals.locations_home') %}
 {% set og_image_url = "https://www.babamarket.ma" ~ url_for('static', filename='images/produit.jpeg') %}
 {% set listing_items = namespace(items=[]) %}
@@ -391,26 +391,27 @@
   }
 }
 </style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/public_listings_refresh.css', v=app_static_version ~ '-public-v2') }}">
 {% endblock %}
 
 {% block body_attrs %}data-page="locations_index"{% endblock %}
 
 {% block content %}
-<div class="rentals-shell">
+<div class="rentals-shell public-rentals-index">
 
   <section class="rentals-hero">
     <div class="hero-topline">
       <a href="{{ url_for('shop.home') }}" class="hero-return-link">
-        <i class="bi bi-arrow-left"></i> Retour
+        <i class="bi bi-arrow-left"></i> Retour à l'accueil
       </a>
     </div>
-    <h2>Trouvez votre location</h2>
-    <p>Explorez facilement les biens disponibles selon votre budget et votre quartier.</p>
+    <h1>Locations</h1>
+    <p>Recherchez un logement ou un local par ville et par budget.</p>
      <div class="hero-search">
        <i class="bi bi-search"></i>
        <input type="text" form="locationsFilterForm" name="_q_mirror"
-              placeholder="Recherche annonce, ville, quartier…"
-             autocomplete="off" id="heroSearchInput" value="{{ q }}" inputmode="search">
+              placeholder="Annonce, ville ou quartier"
+             autocomplete="off" id="heroSearchInput" value="{{ q }}" inputmode="search" aria-label="Rechercher une annonce, une ville ou un quartier">
      </div>
    </section>
 
@@ -421,38 +422,38 @@
       <input type="text" class="form-control" name="q" value="{{ q }}" id="hiddenQInput">
     </div>
     <div class="filter-grid">
-      <select class="form-select" name="type">
-        <option value="">Type (tous)</option>
-        <option value="monthly" {{ 'selected' if listing_type == 'monthly' else '' }}>Mensuel</option>
-        <option value="daily"   {{ 'selected' if listing_type == 'daily'   else '' }}>Journalier</option>
+      <select class="form-select" name="type" aria-label="Durée de location">
+        <option value="">Toutes les durées</option>
+        <option value="monthly" {{ 'selected' if listing_type == 'monthly' else '' }}>Au mois</option>
+        <option value="daily"   {{ 'selected' if listing_type == 'daily'   else '' }}>À la journée</option>
       </select>
-      <select class="form-select" name="property_type">
-        <option value="">Catégorie (toutes)</option>
+      <select class="form-select" name="property_type" aria-label="Type de bien">
+        <option value="">Tous les types de bien</option>
         <option value="room"      {{ 'selected' if property_type == 'room'      else '' }}>Chambre</option>
         <option value="apartment" {{ 'selected' if property_type == 'apartment' else '' }}>Appartement</option>
         <option value="studio"    {{ 'selected' if property_type == 'studio'    else '' }}>Studio</option>
-        <option value="store"     {{ 'selected' if property_type == 'store'     else '' }}>Boutique à louer</option>
+        <option value="store"     {{ 'selected' if property_type == 'store'     else '' }}>Local commercial</option>
       </select>
       <input type="text" class="form-control" name="city" value="{{ city_area }}"
-             placeholder="Ville / quartier">
+             placeholder="Ville ou quartier" aria-label="Ville ou quartier">
       <div class="price-range-group">
         <input type="number" step="0.01" min="0" class="form-control" name="min"
-               value="{{ price_min }}" placeholder="Min DH">
+               value="{{ price_min }}" placeholder="Loyer min. (DH)" aria-label="Loyer minimum en dirhams">
         <input type="number" step="0.01" min="0" class="form-control" name="max"
-               value="{{ price_max }}" placeholder="Max DH">
+               value="{{ price_max }}" placeholder="Loyer max. (DH)" aria-label="Loyer maximum en dirhams">
       </div>
     </div>
     <div class="filter-foot">
       <span class="filter-foot-note" id="filterFootNote" aria-live="polite">
         <i class="bi bi-lightning-charge"></i>
-        <span class="filter-foot-note-text" id="filterFootNoteText">Résultats instantanés</span>
+        <span class="filter-foot-note-text" id="filterFootNoteText">Les résultats s'actualisent automatiquement.</span>
       </span>
       <button type="button" id="restoreSearchBtn"
               class="btn-clear-search {% if has_active_filters %}empty-attention{% endif %}">
         <i class="bi bi-arrow-counterclockwise"></i> Réinitialiser
       </button>
     </div>
-    <button class="d-none" type="submit" aria-hidden="true" tabindex="-1">submit</button>
+    <button class="d-none" type="submit" aria-hidden="true" tabindex="-1">Rechercher</button>
   </form>
 
   <div id="locationsResults" class="locations-results">

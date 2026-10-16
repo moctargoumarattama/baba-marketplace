@@ -1,408 +1,13 @@
-﻿{% extends "base.html" %}
+{% extends "base.html" %}
 
 {% block title %}Connexion | {{ config.SITE_NAME }}{% endblock %}
 
 {% block head %}
-<style>
-  /* ===== RESET & BASE ===== */
-  *, *::before, *::after { box-sizing: border-box; }
-
-  /* ===== PAGE ===== */
-  .login-page {
-    min-height: 100dvh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: clamp(0.75rem, 3vw, 2rem);
-    width: 100%;
-    max-width: 100%;
-    overflow-x: clip;
-    background: #f8faf9;
-    background-image:
-      radial-gradient(ellipse 60% 50% at 20% 10%, rgba(16,185,129,0.07) 0%, transparent 70%),
-      radial-gradient(ellipse 50% 40% at 80% 90%, rgba(4,120,87,0.05) 0%, transparent 70%);
-  }
-
-  /* ===== CARD WRAPPER ===== */
-  .auth-wrap {
-    width: min(500px, 100%);
-    max-width: 100%;
-    min-width: 0;
-    animation: fadeUp 0.45s ease forwards;
-  }
-
-  @keyframes fadeUp {
-    from { opacity: 0; transform: translateY(16px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
-
-  .auth-shell {
-    background: white;
-    border: 1px solid rgba(16,185,129,0.18);
-    border-radius: clamp(18px, 4vw, 26px);
-    box-shadow:
-      0 1px 2px rgba(15,23,42,0.04),
-      0 8px 24px -6px rgba(15,23,42,0.09),
-      0 0 0 1px rgba(255,255,255,0.6) inset;
-    overflow: hidden;
-    width: 100%;
-    max-width: 100%;
-  }
-
-  .auth-card {
-    padding: clamp(1rem, 4vw, 1.75rem);
-    width: 100%;
-    max-width: 100%;
-    min-width: 0;
-  }
-
-  /* ===== HERO ===== */
-  .auth-hero {
-    text-align: center;
-    margin-bottom: 1.1rem;
-  }
-
-  .auth-badge {
-    width: clamp(46px, 9vw, 56px);
-    height: clamp(46px, 9vw, 56px);
-    margin: 0 auto 0.5rem;
-    border-radius: 18px;
-    background: linear-gradient(150deg, #10b981 0%, #047857 100%);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: clamp(1.35rem, 4vw, 1.75rem);
-    color: white;
-    box-shadow: 0 6px 18px -4px rgba(16,185,129,0.35);
-  }
-
-  .auth-hero h2 {
-    font-family: 'Poppins', sans-serif;
-    font-weight: 700;
-    font-size: clamp(1.3rem, 4vw, 1.6rem);
-    color: #0f172a;
-    letter-spacing: -0.025em;
-    margin: 0 0 0.25rem;
-    line-height: 1.2;
-  }
-
-  .auth-hero p {
-    color: #64748b;
-    font-size: clamp(0.8rem, 2.5vw, 0.9rem);
-    font-weight: 500;
-    margin: 0;
-  }
-
-  /* ===== MARKETING BAND ===== */
-  .auth-marketing {
-    background: #f0fdf8;
-    border: 1px solid rgba(16,185,129,0.15);
-    border-radius: 14px;
-    padding: clamp(0.7rem, 2.5vw, 0.95rem);
-    margin-bottom: 1.1rem;
-  }
-
-  .auth-marketing-title {
-    font-weight: 700;
-    color: #0f172a;
-    font-size: clamp(0.8rem, 2.5vw, 0.875rem);
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    margin-bottom: 0.35rem;
-  }
-
-  .auth-marketing-title i { color: #10b981; }
-
-  .auth-marketing-text {
-    color: #475569;
-    font-size: clamp(0.78rem, 2.2vw, 0.84rem);
-    line-height: 1.5;
-    margin: 0 0 0.65rem;
-    overflow-wrap: anywhere;
-  }
-
-  .auth-marketing-actions {
-    display: flex;
-    gap: 0.6rem;
-    flex-wrap: wrap;
-    min-width: 0;
-  }
-
-  .auth-mini-btn {
-    border-radius: 999px;
-    font-weight: 700;
-    padding: 0.5rem 1.1rem;
-    font-size: clamp(0.78rem, 2.2vw, 0.82rem);
-    text-decoration: none;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    border: 1px solid transparent;
-    cursor: pointer;
-    transition: box-shadow 0.2s ease, background 0.2s ease;
-    white-space: nowrap;
-    max-width: 100%;
-    min-width: 0;
-  }
-
-  .auth-mini-btn--primary {
-    background: linear-gradient(150deg, #10b981, #047857);
-    color: white;
-    box-shadow: 0 4px 12px rgba(16,185,129,0.22);
-  }
-
-  .auth-mini-btn--primary:hover {
-    box-shadow: 0 6px 18px rgba(16,185,129,0.32);
-    color: white;
-  }
-
-  .auth-mini-btn--ghost {
-    background: white;
-    color: #047857;
-    border-color: rgba(16,185,129,0.28);
-    box-shadow: 0 3px 10px rgba(15,23,42,0.04);
-  }
-
-  .auth-mini-btn--ghost:hover {
-    background: #ecfdf5;
-    border-color: rgba(16,185,129,0.5);
-    color: #065f46;
-    box-shadow: 0 5px 14px rgba(16,185,129,0.14);
-  }
-
-  /* ===== FORM ===== */
-  .auth-body {
-    display: flex;
-    flex-direction: column;
-    gap: 0.85rem;
-    width: 100%;
-    min-width: 0;
-  }
-
-  .form-group {
-    display: flex;
-    flex-direction: column;
-    gap: 0.3rem;
-    min-width: 0;
-  }
-
-  .form-label {
-    font-weight: 600;
-    color: #1e293b;
-    font-size: clamp(0.8rem, 2.2vw, 0.855rem);
-    padding-left: 0.1rem;
-  }
-
-  .auth-input {
-    display: flex;
-    align-items: center;
-    border: 1.5px solid #d1fae5;
-    border-radius: 12px;
-    background: white;
-    transition: border-color 0.2s ease, box-shadow 0.2s ease;
-    overflow: hidden;
-    width: 100%;
-    max-width: 100%;
-    min-width: 0;
-  }
-
-  .auth-input:focus-within {
-    border-color: #10b981;
-    box-shadow: 0 0 0 3px rgba(16,185,129,0.08);
-  }
-
-  .auth-input .input-group-text {
-    background: transparent;
-    border: none;
-    color: #10b981;
-    padding: 0 0.5rem 0 0.875rem;
-    font-size: 0.95rem;
-    flex-shrink: 0;
-  }
-
-  .auth-input .form-control {
-    border: none;
-    padding: 0.75rem 0.5rem;
-    font-size: clamp(0.875rem, 2.5vw, 0.95rem);
-    background: transparent;
-    width: 100%;
-    color: #0f172a;
-    min-width: 0;
-  }
-
-  .auth-input .form-control:focus {
-    outline: none;
-    box-shadow: none;
-  }
-
-  .auth-input .form-control::placeholder { color: #94a3b8; }
-
-  .input-wrapper {
-    position: relative;
-    width: 100%;
-    max-width: 100%;
-    min-width: 0;
-  }
-
-  .password-wrap { padding-right: 2.75rem; }
-
-  .password-toggle {
-    position: absolute;
-    right: 0.875rem;
-    top: 50%;
-    transform: translateY(-50%);
-    border: none;
-    background: transparent;
-    color: #94a3b8;
-    font-size: 1rem;
-    padding: 0.2rem;
-    cursor: pointer;
-    transition: color 0.2s ease;
-    line-height: 1;
-  }
-
-  .password-toggle:hover { color: #10b981; }
-
-  .forgot-link {
-    text-align: right;
-    margin-top: -0.25rem;
-  }
-
-  .forgot-link a {
-    color: #64748b;
-    font-size: clamp(0.72rem, 2vw, 0.78rem);
-    font-weight: 600;
-    text-decoration: none;
-  }
-
-  .forgot-link a:hover {
-    color: #10b981;
-    text-decoration: underline;
-  }
-
-  /* ===== CTA ===== */
-  .auth-cta {
-    background: linear-gradient(150deg, #10b981 0%, #047857 100%);
-    border: none;
-    font-weight: 700;
-    padding: clamp(0.7rem, 2.5vw, 0.875rem) 1.25rem;
-    border-radius: 12px;
-    color: white;
-    font-size: clamp(0.875rem, 2.5vw, 0.95rem);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.6rem;
-    cursor: pointer;
-    box-shadow: 0 4px 14px -4px rgba(16,185,129,0.35);
-    transition: box-shadow 0.2s ease, filter 0.2s ease;
-    margin-top: 0.25rem;
-    width: 100%;
-  }
-
-  .auth-cta:hover {
-    box-shadow: 0 8px 22px -6px rgba(16,185,129,0.42);
-    filter: brightness(1.04);
-  }
-
-  .auth-cta:active {
-    filter: brightness(0.97);
-    box-shadow: 0 2px 8px rgba(16,185,129,0.25);
-  }
-
-  /* ===== FOOTER ===== */
-  .auth-footer {
-    text-align: center;
-    margin-top: 1rem;
-    padding-top: 0.875rem;
-    border-top: 1px solid #f1f5f9;
-    font-size: clamp(0.8rem, 2.2vw, 0.85rem);
-    color: #64748b;
-  }
-
-  .auth-footer a {
-    color: #047857;
-    font-weight: 700;
-    text-decoration: none;
-  }
-
-  .auth-footer a:hover { color: #10b981; text-decoration: underline; }
-
-  .auth-note {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.4rem;
-    margin-top: 0.75rem;
-    font-size: clamp(0.72rem, 2vw, 0.78rem);
-    color: #94a3b8;
-    font-weight: 500;
-  }
-
-  .auth-note i { color: #10b981; font-size: 0.85em; }
-
-  /* ===== MOBILE FIRST — fluid via clamp, override only edge cases ===== */
-  @media (max-width: 360px) {
-    .auth-marketing-actions { flex-direction: column; }
-    .auth-mini-btn { width: 100%; justify-content: center; }
-  }
-
-  @media (max-width: 768px) {
-    .login-page {
-      align-items: flex-start;
-      padding-top: max(0.9rem, env(safe-area-inset-top));
-      padding-bottom: max(1rem, env(safe-area-inset-bottom));
-    }
-
-    .auth-input .form-control,
-    .auth-input select,
-    .auth-input textarea {
-      font-size: 16px;
-    }
-
-    .forgot-link,
-    .auth-footer,
-    .auth-note {
-      min-width: 0;
-      max-width: 100%;
-    }
-  }
-
-  /* ===== TRÈS PETITS ÉCRANS (iPhone SE 1st gen, etc.) ===== */
-  @media (max-height: 600px) and (max-width: 480px) {
-    .auth-hero { margin-bottom: 0.875rem; }
-    .auth-badge { margin-bottom: 0.5rem; }
-    .auth-marketing { margin-bottom: 1rem; }
-    .auth-body { gap: 0.75rem; }
-    .auth-footer { margin-top: 0.875rem; padding-top: 0.875rem; }
-    .auth-note { margin-top: 0.625rem; }
-  }
-
-  /* ===== RTL ===== */
-  html[dir="rtl"] .password-toggle { right: auto; left: 0.875rem; }
-  html[dir="rtl"] .password-wrap { padding-right: 0; padding-left: 2.75rem; }
-  html[dir="rtl"] .auth-input .input-group-text { padding: 0 0.875rem 0 0.5rem; }
-  html[dir="rtl"] .auth-input .form-control { padding: 0.75rem 0 0.75rem 0.5rem; }
-  html[dir="rtl"] .forgot-link { text-align: left; }
-
-  /* ===== ACCESSIBILITÉ ===== */
-  @media (prefers-reduced-motion: reduce) {
-    .auth-wrap { animation: none; }
-    * { transition-duration: 0.01ms !important; }
-  }
-
-  .auth-cta:focus-visible,
-  .auth-mini-btn:focus-visible,
-  .password-toggle:focus-visible {
-    outline: 2px solid #10b981;
-    outline-offset: 2px;
-  }
-</style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/auth_refresh.css', v=app_static_version ~ '-public-v2') }}">
 {% endblock %}
 
 {% block content %}
-<section class="login-page">
+<section class="login-page auth-page" aria-labelledby="loginTitle">
   <div class="auth-wrap">
     <div class="auth-shell">
       <div class="auth-card">
@@ -412,33 +17,8 @@
           <div class="auth-badge">
             <i class="bi bi-box-arrow-in-right"></i>
           </div>
-          <h2>Bon retour</h2>
-          <p>Connectez-vous à votre espace Baba Market</p>
-        </div>
-
-        <!-- ACCÈS VENDEUR -->
-        <div class="auth-marketing">
-          <div class="auth-marketing-title">
-            <i class="bi bi-shield-check"></i>
-            Accès vendeur
-          </div>
-          <p class="auth-marketing-text">
-            Creez votre espace vendeur et connectez-vous sans attendre une validation admin.
-          </p>
-          <div class="auth-marketing-actions">
-            <a class="auth-mini-btn auth-mini-btn--primary"
-               href="{{ url_for('auth.vendor_access') }}"
-               data-coach="vendor_access"
-               data-coach-priority="10"
-               data-coach-text="Si vous n'avez pas encore de compte vendeur, creez votre acces et votre boutique en une seule etape.">
-              <i class="bi bi-person-plus"></i>
-              Creer un acces vendeur
-            </a>
-            <a class="auth-mini-btn auth-mini-btn--ghost" href="{{ url_for('shop.home') }}">
-              <i class="bi bi-shop"></i>
-              Continuer sans compte
-            </a>
-          </div>
+          <h1 id="loginTitle">Connexion</h1>
+          <p>Accès réservé aux vendeurs et à l’équipe BabaMarket.</p>
         </div>
 
         <!-- FORMULAIRE -->
@@ -450,9 +30,10 @@
             <div class="input-wrapper">
               <div class="auth-input">
                 <span class="input-group-text"><i class="bi bi-envelope"></i></span>
-                {{ form.email(class="form-control", id="email", placeholder="vous@exemple.com", autocomplete="email", inputmode="email") }}
+                {{ form.email(class="form-control", id="email", placeholder="vous@exemple.com", autocomplete="email", inputmode="email", aria_invalid=('true' if form.email.errors else 'false'), aria_describedby=('loginEmailErrors' if form.email.errors else '')) }}
               </div>
             </div>
+            {% if form.email.errors %}<ul class="auth-errors" id="loginEmailErrors" role="alert">{% for error in form.email.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
           </div>
 
           <div class="form-group">
@@ -460,12 +41,13 @@
             <div class="input-wrapper">
               <div class="auth-input">
                 <span class="input-group-text"><i class="bi bi-lock"></i></span>
-                {{ form.password(class="form-control password-wrap", id="password", placeholder="••••••••", autocomplete="current-password") }}
-                <button type="button" class="password-toggle" id="pwToggle" aria-label="Afficher / masquer le mot de passe">
-                  <i class="bi bi-eye" id="pwIcon"></i>
+                {{ form.password(class="form-control password-wrap", id="password", placeholder="••••••••", autocomplete="current-password", aria_invalid=('true' if form.password.errors else 'false'), aria_describedby=('loginPasswordErrors' if form.password.errors else '')) }}
+                <button type="button" class="password-toggle" id="pwToggle" aria-label="Afficher le mot de passe" aria-controls="password" aria-pressed="false">
+                  <i class="bi bi-eye" id="pwIcon" aria-hidden="true"></i>
                 </button>
               </div>
             </div>
+            {% if form.password.errors %}<ul class="auth-errors" id="loginPasswordErrors" role="alert">{% for error in form.password.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
           </div>
 
           <div class="forgot-link">
@@ -481,15 +63,8 @@
           </button>
         </form>
 
-        <div class="auth-footer">
-          Pas encore de compte client ?
-          <a href="{{ url_for('auth.register') }}">Creer mon compte</a>
-        </div>
-
-        <div class="auth-note">
-          <i class="bi bi-shield-check"></i>
-          Connexion sécurisée
-        </div>
+        <a class="auth-guest" href="{{ url_for('landing') }}">Continuer en invité <i class="bi bi-arrow-up-right" aria-hidden="true"></i></a>
+        <div class="auth-vendor"><i class="bi bi-shop" aria-hidden="true"></i><span>Vous êtes commerçant ?</span><a href="{{ url_for('auth.vendor_access') }}">Accès vendeur</a></div>
 
       </div>
     </div>
@@ -510,6 +85,8 @@
       const show = pwField.type === 'password';
       pwField.type = show ? 'text' : 'password';
       pwIcon.className = show ? 'bi bi-eye-slash' : 'bi bi-eye';
+      pwToggle.setAttribute('aria-pressed', show ? 'true' : 'false');
+      pwToggle.setAttribute('aria-label', show ? 'Masquer le mot de passe' : 'Afficher le mot de passe');
     });
   }
 

@@ -144,7 +144,7 @@ def owner_support_whatsapp():
     if guard:
         return guard
 
-    page_name = (request.args.get("page") or "Page owner location").strip()[:120]
+    page_name = (request.args.get("page") or "Mes locations").strip()[:120]
     page_url = (request.args.get("page_url") or "").strip()[:400]
     source = (request.args.get("source") or "").strip()[:160]
     item_name = (request.args.get("item") or "").strip()[:160]
@@ -152,7 +152,7 @@ def owner_support_whatsapp():
     shop = Shop.query.filter_by(vendor_id=current_user.id).first()
 
     lines = [
-        "Bonjour, je signale un probleme sur mon espace location.",
+        "Bonjour, je signale un problème sur mes locations.",
         f"Compte: {support_user_label(current_user)} (id: {current_user.id})",
     ]
     if shop and getattr(shop, "name", None):
@@ -174,11 +174,11 @@ def owner_support_whatsapp():
     return render_template(
         "support/open_whatsapp.html",
         wa_url=build_support_whatsapp_url(lines),
-        support_scope="Support location",
-        support_title="Signaler un probleme location",
-        support_copy="Votre message est pret avec la page, l'annonce et votre compte owner.",
+        support_scope="Aide pour les locations",
+        support_title="Signaler un problème",
+        support_copy="Les informations sur l'annonce et votre compte sont ajoutées au message. Vérifiez-le dans WhatsApp avant de l'envoyer.",
         back_url=back_url,
-        back_label="Retour a la page",
+        back_label="Retour à la page",
     )
 
 
@@ -315,6 +315,10 @@ def _listing_owner_view(listing: RentalListing):
 
 @bp.route("/locations")
 def locations_home():
+    if not (request.headers.get("X-Requested-With") in ("fetch", "XMLHttpRequest") or "application/json" in (request.headers.get("Accept") or "")):
+        allowed = ("q", "city", "type", "listing_type", "property_type", "min", "max", "min_price", "max_price", "page", "sort", "shop")
+        filters = {key: request.args[key] for key in allowed if request.args.get(key)}
+        return redirect(url_for("landing", open="locations", **filters))
     q = (request.args.get("q") or "").strip()
     search_q = q if len(q) >= 2 else ""
     description_search_q = q if len(q) >= 3 else ""
@@ -350,7 +354,7 @@ def locations_home():
             max_price_value = float(price_max.replace(",", "."))
             query = query.filter(RentalListing.rent_cents <= _to_cents(price_max, "Prix max"))
     except ValueError:
-        flash("Filtre prix invalide.", "warning")
+        flash("Le prix saisi n'est pas valide. Saisissez un montant positif.", "warning")
 
     if q and not search_q:
         query = query.filter(False)
@@ -476,10 +480,10 @@ def location_inquiry(slug: str):
         return render_template(
             "support/open_whatsapp.html",
             wa_url=wa_url,
-            support_scope="Visite location",
-            support_title="Demande de visite prete",
-            support_copy="Votre message WhatsApp est pret avec l'annonce et vos coordonnees.",
-            support_hint="Le proprietaire recevra aussi le lien de l'annonce.",
+            support_scope="Demande de visite",
+            support_title="Envoyer votre demande de visite",
+            support_copy="Votre message contient l'annonce et vos coordonnées. Ouvrez WhatsApp pour le vérifier et l'envoyer.",
+            support_hint="La date de visite reste à confirmer avec l'agence.",
             back_url=url_for("rentals.location_inquiry", slug=listing.slug),
             back_label="Retour au formulaire",
             secondary_url=url_for("rentals.location_detail", slug=listing.slug),

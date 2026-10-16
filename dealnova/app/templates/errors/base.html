@@ -166,8 +166,8 @@
         {% block error_extra %}{% endblock %}
         <div class="error-actions">
           {% block error_actions %}
-          <a class="error-btn error-btn-primary" href="{{ url_for('landing') }}">Retour a l'accueil</a>
-          <a class="error-btn error-btn-secondary" href="{{ request.path or url_for('landing') }}">Reessayer</a>
+          <a class="error-btn error-btn-primary" href="{{ url_for('landing') }}">Retour à l'accueil</a>
+          <a class="error-btn error-btn-secondary" href="{{ request.path or url_for('landing') }}">Réessayer</a>
           {% endblock %}
         </div>
         {% if error_hint %}
@@ -176,12 +176,12 @@
       </div>
       <aside class="error-side">
         {% block error_side %}
-        <h3>Que faire maintenant ?</h3>
-        <p>Voici quelques options pour continuer sans perdre votre temps.</p>
+        <h3>Support</h3>
+        <p>Si le problème persiste, contactez notre équipe.</p>
         <ul>
-          <li><span class="error-dot"></span>Revenir a l'accueil et relancer votre navigation.</li>
-          <li><span class="error-dot"></span>Verifier vos informations avant de reessayer.</li>
-          <li><span class="error-dot"></span>Contacter le support si le probleme persiste.</li>
+          <li><span class="error-dot"></span>Revenez à l'accueil.</li>
+          <li><span class="error-dot"></span>Vérifiez les informations saisies.</li>
+          <li><span class="error-dot"></span>Réessayez dans quelques instants.</li>
         </ul>
         {% endblock %}
       </aside>

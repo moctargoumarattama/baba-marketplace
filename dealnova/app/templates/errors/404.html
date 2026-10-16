@@ -1,17 +1,17 @@
 ﻿{% extends 'errors/base.html' %}
 {% set error_code = 404 %}
 {% set error_title = 'Page introuvable' %}
-{% set error_message = 'Cette page est introuvable.' %}
+{% set error_message = 'Cette page n’existe pas ou son adresse a changé.' %}
 {% set error_tone = 'info' %}
 {% set error_hint = 'Code 404' %}
 
 {% block error_side %}
-<h3>Besoin d aide ?</h3>
-<p>Essayez ces options pour repartir rapidement.</p>
+<h3>Support</h3>
+<p>Vous pouvez retrouver les articles depuis l'accueil.</p>
 <ul>
-  <li><span class="error-dot"></span>Verifier l URL ou utiliser la recherche.</li>
-  <li><span class="error-dot"></span>Retourner a l accueil pour continuer vos achats.</li>
-  <li><span class="error-dot"></span>Contacter le support si la page devrait exister.</li>
+  <li><span class="error-dot"></span>Vérifiez l'adresse de la page.</li>
+  <li><span class="error-dot"></span>Recherchez l'article depuis l'accueil.</li>
+  <li><span class="error-dot"></span>Signalez le problème si un lien du site vous a conduit ici.</li>
 </ul>
 {% endblock %}
 

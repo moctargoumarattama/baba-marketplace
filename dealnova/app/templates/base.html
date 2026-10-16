@@ -1,6 +1,11 @@
-﻿{% set rtl_enabled = current_lang in (rtl_langs or []) %}
+{% set rtl_enabled = current_lang in (rtl_langs or []) %}
 {% set base_endpoint = request.endpoint or '' %}
-{% set home_tabs_enabled = config.get('UI_HOME_TABS_ENABLED', True) and request and base_endpoint in ['landing', 'shop.home'] %}
+{% set public_refresh_enabled = base_endpoint in [
+  'auth.login', 'auth.forgot_password', 'auth.public_help',
+  'shops.list_shops', 'shops.shop_detail', 'rentals.locations_home',
+  'rentals.location_detail', 'rentals.location_inquiry'
+] %}
+{% set home_tabs_enabled = False %}
 {% set page_loader_enabled = base_endpoint in [
   'shop.home',
   'shops.list_shops',
@@ -373,10 +378,15 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/ui_home_tabs.css', v=app_static_version) }}">
   <script src="{{ url_for('static', filename='js/ui_home_tabs.js', v=app_static_version) }}" defer></script>
   {% endif %}
+  {% if public_refresh_enabled %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/home_refresh.css', v=app_static_version ~ '-public-v2-header-v2-hero-v1-services-v3-discovery-v1-footer-v2-fluid-v1') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/public_refresh.css', v=app_static_version ~ '-public-v2-home-search-only-v1') }}">
+  <script src="{{ url_for('static', filename='js/home_refresh.js', v=app_static_version ~ '-textes-v1-public-v2-rotation-v1') }}" defer></script>
+  {% endif %}
   {% block head %}{% endblock %}
 </head>
 
-<body data-page="{{ request.endpoint or '' }}" data-user-role="{{ current_user.role if current_user.is_authenticated else 'guest' }}" data-lang="{{ current_lang }}" data-rtl-langs="{{ (rtl_langs or [])|join(',') }}" data-static-version="{{ app_static_version }}" data-static-root="{{ url_for('static', filename='') }}" data-session-scope="{{ pwa_session_scope }}" data-home-tabs="{{ '1' if home_tabs_enabled else '0' }}" dir="{{ 'rtl' if rtl_enabled else 'ltr' }}" {% block body_attrs %}{% endblock %}>
+<body data-public-refresh="{{ '1' if public_refresh_enabled else '0' }}" data-page="{{ request.endpoint or '' }}" data-user-role="{{ current_user.role if current_user.is_authenticated else 'guest' }}" data-lang="{{ current_lang }}" data-rtl-langs="{{ (rtl_langs or [])|join(',') }}" data-static-version="{{ app_static_version }}" data-static-root="{{ url_for('static', filename='') }}" data-session-scope="{{ pwa_session_scope }}" data-home-tabs="{{ '1' if home_tabs_enabled else '0' }}" dir="{{ 'rtl' if rtl_enabled else 'ltr' }}" {% block body_attrs %}{% endblock %}>
 {% set lang_labels = {"fr": "Français", "en": "English", "ary": "Darija"} %}
 {% set lang_codes = {"fr": "FR", "en": "EN", "ary": "DA"} %}
 {% set current_lang_label = lang_labels.get(current_lang, "Français") %}
@@ -521,6 +531,7 @@
       function resolveNavigationUrlFromTarget(target) {
         var anchor = target && target.closest ? target.closest('a[href]') : null;
         if (!anchor) return '';
+        if (anchor.matches('[data-open-product-detail], [data-open-shop-detail], [data-open-universe], [data-hub-home], [data-open-cart], [data-stop-nav]')) return '';
         if (anchor.hasAttribute('download')) return '';
         var rawHref = String(anchor.getAttribute('href') || '').trim();
         if (!rawHref || rawHref.charAt(0) === '#') return '';
@@ -815,6 +826,7 @@
     })();
   </script>
 
+  {% if public_refresh_enabled %}{% include 'partials/_public_header.html' %}{% endif %}
   <!-- NAVBAR -->
   <nav class="navbar navbar-expand-lg navbar-dark fixed-top">
     <div class="container-fluid">
@@ -837,7 +849,7 @@
               <img src="{{ url_for('static', filename=site_logo) }}" alt="{{ config.SITE_NAME }} logo" loading="lazy">
             {% endif %}
           {% else %}
-            <img src="{{ url_for('static', filename='logo.png') }}" alt="{{ config.SITE_NAME }} logo" loading="lazy">
+            <img src="{{ url_for('static', filename='images/logo-public.webp') }}" alt="{{ config.SITE_NAME }} logo" loading="lazy">
           {% endif %}
         </span>
         <span class="brand-text">{{ config.SITE_NAME }}</span>
@@ -846,12 +858,15 @@
      <!-- Right icons -->
 {% if not current_user.is_authenticated or current_user.role != "vendor" %}
 <div class="nav-icons" data-nav-badges data-cart-attn-seconds="60">
-  <a href="{{ url_for('cart.view') }}"
+  <a href="{{ 'javascript:void(0)' if request.endpoint == 'shop.home' else url_for('cart.view') }}"
      class="icon-btn"
      aria-label="{{ t('Panier') }}"
      data-cart-icon
+     data-open-cart="cart"
+     {% if request.endpoint != 'shop.home' %}
      data-requires-online
-     data-offline-message="{{ t('Connexion requise pour ouvrir le panier.') }}">
+     data-offline-message="{{ t('Connexion requise pour ouvrir le panier.') }}"
+     {% endif %}>
     <i class="bi bi-cart3"></i>
     <span class="cart-badge{% if (cart_count or 0)|int <= 0 %} d-none{% endif %}"
           data-cart-badge
@@ -878,7 +893,7 @@
         <div class="mobile-menu d-lg-none">
           <div class="drawer-top">
             <div class="drawer-brand">
-              <span class="drawer-brand-avatar"><img src="{{ url_for('static', filename='logo.png') }}" alt="{{ config.SITE_NAME }} logo" loading="lazy"></span>
+              <span class="drawer-brand-avatar"><img src="{{ url_for('static', filename='images/logo-public.webp') }}" alt="{{ config.SITE_NAME }} logo" loading="lazy"></span>
               <div class="drawer-brand-meta">
                 <strong>Baba Market</strong>
                 <small>{{ t('Marketplace') }}</small>
@@ -889,61 +904,6 @@
             </button>
           </div>
           <div class="drawer-rail" aria-hidden="true"></div>
-
-          {% if not current_user.is_authenticated or current_user.role != "vendor" %}
-          <div class="menu-section">
-            <div class="menu-title">{{ t('Commandes') }}</div>
-            <div class="quick-actions">
-              <a class="qa-card qa-primary"
-                 href="{{ url_for('cart.view') }}"
-                 data-requires-online
-                 data-offline-message="{{ t('Connexion requise pour ouvrir le panier.') }}">
-                <span class="qa-icon"><i class="bi bi-cart3"></i></span>
-                <span>{{ t('Panier') }}</span>
-                <span class="qa-badge{% if (cart_count or 0)|int <= 0 %} d-none{% endif %}" data-drawer-cart-badge>
-                  {{ (cart_count or 0)|int }}
-                </span>
-              </a>
-            </div>
-          </div>
-          {% endif %}
-
-
-{% if not current_user.is_authenticated or current_user.role != "vendor" %}
-<div class="menu-section">
-  <div class="menu-title">{{ t('Découvrir') }}</div>
-  <ul class="menu-links">
-    <li>
-      <a class="menu-link drawer-link" href="{{ url_for('landing') }}">
-        <i class="bi bi-house-door-fill"></i><span>{{ t('Accueil') }}</span>
-      </a>
-    </li>
-
-    <li>
-      <a class="menu-link drawer-link" href="{{ url_for('shop.home') }}">
-        <i class="bi bi-bag-check"></i><span>{{ t('Produits & Services') }}</span>
-      </a>
-    </li>
-    <li>
-      <a class="menu-link drawer-link" href="{{ url_for('shops.list_shops') }}">
-        <i class="bi bi-shop-window"></i><span>{{ t('Boutiques') }}</span>
-      </a>
-    </li>
-    <li>
-      <a class="menu-link drawer-link" href="{{ url_for('rentals.locations_home') }}">
-        <i class="bi bi-house-door"></i><span>{{ t('Hébergements') }}</span>
-      </a>
-    </li>
-    <li>
-      <a class="menu-link drawer-link" href="{{ delivery_loader_url }}">
-        <i class="bi bi-truck"></i><span>{{ t('Envoyer un colis') }}</span>
-      </a>
-    </li>
-  </ul>
-</div>
-
-{% endif %}
-
 
           <div class="menu-section">
             <div class="menu-title">{{ t('Connexion') }}</div>
@@ -1086,11 +1046,7 @@
               <i class="bi bi-truck"></i><span>{{ t('Livraison') }}</span>
             </a>
           </li>
-          <li class="nav-item">
-            <a class="nav-link" href="{{ url_for('global_search') }}">
-              <i class="bi bi-search"></i><span>{{ t('Recherche') }}</span>
-            </a>
-          </li>
+
           {% endif %}
         </ul>
 
@@ -1262,14 +1218,6 @@
           {% endif %}
         </ul>
 
-        <!-- Desktop search -->
-        <form class="nav-search d-none d-lg-block ms-lg-3" action="{{ url_for('shop.home') }}" role="search" style="max-width: 26.25rem;">
-          <div class="input-group">
-            <span class="input-group-text"><i class="bi bi-search"></i></span>
-            <input class="form-control" name="q" type="search"
-                   placeholder="{{ t('Rechercher...') }}" aria-label="{{ t('Rechercher') }}">
-          </div>
-        </form>
       </div>
     </div>
   </nav>
@@ -1283,22 +1231,7 @@
     <input type="hidden" name="next" id="langSwitchNext" value="{{ request.full_path if request else '/' }}">
   </form>
 
-  {% if home_tabs_enabled %}
-  <nav class="home-bottom-tabs bm-home-tabs d-lg-none" data-home-bottom-tabs aria-label="{{ t('Navigation principale mobile') }}">
-    <a href="{{ url_for('landing') }}" class="home-tab bm-home-tab {{ 'is-active' if request.endpoint == 'landing' else '' }}" data-tab-key="home">
-      <i class="bi bi-house-door-fill"></i>
-      <span>{{ t('Accueil') }}</span>
-    </a>
-    <a href="{{ url_for('global_search') }}" class="home-tab bm-home-tab {{ 'is-active' if request.endpoint == 'global_search' else '' }}" data-tab-key="search">
-      <i class="bi bi-search"></i>
-      <span>{{ t('Recherche') }}</span>
-    </a>
-    <a href="{{ delivery_loader_url }}" class="home-tab bm-home-tab" data-tab-key="delivery">
-      <i class="bi bi-truck"></i>
-      <span>{{ t('Livraison express') }}</span>
-    </a>
-  </nav>
-  {% endif %}
+
 
   <button class="back-fab" type="button" data-fallback="{{ back_fallback }}" data-back-scope="{{ back_scope }}" data-back-root="{{ '1' if back_is_root else '0' }}" aria-label="{{ t('Retour') }}">
     <i class="bi bi-arrow-left"></i>
@@ -1335,71 +1268,12 @@
     </div>
   </main>
 
-  {% if request.endpoint == 'landing' %}
-  <!-- FOOTER -->
-  <footer class="footer d-block d-lg-none" {% if home_tabs_enabled %}style="padding-bottom: calc(5.75rem + env(safe-area-inset-bottom, 0px))"{% endif %}>
-    <div class="container-fluid">
-      <div class="row g-4">
-        <!-- Brand Info -->
-        <div class="col-lg-4 col-md-6">
-          <div class="footer-brand d-flex align-items-center gap-2">
-            <img src="{{ url_for('static', filename='logo.png') }}"
-                 alt="{{ config.SITE_NAME }}"
-                 loading="lazy">
-            <span>{{ config.SITE_NAME }}</span>
-          </div>
-          <p class="text-light opacity-75 mb-3" style="font-weight: 500;">
-            {{ t('Livraison rapide à Rabat & Salé-Témara-Kénitra avec paiement à la livraison.') }}
-          </p>
-          <div class="footer-social">
-            <a href="https://www.facebook.com/share/v/1Aokzj7kPg/" aria-label="Facebook" target="_blank" rel="noopener">
-              <i class="bi bi-facebook"></i>
-            </a>
-            {% set footer_wa = (config.get('DELIVERY_WHATSAPP_NUMBER') or config.get('SUPPORT_WHATSAPP_NUMBER') or config.get('ADMIN_PHONE') or '') %}
-            <a href="https://wa.me/{{ footer_wa|replace('+','')|replace(' ','')|replace('-','')|replace('(','')|replace(')','') }}" aria-label="WhatsApp" target="_blank" rel="noopener">
-              <i class="bi bi-whatsapp"></i>
-            </a>
-          </div>
-        </div>
-
-        <!-- Contact Info -->
-        <div class="col-lg-4 col-md-6">
-          <h6>{{ t('Contact') }}</h6>
-          <div class="d-flex flex-column gap-2">
-            <div class="d-flex align-items-center gap-2 text-light opacity-75">
-              <i class="bi bi-geo-alt"></i>
-              <span>Rabat & Salé, Maroc</span>
-            </div>
-            <div class="d-flex align-items-center gap-2 text-light opacity-75">
-              <i class="bi bi-clock"></i>
-              <span>{{ t('Lun - Dim: 8h - 2h') }}</span>
-            </div>
-            <div class="d-flex align-items-center gap-2 text-light opacity-75">
-              <i class="bi bi-truck"></i>
-              <span>{{ t('Livraison 24h/24') }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Copyright -->
-      <div class="row mt-4 pt-3 border-top border-secondary">
-        <div class="col-12 text-center">
-          <p class="text-light opacity-75 mb-0 small">
-            &copy; 2026 {{ config.SITE_NAME }} - {{ t('Tous droits réservés.') }}
-          </p>
-        </div>
-      </div>
-    </div>
-  </footer>
-  {% endif %}
-
   <!-- Install Banner (soft) -->
   <div id="installBanner" class="pwa-banner hidden" role="status" aria-live="polite">
     <img class="pwa-banner__icon" src="{{ url_for('apple_touch_icon') }}" alt="" width="48" height="48">
     <div class="pwa-banner__text">
       <strong>{{ t('Installez Baba Market') }}</strong>
-      <span>{{ t("Accès instantané. Moins d'attente. Plus efficace.") }}</span>
+      <span>{{ t("Retrouvez BabaMarket sur l'écran d'accueil de votre téléphone.") }}</span>
     </div>
     <div class="pwa-banner__actions">
       <button id="pwaBannerInstall" class="pwa-btn primary" type="button">{{ t('Installer') }}</button>
@@ -1412,7 +1286,7 @@
     <img class="install-bar__icon" src="{{ url_for('apple_touch_icon') }}" alt="" width="48" height="48">
     <div class="install-bar__text">
       <div class="install-bar__title">{{ t('Installez Baba Market') }}</div>
-      <div class="install-bar__sub">{{ t('Accès instantané, plus rapide, plus fluide.') }}</div>
+      <div class="install-bar__sub">{{ t("Ajoutez BabaMarket à votre écran d'accueil.") }}</div>
     </div>
 
     <button id="androidInstallBtn" class="install-btn" type="button">{{ t('Installer maintenant') }}</button>
@@ -1426,17 +1300,17 @@
         <img class="pwa-modal__icon" src="{{ url_for('apple_touch_icon') }}" alt="{{ t('Icône Baba Market') }}" width="64" height="64">
         <div>
           <h3 id="pwaInstallTitle">{{ t('Installer Baba Market') }}</h3>
-          <p class="pwa-modal__value">{{ t("L'application avec son nom et son icône officiels.") }}</p>
+          <p class="pwa-modal__value">{{ t("Ouvrez BabaMarket depuis l'écran d'accueil de votre téléphone.") }}</p>
         </div>
       </div>
 
       <div id="pwaNativeInstallCopy">
-        <p>{{ t("Le navigateur va ouvrir sa fenêtre d'installation sécurisée. Baba Market démarrera ensuite comme une application, sans barre d'adresse.") }}</p>
+        <p>{{ t("Appuyez sur Installer, puis confirmez dans la fenêtre du navigateur.") }}</p>
       </div>
 
       <div id="iosHint" class="pwa-ios-hint hidden">
         <p class="pwa-ios-title">🍏 {{ t('Sur iPhone (Safari) :') }}</p>
-        <p id="iosBrowserWarning" class="pwa-ios-browser-warning hidden">{{ t("Ouvrez d'abord babamarket.ma dans Safari pour créer une vraie application sans barre de navigation.") }}</p>
+        <p id="iosBrowserWarning" class="pwa-ios-browser-warning hidden">{{ t("Ouvrez babamarket.ma dans Safari, puis suivez ces étapes.") }}</p>
         <ol class="pwa-ios-steps">
           <li>
             {{ t('Dans Safari, appuyez sur le bouton') }}
@@ -1468,11 +1342,12 @@
     </div>
   </div>
 
+  {% if public_refresh_enabled %}{% include 'partials/_public_bottom_nav.html' %}{% endif %}
   <!-- Scripts -->
   <script src="{{ url_for('static', filename='vendor/bootstrap/5.3.3/js/bootstrap.bundle.min.js', v=app_static_version) }}"></script>
 
   <script src="{{ url_for('static', filename='js/core/safe_refresh.js', v=app_static_version) }}"></script>
-  <script src="{{ url_for('static', filename='js/ui_shell.js', v=app_static_version) }}"></script>
+  <script src="{{ url_for('static', filename='js/ui_shell.js', v=app_static_version ~ '-textes-v1' ~ '-public-v2') }}"></script>
   <script src="{{ url_for('static', filename='js/client_welcome_notification.js', v=app_static_version) }}" defer></script>
 
   {% block scripts %}{% endblock %}

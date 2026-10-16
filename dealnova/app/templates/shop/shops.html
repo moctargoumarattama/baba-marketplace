@@ -6,36 +6,39 @@
 {% block head %}
 {{ super() }}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/shops_page.css', v=app_static_version) }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/public_listings_refresh.css', v=app_static_version ~ '-public-v2') }}">
 {% endblock %}
 
 {% block body_attrs %}data-page="shops"{% endblock %}
 
 {% block content %}
 <div class="shops-container">
+  <a href="{{ url_for('landing') }}" class="public-listings-back"><i class="bi bi-arrow-left" aria-hidden="true"></i>{{ t('Accueil') }}</a>
   <!-- En-tête -->
   <div class="shops-header">
     <div class="shops-kicker">
       <i class="bi bi-shop-window"></i>
       <span>{{ t('Boutiques') }}</span>
     </div>
-    <h1 class="shops-title">{{ t('Trouvez la bonne boutique') }}</h1>
+    <h1 class="shops-title">{{ t('Les boutiques') }}</h1>
     <p class="shops-subtitle">
-      {{ t('Explorez vite les meilleures adresses du market.') }}
+      {{ t('Recherchez une boutique ou choisissez un type d’offre.') }}
     </p>
   </div>
 
   <!-- Barre de recherche -->
   <div class="search-container-shops">
-    <form method="get" action="{{ url_for('shops.list_shops') }}" id="searchFormShops">
+    <form method="get" action="{{ url_for('shops.list_shops') }}" id="searchFormShops" role="search">
       <div class="search-wrapper-shops">
         {% if kind %}
           <input type="hidden" name="kind" value="{{ kind }}">
         {% endif %}
-        <input type="text" 
+        <input type="search"
                name="q" 
                value="{{ q }}" 
                placeholder="{{ t('Rechercher une boutique...') }}"
                class="search-input-shops"
+               aria-label="{{ t('Rechercher une boutique') }}"
                autocomplete="off"
                id="searchInputShops">
         <button type="submit" class="search-btn-shops">
@@ -46,14 +49,10 @@
     </form>
   </div>
 
-  <div class="kind-intro">
-    <i class="bi bi-stars"></i>
-    <span>{{ t('Filtrez en un geste') }}</span>
-  </div>
-
   <!-- Mini filtre: Produits / Services / Locations -->
   <div class="kind-filter-wrap" id="kindFilterWrap">
-    <div class="kind-filter" role="group" aria-label="{{ t('Filtre boutiques Produits / Services / Locations') }}">
+    <div class="kind-filter" role="group" aria-label="{{ t('Filtrer les boutiques par type d’offre') }}">
+      <button type="button" class="kind-chip {% if not kind %}active{% endif %}" data-kind="" aria-pressed="{{ 'false' if kind else 'true' }}"><span>{{ t('Toutes les boutiques') }}</span></button>
       <button type="button"
               class="kind-chip kind-physical {% if kind == 'physical' %}active{% endif %}"
               data-kind="physical"
@@ -76,15 +75,6 @@
         <span>{{ t('Locations') }}</span>
       </button>
     </div>
-    <div class="kind-all-label {% if kind %}kind-hidden{% endif %}" id="kindAllLabel">{{ t('Tout') }}</div>
-  </div>
-
-  <!-- Bouton retour -->
-  <div class="btn-back-container">
-    <a href="{{ url_for('shop.home') }}" class="btn-back">
-      <i class="bi bi-arrow-left"></i>
-      {{ t('Retour au market') }}
-    </a>
   </div>
 
   <!-- Grille de boutiques -->

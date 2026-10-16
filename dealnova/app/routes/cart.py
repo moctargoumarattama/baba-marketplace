@@ -626,6 +626,8 @@ def get_cart_summary(cart=None):
 # =====================================================
 @bp.route("/")
 def view():
+    if not _is_ajax_request():
+        return redirect(url_for("shop.home", open="cart"))
     cart = get_cart()
     items, total_cents = [], 0
     missing = False
@@ -1005,6 +1007,107 @@ def cart_summary():
     return jsonify(summary)
 
 
+@bp.route("/api/full")
+def cart_full():
+    """Retourne l'état complet du panier et les groupes WhatsApp checkout pour le Smart Drawer."""
+    cart = get_cart()
+    if not isinstance(cart, dict):
+        cart = {}
+
+    product_map, promo_map = _get_cached_cart_data(cart, include_shop=True, include_category=True)
+    _remove_service_items_from_cart(cart, product_map)
+
+    items = []
+    checkout_items = []
+    total_cents = 0
+
+    for pid_str, raw_qty in cart.items():
+        try:
+            pid = int(pid_str)
+            qty = _safe_cart_quantity(raw_qty)
+            if qty <= 0:
+                continue
+            product = product_map.get(pid)
+            if not product or _is_service_product(product):
+                continue
+
+            item_price_cents = final_price_cents(product, promo_map.get(pid))
+            final_price = float(cents_to_money(item_price_cents))
+            item_total_cents = qty * item_price_cents
+            total_cents += item_total_cents
+
+            raw_imgs = (product.image_file or "").split("|") if product.image_file else []
+            first_img = raw_imgs[0].strip() if raw_imgs else ""
+            shop = getattr(product, "shop", None)
+
+            item_dict = {
+                "id": product.id,
+                "name": product.name,
+                "image": first_img,
+                "quantity": qty,
+                "unit_price": final_price,
+                "unit_price_cents": item_price_cents,
+                "unit_price_label": _format_money(item_price_cents),
+                "line_total": float(cents_to_money(item_total_cents)),
+                "line_total_cents": item_total_cents,
+                "line_total_label": _format_money(item_total_cents),
+                "stock": getattr(product, "stock", None),
+                "shop_id": getattr(shop, "id", None),
+                "shop_name": getattr(shop, "name", "Boutique"),
+                "product": product,
+            }
+            items.append(item_dict)
+            checkout_items.append(item_dict)
+        except Exception:
+            continue
+
+    # Calcul des groupes WhatsApp de checkout
+    shop_groups_data = []
+    if checkout_items:
+        try:
+            checkout_res = prepare_vendor_whatsapp_checkout(checkout_items, {})
+            for g in checkout_res.get("shop_groups", []):
+                shop = g.get("shop")
+                g_items = []
+                for it in g.get("items", []):
+                    prod = it.get("product")
+                    g_items.append({
+                        "name": getattr(prod, "name", "Article"),
+                        "quantity": it.get("quantity", 1),
+                        "line_total": float(cents_to_money(it.get("line_total_cents", 0))),
+                        "line_total_label": it.get("line_total_label", "0 DH"),
+                    })
+                shop_groups_data.append({
+                    "shop_id": g.get("shop_id") or (shop.id if shop else None),
+                    "shop_name": g.get("shop_name") or (shop.name if shop else "Boutique"),
+                    "shop_logo": getattr(shop, "logo", None) if shop else None,
+                    "phone_available": bool(g.get("phone_available")),
+                    "phone_raw": g.get("phone_raw") or "",
+                    "whatsapp_url": g.get("whatsapp_url") or "",
+                    "subtotal": float(cents_to_money(g.get("subtotal_cents", 0))),
+                    "subtotal_label": g.get("subtotal_label", "0 DH"),
+                    "items": g_items,
+                    "items_count": g.get("items_count", len(g_items)),
+                })
+        except Exception:
+            current_app.logger.exception("cart_full_checkout_groups_error")
+
+    clean_items = []
+    for it in items:
+        clean_it = {k: v for k, v in it.items() if k != "product"}
+        clean_items.append(clean_it)
+
+    return jsonify({
+        "success": True,
+        "count": sum(it["quantity"] for it in clean_items),
+        "total": float(cents_to_money(total_cents)),
+        "total_label": _format_money(total_cents),
+        "items": clean_items,
+        "shop_groups": shop_groups_data,
+        "multiple_shops": len(shop_groups_data) > 1,
+    })
+
+
 @bp.route("/api/nav-status")
 def nav_status():
     try:
@@ -1069,6 +1172,8 @@ def _physical_cart_items_for_checkout(cart, product_map, promo_map):
 @rate_limit(limit=20, window_seconds=300, key_prefix="checkout", methods=("POST",))
 def checkout():
     if request.method == "GET":
+        if not _is_ajax_request():
+            return redirect(url_for("shop.home", open="checkout"))
         return _render_whatsapp_checkout_page()
     return whatsapp_checkout()
 

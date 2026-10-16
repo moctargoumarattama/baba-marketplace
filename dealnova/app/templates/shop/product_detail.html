@@ -3,12 +3,12 @@
 {% set product_valid_imgs = product_imgs|select|list %}
 {% set product_main_img = (product_valid_imgs[0] if product_valid_imgs and product_valid_imgs[0] else None) %}
 {% set product_share_url = url_for('shop.product_detail', pid=product.id, _external=True) %}
-{% set product_share_title = product.name ~ " | " ~ (product.shop.name if product.shop else "BabaMarket") ~ " | BabaMarket" %}
-{% set product_share_description = (product.description or ("Découvrez " ~ product.name ~ " sur BabaMarket."))|striptags|trim %}
+{% set product_share_title = product.name ~ (" | " ~ product.shop.name if product.shop else "") ~ " | Baba Market" %}
+{% set product_share_description = (product.description or product.name)|striptags|trim %}
 {% set product_share_image_rel = ('uploads/' ~ image_variant(product_main_img, 'large')) if product_main_img else (('uploads/' ~ product.shop.logo) if product.shop and product.shop.logo else 'images/produit.jpeg') %}
 {% set product_share_image_url = request.url_root.rstrip('/') ~ url_for('static', filename=product_share_image_rel) %}
 
-{% block title %}{{ product.name }} | DealNova{% endblock %}
+{% block title %}{{ product.name }} | Baba Market{% endblock %}
 
 {% block head %}
 {{ super() }}
@@ -68,7 +68,7 @@
             </span>
             {% else %}
             <span class="badge bg-danger">
-              <i class="bi bi-x-circle"></i> Rupture
+              <i class="bi bi-x-circle"></i> Rupture de stock
             </span>
             {% endif %}
           {% endif %}
@@ -83,11 +83,11 @@
         </a>
         {% if product.shop.is_verified %}
         <span class="badge bg-success">
-            <i class="bi bi-check-circle-fill"></i> Vérifié
+            <i class="bi bi-check-circle-fill"></i> Vérifiée
         </span>
         {% endif %}
         <span class="text-muted ms-2">
-            <i class="bi bi-star-fill text-warning"></i> {{ product.shop.rating|round(1) if product.shop.rating else "Nouveau" }}
+            <i class="bi bi-star-fill text-warning"></i> {{ product.shop.rating|round(1) if product.shop.rating else "Pas encore d’avis" }}
         </span>
     </div>
 </div>
@@ -122,7 +122,7 @@
                target="_blank"
                rel="noopener"
                class="btn btn-outline-info w-100">
-                <i class="bi bi-geo-alt"></i> Ouvrir localisation exacte
+                <i class="bi bi-geo-alt"></i> Voir sur la carte
             </a>
             {% if product.shop.service_location_note %}
             <div class="small text-muted mt-2">
@@ -162,7 +162,7 @@
           {% if product_video %}
           <span class="gallery-meta-chip">
             <i class="bi bi-play-circle"></i>
-            1 video
+            1 vidéo
           </span>
           {% endif %}
           {% if valid_imgs|length > 1 %}
@@ -181,17 +181,17 @@
                     class="product-main-image"
                     style="height:auto; max-height:560px; background:#0f172a;"{% if product_video_poster %} poster="{{ product_video_poster }}"{% endif %}>
               <source src="{{ url_for('static', filename=product_video) }}"{% if product_video_mime.get(product_video_ext) %} type="{{ product_video_mime.get(product_video_ext) }}"{% endif %}>
-              Votre navigateur ne peut pas lire cette video.
+              Votre navigateur ne peut pas lire cette vidéo.
             </video>
             <div class="product-video-badge" aria-hidden="true">
               <i class="bi bi-play-fill"></i>
-              <span>Video</span>
+              <span>Vidéo</span>
             </div>
             <div class="product-video-fallback" id="productVideoFallback" hidden>
               <div class="product-video-fallback-inner">
                 <i class="bi bi-play-btn"></i>
-                <strong>Video indisponible</strong>
-                <span>Cette video ne peut pas etre lue pour le moment.</span>
+                <strong>Vidéo indisponible</strong>
+                <span>Cette vidéo ne peut pas être lue pour le moment.</span>
               </div>
             </div>
           </div>
@@ -223,10 +223,10 @@
                   data-ajax="true"
                   data-action="add-to-cart"
                   data-success-message="Ouverture du panier"
-                  aria-label="Commander directement depuis la photo">
+                  aria-label="Ajouter au panier et ouvrir le panier">
               {% include "partials/_csrf.html" %}
               <input type="hidden" name="post_add_redirect" value="cart">
-              <button type="submit" class="photo-cart-cta photo-cart-cta--direct" title="Commander maintenant">
+              <button type="submit" class="photo-cart-cta photo-cart-cta--direct" title="Ajouter au panier et ouvrir le panier">
                 <i class="bi bi-lightning-charge-fill"></i>
               </button>
               <span class="photo-cart-cta-chip">Commander</span>
@@ -236,7 +236,7 @@
             <div class="d-flex align-items-center justify-content-center bg-light rounded-2 main-image-fallback">
               <div class="text-center">
                 <i class="bi bi-image text-muted display-4"></i>
-                <p class="text-muted mt-2">Image non disponible</p>
+                <p class="text-muted mt-2">Photo indisponible</p>
               </div>
             </div>
           {% endif %}
@@ -267,11 +267,13 @@
       <div class="bg-white rounded-3 shadow-sm p-3 p-lg-4 h-100 detail-card info-card animate-in" style="--delay: .12s">
         <!-- Catégorie et Vendeur -->
         <div class="d-flex justify-content-between align-items-center mb-3">
+          {% if product.category %}
           <span class="badge bg-light text-dark border">
-            <i class="bi bi-tag"></i> {{ product.category.name if product.category else 'Non catégorisé' }}
+            <i class="bi bi-tag"></i> {{ product.category.name }}
           </span>
+          {% endif %}
           <small class="text-muted vendor-identity">
-            <i class="bi bi-shop"></i> {{ product.vendor.username if product.vendor else 'DealNova' }}
+            <i class="bi bi-shop"></i> {{ product.vendor.username if product.vendor else 'Baba Market' }}
           </small>
         </div>
 
@@ -286,12 +288,12 @@
               <span class="text-muted text-decoration-line-through ms-3">{{ product.price }} MAD</span>
             </div>
             <small class="text-success">
-              <i class="bi bi-piggy-bank"></i> Economisez {{ (product.price - final)|round(2) }} MAD
+              <i class="bi bi-piggy-bank"></i> Réduction de {{ (product.price - final)|round(2) }} MAD
             </small>
           {% else %}
             <span class="h2 fw-bold text-primary">{{ product.price }} MAD</span>
           {% endif %}
-          <p class="text-muted small mb-0 mt-1">{{ 'Tarif service' if product.kind == 'service' else '' }}</p>
+          {% if product.kind == 'service' %}<p class="text-muted small mb-0 mt-1">Tarif du service</p>{% endif %}
         </div>
 
         <!-- Stock / Réservation -->
@@ -307,7 +309,7 @@
               <div class="col-6">
                 <div class="border rounded-2 p-3 text-center">
                   <i class="bi bi-whatsapp fs-4 text-success mb-2"></i>
-                  <p class="mb-1 fw-semibold small">Confirmation WhatsApp</p>
+                  <p class="mb-1 fw-semibold small">Contact par WhatsApp</p>
                 </div>
               </div>
             {% else %}
@@ -318,9 +320,9 @@
                     {% if product.stock > 10 %}
                       En stock
                     {% elif product.stock > 0 %}
-                      Derniers {{ product.stock }}
+                      {{ product.stock }} en stock
                     {% else %}
-                      Rupture
+                      Rupture de stock
                     {% endif %}
                   </p>
                 </div>
@@ -328,7 +330,7 @@
               <div class="col-6">
                 <div class="border rounded-2 p-3 text-center">
                   <i class="bi bi-truck fs-4 text-success mb-2"></i>
-                  <p class="mb-1 fw-semibold small">Livraison instantané-24h</p>
+                  <p class="mb-1 fw-semibold small">Livraison</p>
                 </div>
               </div>
             {% endif %}
@@ -345,7 +347,7 @@
               <a href="{{ url_for('vendor.dashboard') }}" class="btn btn-outline-secondary flex-fill">
                 <i class="bi bi-speedometer2 me-2"></i>
                 <span class="d-inline d-md-none">Espace vendeur</span>
-                <span class="d-none d-md-inline">Dashboard vendeur</span>
+                <span class="d-none d-md-inline">Espace vendeur</span>
               </a>
             {% elif product.kind == 'service' %}
               {% if shop_is_open_now %}
@@ -356,10 +358,10 @@
                 <a href="{{ url_for('booking.book', pid=product.id) }}" class="btn btn-success btn-lg">
                   <i class="bi bi-whatsapp me-2"></i>Demander un rendez-vous
                 </a>
-                <div class="small text-muted">Boutique fermée actuellement → demande via WhatsApp.</div>
+                <div class="small text-muted">La boutique est fermée. Vous pouvez envoyer une demande par WhatsApp.</div>
               {% else %}
                 <button type="button" class="btn btn-secondary btn-lg" disabled>
-                  <i class="bi bi-exclamation-triangle me-2"></i>Contact boutique manquant
+                  <i class="bi bi-exclamation-triangle me-2"></i>Contact indisponible
                 </button>
               {% endif %}
             {% elif product.stock > 0 %}
@@ -369,7 +371,7 @@
                       class="d-inline"
                       data-ajax="true"
                       data-action="add-to-cart"
-                      data-success-message="Produit ajoute au panier">
+                      data-success-message="Produit ajouté au panier">
                   {% include "partials/_csrf.html" %}
                   <button type="submit" class="btn btn-primary btn-lg cta-add-main">
                     <span class="cta-add-main-icon"><i class="bi bi-cart-plus"></i></span>
@@ -395,7 +397,7 @@
                       data-share-title="{{ product_share_title }}"
                       data-share-text="{{ product_share_description[:180] }}"
                       data-share-url="{{ product_share_url }}"
-                      data-share-copied-message="Lien du produit copie">
+                      data-share-copied-message="Lien copié">
                 <i class="bi bi-share me-2"></i>Partager ce produit
               </button>
               <a href="{{ url_for('shop.home', kind='service' if product.kind == 'service' else 'physical') }}" class="btn btn-outline-secondary flex-fill">
@@ -417,58 +419,6 @@
           </div>
         </div>
 
-        <!-- Garanties / Infos -->
-        <div class="border-top pt-3">
-          {% if product.kind == 'service' %}
-            <h6 class="fw-bold mb-3">
-              <i class="bi bi-info-circle text-primary me-2"></i>Informations
-            </h6>
-            <div class="row g-2 text-center">
-              <div class="col-4">
-                <div class="p-2">
-                  <i class="bi bi-calendar-check text-primary fs-5"></i>
-                  <p class="small mb-0">Rendez-vous</p>
-                </div>
-              </div>
-              <div class="col-4">
-                <div class="p-2">
-                  <i class="bi bi-whatsapp text-success fs-5"></i>
-                  <p class="small mb-0">WhatsApp</p>
-                </div>
-              </div>
-              <div class="col-4">
-                <div class="p-2">
-                  <i class="bi bi-shield-check text-success fs-5"></i>
-                  <p class="small mb-0">Prestataire</p>
-                </div>
-              </div>
-            </div>
-          {% else %}
-            <h6 class="fw-bold mb-3">
-              <i class="bi bi-shield-check text-success me-2"></i>Garanties
-            </h6>
-            <div class="row g-2 text-center">
-              <div class="col-4">
-                <div class="p-2">
-                  <i class="bi bi-shield-check text-success fs-5"></i>
-                  <p class="small mb-0">Qualité</p>
-                </div>
-              </div>
-              <div class="col-4">
-                <div class="p-2">
-                  <i class="bi bi-arrow-repeat text-primary fs-5"></i>
-                  <p class="small mb-0">Support</p>
-                </div>
-              </div>
-              <div class="col-4">
-                <div class="p-2">
-                  <i class="bi bi-truck text-warning fs-5"></i>
-                  <p class="small mb-0">Livraison</p>
-                </div>
-              </div>
-            </div>
-          {% endif %}
-        </div>
       </div>
     </div>
   </div>
@@ -524,7 +474,7 @@
                 </small>
               {% elif related.stock <= 5 and related.stock > 0 %}
                 <small class="text-warning">
-                  <i class="bi bi-exclamation-triangle"></i> Derniers {{ related.stock }}
+                  <i class="bi bi-exclamation-triangle"></i> {{ related.stock }} en stock
                 </small>
               {% endif %}
             </div>

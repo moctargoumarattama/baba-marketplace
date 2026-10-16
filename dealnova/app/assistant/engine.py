@@ -16,6 +16,7 @@ from ..models.shop import Shop
 from ..services.cache import get_categories
 from ..services.marketplace_feed import search_public_locations, search_public_products
 from ..services.pricing import cents_to_money, final_price_cents, get_active_promos_for_products
+from ..services.public_text import clean_shop_description
 from ..services.support_whatsapp import build_support_whatsapp_url
 
 ASSISTANT_SESSION_KEY = "assistant_state_v2"
@@ -331,8 +332,8 @@ def _main_quick_replies() -> list[dict[str, str]]:
         {"label": "Trouver une location", "action": "find_locations"},
         {"label": "Trouver une boutique", "action": "find_shops"},
         {"label": "Devenir vendeur", "action": "become_vendor"},
-        {"label": "Besoin livraison", "action": "help_delivery"},
-        {"label": "Parler a un humain", "action": "handoff"},
+        {"label": "Organiser une livraison", "action": "help_delivery"},
+        {"label": "Contacter un conseiller", "action": "handoff"},
     ]
 
 
@@ -343,7 +344,14 @@ def _category_quick_replies(kind: str) -> list[dict[str, str]]:
         CATALOG_KIND_LOCATIONS: LOCATION_SUGGESTIONS,
     }
     values = mapping.get(kind, PRODUCT_SUGGESTIONS)
-    quick = [{"label": value.title(), "action": "catalog_query", "value": value} for value in values]
+    labels = {
+        "beaute": "Beauté",
+        "vetements": "Vêtements",
+        "esthetique": "Esthétique",
+        "menage": "Ménage",
+        "reparation": "Réparation",
+    }
+    quick = [{"label": labels.get(value, value.title()), "action": "catalog_query", "value": value} for value in values]
     quick.append({"label": "Sans filtre", "action": "catalog_query", "value": "__any__"})
     return quick
 
@@ -356,7 +364,10 @@ def _budget_quick_replies(kind: str) -> list[dict[str, str]]:
     replies: list[dict[str, str]] = []
     for budget in budgets:
         if budget is None:
-            replies.append({"label": "Sans limite", "action": "catalog_budget", "value": "none"})
+            replies.append(
+                {"label": f"Jusqu'à {DEFAULT_MAX_BUDGET_DH:,} DH".replace(",", " "),
+                 "action": "catalog_budget", "value": "none"}
+            )
         else:
             replies.append(
                 {"label": f"{int(budget)} DH", "action": "catalog_budget", "value": str(int(budget))}
@@ -365,20 +376,21 @@ def _budget_quick_replies(kind: str) -> list[dict[str, str]]:
 
 
 def _city_quick_replies() -> list[dict[str, str]]:
-    return [{"label": city, "action": "delivery_city", "value": city} for city in CITY_SUGGESTIONS]
+    labels = {"Sale": "Salé", "Kenitra": "Kénitra", "Temara": "Témara"}
+    return [{"label": labels.get(city, city), "action": "delivery_city", "value": city} for city in CITY_SUGGESTIONS]
 
 
 def _handoff_payload() -> dict[str, Any]:
     lines = [
-        "Bonjour, je souhaite parler a un conseiller Baba Market.",
-        "Pouvez-vous m'aider s'il vous plait ?",
+        "Bonjour, je souhaite parler à un conseiller Baba Market.",
+        "Pouvez-vous m'aider, s'il vous plaît ?",
     ]
-    return {"label": "Contacter un humain sur WhatsApp", "url": build_support_whatsapp_url(lines)}
+    return {"label": "Contacter un conseiller sur WhatsApp", "url": build_support_whatsapp_url(lines)}
 
 
 def _delivery_handoff_payload() -> dict[str, Any]:
     return {
-        "label": "Contacter livraison sur WhatsApp",
+        "label": "Contacter le service livraison sur WhatsApp",
         "url": url_for("shop.delivery_whatsapp_loader", back=url_for("shop.home")),
     }
 
@@ -386,8 +398,8 @@ def _delivery_handoff_payload() -> dict[str, Any]:
 def _menu_response() -> dict[str, Any]:
     return {
         "text": (
-            "Bonjour ! Assistant Baba Market a votre service.\n"
-            "Je peux vous aider pour Produits, Services, Locations, Boutiques et Livraison."
+            "Bonjour ! Que recherchez-vous ?\n"
+            "Choisissez une option ou écrivez votre demande."
         ),
         "quick_replies": _main_quick_replies(),
     }
@@ -396,14 +408,14 @@ def _menu_response() -> dict[str, Any]:
 def assistant_bootstrap() -> dict[str, Any]:
     _reset_state()
     payload = _menu_response()
-    payload["hint"] = "Choisissez une option ou ecrivez votre besoin."
+    payload["hint"] = "Choisissez une option ou écrivez votre demande."
     return payload
 
 
 def _delivery_hours_text() -> str:
     return current_app.config.get(
         "ASSISTANT_DELIVERY_HOURS_TEXT",
-        "Livraison disponible tous les jours de 8h a 3h du matin, selon disponibilite du livreur.",
+        "Livraison tous les jours de 8 h à 3 h du matin, selon la disponibilité des livreurs.",
     )
 
 
@@ -424,7 +436,7 @@ def _start_catalog_flow(state: dict[str, Any], kind: str) -> dict[str, Any]:
     state["context"] = {"kind": kind}
     _save_state(state)
     return {
-        "text": f"Super. Que cherchez-vous en {kind_label} ?",
+        "text": f"Que recherchez-vous parmi les {kind_label} ?",
         "quick_replies": _category_quick_replies(kind),
     }
 
@@ -454,7 +466,7 @@ def _shop_search_quick_replies() -> list[dict[str, str]]:
         {"label": "Trouver un produit", "action": "find_products"},
         {"label": "Trouver un service", "action": "find_services"},
         {"label": "Trouver une location", "action": "find_locations"},
-        {"label": "Parler a un humain", "action": "handoff"},
+        {"label": "Contacter un conseiller", "action": "handoff"},
     ]
 
 
@@ -524,8 +536,8 @@ def _search_shops_by_name(query_text: str) -> list[dict[str, Any]]:
         if shop.allows("location"):
             universes.append("Locations")
         universe_label = ", ".join(universes) if universes else "Boutique"
-        verification_label = "Verifiee" if bool(getattr(shop, "is_verified", False)) else "Active"
-        description = (getattr(shop, "description", "") or "").strip()
+        verification_label = "Vérifiée" if bool(getattr(shop, "is_verified", False)) else "Boutique"
+        description = clean_shop_description(getattr(shop, "description", "")).strip()
         description = description[:90] if description else universe_label
 
         cards.append(
@@ -551,14 +563,14 @@ def _shop_search_response(
         if not include_empty_feedback:
             return None
         return {
-            "text": "Donnez-moi au moins 2 lettres du nom de la boutique.",
+            "text": "Saisissez au moins 2 lettres du nom de la boutique.",
             "quick_replies": _shop_search_quick_replies(),
         }
 
     cards = _search_shops_by_name(raw_query)
     if cards:
         return {
-            "text": f"J'ai trouve {len(cards)} boutique(s) pour '{raw_query}'.",
+            "text": f"Voici les boutiques trouvées pour « {raw_query} ».",
             "items": cards,
             "quick_replies": _shop_search_quick_replies(),
         }
@@ -568,8 +580,8 @@ def _shop_search_response(
 
     return {
         "text": (
-            f"Aucune boutique trouvee pour '{raw_query}'. "
-            "Essayons une autre recherche ?"
+            f"Aucune boutique trouvée pour « {raw_query} ». "
+            "Essayez un autre nom."
         ),
         "quick_replies": _shop_search_quick_replies(),
     }
@@ -581,7 +593,7 @@ def _start_shop_flow(state: dict[str, Any]) -> dict[str, Any]:
     state["context"] = {}
     _save_state(state)
     return {
-        "text": "D'accord. Donnez-moi le nom de la boutique a trouver.",
+        "text": "Quel est le nom de la boutique que vous recherchez ?",
         "quick_replies": _shop_search_quick_replies(),
     }
 
@@ -595,7 +607,7 @@ def _shop_query_step(state: dict[str, Any], query_text: str) -> dict[str, Any]:
     if response is not None:
         return response
     return {
-        "text": "Je n'ai pas trouve de boutique pour cette recherche.",
+        "text": "Aucune boutique trouvée. Essayez un autre nom.",
         "quick_replies": _shop_search_quick_replies(),
     }
 
@@ -660,7 +672,7 @@ def _search_products_or_services(
                 "subtitle": f"{shop_label} | {final_price_dh:.2f} DH",
                 "meta": f"{category_name} | Note {rating:.1f}" if category_name else f"Note {rating:.1f}" if rating else "Nouveau",
                 "url": url_for("shop.product_detail", pid=product.id),
-                "cta": "Voir details",
+                "cta": "Voir les détails",
             }
         )
     return cards
@@ -715,7 +727,7 @@ def _search_locations(query_terms: list[str], budget_max_dh: int) -> list[dict[s
                 "subtitle": f"{city} | {rent_dh:.2f} DH ({rent_type})",
                 "meta": f"{shop_label} | Note {rating:.1f}" if rating else shop_label,
                 "url": url_for("rentals.location_detail", slug=listing.slug),
-                "cta": "Voir details",
+                "cta": "Voir les détails",
             }
         )
     return cards
@@ -790,7 +802,7 @@ def _search_products_or_services_via_api(
                     "subtitle": f"{subtitle_shop} | {price_value:.2f} DH",
                     "meta": meta,
                     "url": target_url,
-                    "cta": "Voir details",
+                    "cta": "Voir les détails",
                 }
             )
             seen.add(item_id)
@@ -842,7 +854,7 @@ def _search_locations_via_api(
                     "subtitle": f"{city_label} | {rent_dh:.2f} DH ({rent_type_label})",
                     "meta": str(row.get("shop_name") or "Annonce"),
                     "url": str(row.get("url") or ""),
-                    "cta": "Voir details",
+                    "cta": "Voir les détails",
                 }
             )
             seen.add(listing_id)
@@ -914,7 +926,7 @@ def _catalog_query_step(state: dict[str, Any], choice_text: str) -> dict[str, An
         if preferred_kind and preferred_kind != kind:
             kind = preferred_kind
             auto_switched_note = (
-                "J'ai detecte un besoin plus pertinent dans cet univers, je bascule automatiquement."
+                "Votre demande semble correspondre à une autre catégorie. Je vais y chercher des offres."
             )
 
     state["step"] = "await_budget"
@@ -925,11 +937,11 @@ def _catalog_query_step(state: dict[str, Any], choice_text: str) -> dict[str, An
     if query_text:
         prefix = f"{auto_switched_note}\n" if auto_switched_note else ""
         return {
-            "text": f"{prefix}Parfait. Quel budget max pour '{query_text}' ?",
+            "text": f"{prefix}Quel est votre budget maximum pour « {query_text} » ?",
             "quick_replies": _budget_quick_replies(kind),
         }
     return {
-        "text": "Parfait. Quel budget max souhaitez-vous ?",
+        "text": "Quel est votre budget maximum ?",
         "quick_replies": _budget_quick_replies(kind),
     }
 
@@ -939,7 +951,7 @@ def _catalog_budget_step(state: dict[str, Any], choice_text: str) -> dict[str, A
     if budget is None:
         kind = str(state.get("context", {}).get("kind") or CATALOG_KIND_PRODUCTS)
         return {
-            "text": "Je n'ai pas compris le budget. Choisissez une option ou ecrivez un montant en DH.",
+            "text": "Indiquez un montant en DH ou choisissez un budget ci-dessous.",
             "quick_replies": _budget_quick_replies(kind),
         }
 
@@ -972,14 +984,14 @@ def _catalog_budget_step(state: dict[str, Any], choice_text: str) -> dict[str, A
     if not cards:
         return {
             "text": (
-                "Aucun resultat trouve avec ce filtre dans les donnees actuelles de l'application. "
-                "Voulez-vous changer de recherche ?"
+                "Aucune offre trouvée pour cette recherche et ce budget. "
+                "Essayez un autre mot ou augmentez votre budget."
             ),
             "quick_replies": [
-                {"label": "Essayer Produits", "action": "find_products"},
-                {"label": "Essayer Services", "action": "find_services"},
-                {"label": "Essayer Locations", "action": "find_locations"},
-                {"label": "Parler a un humain", "action": "handoff"},
+                {"label": "Chercher un produit", "action": "find_products"},
+                {"label": "Chercher un service", "action": "find_services"},
+                {"label": "Chercher une location", "action": "find_locations"},
+                {"label": "Contacter un conseiller", "action": "handoff"},
             ],
         }
 
@@ -987,18 +999,18 @@ def _catalog_budget_step(state: dict[str, Any], choice_text: str) -> dict[str, A
         CATALOG_KIND_PRODUCTS: "produits",
         CATALOG_KIND_SERVICES: "services",
         CATALOG_KIND_LOCATIONS: "locations",
-    }.get(result_kind, "resultats")
-    lead = "Voici des suggestions adaptees :"
+    }.get(result_kind, "offres")
+    lead = "Voici les résultats de votre recherche :"
     if result_kind != kind:
-        lead = f"Aucun resultat dans le type choisi. Je vous propose des {type_label} adaptes :"
+        lead = f"Aucun résultat dans la catégorie choisie. Voici des {type_label} qui peuvent correspondre :"
 
     return {
-        "text": f"{lead}\nTotal: {len(cards)} resultat(s).",
+        "text": lead,
         "items": cards,
         "quick_replies": [
-            {"label": "Modifier recherche", "action": "start"},
-            {"label": "Besoin livraison", "action": "help_delivery"},
-            {"label": "Parler a un humain", "action": "handoff"},
+            {"label": "Nouvelle recherche", "action": "start"},
+            {"label": "Organiser une livraison", "action": "help_delivery"},
+            {"label": "Contacter un conseiller", "action": "handoff"},
         ],
     }
 
@@ -1009,22 +1021,22 @@ def _start_delivery_flow(state: dict[str, Any]) -> dict[str, Any]:
     state["context"] = {}
     _save_state(state)
     return {
-        "text": "Pour la livraison, dans quelle ville etes-vous ?",
+        "text": "Dans quelle ville souhaitez-vous être livré ?",
         "quick_replies": _city_quick_replies(),
     }
 
 
 def _delivery_city_step(state: dict[str, Any], city_text: str) -> dict[str, Any]:
     city = city_text.strip().title() if city_text else "Votre ville"
+    city_label = {"Sale": "Salé", "Kenitra": "Kénitra", "Temara": "Témara"}.get(city, city)
     state["flow"] = FLOW_DELIVERY
     state["step"] = STEP_DELIVERY_AWAIT_HANDOFF_CONFIRMATION
     state["context"] = {"city": city}
     _save_state(state)
     return {
         "text": (
-            f"Bien note pour {city}. {_delivery_hours_text()}\n"
-            "Je peux vous mettre en relation directe avec le service livraison.\n"
-            "Souhaitez-vous que je le fasse maintenant ? (oui/non)"
+            f"Livraison à {city_label}. {_delivery_hours_text()}\n"
+            "Voulez-vous contacter le service livraison sur WhatsApp ? (oui/non)"
         ),
         "quick_replies": [
             {"label": "Oui", "action": "delivery_confirm", "value": "yes"},
@@ -1032,19 +1044,20 @@ def _delivery_city_step(state: dict[str, Any], city_text: str) -> dict[str, Any]
             {"label": "Trouver un produit", "action": "find_products"},
             {"label": "Trouver un service", "action": "find_services"},
             {"label": "Trouver une location", "action": "find_locations"},
-            {"label": "Parler a un humain", "action": "handoff"},
+            {"label": "Contacter un conseiller", "action": "handoff"},
         ],
     }
 
 
 def _delivery_confirm_step(state: dict[str, Any]) -> dict[str, Any]:
     city = str(state.get("context", {}).get("city") or "votre ville")
+    city_label = {"Sale": "Salé", "Kenitra": "Kénitra", "Temara": "Témara"}.get(city, city)
     state["flow"] = None
     state["step"] = None
     state["context"] = {}
     _save_state(state)
     return {
-        "text": f"Parfait. Je vous mets en relation pour la livraison sur {city}.",
+        "text": f"Contactez le service livraison sur WhatsApp pour organiser votre livraison à {city_label}.",
         "handoff": _delivery_handoff_payload(),
         "quick_replies": _main_quick_replies(),
     }
@@ -1056,7 +1069,7 @@ def _delivery_decline_step(state: dict[str, Any]) -> dict[str, Any]:
     state["context"] = {}
     _save_state(state)
     return {
-        "text": "D'accord, pas de souci. Je reste disponible si vous avez besoin.",
+        "text": "Vous pourrez contacter le service livraison plus tard. Que recherchez-vous ?",
         "quick_replies": _main_quick_replies(),
     }
 
@@ -1138,7 +1151,7 @@ def assistant_reply(*, message: str | None, action: str | None = None, value: st
 
     if action == "handoff" or _is_handoff_request(text):
         return {
-            "text": "D'accord. Je vous mets en relation avec un conseiller humain.",
+            "text": "Utilisez le lien ci-dessous pour contacter un conseiller sur WhatsApp.",
             "handoff": _handoff_payload(),
             "quick_replies": _main_quick_replies(),
         }
@@ -1151,7 +1164,7 @@ def assistant_reply(*, message: str | None, action: str | None = None, value: st
 
     if action == "become_vendor":
         return {
-            "text": "Parfait. Je vous redirige vers la page Devenir vendeur.",
+            "text": "Ouverture de la page pour devenir vendeur…",
             "redirect_url": url_for("auth.vendor_access"),
         }
 
@@ -1198,7 +1211,7 @@ def assistant_reply(*, message: str | None, action: str | None = None, value: st
         if _is_no_intent(choice):
             return _delivery_decline_step(state)
         return {
-            "text": "Je n'ai pas compris. Repondez juste par oui ou non.",
+            "text": "Souhaitez-vous contacter le service livraison ? Répondez par oui ou non.",
             "quick_replies": [
                 {"label": "Oui", "action": "delivery_confirm", "value": "yes"},
                 {"label": "Non", "action": "delivery_decline", "value": "no"},
@@ -1221,24 +1234,24 @@ def assistant_reply(*, message: str | None, action: str | None = None, value: st
         return _start_shop_flow(state)
     if _is_vendor_onboarding_intent(text):
         return {
-            "text": "Parfait. Je vous redirige vers la page Devenir vendeur.",
+            "text": "Ouverture de la page pour devenir vendeur…",
             "redirect_url": url_for("auth.vendor_access"),
         }
     if _is_delivery_faq(text):
         return _faq_delivery_response()
     if _is_yes_intent(text):
         return {
-            "text": "Super. Dites-moi votre besoin: Produits, Services, Locations, Boutiques ou Livraison.",
+            "text": "Que recherchez-vous : un produit, un service, une location, une boutique ou une livraison ?",
             "quick_replies": _main_quick_replies(),
         }
     if _is_no_intent(text):
         return {
-            "text": "D'accord. Je reste disponible pour vous aider quand vous voulez.",
+            "text": "Vous pouvez choisir une option ci-dessous ou écrire une autre demande.",
             "quick_replies": _main_quick_replies(),
         }
     if _extract_first_number(text) is not None:
         return {
-            "text": "Merci. Avant le budget, choisissez d'abord l'univers: Produits, Services ou Locations.",
+            "text": "Avant de préciser votre budget, choisissez ce que vous recherchez : un produit, un service ou une location.",
             "quick_replies": [
                 {"label": "Produits", "action": "find_products"},
                 {"label": "Services", "action": "find_services"},
@@ -1252,8 +1265,8 @@ def assistant_reply(*, message: str | None, action: str | None = None, value: st
 
     return {
         "text": (
-            "Je n'ai pas encore bien compris. Je peux vous aider pour Produits, Services, "
-            "Locations, Boutiques ou Livraison."
+            "Je n'ai pas compris votre demande. Choisissez une option ci-dessous "
+            "ou précisez ce que vous recherchez."
         ),
         "quick_replies": _main_quick_replies(),
     }

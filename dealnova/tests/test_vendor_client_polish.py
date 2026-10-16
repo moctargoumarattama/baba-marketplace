@@ -117,7 +117,7 @@ def test_public_templates_do_not_keep_visible_typos():
     earnings = _read("app/templates/vendor/earnings.html")
 
     assert "choississez" not in shop_home
-    assert "Choisissez" in shop_home
+    assert "url_for('landing', open='products')" in shop_home
     assert "Caisse vendeur" in earnings
     assert "Paiements recus" not in earnings
     assert "A verifier" not in earnings
@@ -247,8 +247,9 @@ def test_login_vendor_card_matches_current_vendor_request_workflow():
     template = _read("app/templates/auth/login.html")
 
     assert "Accès vendeur" in template
-    assert "Creez votre espace vendeur et connectez-vous sans attendre une validation admin." in template
-    assert "Creer un acces vendeur" in template
+    assert 'class="auth-vendor"' in template
+    assert "auth.vendor_access" in template
+    assert template.index('class="auth-vendor"') > template.index('id="loginForm"')
     assert "Continuer sans compte" in template
     assert "Comment ça marche" not in template
     assert "ouvrir WhatsApp" not in template

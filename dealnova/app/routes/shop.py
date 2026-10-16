@@ -445,17 +445,50 @@ def _render_shop_home(
     return render_template(template_name, **context)
 
 
+def _redirect_to_public_hub(default_universe: str = "products"):
+    # Keep public navigation state when legacy catalogue URLs reach the hub.
+    filter_keys = (
+        "cat", "sort", "kind", "min_price", "max_price", "promo", "stock", "shop", "page",
+    )
+    state_keys = ("q", *filter_keys, "pdetail", "sdetail", "slug")
+    state = {
+        key: value
+        for key in state_keys
+        if (value := (request.args.get(key) or "").strip())
+    }
+    requested_universe = (request.args.get("open") or "").strip().lower()
+    allowed_universes = {
+        "products", "services", "locations", "shops", "delivery", "promotions",
+        "search", "cart", "checkout", "shop",
+    }
+    if requested_universe in allowed_universes:
+        universe = requested_universe
+    elif default_universe == "promotions" or state.get("promo") == "1":
+        universe = "promotions"
+    elif state.get("kind", "").lower() == "service":
+        universe = "services"
+    elif state.get("q") and not any(state.get(key) for key in filter_keys):
+        universe = "search"
+    else:
+        universe = default_universe
+    return redirect(url_for("landing", open=universe, **state))
+
+
 @bp.route("/")
 def home():
-    return _render_shop_home()
+    if _wants_json_response() or _wants_shop_listing_fragment("shop/home.html"):
+        return _render_shop_home()
+    return _redirect_to_public_hub()
 
 
 @bp.route("/promotions")
 def promotions():
-    return _render_shop_home(
-        template_name="shop/promotions.html",
-        forced_promo_only="1",
-    )
+    if _wants_json_response():
+        return _render_shop_home(
+            template_name="shop/promotions.html",
+            forced_promo_only="1",
+        )
+    return _redirect_to_public_hub("promotions")
 
 
 @bp.route("/product/<int:pid>")
@@ -464,30 +497,14 @@ def product_detail(pid):
     
     if not product.is_active:
         flash("Ce produit n'est plus disponible", "warning")
-        return redirect(url_for("shop.home"))
+        return redirect(url_for("landing", open="products"))
+
+    if request.args.get("view") != "legacy":
+        return redirect(url_for("landing", open="products", pdetail=pid))
 
     shop_is_open_now = _shop_is_currently_open(getattr(product, "shop", None))
-
-    # No state write on GET (pre-prod hardening).
-
     promo = get_active_promo(pid)
     final = prix_final(product, promo)
-
-    # Produits/services similaires : mme type + mme catgorie ou boutique
-    similar_products = (
-        Product.query.filter(
-            Product.is_active == True,
-            Product.id != product.id,
-            Product.kind == product.kind,
-            or_(
-                Product.category_id == product.category_id,
-                Product.shop_id == product.shop_id,
-            ),
-        )
-        .limit(8)
-        .all()
-    )
-    related_promos = get_active_promos_for_products([p.id for p in similar_products])
 
     return render_template(
         "shop/product_detail.html",
@@ -495,9 +512,9 @@ def product_detail(pid):
         shop_is_open_now=shop_is_open_now,
         final=final,
         promo=promo,
-        similar_products=similar_products,  # NOUVEAU
-        related_products=similar_products,
-        related_promos=related_promos,
+        similar_products=[],
+        related_products=[],
+        related_promos={},
         calculate_promo_price=prix_final,
     )
 
@@ -516,5 +533,5 @@ def review(pid):
     review = Review(product_id=pid, user_id=current_user.id, rating=rating, comment=comment)
     db.session.add(review)
     db.session.commit()
-    flash("Avis enregistr", "success")
+    flash("Votre avis a été enregistré.", "success")
     return redirect(url_for("shop.product_detail", pid=pid))

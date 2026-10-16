@@ -177,13 +177,13 @@ def test_checkout_source_has_no_client_form_gate():
 def test_cart_page_uses_direct_whatsapp_purchase_language():
     template = (ROOT / "app/templates/cart/cart.html").read_text(encoding="utf-8-sig")
 
-    assert "Achat direct avec la boutique" in template
-    assert "Vous allez discuter directement avec la boutique pour finaliser votre achat." in template
+    assert "Commande auprès de la boutique" in template
+    assert "Confirmez votre commande, le paiement et la livraison avec la boutique sur WhatsApp." in template
     assert "Commander sur WhatsApp" in template
     assert "Continuer mes achats" in template
     assert "commerçant" not in template
     assert "Commerçants" not in template
-    assert "Boutiques" in template
+    assert "boutique" in template.lower()
     assert "vendeur" not in template.lower()
     assert "Mise en relation" not in template
     assert "Contacter les boutiques" not in template
@@ -198,7 +198,7 @@ def test_cart_page_avoids_duplicate_product_and_summary_prices():
     assert 'id="totalAmount"' in template
     assert 'id="subtotalAmount"' not in template
     assert ">Sous-total<" not in template
-    assert template.count("Total produits estimé") == 1
+    assert template.count("Total estimé des articles") == 1
     assert "Le paiement et la livraison se font directement avec la boutique." not in template
 
 
@@ -217,14 +217,14 @@ def test_cart_page_uses_compact_adaptive_item_layout():
 def test_vendor_whatsapp_page_is_mobile_first_order_summary():
     template = (ROOT / "app/templates/cart/vendor_whatsapp_checkout.html").read_text(encoding="utf-8-sig")
 
-    assert "Finalisez votre commande" in template
-    assert "Suivez les étapes et ouvrez WhatsApp pour chaque boutique." in template
-    assert "Produits :" in template
+    assert "Confirmez votre commande sur WhatsApp" in template
+    assert "Ouvrez WhatsApp pour chaque boutique, puis envoyez le message préparé avec vos articles." in template
+    assert "Vos articles" in template
     assert "Total estimé" in template
     assert "Ouvrir WhatsApp" in template
-    assert "contacter ce vendeur" in template
-    assert "Étape" in template
-    assert "Le paiement et la livraison se font directement avec la boutique." in template
+    assert "Ouvrir WhatsApp pour" in template
+    assert '"Boutique " ~ contact_steps.value' in template
+    assert "Convenez du paiement et de la livraison avec chaque boutique." in template
     assert "Retour au panier" in template
     assert "Continuer mes achats" in template
     assert "<table" not in template
@@ -236,14 +236,15 @@ def test_vendor_whatsapp_page_is_mobile_first_order_summary():
 def test_vendor_whatsapp_page_tracks_each_shop_click_client_side():
     template = (ROOT / "app/templates/cart/vendor_whatsapp_checkout.html").read_text(encoding="utf-8-sig")
 
-    assert "boutiques contactées" in template
+    assert "conversations ouvertes" in template
     assert 'id="whatsappContactedCount"' in template
     assert 'id="whatsappTotalCount"' in template
     assert 'data-whatsapp-contact' in template
     assert 'data-contact-card' in template
     assert 'data-sent-label' in template
-    assert "Message envoyé" in template
-    assert "Envoyé" in template
+    assert "Envoyez votre message dans WhatsApp pour confirmer la commande." in template
+    assert "WhatsApp ouvert" in template
+    assert "Message envoyé" not in template
     assert "event.preventDefault()" in template
     assert "aria-disabled" in template
     assert "merchant-card--sent" in template

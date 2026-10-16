@@ -1,9 +1,10 @@
 ﻿<div id="shopsListing" data-ajax-listing data-ajax-scroll="preserve">
   {% if shops %}
+  <p class="shops-results-summary" role="status">{{ pagination.total }} {{ t('boutique') if pagination.total == 1 else t('boutiques') }}{% if q %} {{ t('pour') }} « {{ q }} »{% endif %}</p>
   <div class="shops-grid">
     {% for shop in shops %}
-    <div class="shop-card fade-in-shop" style="--i: {{ loop.index0 }}">
-      <div class="shop-banner">
+    <article class="shop-card">
+      <a class="shop-banner" href="{{ url_for('shops.shop_detail', shop_slug=shop.slug) }}" aria-label="{{ t('Voir la boutique') }} {{ shop.name }}">
         {% if shop.banner %}
           <img src="{{ url_for('static', filename='uploads/' + shop.banner) }}"
                alt="{{ shop.name }}"
@@ -31,14 +32,14 @@
         {% else %}
         <div class="open-badge closed">
           <i class="bi bi-x-circle-fill"></i>
-          Ferme
+          {{ t('Fermé') }}
         </div>
         {% endif %}
 
         {% if shop.is_verified %}
         <div class="verified-badge">
           <i class="bi bi-check-circle-fill"></i>
-          Verifie
+          {{ t('Vérifiée') }}
         </div>
         {% endif %}
 
@@ -48,7 +49,7 @@
           Promo
         </div>
         {% endif %}
-      </div>
+      </a>
 
       <div class="shop-card-content">
         <h2 class="shop-name">
@@ -96,9 +97,10 @@
           {% endif %}
         </div>
 
-        <p class="shop-description">
-          {{ shop.description|truncate(120) if shop.description else "Boutique BABA Market" }}
-        </p>
+        {% set shop_description = shop.description|public_shop_description %}
+        {% if shop_description %}
+        <p class="shop-description">{{ shop_description|truncate(120) }}</p>
+        {% endif %}
 
         <div class="shop-stats {% if mixed_types %}cols-3{% else %}cols-1{% endif %}">
           {% if products_only %}
@@ -139,10 +141,10 @@
         </div>
 
         {% if shop.contact_phone and not location_only %}
-        <div class="shop-contact">
+        <a class="shop-contact" href="tel:{{ shop.contact_phone }}" data-stop-nav>
           <i class="bi bi-telephone"></i>
           <span>{{ shop.contact_phone }}</span>
-        </div>
+        </a>
         {% endif %}
 
         {% if ('services' in allowed_types) and shop.service_map_url %}
@@ -151,7 +153,7 @@
             href="{{ shop.service_map_url }}"
             target="_blank"
             rel="noopener">
-          Ouvrir localisation
+          {{ t('Voir la localisation') }}
         </a>
         {% if shop.service_location_note %}
         <div class="small text-muted mt-2">{{ shop.service_location_note }}</div>
@@ -161,11 +163,11 @@
         <a href="{{ url_for('shops.shop_detail', shop_slug=shop.slug) }}"
            class="shop-visit-btn"
            data-stop-nav>
-          <i class="bi bi-box-arrow-in-right me-2"></i>
-          Visiter la boutique
+          {{ t('Voir la boutique') }}
+          <i class="bi bi-arrow-right" aria-hidden="true"></i>
         </a>
       </div>
-    </div>
+    </article>
     {% endfor %}
   </div>
   {% else %}
@@ -174,18 +176,18 @@
       <i class="bi bi-shop"></i>
     </div>
     <h3 class="empty-title-shops">
-      {% if q %}Aucune boutique trouvee{% else %}Aucune boutique disponible{% endif %}
+      {% if q or kind %}{{ t('Aucune boutique trouvée') }}{% else %}{{ t('Aucune boutique disponible') }}{% endif %}
     </h3>
     <p class="empty-text-shops">
-      {% if q %}
-      Aucune boutique ne correspond a votre recherche "{{ q }}"
+      {% if q or kind %}
+      {{ t('Essayez un autre nom ou retirez les filtres.') }}
       {% else %}
-      Aucune boutique n'est actuellement disponible sur notre marketplace.
+      {{ t('Vous pouvez consulter les produits et les services depuis l’accueil.') }}
       {% endif %}
     </p>
-    <a href="{{ url_for('shops.list_shops') }}" class="shop-visit-btn" style="display: inline-block; max-width: 250px; margin: 0 auto;">
-      <i class="bi bi-arrow-clockwise me-2"></i>
-      {% if q %}Reinitialiser la recherche{% else %}Recharger{% endif %}
+    <a href="{{ url_for('shops.list_shops') if q or kind else url_for('landing') }}" class="shop-visit-btn">
+      {% if q or kind %}{{ t('Voir toutes les boutiques') }}{% else %}{{ t('Retour à l’accueil') }}{% endif %}
+      <i class="bi bi-arrow-right" aria-hidden="true"></i>
     </a>
   </div>
   {% endif %}
@@ -193,16 +195,16 @@
 
 <div id="shopsPagination" data-ajax-pagination{% if shops and pagination.pages > 1 %} data-page="{{ pagination.page }}" data-pages="{{ pagination.pages }}"{% endif %}>
   {% if shops and pagination.pages > 1 %}
-  <div class="pagination-shops">
+  <nav class="pagination-shops" aria-label="{{ t('Pagination des boutiques') }}">
     <div class="pagination-slot pagination-prev-slot">
     {% if pagination.has_prev %}
     <a href="{{ url_for('shops.list_shops', page=pagination.prev_num, q=q, kind=kind) }}"
        class="page-link-shops prev-link">
-      <i class="bi bi-chevron-left"></i> Precedent
+      <i class="bi bi-chevron-left"></i> Précédent
     </a>
     {% else %}
     <span class="page-link-shops prev-link disabled">
-      <i class="bi bi-chevron-left"></i> Precedent
+      <i class="bi bi-chevron-left"></i> Précédent
     </span>
     {% endif %}
     </div>
@@ -211,7 +213,7 @@
     {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=1) %}
       {% if p %}
         {% if p == pagination.page %}
-        <span class="page-link-shops active">{{ p }}</span>
+        <span class="page-link-shops active" aria-current="page">{{ p }}</span>
         {% else %}
         <a href="{{ url_for('shops.list_shops', page=p, q=q, kind=kind) }}"
            class="page-link-shops">{{ p }}</a>
@@ -234,7 +236,7 @@
     </span>
     {% endif %}
     </div>
-  </div>
+  </nav>
   {% endif %}
 </div>
 

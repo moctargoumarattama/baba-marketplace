@@ -1,0 +1,32 @@
+{% macro offer_card(item) %}
+  {% set product = item[0] %}
+  {% set final_price = item[1]|float %}
+  {% set first_image = (product.image_file or '').split('|')[0] %}
+  {% set is_service = product.kind == 'service' %}
+  <article class="hub-product">
+    <a class="hub-product-media" href="{{ url_for('shop.product_detail', pid=product.id) }}" data-open-product-detail="{{ product.id }}" aria-label="{{ t('Voir les détails') }} : {{ product.name }}">
+      {% if first_image %}
+      <img src="{{ url_for('static', filename='uploads/' ~ image_variant(first_image, 'thumb')) }}" alt="{{ product.name }}" width="300" height="300" loading="lazy" decoding="async">
+      {% else %}
+      <span class="hub-image-placeholder"><i class="bi {{ 'bi-tools' if is_service else 'bi-bag' }}" aria-hidden="true"></i><span>{{ t('Sans photo') }}</span></span>
+      {% endif %}
+      {% if product.promo_active and product.price|float > final_price %}<span class="hub-offer-tag">{{ t('Promotion') }}</span>{% endif %}
+    </a>
+    <div class="hub-product-info">
+      <h3><a href="{{ url_for('shop.product_detail', pid=product.id) }}" data-open-product-detail="{{ product.id }}">{{ product.name }}</a></h3>
+      <div class="hub-product-bottom">
+        <div class="hub-product-prices">
+          {% if product.promo_active and product.price|float > final_price %}<del>{{ '%.2f'|format(product.price) }} DH</del>{% endif %}
+          <span>{{ ('%.0f' if final_price == final_price|int else '%.2f')|format(final_price) }} <small>DH</small></span>
+        </div>
+        {% if is_service %}
+        <a class="hub-product-add" href="{{ url_for('booking.book', pid=product.id) }}" aria-label="{{ t('Réserver') }} : {{ product.name }}"><i class="bi bi-calendar-plus" aria-hidden="true"></i></a>
+        {% elif product.stock|int > 0 %}
+        <button type="button" class="hub-product-add" data-cart-add-btn="{{ product.id }}" aria-label="{{ t('Ajouter au panier') }} : {{ product.name }}"><i class="bi bi-plus-lg" aria-hidden="true"></i></button>
+        {% else %}
+        <span class="hub-product-unavailable">{{ t('Indisponible') }}</span>
+        {% endif %}
+      </div>
+    </div>
+  </article>
+{% endmacro %}

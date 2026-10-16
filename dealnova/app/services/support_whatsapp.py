@@ -73,9 +73,9 @@ def append_support_request(
 ) -> list[str]:
     clean_issue_type = clean_support_text(issue_type, limit=120)
     if clean_issue_type:
-        lines.append(f"Type: {clean_issue_type}")
-    lines.extend(["", "Probleme constate:"])
+        lines.append(f"Sujet : {clean_issue_type}")
+    lines.extend(["", "Problème rencontré :"])
     lines.extend(support_message_bullets(details))
-    lines.extend(["", "Resultat attendu:"])
+    lines.extend(["", "Ce que je souhaitais faire :"])
     lines.extend(support_message_bullets(expected))
     return lines

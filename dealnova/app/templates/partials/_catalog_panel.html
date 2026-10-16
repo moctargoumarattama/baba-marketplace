@@ -1,0 +1,29 @@
+<nav class="catalog-universes" id="catalogUniverses" aria-label="{{ t('Types d’offres') }}">
+  {% for universe, label in [('search', 'Tout'), ('products', 'Produits et repas'), ('services', 'Services'), ('locations', 'Locations')] %}
+  <button type="button" data-catalog-universe="{{ universe }}" aria-pressed="false">{{ t(label) }}</button>
+  {% endfor %}
+</nav>
+<div class="catalog-toolbar" id="catalogToolbar">
+  <button type="button" class="catalog-filter-toggle" id="catalogFilterToggle" aria-expanded="false" aria-controls="catalogFilters"><i class="bi bi-sliders2" aria-hidden="true"></i>{{ t('Filtres') }}<span id="catalogFilterCount" hidden></span></button>
+  <label class="catalog-sort" for="catalogSort"><span>{{ t('Trier') }}</span><select id="catalogSort" name="sort"><option value="new">{{ t('Nouveautés') }}</option><option value="low">{{ t('Prix croissant') }}</option><option value="high">{{ t('Prix décroissant') }}</option></select></label>
+</div>
+<div class="u-modal-body catalog-body" id="uModalBody">
+  <form class="catalog-filters" id="catalogFilters" hidden>
+    <div class="catalog-filter-fields">
+      <label data-catalog-field="cat">{{ t('Catégorie') }}<select name="cat"><option value="">{{ t('Toutes les catégories') }}</option></select></label>
+      <label data-catalog-field="shop">{{ t('Boutique') }}<select name="shop"><option value="">{{ t('Toutes les boutiques') }}</option></select></label>
+      <label data-catalog-field="city">{{ t('Ville ou quartier') }}<input name="city" type="text" list="catalogCities" placeholder="Rabat, Salé…" maxlength="100" autocomplete="off"><datalist id="catalogCities"></datalist></label>
+      <label data-catalog-field="listing_type">{{ t('Durée de location') }}<select name="listing_type"><option value="">{{ t('Toutes les durées') }}</option><option value="daily">{{ t('Par jour') }}</option><option value="monthly">{{ t('Par mois') }}</option></select></label>
+      <label data-catalog-field="property_type">{{ t('Type de bien') }}<select name="property_type"><option value="">{{ t('Tous les biens') }}</option><option value="apartment">{{ t('Appartement') }}</option><option value="studio">{{ t('Studio') }}</option><option value="room">{{ t('Chambre') }}</option><option value="store">{{ t('Local commercial') }}</option></select></label>
+      <label data-catalog-field="min_price">{{ t('Prix minimum (DH)') }}<input name="min_price" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0"></label>
+      <label data-catalog-field="max_price">{{ t('Prix maximum (DH)') }}<input name="max_price" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Sans limite"></label>
+    </div>
+    <div class="catalog-filter-checks"><label data-catalog-field="stock"><input name="stock" type="checkbox" value="1">{{ t('En stock uniquement') }}</label><label data-catalog-field="promo"><input name="promo" type="checkbox" value="1">{{ t('En promotion') }}</label></div>
+    <p class="catalog-filter-error" id="catalogFilterError" role="alert" hidden></p>
+    <div class="catalog-filter-actions"><button type="button" class="catalog-reset" data-catalog-reset>{{ t('Tout effacer') }}</button><button type="submit" class="hub-primary-btn">{{ t('Afficher les résultats') }}<i class="bi bi-arrow-right" aria-hidden="true"></i></button></div>
+  </form>
+  <div class="catalog-active-filters" id="catalogActiveFilters" aria-label="{{ t('Filtres actifs') }}"></div>
+  <div class="catalog-results u-modal-grid" id="catalogResults" aria-busy="false"></div>
+  <nav class="catalog-pagination" id="catalogPagination" aria-label="{{ t('Pages du catalogue') }}" hidden><button type="button" id="catalogPrevious"><i class="bi bi-arrow-left" aria-hidden="true"></i><span>{{ t('Précédent') }}</span></button><span id="catalogPageStatus" role="status"></span><button type="button" id="catalogNext"><span>{{ t('Suivant') }}</span><i class="bi bi-arrow-right" aria-hidden="true"></i></button></nav>
+  <noscript><p>{{ t('Activez JavaScript pour consulter le catalogue interactif.') }}</p><a href="{{ url_for('shops.list_shops') }}">{{ t('Voir les boutiques') }}</a></noscript>
+</div>

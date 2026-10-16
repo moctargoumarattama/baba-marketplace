@@ -1,0 +1,9 @@
+{% if base_endpoint not in ['auth.login', 'auth.forgot_password'] %}
+<footer class="hub-footer public-footer"><span>© {{ current_year or 2026 }} BabaMarket</span><a href="{{ url_for('auth.vendor_access') }}">{{ t('Devenir vendeur') }}</a><a href="{{ url_for('auth.public_help') }}">{{ t('Support') }}</a></footer>
+{% endif %}
+<nav class="hub-bottom-nav" aria-label="{{ t('Navigation principale') }}">
+  <a href="{{ url_for('landing') }}"><i class="bi bi-house-door" aria-hidden="true"></i><span>{{ t('Accueil') }}</span></a>
+  <a href="{{ url_for('landing', open='products') }}" {% if base_endpoint.startswith('shops.') or base_endpoint.startswith('rentals.') %}class="is-active" aria-current="page"{% endif %}><i class="bi bi-search" aria-hidden="true"></i><span>{{ t('Explorer') }}</span></a>
+  <a href="{{ url_for('cart.view') }}"><span class="hub-bottom-icon"><i class="bi bi-bag" aria-hidden="true"></i><span class="hub-cart-badge{% if not cart_count %} d-none{% endif %}" data-cart-badge>{{ cart_count or 0 }}</span></span><span>{{ t('Panier') }}</span></a>
+  <button type="button" data-hub-account {% if base_endpoint in ['auth.login', 'auth.forgot_password'] %}class="is-active"{% endif %}><i class="bi {{ 'bi-person' if current_user.is_authenticated else 'bi-shop' }}" aria-hidden="true"></i><span>{{ t('Compte' if current_user.is_authenticated else 'Vendeur') }}</span></button>
+</nav>

@@ -2,20 +2,16 @@
 {% block title %}Demande de visite | {{ listing.title }}{% endblock %}
 
 {% block head %}
-<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --ink: #12110f; --muted: #6b6760; --line: #e8e4de;
-    --sand: #f7f4f0; --g1: #10b981; --g2: #047857; --r: 18px;
+  .inq-page {
+    --ink: #17221d; --muted: #657169; --line: #e1e7dc;
+    --sand: #faf9f6; --g1: #087f5b; --g2: #056246; --r: 20px;
   }
-  *, *::before, *::after { box-sizing: border-box; }
 
   .inq-page {
-    min-height: 100dvh;
     background: var(--sand);
-    background-image: radial-gradient(ellipse 70% 40% at 80% 0%, rgba(16,185,129,.06), transparent 65%);
     padding: clamp(.75rem, 4vw, 2rem) clamp(.75rem, 4vw, 1.5rem);
-    font-family: 'DM Sans', sans-serif;
+    font-family: inherit;
     width: 100%;
     max-width: 100%;
     min-width: 0;
@@ -26,15 +22,15 @@
     max-width: 620px;
     min-width: 0;
     margin: 0 auto;
-    animation: up .45s ease both;
+    animation: inquiry-enter .24s ease both;
   }
-  @keyframes up { from { opacity:0; transform:translateY(14px) } to { opacity:1; transform:none } }
+  @keyframes inquiry-enter { from { opacity:0; transform:translateY(10px) } to { opacity:1; transform:none } }
 
   /* BACK */
   .inq-back {
     display: inline-flex; align-items: center; gap: .4rem;
     color: var(--muted); font-size: .82rem; font-weight: 600;
-    text-decoration: none; margin-bottom: 1.25rem; transition: color .2s;
+    text-decoration: none; margin-bottom: 1.25rem; transition: color .2s; min-height: 44px;
   }
   .inq-back:hover { color: var(--g2); }
   .inq-back:hover i { transform: translateX(-3px); }
@@ -58,14 +54,14 @@
   }
   .inq-head-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
   .inq-eyebrow { font-size: .7rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--g1); margin: 0 0 .3rem; }
-  .inq-title { font-family: 'DM Serif Display', serif; font-size: clamp(1.15rem, 3.5vw, 1.45rem); color: var(--ink); margin: 0; line-height: 1.2; }
+  .inq-title { font-family: inherit; font-weight: 650; font-size: clamp(1.4rem, 3.5vw, 1.8rem); color: var(--ink); margin: 0; line-height: 1.3; }
   .inq-price {
     flex-shrink: 0; background: linear-gradient(150deg,#f0fdf8,#e6faf3);
     border: 1px solid rgba(16,185,129,.25); border-radius: 10px;
     padding: .4rem .875rem; text-align: center;
   }
   .inq-price small { display: block; font-size: .65rem; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); margin-bottom: .1rem; }
-  .inq-price strong { font-family: 'DM Serif Display', serif; font-size: 1.15rem; color: var(--g2); }
+  .inq-price strong { font-family: inherit; font-size: 1.15rem; color: var(--g2); }
 
   /* FORM */
   .inq-body { padding: clamp(1rem, 4vw, 1.5rem); min-width: 0; }
@@ -87,7 +83,7 @@
   .inq-row input, .inq-row textarea {
     border: none; background: transparent; outline: none; resize: none;
     padding: .65rem .7rem .65rem .2rem;
-    font: .88rem/1.5 'DM Sans', sans-serif; color: var(--ink);
+    font: inherit; font-size: 16px; min-height: 48px; color: var(--ink);
     width: 100%; max-width: 100%; min-width: 0;
   }
   .inq-row input::placeholder, .inq-row textarea::placeholder { color: #c4bfb9; }
@@ -104,8 +100,8 @@
   .inq-note i { color: var(--g1); }
   .inq-btn {
     display: inline-flex; align-items: center; gap: .5rem;
-    background: linear-gradient(150deg, #25d366, #128C7E);
-    color: #fff; font: 700 .88rem 'DM Sans', sans-serif;
+    background: var(--g1);
+    color: #fff; font: inherit; font-size: 15px; font-weight: 650; min-height: 50px;
     padding: .72rem 1.5rem; border-radius: 11px; border: none; cursor: pointer;
     box-shadow: 0 4px 14px -4px rgba(18,140,126,.4);
     transition: box-shadow .2s, filter .2s; white-space: nowrap;
@@ -126,7 +122,7 @@
   }
   @media (prefers-reduced-motion: reduce) {
     .inq-wrap { animation: none; }
-    * { transition-duration: .01ms !important; }
+    .inq-page * { transition-duration: .01ms !important; }
   }
 </style>
 {% endblock %}
@@ -148,8 +144,8 @@
             <h1 class="inq-title">{{ listing.title }}</h1>
           </div>
           <div class="inq-price">
-            <small>Loyer / mois</small>
-            <strong>{{ cents_to_dh(listing.rent_cents) }}</strong>
+            <small>{{ 'Loyer par jour' if listing.listing_type == 'daily' else 'Loyer par mois' }}</small>
+            <strong>{{ cents_to_dh(listing.rent_cents) if listing.rent_cents else 'Prix sur demande' }}</strong>
           </div>
         </div>
       </div>
@@ -178,29 +174,29 @@
             </div>
 
             <div class="inq-field inq-full">
-              <label for="desired_date">Date souhaitée</label>
+              <label for="desired_date">Date et horaire souhaités (facultatif)</label>
               <div class="inq-row">
                 <i class="bi bi-clock"></i>
                 <input type="text" id="desired_date" name="desired_date"
-                       value="{{ form_data.desired_date }}" placeholder="Ex : demain après 15h…">
+                       value="{{ form_data.desired_date }}" placeholder="Par exemple : demain après 15 h">
               </div>
             </div>
 
             <div class="inq-field inq-full">
-              <label for="message">Message</label>
+              <label for="message">Message (facultatif)</label>
               <div class="inq-row inq-row--ta">
                 <i class="bi bi-chat-text"></i>
                 <textarea id="message" name="message"
-                          placeholder="Vos disponibilités ou questions…">{{ form_data.message }}</textarea>
+                          placeholder="Indiquez vos disponibilités ou posez vos questions.">{{ form_data.message }}</textarea>
               </div>
             </div>
 
           </div>
 
           <div class="inq-foot">
-            <span class="inq-note"><i class="bi bi-shield-check"></i> Données non partagées</span>
+            <span class="inq-note"><i class="bi bi-info-circle"></i> Vérifiez et envoyez votre message dans WhatsApp.</span>
             <button type="submit" class="inq-btn">
-              <i class="bi bi-whatsapp"></i> Envoyer sur WhatsApp
+              <i class="bi bi-whatsapp"></i> Préparer mon message
             </button>
           </div>
         </form>

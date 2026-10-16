@@ -3,23 +3,24 @@
 {% set shop_share_url = url_for('shops.shop_detail', shop_slug=shop.slug, _external=True) %}
 {% set shop_share_image_rel = ('uploads/' ~ shop.banner) if shop.banner else (('uploads/' ~ shop.logo) if shop.logo else 'images/produit.jpeg') %}
 {% set shop_share_image_url = request.url_root.rstrip('/') ~ url_for('static', filename=shop_share_image_rel) %}
-{% set shop_share_description = shop.description %}
+{% set shop_description = shop.description|public_shop_description %}
+{% set shop_share_description = shop_description %}
 {% if not shop_share_description %}
     {% if shop_allows_products and not shop_allows_services %}
-        {% set shop_share_description = "Boutique produits du market" %}
+        {% set shop_share_description = "Produits de " ~ shop.name %}
     {% elif shop_allows_services and not shop_allows_products %}
-        {% set shop_share_description = "Boutique services du market" %}
+        {% set shop_share_description = "Services de " ~ shop.name %}
     {% elif shop_allows_products and shop_allows_services %}
-        {% set shop_share_description = "Catalogue du market" %}
+        {% set shop_share_description = "Produits et services de " ~ shop.name %}
     {% elif shop_allows_location %}
-        {% set shop_share_description = "Boutique annonces du market" %}
+        {% set shop_share_description = "Locations de " ~ shop.name %}
     {% else %}
-        {% set shop_share_description = "Boutique du market" %}
+        {% set shop_share_description = shop.name ~ " sur Baba Market" %}
     {% endif %}
 {% endif %}
 {% set shop_share_title = shop.name ~ " | BabaMarket" %}
 
-{% block title %}{{ shop.name }} | DealNova{% endblock %}
+{% block title %}{{ shop.name }} | Baba Market{% endblock %}
 
 {% block head %}
 {{ super() }}
@@ -38,37 +39,38 @@
 <meta name="twitter:description" content="{{ shop_share_description[:200] }}">
 <meta name="twitter:image" content="{{ shop_share_image_url }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/shop_detail_page.css', v=app_static_version) }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/public_listings_refresh.css', v=app_static_version ~ '-public-v2') }}">
 {% endblock %}
 
-{% set default_shop_subtitle = "Boutique du market" %}
+{% set default_shop_subtitle = "Boutique" %}
 {% set default_results_title = "Tout le catalogue" %}
-{% set default_item_label = "article(s)" %}
+{% set default_item_label = "articles" %}
 {% set default_search_placeholder = "Rechercher dans la boutique..." %}
 {% set default_empty_heading = "Aucun article" %}
 {% set default_clear_label = "Tout voir" %}
 {% set shop_has_mixed_default = supported_detail_mode_count > 1 %}
 {% if shop_allows_products and not shop_allows_services %}
-    {% set default_shop_subtitle = "Boutique produits du market" %}
+    {% set default_shop_subtitle = "Produits" %}
     {% set default_results_title = "Produits" %}
-    {% set default_item_label = "produit(s)" %}
+    {% set default_item_label = "produits" %}
     {% set default_search_placeholder = "Rechercher un produit..." %}
     {% set default_empty_heading = "Aucun produit" %}
     {% set default_clear_label = "Tous les produits" %}
 {% elif shop_allows_services and not shop_allows_products %}
-    {% set default_shop_subtitle = "Boutique services du market" %}
+    {% set default_shop_subtitle = "Services" %}
     {% set default_results_title = "Services" %}
-    {% set default_item_label = "service(s)" %}
+    {% set default_item_label = "services" %}
     {% set default_search_placeholder = "Rechercher un service..." %}
     {% set default_empty_heading = "Aucun service" %}
     {% set default_clear_label = "Tous les services" %}
 {% elif shop_allows_products and shop_allows_services %}
-    {% set default_shop_subtitle = "Catalogue du market" %}
+    {% set default_shop_subtitle = "Produits et services" %}
 {% elif shop_allows_location %}
-    {% set default_shop_subtitle = "Boutique annonces du market" %}
+    {% set default_shop_subtitle = "Locations" %}
 {% endif %}
 {% if shop_has_mixed_default and shop_allows_location and has_product_universe %}
     {% set default_results_title = "Toute la boutique" %}
-    {% set default_search_placeholder = "Rechercher produits ou services..." %}
+    {% set default_search_placeholder = "Rechercher un produit ou un service..." %}
     {% set default_clear_label = "Tout afficher" %}
 {% endif %}
 {% set default_mix_total = total_products + (location_total if shop_has_mixed_default and shop_allows_location and not kind and not q and not cat else 0) %}
@@ -124,22 +126,20 @@
 
                     {% if shop.is_verified %}
                     <span class="badge verified-chip">
-                        <i class="bi bi-check-circle-fill"></i> Verifie
+                        <i class="bi bi-check-circle-fill"></i> Vérifiée
                     </span>
                     {% endif %}
 
                     <div class="shop-hero-content">
                         <h1 class="fw-bold h3">{{ shop.name }}</h1>
-                        <p class="small mb-0">
-                            {{ shop.description if shop.description else default_shop_subtitle }}
-                        </p>
+                        {% if shop_description %}<p class="small mb-0">{{ shop_description }}</p>{% endif %}
                         <div class="mt-2 shop-hero-actions">
                             <a class="shop-link-badge"
                                href="{{ url_for('shops.shop_detail', shop_slug=shop.slug) }}"
                                target="_blank"
                                rel="noopener">
                                 <i class="bi bi-link-45deg"></i>
-                                {{ request.host_url.rstrip('/') }}/{{ shop.slug }}
+                                Ouvrir dans un nouvel onglet
                             </a>
                             <button type="button"
                                     class="shop-share-badge"
@@ -147,7 +147,7 @@
                                     data-share-title="{{ shop_share_title }}"
                                     data-share-text="{{ shop_share_description[:180] }}"
                                     data-share-url="{{ shop_share_url }}"
-                                    data-share-copied-message="Lien de la boutique copie">
+                                    data-share-copied-message="Lien de la boutique copié">
                                 <i class="bi bi-share"></i>
                                 Partager
                             </button>
@@ -167,20 +167,18 @@
                                 </span>
                                 {% else %}
                                 <span class="meta-pill closed-state">
-                                    <i class="bi bi-x-circle-fill"></i> fermé
+                                    <i class="bi bi-x-circle-fill"></i> Fermé
                                 </span>
                                 {% endif %}
                                 {% if shop.contact_phone and not is_location_only %}
-                                <span class="meta-pill">
-                                    <i class="bi bi-telephone"></i> {{ shop.contact_phone }}
-                                </span>
+                                <a class="meta-pill" href="tel:{{ shop.contact_phone }}"><i class="bi bi-telephone"></i> {{ shop.contact_phone }}</a>
                                 {% endif %}
                                 {% if shop_allows_services and service_location_url %}
                                 <a class="meta-pill shop-meta-map"
                                    href="{{ service_location_url }}"
                                    target="_blank"
                                    rel="noopener">
-                                    <i class="bi bi-geo-alt-fill"></i> Localisation exacte
+                                    <i class="bi bi-geo-alt-fill"></i> Voir sur la carte
                                 </a>
                                 {% if shop.service_location_note %}
                                 <span class="meta-pill">
@@ -190,7 +188,7 @@
                                 {% endif %}
                                 {% if shop.is_verified %}
                                 <span class="meta-pill">
-                                    <i class="bi bi-shield-check"></i> Boutique verifiee
+                                    <i class="bi bi-shield-check"></i> Boutique vérifiée
                                 </span>
                                 {% endif %}
                                 {% if shop_has_promo %}
@@ -216,9 +214,9 @@
     <div class="sd-mode-wrap" id="sdModeWrap">
         <div class="sd-mode-guide">
             <i class="bi bi-stars"></i>
-            <span>Filtrez en un geste</span>
+            <span>Afficher par type d’offre</span>
         </div>
-        <div class="sd-mode-switch" role="group" aria-label="Filtre Produits / Services / Locations">
+        <div class="sd-mode-switch" role="group" aria-label="Filtrer par type d’offre">
             {% if shop_allows_products %}
             <button type="button"
                     class="sd-mode-btn sd-mode-products {% if kind == 'physical' %}active{% endif %}"
@@ -259,7 +257,7 @@
             </button>
             {% endif %}
         </div>
-        <div class="sd-mode-all-label {% if kind %}kind-hidden{% endif %}" id="sdModeAllLabel">Tout</div>
+        <div class="sd-mode-all-label {% if kind %}kind-hidden{% endif %}" id="sdModeAllLabel">Tout le catalogue</div>
     </div>
 
     <!-- Catégories (uniquement si Produits/Services sélectionnés) -->
@@ -269,9 +267,9 @@
             <i class="bi bi-tags"></i>
             <span id="sdCategoryStripTitleText">
               {% if kind == 'physical' %}
-                Catégories produits
+                Catégories de produits
               {% elif kind == 'service' %}
-                Catégories services
+                Catégories de services
               {% else %}
                 Catégories
               {% endif %}
@@ -282,7 +280,7 @@
                     class="sd-cat-chip {% if not cat %}active{% endif %}"
                     data-filter="category"
                     data-value="">
-                Toutes catégories
+                Toutes les catégories
             </button>
             {% for category in categories %}
             <button type="button"
@@ -313,7 +311,7 @@
                         <input type="hidden" name="cat" id="catInput" value="{{ cat or '' }}">
                         <!-- Search -->
                         <div class="mb-3">
-                            <label class="form-label fw-bold mb-2">Recherche rapide</label>
+                            <label class="form-label fw-bold mb-2" for="searchInput">Rechercher dans la boutique</label>
                             <div class="input-group">
                                 <input type="text"
                                        name="q"
@@ -337,7 +335,7 @@
                                    class="list-group-item list-group-item-action px-0 py-2 border-0 d-flex justify-content-between align-items-center {% if not cat %}active{% endif %}"
                                    data-filter="category"
                                    data-value="">
-                                    <span>Toutes catégories</span>
+                                    <span>Toutes les catégories</span>
                                     <span class="badge rounded-pill bg-light text-dark" id="sidebarAllCatsCount">{{ total_products }}</span>
                                 </a>
                                 {% for category in categories %}
@@ -365,19 +363,19 @@
 
                         <!-- Sort -->
                         <div class="mb-4">
-                            <label class="form-label fw-bold mb-2">Trier</label>
+                            <label class="form-label fw-bold mb-2" for="sortSelect">Trier</label>
                             <select name="sort" id="sortSelect" class="form-select">
-                                <option value="" {% if not sort %}selected{% endif %}>Plus récent</option>
+                                <option value="" {% if not sort %}selected{% endif %}>Les plus récents</option>
                                 <option value="new" {% if sort == 'new' %}selected{% endif %}>Nouveautés</option>
                                 <option value="low" {% if sort == 'low' %}selected{% endif %}>Prix croissant</option>
                                 <option value="high" {% if sort == 'high' %}selected{% endif %}>Prix décroissant</option>
-                                <option value="promo" {% if sort == 'promo' %}selected{% endif %}>Promos d'abord</option>
+                                <option value="promo" {% if sort == 'promo' %}selected{% endif %}>Promotions en premier</option>
                             </select>
                         </div>
 
                         <div class="d-grid">
                             <button type="button" id="resetFilters" class="btn btn-outline-secondary mb-2">
-                                Réinitialiser
+                                Effacer les filtres
                             </button>
                         </div>
                     </form>
@@ -406,11 +404,11 @@
                     <small class="text-muted" id="productCount">
                       {{ default_mix_total if not kind else total_products }}
                       {% if kind == 'service' %}
-                        service(s)
+                        service{{ 's' if total_products != 1 else '' }}
                       {% elif kind == 'physical' %}
-                        produit(s)
+                        produit{{ 's' if total_products != 1 else '' }}
                       {% else %}
-                        {{ default_item_label }}
+                        {{ default_item_label[:-1] if default_mix_total == 1 else default_item_label }}
                       {% endif %}
                     </small>
                 </div>
@@ -427,12 +425,12 @@
             <!-- Loading Spinner -->
             <div id="loadingSpinner" class="d-none text-center py-4 loading-spinner-wrap" aria-hidden="true">
                 <div class="loading-spinner"></div>
-                <p class="text-muted mt-2">Mise a jour...</p>
+                <p class="text-muted mt-2">Chargement...</p>
             </div>
 
             <div id="loadMoreWrap" class="mt-3 text-center {% if not pagination or not pagination.has_next %}d-none{% endif %}">
                 <button type="button" id="loadMoreProducts" class="btn btn-outline-primary">
-                    Voir plus
+                    Afficher plus d’articles
                 </button>
             </div>
 
@@ -516,8 +514,8 @@
     {% elif not shop_allows_location %}
     <div class="card border-0 shadow-sm filter-card mb-4">
         <div class="card-body py-4 text-center">
-            <h5 class="mb-2">Aucun contenu actif</h5>
-            <p class="text-muted mb-0">Cette boutique sera bientot mise a jour.</p>
+            <h5 class="mb-2">Aucune offre disponible</h5>
+            <p class="text-muted mb-0">Cette boutique n’a pas d’offre en ligne pour le moment.</p>
         </div>
     </div>
     {% endif %}
@@ -529,7 +527,7 @@
                 <i class="bi bi-house-door me-2"></i>{{ 'Annonces' if not has_product_universe else 'Locations' }} ({{ location_total }})
             </h5>
             <a href="{{ url_for('rentals.locations_home') }}" class="btn btn-outline-primary btn-sm">
-                {{ 'Explorer les annonces' if not has_product_universe else 'Explorer les locations' }}
+                Voir toutes les locations
             </a>
         </div>
         <div class="card-body">
@@ -562,7 +560,7 @@
                                         <video class="js-lazy-rental-video" preload="none" autoplay loop muted playsinline data-video-src="{{ media.src }}"{% if media.poster %} poster="{{ media.poster }}"{% endif %}>
                                             <source data-src="{{ media.src }}">
                                         </video>
-                                        <span class="rental-video-badge"><i class="bi bi-play-fill"></i> Video</span>
+                                        <span class="rental-video-badge"><i class="bi bi-play-fill"></i> Vidéo</span>
                                     </div>
                                     {% endif %}
                                 {% endfor %}
@@ -587,20 +585,20 @@
                     <div class="rental-body">
                         <h3 class="rental-title">{{ listing.title }}</h3>
                         <div class="rental-meta"><i class="bi bi-geo-alt"></i> {{ listing.city }}{% if listing.area %}, {{ listing.area }}{% endif %}</div>
-                        <div class="rental-meta">{{ listing.property_type }} · {{ 'Mensuel' if listing.listing_type == 'monthly' else 'Journalier' }}</div>
-                        <div class="rental-price">{{ cents_to_dh(listing.rent_cents) }}</div>
-                        <div class="rental-meta">Caution: {% if listing.deposit_required %}{{ cents_to_dh(listing.deposit_cents) if listing.deposit_cents else "Avec caution" }}{% else %}Sans caution{% endif %}</div>
-                        <div class="rental-meta">Frais proprietaire: {{ cents_to_dh(listing.owner_fee_cents) if listing.owner_fee_cents is not none else "Non specifie" }}{% if listing.owner_fee_text %} · {{ listing.owner_fee_text }}{% endif %}</div>
+                        <div class="rental-meta">{{ {'room': 'Chambre', 'apartment': 'Appartement', 'studio': 'Studio', 'store': 'Local commercial', 'villa': 'Villa'}.get(listing.property_type, 'Autre bien') }} · {{ 'Par mois' if listing.listing_type == 'monthly' else 'Par jour' }}</div>
+                        <div class="rental-price">{{ cents_to_dh(listing.rent_cents) }} <small>/ {{ 'mois' if listing.listing_type == 'monthly' else 'jour' }}</small></div>
+                        <div class="rental-meta">Caution : {% if listing.deposit_required %}{{ cents_to_dh(listing.deposit_cents) if listing.deposit_cents else "montant à confirmer" }}{% else %}aucune{% endif %}</div>
+                        <div class="rental-meta">Frais du propriétaire : {{ cents_to_dh(listing.owner_fee_cents) if listing.owner_fee_cents is not none else "non précisés" }}{% if listing.owner_fee_text %} · {{ listing.owner_fee_text }}{% endif %}</div>
                         <div class="rental-actions">
-                            <a href="{{ url_for('rentals.location_detail', slug=listing.slug) }}" class="btn btn-outline-primary btn-sm" data-stop-nav>Infos</a>
-                            <a href="{{ url_for('rentals.location_inquiry', slug=listing.slug) }}" class="btn btn-success btn-sm" data-stop-nav>Demande visite</a>
+                            <a href="{{ url_for('rentals.location_detail', slug=listing.slug) }}" class="btn btn-outline-primary btn-sm" data-stop-nav>Voir l’annonce</a>
+                            <a href="{{ url_for('rentals.location_inquiry', slug=listing.slug) }}" class="btn btn-success btn-sm" data-stop-nav>Demander une visite</a>
                         </div>
                     </div>
                 </article>
                 {% endfor %}
             </div>
             {% else %}
-            <p class="text-muted mb-0">{{ "Aucune annonce active pour cette boutique." if not has_product_universe else "Aucune annonce location active pour cette boutique." }}</p>
+            <p class="text-muted mb-0">Aucune location disponible dans cette boutique.</p>
             {% endif %}
         </div>
     </div>
@@ -635,7 +633,7 @@
   "defaultClearLabel": default_clear_label
 } | tojson }}</script>
 <script src="{{ url_for('static', filename='js/core/core_share.js', v=app_static_version) }}" defer></script>
-<script src="{{ url_for('static', filename='js/pages/shop_detail_page.js', v=app_static_version) }}" defer></script>
+<script src="{{ url_for('static', filename='js/pages/shop_detail_page.js', v=app_static_version ~ '-textes-v1') }}" defer></script>
 {% endblock %}
 
 

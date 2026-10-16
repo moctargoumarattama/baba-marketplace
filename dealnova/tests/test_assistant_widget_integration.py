@@ -4,21 +4,17 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_assistant_widget_is_wired_on_home_and_shop_home_pages():
+def test_assistant_widget_is_wired_once_on_the_shared_public_home():
     home_template = (ROOT / "app/templates/home.html").read_text(encoding="utf-8-sig")
-    shop_home_template = (ROOT / "app/templates/shop/home.html").read_text(
-        encoding="utf-8-sig"
-    )
     partial = (ROOT / "app/templates/partials/_assistant_widget.html").read_text(
         encoding="utf-8-sig"
     )
 
-    assert '{% include "partials/_assistant_widget.html" %}' in home_template
-    assert '{% include "partials/_assistant_widget.html" %}' in shop_home_template
-    assert "css/assistant/widget.css" in home_template
-    assert "css/assistant/widget.css" in shop_home_template
-    assert "js/assistant/widget.js" in home_template
-    assert "js/assistant/widget.js" in shop_home_template
+    # Catalogue redirects are covered in test_public_hub_navigation.py; the
+    # shared home owns the widget and must not initialize it multiple times.
+    assert home_template.count('{% include "partials/_assistant_widget.html" %}') == 1
+    assert home_template.count("css/assistant/widget.css") == 1
+    assert home_template.count("js/assistant/widget.js") == 1
     assert "data-bootstrap-url" in partial
     assert "data-message-url" in partial
 
@@ -62,7 +58,7 @@ def test_assistant_api_blueprint_and_engine_exist():
     assert "Product.category_id.in_(category_ids)" in engine_source
     assert "Question livraison" not in engine_source
     assert "DELIVERY_SPEED_OPTIONS" not in engine_source
-    assert "8h a 3h du matin" in engine_source
+    assert "8 h à 3 h du matin" in engine_source
     assert "ASSISTANT_DELIVERY_HOURS_TEXT" in engine_source
     assert "def _is_yes_intent" in engine_source
     assert "def _is_no_intent" in engine_source

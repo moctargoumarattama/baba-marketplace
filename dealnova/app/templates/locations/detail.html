@@ -5,7 +5,7 @@
 {% block head %}
 {% set canonical_url = "https://www.babamarket.ma" ~ url_for('rentals.location_detail', slug=listing.slug) %}
 {% set page_title = listing.title ~ " | Location à " ~ listing.city ~ " | BabaMarket" %}
-{% set page_description = (listing.description or ("Découvrez cette annonce de location à " ~ listing.city ~ (" - " ~ listing.area if listing.area else "") ~ " sur BabaMarket."))|striptags|trim %}
+{% set page_description = (listing.description or ("Annonce de location à " ~ listing.city ~ (", " ~ listing.area if listing.area else "") ~ " sur BabaMarket."))|striptags|trim %}
 {% set first_video = videos[0] if videos else None %}
 {% set first_video_poster_rel = rental_video_poster_rel_path(first_video.file_path) if first_video and rental_video_poster_rel_path is defined else None %}
 {% set og_image_path = first_video_poster_rel or (images[0].file_path if images else 'images/produit.jpeg') %}
@@ -436,10 +436,11 @@
     .cta { min-height: 38px; font-size: .76rem; }
   }
 </style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/public_listings_refresh.css', v=app_static_version ~ '-public-v2') }}">
 {% endblock %}
 
 {% block content %}
-<div class="detail-shell">
+<div class="detail-shell public-rental-detail">
   <a href="{{ url_for('rentals.locations_home') }}" class="btn btn-outline-secondary btn-sm detail-back"><i class="bi bi-arrow-left"></i> Retour aux locations</a>
 
   <div class="detail-grid">
@@ -456,7 +457,7 @@
 
       {% if gallery %}
         <div class="gallery-main js-gallery" data-listing-title="{{ listing.title|e }}">
-          <span class="gallery-chip">{{ 'Mensuel' if listing.listing_type == 'monthly' else 'Journalier' }}</span>
+          <span class="gallery-chip">{{ 'Au mois' if listing.listing_type == 'monthly' else 'À la journée' }}</span>
           <div class="gallery-track">
             {% for media in gallery %}
               <div class="gallery-slide {{ 'is-video' if media.kind == 'video' else 'is-image' }}"
@@ -467,15 +468,15 @@
                   <video controls playsinline webkit-playsinline="true" preload="metadata" controlslist="nodownload noplaybackrate noremoteplayback" disablepictureinpicture{% if media.poster %} poster="{{ media.poster }}"{% endif %}>
                     <source src="{{ media.src }}">
                   </video>
-                  <span class="gallery-video-badge" aria-hidden="true"><i class="bi bi-play-fill"></i> Video</span>
+                  <span class="gallery-video-badge" aria-hidden="true"><i class="bi bi-play-fill"></i> Vidéo</span>
                 {% endif %}
               </div>
             {% endfor %}
           </div>
           {% if gallery|length > 1 %}
             <div class="gallery-nav">
-              <button type="button" class="gallery-btn js-gallery-prev"><i class="bi bi-chevron-left"></i></button>
-              <button type="button" class="gallery-btn js-gallery-next"><i class="bi bi-chevron-right"></i></button>
+              <button type="button" class="gallery-btn js-gallery-prev" aria-label="Photo ou vidéo précédente"><i class="bi bi-chevron-left" aria-hidden="true"></i></button>
+              <button type="button" class="gallery-btn js-gallery-next" aria-label="Photo ou vidéo suivante"><i class="bi bi-chevron-right" aria-hidden="true"></i></button>
             </div>
             <div class="gallery-dots">
               {% for _ in gallery %}
@@ -494,14 +495,14 @@
         {% if gallery|length > 1 %}
           <div class="thumbs js-gallery-thumbs">
             {% for media in gallery %}
-              <button type="button" class="thumb-btn {{ 'active' if loop.first else '' }}" data-index="{{ loop.index0 }}">
+              <button type="button" class="thumb-btn {{ 'active' if loop.first else '' }}" data-index="{{ loop.index0 }}" aria-label="Voir {{ 'la photo' if media.kind == 'image' else 'la vidéo' }} {{ loop.index }}" aria-pressed="{{ 'true' if loop.first else 'false' }}">
                 {% if media.kind == 'image' %}
-                  <img src="{{ media.src }}" alt="Media {{ loop.index }}">
+                  <img src="{{ media.src }}" alt="Photo {{ loop.index }} de {{ listing.title }}">
                 {% else %}
                   <video preload="metadata" muted playsinline{% if media.poster %} poster="{{ media.poster }}"{% endif %}>
                     <source src="{{ media.src }}">
                   </video>
-                  <span class="thumb-video-badge" aria-hidden="true"><i class="bi bi-play-fill"></i> Video</span>
+                  <span class="thumb-video-badge" aria-hidden="true"><i class="bi bi-play-fill"></i> Vidéo</span>
                 {% endif %}
               </button>
             {% endfor %}
@@ -511,7 +512,7 @@
         <div class="gallery-main d-flex align-items-center justify-content-center text-muted">
           <div class="text-center">
             <i class="bi bi-house fs-1"></i>
-            <div>Aucun média disponible</div>
+            <div>Aucune photo ni vidéo pour cette annonce.</div>
           </div>
         </div>
       {% endif %}
@@ -520,10 +521,10 @@
         <h1 class="title">{{ listing.title }}</h1>
         <div class="meta-row">
           <span class="meta-pill"><i class="bi bi-geo-alt"></i> {{ listing.city }}{% if listing.area %}, {{ listing.area }}{% endif %}</span>
-          <span class="meta-pill"><i class="bi bi-building"></i> {{ listing.property_type }}</span>
-          <span class="meta-pill"><i class="bi bi-shop"></i> {{ listing.shop.name if listing.shop else '?' }}</span>
+          <span class="meta-pill"><i class="bi bi-building"></i> {{ {'room': 'Chambre', 'apartment': 'Appartement', 'studio': 'Studio', 'store': 'Local commercial', 'villa': 'Villa'}.get(listing.property_type, 'Autre bien') }}</span>
+          <span class="meta-pill"><i class="bi bi-shop"></i> {{ listing.shop.name if listing.shop else 'Annonce de location' }}</span>
         </div>
-        <div class="price">{{ cents_to_dh(listing.rent_cents) }}</div>
+        <div class="price">{{ cents_to_dh(listing.rent_cents) }} <small>/ {{ 'mois' if listing.listing_type == 'monthly' else 'jour' }}</small></div>
         {% if listing.description %}
           <h3 class="desc-title">Description</h3>
           <p class="desc">{{ listing.description }}</p>
@@ -532,22 +533,23 @@
     </section>
 
     <aside class="detail-card side-card">
+      <h2>Cette location vous intéresse ?</h2>
+      <p class="contact-intro">Renseignez vos coordonnées pour demander une visite.</p>
       <div class="info-box">
-        <div class="info-line"><span>Loyer</span><strong>{{ cents_to_dh(listing.rent_cents) }}</strong></div>
-        <div class="info-line"><span>Caution</span><strong>{% if listing.deposit_required %}{{ cents_to_dh(listing.deposit_cents) if listing.deposit_cents else 'Avec caution' }}{% else %}Sans caution{% endif %}</strong></div>
+        <div class="info-line"><span>Loyer {{ 'mensuel' if listing.listing_type == 'monthly' else 'journalier' }}</span><strong>{{ cents_to_dh(listing.rent_cents) }}</strong></div>
+        <div class="info-line"><span>Caution</span><strong>{% if listing.deposit_required %}{{ cents_to_dh(listing.deposit_cents) if listing.deposit_cents else 'Montant à confirmer' }}{% else %}Sans caution{% endif %}</strong></div>
         <div class="info-line">
-          <span>Frais propriétaire</span>
+          <span>Frais du propriétaire</span>
           <strong>
-            {{ cents_to_dh(listing.owner_fee_cents) if listing.owner_fee_cents is not none else 'Non spécifié' }}
+            {{ cents_to_dh(listing.owner_fee_cents) if listing.owner_fee_cents is not none else 'Non précisés' }}
             {% if listing.owner_fee_text %} · {{ listing.owner_fee_text }}{% endif %}
           </strong>
         </div>
-        <div class="info-line"><span>Publier</span><strong>{{ listing.created_at.strftime('%d/%m/%Y') if listing.created_at else '?' }}</strong></div>
-        <div class="info-line"><span>Consultations</span><strong>{{ listing.view_count }}</strong></div>
+        <div class="info-line"><span>Publiée le</span><strong>{{ listing.created_at.strftime('%d/%m/%Y') if listing.created_at else 'Date non renseignée' }}</strong></div>
       </div>
 
       <a class="btn btn-success cta" href="{{ url_for('rentals.location_inquiry', slug=listing.slug) }}">
-        <i class="bi bi-whatsapp"></i> Demander visite / infos
+        <i class="bi bi-chat-dots" aria-hidden="true"></i> Demander une visite
       </a>
       <button type="button"
               class="btn cta cta-share"
@@ -555,11 +557,11 @@
               data-share-title="{{ page_title }}"
               data-share-text="{{ listing.title[:180] }}"
               data-share-url="{{ canonical_url }}"
-              data-share-copied-message="Lien de la location copie">
+              data-share-copied-message="Lien de l'annonce copié.">
         <i class="bi bi-share"></i> Partager cette annonce
       </button>
       <p class="note">
-        Le contact direct propriétaire n'est pas affiché. Votre demande passe par l'agence.
+        La visite reste à confirmer après l'envoi de votre demande.
       </p>
     </aside>
   </div>
@@ -590,6 +592,8 @@
     let touchEndX = 0;
     let ignoreSwipe = false;
     let savedBodyOverflow = '';
+    let savedGalleryFocus = null;
+    let lightboxBackground = [];
 
     function isVideoInteractionTarget(target) {
       return !!(target && target.closest && target.closest('video'));
@@ -620,11 +624,15 @@
       thumbs.forEach((thumb) => {
         if (Number(thumb.dataset.index) === index) thumb.classList.add('active');
         else thumb.classList.remove('active');
+        thumb.setAttribute('aria-pressed', Number(thumb.dataset.index) === index ? 'true' : 'false');
       });
       pauseInactiveVideos(index);
     }
 
     galleryImages.forEach((image) => {
+      image.setAttribute('tabindex', '0');
+      image.setAttribute('role', 'button');
+      image.setAttribute('aria-label', 'Agrandir la photo : ' + (image.alt || listingTitle));
       const parentSlide = image.closest('.gallery-slide');
       if (!parentSlide) return;
 
@@ -646,11 +654,23 @@
 
     function openLightbox(src, alt) {
       if (!lightbox || !lightboxImage || !src) return;
+      if (!lightbox.hidden) return;
+      savedGalleryFocus = document.activeElement;
       savedBodyOverflow = document.body.style.overflow || '';
       document.body.style.overflow = 'hidden';
       lightboxImage.src = src;
       lightboxImage.alt = alt || listingTitle || 'Media';
       lightbox.hidden = false;
+      if (lightboxClose) lightboxClose.focus();
+      for (let branch = lightbox; branch.parentElement; branch = branch.parentElement) {
+        Array.from(branch.parentElement.children).forEach((sibling) => {
+          if (sibling === branch || /^(SCRIPT|STYLE|LINK)$/.test(sibling.tagName)) return;
+          lightboxBackground.push({ element: sibling, inert: sibling.inert, hidden: sibling.getAttribute('aria-hidden') });
+          sibling.inert = true;
+          sibling.setAttribute('aria-hidden', 'true');
+        });
+        if (branch.parentElement === document.body) break;
+      }
     }
 
     function closeLightbox() {
@@ -658,11 +678,22 @@
       lightbox.hidden = true;
       lightboxImage.src = '';
       document.body.style.overflow = savedBodyOverflow;
+      lightboxBackground.forEach((entry) => {
+        entry.element.inert = entry.inert;
+        if (entry.hidden === null) entry.element.removeAttribute('aria-hidden');
+        else entry.element.setAttribute('aria-hidden', entry.hidden);
+      });
+      lightboxBackground = [];
+      if (savedGalleryFocus && savedGalleryFocus.isConnected) savedGalleryFocus.focus({ preventScroll: true });
     }
 
     if (lightboxBackdrop) lightboxBackdrop.addEventListener('click', closeLightbox);
     if (lightboxClose) lightboxClose.addEventListener('click', closeLightbox);
     document.addEventListener('keydown', function (event) {
+      if (lightbox && !lightbox.hidden && event.key === 'Tab') {
+        event.preventDefault();
+        if (lightboxClose) lightboxClose.focus();
+      }
       if (event.key === 'Escape') closeLightbox();
     });
 
@@ -712,6 +743,13 @@
     galleryRoot.addEventListener('click', function (event) {
       const image = event.target.closest('.gallery-slide.is-image img');
       if (!image || !galleryRoot.contains(image)) return;
+      openLightbox(image.currentSrc || image.src, image.alt);
+    });
+    galleryRoot.addEventListener('keydown', function (event) {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      const image = event.target.closest('.gallery-slide.is-image img');
+      if (!image) return;
+      event.preventDefault();
       openLightbox(image.currentSrc || image.src, image.alt);
     });
 

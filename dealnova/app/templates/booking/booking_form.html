@@ -211,7 +211,7 @@
       <div class="bk-top-icon"><i class="bi bi-scissors"></i></div>
       <div class="bk-top-text">
         <strong>{{ product.name }}</strong>
-        <span>Réservation sur rendez-vous</span>
+        <span>Demande de rendez-vous</span>
       </div>
       <div class="bk-top-price">{{ "%.2f"|format(prix_final(product)) }} MAD</div>
     </div>
@@ -232,32 +232,32 @@
           <div class="f-wrap">
             <label for="bk_name">Nom complet</label>
             <input id="bk_name" type="text" class="f-input" name="full_name"
-                   placeholder="Moxxxxxxxx" required autocomplete="name">
+                   placeholder="Votre nom complet" required autocomplete="name">
           </div>
           <div class="f-wrap">
             <label for="bk_phone">Téléphone</label>
             <input id="bk_phone" type="tel" class="f-input" name="phone"
-                   value="{{ remembered_phone }}" placeholder="+212 6xx xxx xxx"
+                   value="{{ remembered_phone }}" placeholder="06 XX XX XX XX"
                    required autocomplete="tel">
           </div>
         </div>
 
         <div class="f-wrap">
-          <label for="bk_date">Date &amp; heure <em>(optionnel)</em></label>
+          <label for="bk_date">Date et heure souhaitées <em>(facultatif)</em></label>
           <input id="bk_date" type="datetime-local" class="f-input" name="scheduled_for">
-          <div class="f-hint"><i class="bi bi-info-circle"></i> Laissez vide pour confirmer sur WhatsApp.</div>
+          <div class="f-hint"><i class="bi bi-info-circle"></i> Vous pouvez aussi convenir d'une date dans WhatsApp.</div>
         </div>
 
         <div class="f-wrap">
-          <label for="bk_note">Note <em>(optionnel)</em></label>
+          <label for="bk_note">Message <em>(facultatif)</em></label>
           <textarea id="bk_note" class="f-input" name="note"
-                    placeholder="Ex : à domicile / confirmer avant midi…"></textarea>
+                    placeholder="Indiquez vos disponibilités ou posez vos questions."></textarea>
         </div>
 
         <div class="btn-stack">
           <button type="submit" class="btn-wa" id="bookingSubmitBtn">
             <i class="bi bi-whatsapp" style="font-size:1.05rem;"></i>
-            Envoyer sur WhatsApp
+            Continuer sur WhatsApp
           </button>
           <a href="{{ url_for('shop.product_detail', pid=product.id) }}" class="btn-back">
             <i class="bi bi-arrow-left"></i> Retour au service
@@ -278,7 +278,7 @@
       btn.disabled = true;
       btn.innerHTML =
         '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>' +
-        'Ouverture WhatsApp…';
+        'Préparation du message…';
     });
   })();
 </script>

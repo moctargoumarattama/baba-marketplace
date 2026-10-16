@@ -1,15 +1,15 @@
 ﻿{% extends "base.html" %}
 
-{% block title %}DealNova - Panier{% endblock %}
+{% block title %}Mon panier | {{ config.SITE_NAME }}{% endblock %}
 
 {% block content %}
 <div class="container py-4 py-lg-5 cart-page">
   <!-- Header -->
   <div class="text-center mb-4 mb-lg-5 cart-hero">
     <h1 class="h2 fw-bold mb-2">
-      <i class="bi bi-cart3 text-primary me-2"></i>Mon Panier
+      <i class="bi bi-cart3 text-primary me-2"></i>Mon panier
     </h1>
-    <p class="text-muted mb-0">Vérifiez vos articles avant de finaliser</p>
+    <p class="text-muted mb-0">Vérifiez vos articles avant de commander.</p>
   </div>
 
   <!-- Cart Counter -->
@@ -20,7 +20,7 @@
     </div>
     {% if items %}
     <button type="button" class="btn btn-outline-danger btn-sm" id="clearCartBtn">
-      <i class="bi bi-trash me-1"></i>Vider
+      <i class="bi bi-trash me-1"></i>Vider le panier
     </button>
     {% endif %}
   </div>
@@ -53,7 +53,7 @@
 
                 <div class="cart-item-info">
                   <h6>{{ product.name }}</h6>
-                  <small>{{ product.category.name if product.category else 'Non catégorisé' }}</small>
+                  <small>{{ product.category.name if product.category else 'Autres produits' }}</small>
                 </div>
 
                 <div class="cart-item-actions">
@@ -99,14 +99,14 @@
           
           <div class="direct-purchase-note mb-3">
             <span class="direct-purchase-label">
-              <i class="bi bi-whatsapp me-1"></i>Achat direct avec la boutique
+              <i class="bi bi-whatsapp me-1"></i>Commande auprès de la boutique
             </span>
-            <span class="direct-purchase-text">Vous allez discuter directement avec la boutique pour finaliser votre achat.</span>
+            <span class="direct-purchase-text">Confirmez votre commande, le paiement et la livraison avec la boutique sur WhatsApp.</span>
           </div>
            
           <div class="pt-1">
             <div class="d-flex justify-content-between align-items-start gap-3 mb-3 summary-line summary-total-line">
-              <span class="fw-bold">Total produits estimé</span>
+              <span class="fw-bold">Total estimé des articles</span>
               <span class="h5 fw-bold text-primary price-amount total-price" id="totalAmount">{{ "{:,.2f}".format(total)|replace(",", " ") }} MAD</span>
             </div>
                
@@ -133,10 +133,10 @@
       <i class="bi bi-cart-x"></i>
     </div>
     <h4 class="mb-3">Votre panier est vide</h4>
-    <p class="text-muted mb-4">Ajoutez des produits pour commencer vos achats</p>
+    <p class="text-muted mb-4">Choisissez des produits pour les retrouver ici.</p>
     <div class="d-flex gap-2 justify-content-center">
       <a href="{{ url_for('shop.home') }}" class="btn btn-primary">
-        <i class="bi bi-shop me-2"></i>Boutiques
+        <i class="bi bi-shop me-2"></i>Découvrir les offres
       </a>
       <a href="{{ url_for('shop.home') }}" class="btn btn-outline-primary">
         <i class="bi bi-house me-2"></i>Accueil

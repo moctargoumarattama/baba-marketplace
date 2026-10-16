@@ -1,0 +1,4 @@
+{% set configured_logo = config.get('SITE_LOGO') %}
+{% set site_logo = 'images/logo-public.webp' if not configured_logo or configured_logo == 'logo.png' else configured_logo %}
+<img class="hub-brand-logo" src="{{ site_logo if site_logo.startswith('http') else url_for('static', filename=site_logo, v=app_static_version) }}" alt="" width="56" height="56" decoding="async">
+<span>BabaMarket</span>

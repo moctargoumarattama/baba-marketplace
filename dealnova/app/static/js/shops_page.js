@@ -228,7 +228,7 @@
 
     kindChips.forEach(function (chip) {
       var chipKind = normalizeKind(chip.getAttribute("data-kind"));
-      var active = !!state.kind && chipKind === state.kind;
+      var active = chipKind === state.kind;
       chip.classList.toggle("active", active);
       chip.setAttribute("aria-pressed", active ? "true" : "false");
     });
