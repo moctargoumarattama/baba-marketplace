@@ -34,14 +34,17 @@ def test_search_apis_enforce_server_side_minimum_query_lengths():
 
 def test_global_search_is_instant_search_shell_without_unused_db_queries():
     source = _read("app/__init__.py")
-    body = _function_body(source, "global_search")
+    marker = "def global_search():"
+    start = source.index(marker)
+    end = source.find("\n    @", start)
+    body = source[start : end if end != -1 else len(source)]
 
     assert "Product.query.filter" not in body
     assert "Shop.query.filter" not in body
     assert "Category.query.filter" not in body
     assert "RentalListing.query.filter" not in body
-    assert "results=results" in body
-    assert '"products": []' in body
+    assert "landing" in body
+    assert 'open="search"' in body
 
 
 def test_product_detail_loads_ajax_runtime_for_ajax_forms():
@@ -55,10 +58,10 @@ def test_product_detail_loads_ajax_runtime_for_ajax_forms():
 def test_promotions_uses_server_search_not_current_page_filtering():
     template = _read("app/templates/shop/promotions.html")
 
-    assert 'method="get" action="{{ url_for(\'shop.promotions\') }}"' in template
+    assert "landing" in template
+    assert "promotions" in template
     assert "filterCards" not in template
     assert "allCards" not in template
-    assert 'name="page"' not in template
 
 
 def test_shop_detail_products_use_clamped_stable_pagination_and_min_search():

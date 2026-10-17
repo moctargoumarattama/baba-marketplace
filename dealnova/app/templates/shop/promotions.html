@@ -9,6 +9,14 @@
       <span class="visually-hidden">Chargement...</span>
     </div>
     <p style="margin-top: 1rem; color: #64748b; font-weight: 600;">Redirection vers les promotions...</p>
+    <noscript>
+      <meta http-equiv="refresh" content="0; url={{ url_for('landing', open='promotions') }}">
+    </noscript>
+    <p style="margin-top: 1rem;">
+      <a href="{{ url_for('landing', open='promotions') }}" class="btn btn-warning btn-sm fw-semibold">
+        Voir les promotions directement
+      </a>
+    </p>
   </div>
 </div>
 <script>

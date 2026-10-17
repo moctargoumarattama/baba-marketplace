@@ -172,10 +172,19 @@
     actions.appendChild(detail); content.appendChild(actions); card.appendChild(mediaLink); card.appendChild(content); return card;
   }
   function emptyState(error) {
-    var box = node('div', 'catalog-empty'); box.appendChild(icon(error ? 'wifi-off' : 'search')); box.appendChild(node('h3', '', error ? 'Le catalogue est momentanément indisponible' : 'Aucun résultat pour ces critères'));
-    box.appendChild(node('p', '', error || 'Modifiez votre recherche ou retirez un filtre.'));
-    box.appendChild(button(error ? 'Réessayer' : 'Réinitialiser les filtres', error ? function () { load(true, false, true); } : reset, 'hub-primary-btn'));
-    if (error) box.appendChild(button('Effacer les filtres', reset, 'catalog-reset'));
+    var hasFilters = Object.keys((state && state.filters) || {}).some(function (k) {
+      return k !== 'sort' && k !== 'page' && state.filters[k];
+    }) || Boolean((state && state.query || '').trim());
+    var box = node('div', 'catalog-empty');
+    box.appendChild(icon(error ? 'wifi-off' : (hasFilters ? 'search' : 'inbox')));
+    box.appendChild(node('h3', '', error ? 'Le catalogue est momentanément indisponible' : (hasFilters ? 'Aucun résultat pour ces critères' : 'Aucune offre disponible pour le moment')));
+    box.appendChild(node('p', '', error || (hasFilters ? 'Modifiez votre recherche ou retirez un filtre.' : 'Revenez bientôt découvrir de nouvelles offres.')));
+    if (error) {
+      box.appendChild(button('Réessayer', function () { load(true, false, true); }, 'hub-primary-btn'));
+      box.appendChild(button('Effacer les filtres', reset, 'catalog-reset'));
+    } else if (hasFilters) {
+      box.appendChild(button('Réinitialiser les filtres', reset, 'hub-primary-btn'));
+    }
     return box;
   }
   function setLoading() {

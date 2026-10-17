@@ -142,6 +142,9 @@
     const link = document.getElementById("supportWaLink");
     if (!link || !link.href) return;
     try {
+      const storageKey = 'wa_auto_opened_' + encodeURIComponent(link.href);
+      if (sessionStorage.getItem(storageKey)) return;
+      sessionStorage.setItem(storageKey, '1');
       window.location.href = link.href;
     } catch (error) {}
   })();

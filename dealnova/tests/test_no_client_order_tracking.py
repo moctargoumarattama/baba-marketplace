@@ -79,13 +79,15 @@ def test_public_ui_has_no_client_order_tracking_links_or_copy():
 def test_whatsapp_cart_and_delivery_entry_points_remain():
     app_init = _read("app/__init__.py")
     cart_source = _read("app/routes/cart.py")
-    delivery_source = _read("app/routes/delivery.py")
+    shop_source = _read("app/routes/shop.py")
 
     assert "register_blueprint(cart.bp)" in app_init
-    assert "register_blueprint(delivery.bp)" in app_init
+    assert 'register_blueprint(shop.bp, url_prefix="/shop")' in app_init
     assert '@bp.route("/")' in cart_source
     assert '@bp.route("/checkout", methods=["GET", "POST"])' in cart_source
     assert '@bp.route("/whatsapp", methods=["POST"])' in cart_source
     assert "cart/vendor_whatsapp_checkout.html" in cart_source
     assert "ProductContactLead" in cart_source
-    assert 'Blueprint("delivery_special"' in delivery_source
+    assert '@bp.route("/delivery/whatsapp")' in shop_source
+    assert "def delivery_whatsapp_loader():" in shop_source
+    assert '"support/delivery_whatsapp_loader.html"' in shop_source

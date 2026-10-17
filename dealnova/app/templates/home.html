@@ -27,12 +27,54 @@
 <meta name="twitter:title" content="{{ seo_title }}">
 <meta name="twitter:description" content="{{ seo_twitter_description }}">
 <meta name="twitter:image" content="{{ og_image_url }}">
+<script type="application/ld+json">
+  {{
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "OnlineStore",
+          "@id": canonical_url ~ "#organization",
+          "name": brand_name,
+          "alternateName": ["BabaMarket", "Baba Market Maroc"],
+          "url": canonical_url,
+          "logo": {
+            "@type": "ImageObject",
+            "url": logo_url,
+            "contentUrl": logo_url,
+            "width": 512,
+            "height": 512,
+            "caption": brand_name
+          },
+          "image": logo_url,
+          "description": seo_description,
+          "sameAs": [facebook_url],
+          "areaServed": [
+            "Rabat",
+            "Salé",
+            "Kénitra",
+            "Témara"
+          ]
+        },
+        {
+          "@type": "WebSite",
+          "@id": canonical_url ~ "#website",
+          "name": brand_name,
+          "alternateName": ["BabaMarket", "Baba Market Maroc"],
+          "url": canonical_url,
+          "publisher": {"@id": canonical_url ~ "#organization"},
+          "inLanguage": "fr-MA"
+        }
+      ]
+    }|tojson
+  }}
+</script>
 <link rel="preload" as="image" href="{{ url_for('static', filename='images/home-refresh/hero.webp', v=app_static_version) }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/ui_home_single_hub.css', v=(app_static_version ~ '-catalog-v3')) }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/assistant/widget.css', v=(app_static_version ~ '-assistant-kb-v2')) }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/home_refresh.css', v=(app_static_version ~ '-catalog-v3-header-v2-hero-v1-services-v3-discovery-v1-footer-v2-fluid-v1')) }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/home_refresh.css', v=(app_static_version ~ '-catalog-v3-header-v2-hero-v1-services-v3-discovery-v1-footer-v2-fluid-v1-cleanup-v1-share-v1')) }}">
 <script src="{{ url_for('static', filename='js/public_live_search.js', v=app_static_version ~ '-header-v3') }}" defer></script>
-<link rel="stylesheet" href="{{ url_for('static', filename='css/catalog_panel.css', v=(app_static_version ~ '-catalog-v3-discovery-v1-delivery-v2')) }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/catalog_panel.css', v=(app_static_version ~ '-catalog-v3-discovery-v1-delivery-v2-modals-v2')) }}">
 {% endblock %}
 
 {% block content %}
@@ -65,9 +107,14 @@
       <h3 class="u-modal-title" id="uModalTitle">Produits et repas</h3>
       <span class="u-modal-count" id="uModalCount">Chargement...</span>
     </div>
-    <button type="button" class="u-modal-close-btn" data-u-modal-close aria-label="Fermer">
-      <i class="bi bi-x-lg"></i>
-    </button>
+    <div class="u-modal-header-actions">
+      <button type="button" class="u-modal-fullscreen-btn" data-modal-fullscreen aria-label="{{ t('Plein écran') }}" title="{{ t('Plein écran') }}" aria-pressed="false">
+        <i class="bi bi-arrows-fullscreen" aria-hidden="true"></i>
+      </button>
+      <button type="button" class="u-modal-close-btn" data-u-modal-close aria-label="{{ t('Fermer') }}" title="{{ t('Fermer') }}">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    </div>
   </header>
 
   <!-- BARRE DE RECHERCHE RAPIDE INTERNE -->
@@ -119,12 +166,17 @@
       <i class="bi bi-chevron-left"></i>
       <span>Retour</span>
     </button>
-    <div class="u-modal-header-titles" style="text-align:center;">
-      <span class="u-pdetail-cat-badge" id="pDetailCatBadge">Détails du produit</span>
+    <div class="u-detail-header-actions">
+      <button type="button" class="u-detail-share-btn" id="pDetailShareBtn" data-share-button data-share-ready="0" data-share-copied-message="Lien copié" disabled>
+        <i class="bi bi-share" aria-hidden="true"></i> Partager
+      </button>
+      <button type="button" class="u-modal-fullscreen-btn" data-modal-fullscreen aria-label="{{ t('Plein écran') }}" title="{{ t('Plein écran') }}" aria-pressed="false">
+        <i class="bi bi-arrows-fullscreen" aria-hidden="true"></i>
+      </button>
+      <button type="button" class="u-modal-close-btn" data-pdetail-close aria-label="{{ t('Fermer') }}" title="{{ t('Fermer') }}">
+        <i class="bi bi-x-lg" aria-hidden="true"></i>
+      </button>
     </div>
-    <button type="button" class="u-modal-close-btn" data-pdetail-close aria-label="Fermer">
-      <i class="bi bi-x-lg"></i>
-    </button>
   </header>
 
   <!-- CORPS DU DÉTAIL PRODUIT -->
@@ -137,6 +189,7 @@
     <div id="pDetailContent" style="display:none;">
       <!-- BADGES STATUT -->
       <div class="u-pdetail-meta-row">
+        <span class="u-pdetail-cat-badge" id="pDetailCatBadge">Détails du produit</span>
         <span class="u-pdetail-meta-pill pill-stock" id="pDetailStockBadge"><i class="bi bi-check-circle-fill"></i> En stock</span>
         <span class="u-pdetail-meta-pill pill-delivery"><i class="bi bi-truck"></i> Livraison à confirmer</span>
       </div>
@@ -226,12 +279,17 @@
       <i class="bi bi-chevron-left"></i>
       <span>Retour</span>
     </button>
-    <div class="u-modal-header-titles" style="text-align:center;">
-      <span class="u-pdetail-cat-badge u-shop-cat-badge">Boutique</span>
+    <div class="u-detail-header-actions">
+      <button type="button" class="u-detail-share-btn" id="shopDetailShareBtn" data-share-button data-share-ready="0" data-share-copied-message="Lien de la boutique copié" disabled>
+        <i class="bi bi-share" aria-hidden="true"></i> Partager
+      </button>
+      <button type="button" class="u-modal-fullscreen-btn" data-modal-fullscreen aria-label="{{ t('Plein écran') }}" title="{{ t('Plein écran') }}" aria-pressed="false">
+        <i class="bi bi-arrows-fullscreen" aria-hidden="true"></i>
+      </button>
+      <button type="button" class="u-modal-close-btn" data-shop-close aria-label="{{ t('Fermer') }}" title="{{ t('Fermer') }}">
+        <i class="bi bi-x-lg" aria-hidden="true"></i>
+      </button>
     </div>
-    <button type="button" class="u-modal-close-btn" data-shop-close aria-label="Fermer">
-      <i class="bi bi-x-lg"></i>
-    </button>
   </header>
 
   <!-- CORPS MODALE BOUTIQUE -->
@@ -365,7 +423,10 @@
           <button type="button" class="u-cart-clear-btn" id="cartDrawerClearBtn" title="Vider le panier" style="display:none;">
             <i class="bi bi-trash3"></i> <span>Vider</span>
           </button>
-          <button type="button" class="u-modal-close-btn" data-cart-close aria-label="Fermer">
+          <button type="button" class="u-modal-fullscreen-btn" data-modal-fullscreen aria-label="{{ t('Plein écran') }}" title="{{ t('Plein écran') }}" aria-pressed="false">
+            <i class="bi bi-arrows-fullscreen" aria-hidden="true"></i>
+          </button>
+          <button type="button" class="u-modal-close-btn" data-cart-close aria-label="{{ t('Fermer') }}" title="{{ t('Fermer') }}">
             <i class="bi bi-x-lg"></i>
           </button>
         </div>
@@ -433,9 +494,14 @@
           <span>Panier</span>
         </button>
         <h3 class="u-cart-title" style="font-size:0.96rem;margin:0 auto;">Commander sur WhatsApp</h3>
-        <button type="button" class="u-modal-close-btn" data-cart-close aria-label="Fermer">
-          <i class="bi bi-x-lg"></i>
-        </button>
+        <div class="u-modal-header-actions">
+          <button type="button" class="u-modal-fullscreen-btn" data-modal-fullscreen aria-label="{{ t('Plein écran') }}" title="{{ t('Plein écran') }}" aria-pressed="false">
+            <i class="bi bi-arrows-fullscreen" aria-hidden="true"></i>
+          </button>
+          <button type="button" class="u-modal-close-btn" data-cart-close aria-label="{{ t('Fermer') }}" title="{{ t('Fermer') }}">
+            <i class="bi bi-x-lg"></i>
+          </button>
+        </div>
       </header>
 
       <!-- CORPS ÉTAPE 2 -->
@@ -478,8 +544,8 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/home_hero.js', v=app_static_version ~ '-hero-v1') }}" defer></script>
-<script src="{{ url_for('static', filename='js/home_refresh.js', v=(app_static_version ~ '-textes-v1-catalog-v3-rotation-v1')) }}" defer></script>
+<script src="{{ url_for('static', filename='js/home_refresh.js', v=(app_static_version ~ '-textes-v1-catalog-v3-cleanup-v1')) }}" defer></script>
 <script src="{{ url_for('static', filename='js/public_catalog.js', v=(app_static_version ~ '-textes-v1' ~ '-catalog-v3')) }}" defer></script>
-<script src="{{ url_for('static', filename='js/ui_home_single_hub.js', v=(app_static_version ~ '-textes-v1-catalog-v3-header-v2-discovery-v1-delivery-v3')) }}" defer></script>
+<script src="{{ url_for('static', filename='js/ui_home_single_hub.js', v=(app_static_version ~ '-textes-v1-catalog-v3-header-v2-discovery-v1-delivery-v3-share-v1-modals-v2')) }}" defer></script>
 <script src="{{ url_for('static', filename='js/assistant/widget.js', v=(app_static_version ~ '-textes-v1' ~ '-assistant-kb-v2')) }}" defer></script>
 {% endblock %}

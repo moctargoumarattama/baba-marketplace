@@ -1,62 +1,65 @@
+"""Layout contracts for the current homepage, alongside browser/home_responsive.cjs."""
 from pathlib import Path
+import re
 
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def _home_css() -> str:
-    return (ROOT / "app/static/css/home_shell.css").read_text(encoding="utf-8-sig")
+def _read(relative: str) -> str:
+    return (ROOT / relative).read_text(encoding="utf-8-sig")
 
 
-def _mobile_home_block(css: str) -> str:
-    start = css.index("@media (max-width: 768px)")
-    next_media = css.index("@media (max-width: 480px)", start)
-    return css[start:next_media]
+def _rule(css: str, selector: str) -> str:
+    match = re.search(re.escape(selector) + r"\s*\{([^{}]*)\}", css)
+    assert match, selector
+    return match.group(1)
 
 
-def _home_template() -> str:
-    return (ROOT / "app/templates/home.html").read_text(encoding="utf-8-sig")
+def _mobile_css() -> str:
+    css = _read("app/static/css/home_refresh.css")
+    return css.split("@media (max-width: 768px)", 1)[1].split("@media", 1)[0]
 
 
-def test_home_mobile_product_actions_keep_ctas_balanced():
-    mobile_css = _mobile_home_block(_home_css())
+def test_current_home_uses_the_responsive_stylesheet_and_six_category_grid():
+    template = _read("app/templates/home.html")
+    css = _read("app/static/css/home_refresh.css")
 
-    assert ".product-actions" in mobile_css
-    assert "margin-top: 0.65rem;" in mobile_css
-    assert "gap: 0.45rem;" in mobile_css
-    assert ".product-actions .add-to-cart-form" in mobile_css
-    assert "display: flex !important;" in mobile_css
-    assert ".product-actions .btn-detail" in mobile_css
-    assert ".product-actions .btn-cart" in mobile_css
-    assert ".product-actions .btn-book" in mobile_css
-    assert "flex: 0 0 auto;" in mobile_css
-    assert "min-height: 44px;" in mobile_css
+    assert "filename='css/home_refresh.css'" in template
+    assert "repeat(6, minmax(0, 1fr))" in _rule(css, ".hub-categories")
+    assert "repeat(3, minmax(0, 1fr))" in _rule(_mobile_css(), ".hub-categories")
+    assert "min-width: 0;" in _rule(css, ".hub-category")
 
 
-def test_home_product_actions_keep_cta_columns_uniform_across_item_types():
-    css = _home_css()
+def test_current_home_fills_desktop_without_a_fixed_minimum_width():
+    css = _read("app/static/css/home_refresh.css")
 
-    assert ".products-grid {" in css
-    assert "align-items: stretch;" in css
-    assert ".product-price-container {" in css
-    assert "min-height: 2.35rem;" in css
-    assert ".product-actions {" in css
-    assert "align-items: stretch;" in css
-    assert ".product-actions .add-to-cart-form {" in css
-    assert "flex: 1 1 0;" in css
-    assert ".product-actions .add-to-cart-form .btn-cart {" in css
-    assert "width: 100%;" in css
-    assert ".btn-book {" in css
-    assert "border-radius: 14px;" in css
+    for selector in (".hub-header-inner", ".hub-desktop-nav", ".hub-page-content"):
+        rule = _rule(css, selector)
+        assert "width: 100%;" in rule
+        assert "max-width: none;" in rule
+        assert "min-width: 0;" in rule
+
+    assert "minmax(0, 1fr)" in _rule(_mobile_css(), ".hub-header-inner")
 
 
-def test_home_universe_promotions_replaces_delivery_and_header_promo_cta_removed():
-    template = _home_template()
-    css = _home_css()
+def test_mobile_navigation_and_category_labels_keep_touch_targets_usable():
+    css = _mobile_css()
+    labels = _rule(css, ".hub-category-label")
+    navigation = _rule(css, ".hub-bottom-nav")
+    actions = _rule(css, ".hub-bottom-nav > :is(a, button)")
 
-    assert "class=\"universe-card promotions reveal\"" in template
-    assert "url_for('shop.promotions')" in template
-    assert "Promotions du moment" not in template
-    assert "url_for('shop.delivery_whatsapp_loader'" not in template
-    assert ".universe-card.promotions .universe-icon" in css
-    assert ".universe-card.delivery .universe-icon" not in css
+    assert "min-height: 44px;" in labels
+    assert "position: fixed;" in navigation
+    assert "repeat(4, 1fr)" in navigation
+    assert "safe-area-inset-bottom" in navigation
+    assert "min-height: 49px;" in actions
+    assert "safe-area-inset-bottom" in css.split(".hub-header-inner", 1)[0]
+
+
+def test_shared_layout_no_longer_loads_disabled_home_tabs():
+    base = _read("app/templates/base.html")
+
+    assert "home_tabs_enabled" not in base
+    assert "ui_home_tabs" not in base
+    assert "has-home-tabs" not in base

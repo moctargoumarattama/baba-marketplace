@@ -148,7 +148,7 @@
                                     data-share-text="{{ shop_share_description[:180] }}"
                                     data-share-url="{{ shop_share_url }}"
                                     data-share-copied-message="Lien de la boutique copié">
-                                <i class="bi bi-share"></i>
+                                <i class="bi bi-share" aria-hidden="true"></i>
                                 Partager
                             </button>
                         </div>
@@ -632,7 +632,6 @@
   "defaultEmptyHeading": default_empty_heading,
   "defaultClearLabel": default_clear_label
 } | tojson }}</script>
-<script src="{{ url_for('static', filename='js/core/core_share.js', v=app_static_version) }}" defer></script>
 <script src="{{ url_for('static', filename='js/pages/shop_detail_page.js', v=app_static_version ~ '-textes-v1') }}" defer></script>
 {% endblock %}
 

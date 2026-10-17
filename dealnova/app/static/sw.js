@@ -25,9 +25,13 @@ const PRECACHE_ASSETS = [
   "/static/js/ajax_pagination.js",
   "/static/js/ui_drawer.js",
   "/static/js/ui_shell.js",
-  "/static/js/home_shell.js",
-  "/static/js/ui_home_tabs.js",
+  "/static/js/home_refresh.js",
+  "/static/js/home_hero.js",
+  "/static/js/public_live_search.js",
+  "/static/js/public_catalog.js",
+  "/static/js/ui_home_single_hub.js",
   "/static/js/core/core_ui.js",
+  "/static/js/core/core_share.js",
   "/static/js/core/core_dom.js",
   "/static/js/ajax/core/bm_fetch.js",
   "/static/js/ajax/core/bm_guard.js",
@@ -35,23 +39,35 @@ const PRECACHE_ASSETS = [
   "/static/js/support_issue_fab.js",
   "/static/css/ui_drawer_glass.css",
   "/static/css/ui_shell.css",
-  "/static/css/home_shell.css",
-  "/static/css/ui_home_tabs.css",
+  "/static/css/home_refresh.css",
+  "/static/css/public_refresh.css",
+  "/static/css/catalog_panel.css",
+  "/static/css/ui_home_single_hub.css",
   "/static/css/support_issue_fab.css",
-  "/static/css/ui_drawer.css",
   "/static/css/offline.css",
   "/static/js/offline_page.js",
+  "/static/images/logo-public.webp",
+  "/static/images/home-refresh/hero.webp",
+  "/static/images/home-refresh/categories.webp",
+  "/static/images/home-refresh/services-multimetiers-v2.webp",
 ];
 
 const CRITICAL_STATIC_ASSETS = new Set([
   OFFLINE_PATH,
+  "/static/js/core/core_share.js",
   "/static/js/ui_drawer.js",
-  "/static/css/ui_drawer.css",
   "/static/css/ui_drawer_glass.css",
   "/static/js/ui_shell.js",
   "/static/css/ui_shell.css",
-  "/static/js/home_shell.js",
-  "/static/css/home_shell.css",
+  "/static/js/home_refresh.js",
+  "/static/js/home_hero.js",
+  "/static/js/public_live_search.js",
+  "/static/js/public_catalog.js",
+  "/static/js/ui_home_single_hub.js",
+  "/static/css/home_refresh.css",
+  "/static/css/public_refresh.css",
+  "/static/css/catalog_panel.css",
+  "/static/css/ui_home_single_hub.css",
   "/static/js/ajax_pagination.js",
   "/static/js/i18n.js",
   "/static/js/offline_page.js",
@@ -753,90 +769,7 @@ async function getOfflineFallback(reason, pathname) {
           "Cache-Control": "no-store",
         },
       });
-      return new Response(
-        `<!DOCTYPE html>
-<html lang="fr">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Service temporairement indisponible</title>
-  <style>
-    html, body { margin: 0; min-height: 100%; }
-    body {
-      display: grid;
-      place-items: center;
-      padding: 24px;
-      font-family: "Segoe UI", Arial, sans-serif;
-      background: linear-gradient(180deg, #f8fffc 0%, #eef6ff 100%);
-      color: #0f172a;
-    }
-    .offline-fallback-card {
-      width: min(100%, 440px);
-      background: rgba(255, 255, 255, 0.98);
-      border: 1px solid rgba(15, 23, 42, 0.08);
-      border-radius: 24px;
-      box-shadow: 0 24px 54px rgba(15, 23, 42, 0.12);
-      padding: 24px;
-    }
-    .offline-fallback-chip {
-      display: inline-flex;
-      align-items: center;
-      min-height: 32px;
-      padding: 0.35rem 0.78rem;
-      border-radius: 999px;
-      background: rgba(16, 185, 129, 0.12);
-      color: #0b7f59;
-      font-size: 0.76rem;
-      font-weight: 900;
-      letter-spacing: 0.03em;
-      text-transform: uppercase;
-    }
-    h1 {
-      margin: 0.85rem 0 0.35rem;
-      font-size: clamp(1.6rem, 5vw, 2rem);
-      line-height: 1.05;
-    }
-    p {
-      margin: 0;
-      color: #475569;
-      font-size: 0.98rem;
-      line-height: 1.6;
-    }
-    .offline-fallback-btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 100%;
-      min-height: 50px;
-      margin-top: 1rem;
-      border: none;
-      border-radius: 18px;
-      background: linear-gradient(135deg, #25d366, #128c7e);
-      color: #fff;
-      font: inherit;
-      font-size: 1rem;
-      font-weight: 900;
-      cursor: pointer;
-    }
-  </style>
-</head>
-<body>
-  <main class="offline-fallback-card">
-    <div class="offline-fallback-chip">Indisponible</div>
-    <h1>Service temporairement indisponible</h1>
-    <p>Votre connexion est peut-être coupée, ou le service est momentanément indisponible. Les pages déjà ouvertes restent accessibles.</p>
-    <button class="offline-fallback-btn" type="button" onclick="window.location.reload()">Réessayer</button>
-  </main>
-</body>
-</html>`,
-        {
-          status: 503,
-          headers: {
-            "Content-Type": "text/html; charset=utf-8",
-            "Cache-Control": "no-store",
-          },
-        }
-      );
+
     }
   }
 }

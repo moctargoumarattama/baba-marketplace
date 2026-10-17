@@ -1,9 +1,10 @@
 /* Modal catalogue: stable layout, short transitions and server-side pages. */
 body[data-page="landing"] .u-modal-panel { transition: transform 240ms cubic-bezier(.2,.8,.2,1), opacity 180ms ease; will-change: auto; }
-body[data-page="landing"] .u-modal-panel.is-open,
+body[data-page="landing"] .u-modal-panel.is-opening,
 body[data-page="landing"] .u-modal-panel.is-closing { will-change: transform; }
 body[data-page="landing"] .u-modal-panel:focus-visible { outline: none; }
 body[data-page="landing"] .u-modal-panel.is-closing { visibility: visible !important; pointer-events: none; }
+body[data-page="landing"] .u-modal-panel.is-covered { visibility: visible !important; pointer-events: none; }
 body[data-page="landing"] .u-modal-backdrop { transition: opacity 220ms ease; }
 body[data-page="landing"] .u-modal-panel[hidden],
 body[data-page="landing"] .u-modal-backdrop[hidden],
@@ -14,9 +15,13 @@ body[data-page="landing"] #uModalCount[hidden],
 body[data-page="landing"] #uModalFooter[hidden],
 body[data-page="landing"] #uModalBody[hidden],
 body[data-page="landing"] #uDeliveryBody[hidden] { display: none !important; }
-body[data-page="landing"] #universeModalPanel { height: min(800px, 94vh); height: min(800px, 94dvh); }
+body[data-page="landing"] #universeModalPanel:not(.is-fullscreen) { height: min(800px, 94vh); height: min(800px, 94dvh); }
+body[data-page="landing"] #universeModalPanel.is-fullscreen { height: 100vh !important; height: 100dvh !important; }
 body[data-page="landing"] .catalog-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
 .catalog-universes { display: flex; gap: 8px; padding: 0 18px 12px; background: #fff; flex: none; }
+.catalog-universes[hidden],
+body[data-page="landing"] #universeModalPanel:not(.is-explore-mode) .catalog-universes { display: none !important; }
+body[data-page="landing"] #universeModalPanel.is-explore-mode .catalog-universes:not([hidden]) { display: flex !important; }
 .catalog-universes button { min-width: 0; min-height: 44px; padding: 7px 14px; border: 1px solid #dfe7dc; border-radius: 12px; background: #fff; color: #41604d; font-size: 13px; font-weight: 600; line-height: 1.25; }
 .catalog-universes button[aria-pressed="true"] { background: #087f5b; border-color: #087f5b; color: #fff; }
 .catalog-universes button:hover { border-color: #087f5b; }
@@ -72,12 +77,15 @@ body[data-page="landing"] .catalog-item-actions .u-item-btn { flex: 1 1 auto; wi
 @keyframes catalogue-pulse { from { opacity: .65; } to { opacity: 1; } }
 @media (max-width:768px) {
   body[data-page="landing"] .u-modal-panel { bottom: var(--hub-sheet-bottom, 0px); max-height: calc(var(--hub-visual-height, 100dvh) - 18px - env(safe-area-inset-top,0px)); }
-  body[data-page="landing"] #universeModalPanel { height: calc(100vh - 18px - env(safe-area-inset-top,0px)); height: calc(var(--hub-visual-height, 100dvh) - 18px - env(safe-area-inset-top,0px)); }
+  body[data-page="landing"] :is(#universeModalPanel, #productDetailPanel, #shopDetailPanel) { height: calc(100vh - 18px - env(safe-area-inset-top,0px)); height: calc(var(--hub-visual-height, 100dvh) - 18px - env(safe-area-inset-top,0px)); }
+  body[data-page="landing"] .u-modal-backdrop { backdrop-filter: none; -webkit-backdrop-filter: none; }
+  body[data-page="landing"] :is(.catalog-body, .u-cart-body) { touch-action: pan-y pinch-zoom; }
   body[data-page="landing"] .u-modal-drag-handle[data-sheet-drag] { display: block; position: relative; width: 100%; height: 24px; flex: none; margin: 0; padding: 0; background: #fff; border: 0; border-radius: 0; cursor: grab; touch-action: none; }
   body[data-page="landing"] .u-modal-drag-handle[data-sheet-drag]::after { content: ''; position: absolute; left: calc(50% - 20px); top: 10px; width: 40px; height: 4px; border-radius: 5px; background: #ccd8cd; }
   body[data-page="landing"] .u-modal-header { padding-top: 4px; }
   .catalog-toolbar { padding-inline: 14px; gap: 8px; }
-  .catalog-universes { display: grid; grid-template-columns: .6fr 1.5fr 1fr 1fr; gap: 6px; padding-inline: 14px; }
+  .catalog-universes { grid-template-columns: .6fr 1.5fr 1fr 1fr; gap: 6px; padding-inline: 14px; }
+  body[data-page="landing"] #universeModalPanel.is-explore-mode .catalog-universes:not([hidden]) { display: grid !important; }
   .catalog-universes button { padding-inline: 5px; font-size: 12px; }
   .catalog-sort > span { display: none; }
   .catalog-sort select { font-size: 13px; max-width: 165px; }

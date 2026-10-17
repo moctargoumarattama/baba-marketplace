@@ -1,7 +1,7 @@
 from datetime import datetime
 import time
 
-from flask import Blueprint, jsonify, request, current_app, render_template
+from flask import Blueprint, jsonify, request, current_app, render_template, url_for
 from sqlalchemy import or_, case, func
 from sqlalchemy.orm import selectinload
 from ..models.product import Product
@@ -392,6 +392,7 @@ def get_product_detail(pid):
         "product": {
             "id": product.id,
             "name": product.name,
+            "share_url": url_for("shop.product_detail", pid=product.id, _external=True),
             "description": product.description or "Aucune description disponible pour cet article.",
             "price": original_price,
             "final_price": final_price,
@@ -492,6 +493,7 @@ def get_shop_detail(shop_slug_or_id):
             "id": shop.id,
             "name": shop.name,
             "slug": shop.slug,
+            "share_url": url_for("shops.shop_detail", shop_slug=shop.slug, _external=True),
             "logo": shop.logo,
             "banner": shop.banner,
             "description": clean_shop_description(shop.description),

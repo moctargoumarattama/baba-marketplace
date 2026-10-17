@@ -904,9 +904,10 @@ def create_app(config_class=Config):
     @app.route("/search")
     def global_search():
         q = request.args.get("q", "").strip()
+        params = {k: v for k, v in request.args.items() if k != "open"}
         if q:
-            return redirect(url_for("shop.home", q=q))
-        return redirect(url_for("shop.home"))
+            params["q"] = q
+        return redirect(url_for("landing", open="search", **params))
 
     #  ROUTE POUR ACCDER  L'ADMIN (Bouton principal)
     @app.route("/admin-access")

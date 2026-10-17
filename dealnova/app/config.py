@@ -35,7 +35,6 @@ class Config:
     ENV = os.getenv("FLASK_ENV", "production").lower()
     DEBUG = _env_bool.__func__("DEBUG", False)
     APP_STATIC_VERSION = os.getenv("APP_STATIC_VERSION", _get_static_version())
-    UI_HOME_TABS_ENABLED = _env_bool.__func__("UI_HOME_TABS_ENABLED", True)
 
     # On garde le fallback "dev" pour ne pas casser,
     # mais on recommande fortement de definir SECRET_KEY en prod.

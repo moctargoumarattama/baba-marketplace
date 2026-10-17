@@ -1,5 +1,9 @@
 ﻿{% extends "base.html" %}
 
+{% set location_share_url = url_for('rentals.location_detail', slug=listing.slug, _external=True) %}
+{% set location_share_title = listing.title ~ " | Location à " ~ listing.city ~ " | BabaMarket" %}
+{% set location_share_text = (listing.description or listing.title)|striptags|trim %}
+
 {% block title %}{{ listing.title }} | Location à {{ listing.city }} | BabaMarket{% endblock %}
 
 {% block head %}
@@ -244,6 +248,11 @@
     pointer-events: none;
   }
   .detail-body { padding: .94rem .9rem 1rem; }
+  .public-rental-detail .detail-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 20px; }
+  .public-rental-detail .detail-heading .title { flex: 1 1 220px; min-width: 0; margin: 0; overflow-wrap: anywhere; }
+  .public-rental-detail .detail-share { display: inline-flex; flex: none; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 10px 14px; border: 1px solid var(--listing-border, #e1e7dc); border-radius: 11px; background: #fff; color: var(--listing-green, #186047); font-size: 14px; font-weight: 600; }
+  .public-rental-detail .detail-share:hover { background: var(--listing-soft, #f1f4ea); }
+  .public-rental-detail .detail-share:focus-visible { outline: 3px solid var(--listing-green, #186047); outline-offset: 3px; }
   .title { margin: 0 0 .36rem; color: #0f172a; font-weight: 900; font-size: clamp(1.08rem, 2vw, 1.46rem); }
   .meta-row { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; margin-bottom: .5rem; }
   .meta-pill {
@@ -261,16 +270,6 @@
   .cta {
     display: inline-flex; justify-content: center; align-items: center; gap: .45rem;
     width: 100%; min-height: 44px; font-weight: 800; border-radius: 11px;
-  }
-  .cta-share {
-    border: 1px solid #cbd5e1;
-    background: linear-gradient(180deg, #ffffff, #f8fafc);
-    color: #0f172a;
-    box-shadow: 0 10px 20px rgba(15, 23, 42, .08);
-  }
-  .cta-share:hover {
-    color: #0f172a;
-    background: #f8fafc;
   }
   .note { color: #64748b; font-size: .8rem; line-height: 1.42; margin: 0; }
   .gallery-lightbox[hidden] { display: none !important; }
@@ -445,6 +444,16 @@
 
   <div class="detail-grid">
     <section class="detail-card">
+      <div class="detail-heading">
+        <h1 class="title">{{ listing.title }}</h1>
+        <button type="button" class="detail-share" data-share-button
+                data-share-title="{{ location_share_title }}"
+                data-share-text="{{ location_share_text[:180] }}"
+                data-share-url="{{ location_share_url }}"
+                data-share-copied-message="Lien de l'annonce copié.">
+          <i class="bi bi-share" aria-hidden="true"></i> Partager
+        </button>
+      </div>
       {% set gallery = [] %}
       {% set gallery_poster_fallback = url_for('static', filename=images[0].file_path) if images else '' %}
       {% for image in images %}
@@ -518,7 +527,6 @@
       {% endif %}
 
       <div class="detail-body">
-        <h1 class="title">{{ listing.title }}</h1>
         <div class="meta-row">
           <span class="meta-pill"><i class="bi bi-geo-alt"></i> {{ listing.city }}{% if listing.area %}, {{ listing.area }}{% endif %}</span>
           <span class="meta-pill"><i class="bi bi-building"></i> {{ {'room': 'Chambre', 'apartment': 'Appartement', 'studio': 'Studio', 'store': 'Local commercial', 'villa': 'Villa'}.get(listing.property_type, 'Autre bien') }}</span>
@@ -551,15 +559,6 @@
       <a class="btn btn-success cta" href="{{ url_for('rentals.location_inquiry', slug=listing.slug) }}">
         <i class="bi bi-chat-dots" aria-hidden="true"></i> Demander une visite
       </a>
-      <button type="button"
-              class="btn cta cta-share"
-              data-share-button
-              data-share-title="{{ page_title }}"
-              data-share-text="{{ listing.title[:180] }}"
-              data-share-url="{{ canonical_url }}"
-              data-share-copied-message="Lien de l'annonce copié.">
-        <i class="bi bi-share"></i> Partager cette annonce
-      </button>
       <p class="note">
         La visite reste à confirmer après l'envoi de votre demande.
       </p>
@@ -776,9 +775,4 @@
 
   })();
 </script>
-{% endblock %}
-
-{% block scripts %}
-{{ super() }}
-<script src="{{ url_for('static', filename='js/core/core_share.js', v=app_static_version) }}" defer></script>
 {% endblock %}

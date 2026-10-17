@@ -44,10 +44,10 @@ def test_courier_role_is_not_visible_or_routable():
 
 def test_admin_delivery_has_no_courier_assignment_logic():
     admin_source = _read("app/routes/admin.py")
-    deliveries_template = _read("app/templates/admin/deliveries.html")
-    order_detail_template = _read("app/templates/admin/order_detail.html")
+    for template in ("admin/deliveries.html", "admin/order_detail.html"):
+        assert not (ROOT / "app/templates" / template).exists()
+        assert template not in admin_source
 
-    combined = "\n".join([admin_source, deliveries_template, order_detail_template])
     forbidden = [
         "assign_courier",
         "courier_whatsapp",
@@ -65,18 +65,17 @@ def test_admin_delivery_has_no_courier_assignment_logic():
         '"delivering"',
     ]
     for token in forbidden:
-        assert token not in combined
+        assert token not in admin_source
 
 
-def test_livraison_express_entry_points_remain():
-    assert (ROOT / "app/routes/delivery.py").exists()
-    assert (ROOT / "app/templates/delivery.html").exists()
+def test_whatsapp_delivery_entry_point_and_admin_compatibility_remain():
+    assert (ROOT / "app/templates/support/delivery_whatsapp_loader.html").exists()
 
     app_init = _read("app/__init__.py")
-    delivery_source = _read("app/routes/delivery.py")
+    shop_source = _read("app/routes/shop.py")
     admin_source = _read("app/routes/admin.py")
 
-    assert "delivery" in app_init
-    assert 'register_blueprint(delivery.bp)' in app_init
-    assert 'Blueprint("delivery_special"' in delivery_source
+    assert 'register_blueprint(shop.bp, url_prefix="/shop")' in app_init
+    assert '@bp.route("/delivery/whatsapp")' in shop_source
+    assert "def delivery_whatsapp_loader():" in shop_source
     assert '@bp.route("/deliveries")' in admin_source

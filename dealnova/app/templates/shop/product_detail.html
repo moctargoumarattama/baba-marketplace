@@ -398,7 +398,7 @@
                       data-share-text="{{ product_share_description[:180] }}"
                       data-share-url="{{ product_share_url }}"
                       data-share-copied-message="Lien copié">
-                <i class="bi bi-share me-2"></i>Partager ce produit
+                <i class="bi bi-share me-2" aria-hidden="true"></i>{{ 'Partager ce service' if product.kind == 'service' else 'Partager ce produit' }}
               </button>
               <a href="{{ url_for('shop.home', kind='service' if product.kind == 'service' else 'physical') }}" class="btn btn-outline-secondary flex-fill">
                 <i class="bi bi-house"></i>
@@ -492,7 +492,6 @@
 {% endblock %}
 {% block scripts %}
 {{ super() }}
-<script src="{{ url_for('static', filename='js/core/core_share.js', v=app_static_version) }}" defer></script>
 <script src="{{ url_for('static', filename='js/core/core_live.js', v=app_static_version) }}" defer></script>
 <script src="{{ url_for('static', filename='js/pages/product_detail_page.js', v=app_static_version) }}" defer></script>
 {% endblock %}

@@ -329,7 +329,7 @@ def forgot_password():
 
 
 @bp.route("/reset-password/<token>", methods=["GET"])
-def reset_password(_token):
+def reset_password(token):
     """Ancien flux email/token desactive: redirection vers WhatsApp."""
     flash("Pour réinitialiser votre mot de passe, contactez l'assistance sur WhatsApp.", "info")
     return redirect(url_for("auth.forgot_password"))

@@ -30,6 +30,7 @@ async function run(engine, name) {
     await settled();
     assert.equal(await page.locator('#universeModalPanel').getAttribute('aria-hidden'), 'false');
     assert.equal(await page.locator('#uModalSearchInput').inputValue(), query || 'kar');
+    await page.waitForFunction(() => !document.querySelector('#universeModalPanel').classList.contains('is-opening'));
     await page.keyboard.press('Escape');
     await page.waitForTimeout(80);
     assert.equal(await page.locator('#universeModalPanel').getAttribute('aria-hidden'), 'true');
@@ -143,8 +144,15 @@ async function run(engine, name) {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     const reducedDuration = await page.locator('#universeModalPanel').evaluate(el => parseFloat(getComputedStyle(el).transitionDuration));
     assert(reducedDuration <= 0.001, 'reduced motion must remove visible transitions');
+    const indexBeforeReducedClose = await page.evaluate(() => history.state.bmHub.index);
     await page.keyboard.press('Escape');
-    await page.waitForFunction(() => document.querySelector('#universeModalPanel').hidden, null, { timeout: 1000 });
+    await page.waitForFunction(expectedIndex => {
+      const sheet = document.querySelector('#universeModalPanel');
+      // A covered catalogue stays mounted behind its parent after Back.
+      return history.state.bmHub.index === expectedIndex && sheet.inert &&
+        sheet.getAttribute('aria-hidden') === 'true' &&
+        !sheet.classList.contains('is-opening') && !sheet.classList.contains('is-closing');
+    }, indexBeforeReducedClose - 1, { timeout: 1000 });
     assert.equal(errors.length, 0, errors.join('\n'));
     await context.close();
     console.log(name + ': public forms, filters, pagination, focus, history, empty states and sheets passed');

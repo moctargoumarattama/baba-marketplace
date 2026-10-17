@@ -491,6 +491,30 @@ def promotions():
     return _redirect_to_public_hub("promotions")
 
 
+_SOCIAL_AND_SEARCH_BOTS = (
+    "facebookexternalhit",
+    "whatsapp",
+    "twitterbot",
+    "telegrambot",
+    "linkedinbot",
+    "slackbot",
+    "pinterest",
+    "discordbot",
+    "googlebot",
+    "bingbot",
+    "baiduspider",
+    "yandexbot",
+    "duckduckbot",
+    "applebot",
+    "skypeuripreview",
+)
+
+
+def _is_social_or_search_bot() -> bool:
+    ua = (request.headers.get("User-Agent") or "").lower()
+    return any(bot in ua for bot in _SOCIAL_AND_SEARCH_BOTS)
+
+
 @bp.route("/product/<int:pid>")
 def product_detail(pid):
     product = Product.query.get_or_404(pid)
@@ -499,7 +523,8 @@ def product_detail(pid):
         flash("Ce produit n'est plus disponible", "warning")
         return redirect(url_for("landing", open="products"))
 
-    if request.args.get("view") != "legacy":
+    is_crawler = _is_social_or_search_bot()
+    if not is_crawler and request.args.get("view") != "legacy":
         return redirect(url_for("landing", open="products", pdetail=pid))
 
     shop_is_open_now = _shop_is_currently_open(getattr(product, "shop", None))

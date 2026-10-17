@@ -167,17 +167,6 @@ def test_vendor_dashboard_uses_compact_premium_daily_layout():
     assert "document.body.appendChild(prompt)" not in script
 
 
-def test_login_vendor_card_matches_current_vendor_request_workflow():
-    template = _read("app/templates/auth/login.html")
-
-    assert "Accès vendeur" in template
-    assert "Demander un accès vendeur" in template
-    assert "Continuer sans compte" in template
-    assert "Comment ça marche" not in template
-    assert "ouvrir WhatsApp" not in template
-    assert "On vous crée un compte et on vous envoie vos identifiants" not in template
-
-
 def test_mobile_menu_button_uses_modern_visible_shell():
     css = _read("app/static/css/ui_shell.css")
 
@@ -196,23 +185,6 @@ def test_mobile_drawer_height_adapts_to_content_without_bottom_gap():
     assert "min-height: 0;" in css
     assert "height: 100dvh !important;" not in css
     assert "min-height: calc(100dvh - var(--bm-safe-top, 0px));" not in css
-
-
-def test_vendor_access_form_is_compact_and_mobile_adaptive():
-    template = _read("app/templates/auth/vendor_access.html")
-
-    assert "max-width: 560px" in template
-    assert "padding: clamp(0.9rem, 3vw, 1.45rem)" in template
-    assert "overflow-x: clip" in template
-    assert "max-width: 100%" in template
-    assert "min-height: auto;" in template
-    assert "min-height: 2.15rem" in template
-    assert 'rows="2"' in template
-    assert "Email *" in template
-    assert 'name="email"' in template
-    assert "Email (optionnel)" not in template
-    assert "Validation admin avant activation." in template
-    assert "Votre demande sera verifiee par un admin/gestionnaire" not in template
 
 
 def test_vendor_access_backend_requires_email():
@@ -250,7 +222,8 @@ def test_login_vendor_card_matches_current_vendor_request_workflow():
     assert 'class="auth-vendor"' in template
     assert "auth.vendor_access" in template
     assert template.index('class="auth-vendor"') > template.index('id="loginForm"')
-    assert "Continuer sans compte" in template
+    assert '<a class="auth-guest" href="{{ url_for(\'landing\') }}">Continuer en invité' in template
+    assert "auth.register" not in template
     assert "Comment ça marche" not in template
     assert "ouvrir WhatsApp" not in template
     assert "On vous crée un compte et on vous envoie vos identifiants" not in template

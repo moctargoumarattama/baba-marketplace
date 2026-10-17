@@ -627,7 +627,7 @@ def get_cart_summary(cart=None):
 @bp.route("/")
 def view():
     if not _is_ajax_request():
-        return redirect(url_for("shop.home", open="cart"))
+        return redirect(url_for("landing", open="cart"))
     cart = get_cart()
     items, total_cents = [], 0
     missing = False
@@ -730,7 +730,7 @@ def add(pid):
 
     if not is_ajax:
         flash(success_message, "success")
-        return redirect(redirect_url or request.referrer or url_for("shop.home"))
+        return redirect(redirect_url or request.referrer or url_for("landing"))
 
     if is_ajax:
         payload = {
@@ -743,7 +743,7 @@ def add(pid):
         return jsonify(payload)
 
     flash("Produit ajouté au panier.", "success")
-    return redirect(request.referrer or url_for("shop.home"))
+    return redirect(request.referrer or url_for("landing"))
 
 
 @bp.route("/remove/<int:pid>", methods=["POST"])
@@ -1173,7 +1173,7 @@ def _physical_cart_items_for_checkout(cart, product_map, promo_map):
 def checkout():
     if request.method == "GET":
         if not _is_ajax_request():
-            return redirect(url_for("shop.home", open="checkout"))
+            return redirect(url_for("landing", open="checkout"))
         return _render_whatsapp_checkout_page()
     return whatsapp_checkout()
 

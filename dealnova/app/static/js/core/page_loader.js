@@ -67,7 +67,7 @@
       SHARED.featurePagination,
       SHARED.featureForms,
     ],
-    "shop.shop_detail": [
+    "shops.shop_detail": [
       SHARED.coreCart,
       SHARED.coreLive,
       SHARED.liveShim,

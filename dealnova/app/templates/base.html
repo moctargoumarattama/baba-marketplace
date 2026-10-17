@@ -5,7 +5,6 @@
   'shops.list_shops', 'shops.shop_detail', 'rentals.locations_home',
   'rentals.location_detail', 'rentals.location_inquiry'
 ] %}
-{% set home_tabs_enabled = False %}
 {% set page_loader_enabled = base_endpoint in [
   'shop.home',
   'shops.list_shops',
@@ -363,6 +362,7 @@
 
   <script src="{{ url_for('static', filename='js/core/core_dom.js', v=app_static_version) }}" defer></script>
   <script src="{{ url_for('static', filename='js/core/core_ui.js', v=app_static_version) }}" defer></script>
+  <script src="{{ url_for('static', filename='js/core/core_share.js', v=app_static_version ~ '-share-v2') }}" defer></script>
   <script src="{{ url_for('static', filename='js/ajax/core/bm_csrf.js', v=app_static_version) }}" defer></script>
   <script src="{{ url_for('static', filename='js/ajax/core/bm_guard.js', v=app_static_version) }}" defer></script>
   <script src="{{ url_for('static', filename='js/ajax/core/bm_fetch.js', v=app_static_version) }}" defer></script>
@@ -374,19 +374,15 @@
   {% if i18n_runtime_enabled %}
   <script src="{{ url_for('static', filename='js/i18n.js', v=app_static_version) }}" defer></script>
   {% endif %}
-  {% if home_tabs_enabled %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/ui_home_tabs.css', v=app_static_version) }}">
-  <script src="{{ url_for('static', filename='js/ui_home_tabs.js', v=app_static_version) }}" defer></script>
-  {% endif %}
   {% if public_refresh_enabled %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/home_refresh.css', v=app_static_version ~ '-public-v2-header-v2-hero-v1-services-v3-discovery-v1-footer-v2-fluid-v1') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/home_refresh.css', v=app_static_version ~ '-public-v2-header-v2-hero-v1-services-v3-discovery-v1-footer-v2-fluid-v1-cleanup-v1-share-v1') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/public_refresh.css', v=app_static_version ~ '-public-v2-home-search-only-v1') }}">
-  <script src="{{ url_for('static', filename='js/home_refresh.js', v=app_static_version ~ '-textes-v1-public-v2-rotation-v1') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/home_refresh.js', v=app_static_version ~ '-textes-v1-public-v2-cleanup-v1') }}" defer></script>
   {% endif %}
   {% block head %}{% endblock %}
 </head>
 
-<body data-public-refresh="{{ '1' if public_refresh_enabled else '0' }}" data-page="{{ request.endpoint or '' }}" data-user-role="{{ current_user.role if current_user.is_authenticated else 'guest' }}" data-lang="{{ current_lang }}" data-rtl-langs="{{ (rtl_langs or [])|join(',') }}" data-static-version="{{ app_static_version }}" data-static-root="{{ url_for('static', filename='') }}" data-session-scope="{{ pwa_session_scope }}" data-home-tabs="{{ '1' if home_tabs_enabled else '0' }}" dir="{{ 'rtl' if rtl_enabled else 'ltr' }}" {% block body_attrs %}{% endblock %}>
+<body data-public-refresh="{{ '1' if public_refresh_enabled else '0' }}" data-page="{{ request.endpoint or '' }}" data-user-role="{{ current_user.role if current_user.is_authenticated else 'guest' }}" data-lang="{{ current_lang }}" data-rtl-langs="{{ (rtl_langs or [])|join(',') }}" data-static-version="{{ app_static_version }}" data-static-root="{{ url_for('static', filename='') }}" data-session-scope="{{ pwa_session_scope }}" dir="{{ 'rtl' if rtl_enabled else 'ltr' }}" {% block body_attrs %}{% endblock %}>
 {% set lang_labels = {"fr": "Français", "en": "English", "ary": "Darija"} %}
 {% set lang_codes = {"fr": "FR", "en": "EN", "ary": "DA"} %}
 {% set current_lang_label = lang_labels.get(current_lang, "Français") %}
@@ -1239,7 +1235,7 @@
   </button>
 
   <!-- MAIN CONTENT -->
-  <main class="{{ 'has-home-tabs' if home_tabs_enabled else '' }}">
+  <main>
     <div class="container-fluid">
       <div id="pageContent">
         <!-- Flash Messages -->

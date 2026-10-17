@@ -1,4 +1,5 @@
-<nav class="catalog-universes" id="catalogUniverses" aria-label="{{ t('Types d’offres') }}">
+
+<nav class="catalog-universes" id="catalogUniverses" aria-label="{{ t('Types d’offres') }}" hidden>
   {% for universe, label in [('search', 'Tout'), ('products', 'Produits et repas'), ('services', 'Services'), ('locations', 'Locations')] %}
   <button type="button" data-catalog-universe="{{ universe }}" aria-pressed="false">{{ t(label) }}</button>
   {% endfor %}

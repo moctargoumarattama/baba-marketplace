@@ -32,3 +32,6 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+instance/
+dealnova/instance/
+.pytest_cache/

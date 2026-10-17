@@ -45,8 +45,13 @@
     }
     function updateClear() { clear.style.display = input.value ? 'inline-flex' : 'none'; }
     function safeUrl(value) {
-      var url = new URL(value, window.location.origin);
-      return url.origin === window.location.origin && /^https?:$/.test(url.protocol) ? url.href : '';
+      if (!value || typeof value !== 'string' || !value.trim()) return '';
+      try {
+        var url = new URL(value, window.location.origin);
+        return url.origin === window.location.origin && /^https?:$/.test(url.protocol) ? url.href : '';
+      } catch (_) {
+        return '';
+      }
     }
     function render(items) {
       var fragment = document.createDocumentFragment();
@@ -64,12 +69,16 @@
         link.setAttribute('aria-selected', 'false');
         if (isHome && (item.item_type === 'product' || item.item_type === 'service')) link.dataset.openProductDetail = item.id;
         if (isHome && item.item_type === 'shop') link.dataset.openShopDetail = item.slug;
-        var image = document.createElement('img');
-        image.src = safeUrl(item.image_url);
-        image.alt = '';
-        image.width = image.height = 48;
-        image.loading = 'lazy';
-        image.addEventListener('error', function () { image.hidden = true; }, { once: true });
+        var imgUrl = safeUrl(item.image_url);
+        if (imgUrl) {
+          var image = document.createElement('img');
+          image.src = imgUrl;
+          image.alt = '';
+          image.width = image.height = 48;
+          image.loading = 'lazy';
+          image.addEventListener('error', function () { image.hidden = true; }, { once: true });
+          link.appendChild(image);
+        }
         var copy = document.createElement('span');
         copy.className = 'hub-live-search-copy';
         var name = document.createElement('strong');
@@ -78,7 +87,7 @@
         var type = { product: 'Produit', service: 'Service', shop: 'Boutique', location: 'Location' }[item.item_type] || '';
         detail.textContent = type + (typeof item.final_price === 'number' ? ' · ' + new Intl.NumberFormat('fr-MA', { maximumFractionDigits: 2 }).format(item.final_price) + ' DH' : '');
         copy.append(name, detail);
-        link.append(image, copy);
+        link.appendChild(copy);
         row.appendChild(link);
         fragment.appendChild(row);
       });

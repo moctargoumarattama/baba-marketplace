@@ -1,4 +1,4 @@
-﻿(function () {
+(function () {
 "use strict";
 if (window.__BM_SHOP_DETAIL_BOOTSTRAP__) {
     return;
@@ -7,7 +7,9 @@ window.__BM_SHOP_DETAIL_BOOTSTRAP__ = true;
 const createRequestSeq =
     window.BMCoreDom && typeof window.BMCoreDom.makeRequestSeq === "function"
         ? window.BMCoreDom.makeRequestSeq
-        : window.BMAjaxGuard.makeRequestSeq.bind(window.BMAjaxGuard);
+        : (window.BMAjaxGuard && typeof window.BMAjaxGuard.makeRequestSeq === "function"
+            ? window.BMAjaxGuard.makeRequestSeq.bind(window.BMAjaxGuard)
+            : function () { let seq = 0; return function () { return ++seq; }; });
 
 function readConfig(configId, fallbackConfig) {
     const fallback = fallbackConfig || {};
