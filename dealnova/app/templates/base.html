@@ -74,83 +74,241 @@
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <meta name="theme-color" content="#10B981">
 
-  <!-- STYLES POUR LE LOADER (très léger, pas de collision) -->
+  <!-- STYLES POUR LE LOADER 3D SCI-FI (Hub Radar - ultra léger & GPU-accéléré) -->
   <style>
     html, body {
       background: #fff;
     }
     #bm-loader {
       position: fixed;
-      top: 0;
-      left: 0;
+      inset: 0;
       width: 100%;
       height: 100%;
-      background: #fff;
+      background-color: #030712;
+      background:
+        radial-gradient(circle at 50% 45%, rgba(16, 185, 129, 0.22) 0%, rgba(6, 182, 212, 0.12) 28%, #030712 70%),
+        linear-gradient(180deg, #030712 0%, #04101e 50%, #020617 100%);
       display: flex;
       flex-direction: column;
-      gap: 1rem;
       align-items: center;
       justify-content: center;
       z-index: 999999;
-      transition: opacity 0.12s ease;
-      pointer-events: none; /* ← Ne bloque pas les clics */
+      transition: opacity 0.16s ease-out;
+      pointer-events: none;
+      overflow: hidden;
     }
     #bm-loader::before {
       content: "";
       position: absolute;
-      width: 164px;
-      height: 164px;
-      border-radius: 50%;
-      background:
-        radial-gradient(circle, rgba(16, 185, 129, 0.2) 0%, rgba(16, 185, 129, 0.1) 46%, rgba(16, 185, 129, 0) 74%);
-      box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.08);
-      animation: bm-loader-pulse 1.1s ease-in-out infinite;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(16, 185, 129, 0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(6, 182, 212, 0.05) 1px, transparent 1px);
+      background-size: 32px 32px;
+      mask-image: radial-gradient(circle at 50% 50%, black 25%, transparent 75%);
+      pointer-events: none;
     }
-    .bm-loader-mark {
+
+    .bm-radar-wrapper {
       position: relative;
-      z-index: 1;
+      width: min(540px, 94vw);
+      height: min(360px, 52vh);
+      perspective: 800px;
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 108px;
-      height: 108px;
+    }
+
+    .bm-radar-grid {
+      position: absolute;
+      width: 86%;
+      height: 82%;
+      transform: rotateX(56deg);
       border-radius: 28px;
       background:
-        linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(240, 253, 250, 0.96) 100%);
-      box-shadow:
-        0 18px 45px rgba(0, 0, 0, 0.28),
-        0 0 0 1px rgba(255, 255, 255, 0.24);
-      opacity: 0;
-      transform: translateY(6px) scale(0.98);
-      animation: bm-loader-mark-in 0.24s ease forwards;
+        radial-gradient(circle at 50% 50%, rgba(16, 185, 129, 0.25) 0%, rgba(6, 182, 212, 0.1) 45%, rgba(3, 10, 22, 0.85) 75%),
+        repeating-linear-gradient(0deg, rgba(16, 185, 129, 0.18) 0px, rgba(16, 185, 129, 0.18) 1px, transparent 1px, transparent 24px),
+        repeating-linear-gradient(90deg, rgba(6, 182, 212, 0.18) 0px, rgba(6, 182, 212, 0.18) 1px, transparent 1px, transparent 24px);
+      border: 1.5px solid rgba(16, 185, 129, 0.5);
+      box-shadow: 0 0 45px rgba(16, 185, 129, 0.3), inset 0 0 35px rgba(6, 182, 212, 0.2);
+      animation: bm-grid-glow 3s ease-in-out infinite alternate;
     }
-    .bm-loader-logo {
-      display: block;
-      width: 74px;
-      height: auto;
-      filter: saturate(1.05) contrast(1.02);
+
+    .bm-sonar-wave {
+      position: absolute;
+      border-radius: 50%;
+      transform: rotateX(56deg);
+      pointer-events: none;
     }
-    .bm-loader-title {
+    .bm-sonar-1 {
+      width: 170px;
+      height: 170px;
+      border: 2px solid rgba(52, 211, 153, 0.6);
+      box-shadow: 0 0 20px rgba(16, 185, 129, 0.45);
+      animation: bm-sonar-pulse 2.2s cubic-bezier(0.2, 0.8, 0.4, 1) infinite;
+    }
+    .bm-sonar-2 {
+      width: 280px;
+      height: 280px;
+      border: 1.5px dashed rgba(56, 189, 248, 0.5);
+      animation: bm-sonar-pulse 2.2s cubic-bezier(0.2, 0.8, 0.4, 1) 0.6s infinite;
+    }
+
+    .bm-laser-svg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 4;
+      pointer-events: none;
+    }
+    .bm-laser-line {
+      stroke: url(#bmLaserGrad);
+      stroke-width: 2.5;
+      stroke-linecap: round;
+      stroke-dasharray: 6 5;
+      animation: bm-laser-dash 1.2s linear infinite;
+    }
+    .bm-laser-packet {
+      fill: #34d399;
+      filter: drop-shadow(0 0 6px #10b981) drop-shadow(0 0 12px #06b6d4);
+    }
+
+    .bm-core-box {
       position: relative;
-      z-index: 1;
-      color: #0f172a;
-      font-family: "Plus Jakarta Sans", "Segoe UI", sans-serif;
-      font-size: clamp(1rem, 1.8vw, 1.15rem);
+      z-index: 10;
+      width: clamp(74px, 16vw, 92px);
+      height: clamp(74px, 16vw, 92px);
+      border-radius: clamp(18px, 4vw, 24px);
+      background: linear-gradient(145deg, rgba(255,255,255,0.98), rgba(209,250,229,0.94));
+      box-shadow:
+        0 0 0 2px rgba(16, 185, 129, 0.75),
+        0 0 35px rgba(16, 185, 129, 0.8),
+        0 16px 40px rgba(0, 0, 0, 0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      animation: bm-core-float 2.4s ease-in-out infinite alternate;
+    }
+    .bm-core-box img {
+      width: 68%;
+      height: 68%;
+      object-fit: contain;
+    }
+    .bm-laser-scan-bar {
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 2.5px;
+      background: linear-gradient(90deg, transparent, #10b981, #34d399, #06b6d4, transparent);
+      box-shadow: 0 0 10px #10b981, 0 0 20px #06b6d4;
+      animation: bm-scan-sweep 1.8s ease-in-out infinite alternate;
+    }
+
+    .bm-hub-node {
+      position: absolute;
+      z-index: 8;
+      padding: clamp(6px, 1.5vw, 10px) clamp(10px, 2.2vw, 14px);
+      border-radius: 14px;
+      background: rgba(6, 22, 35, 0.92);
+      border: 1.5px solid rgba(52, 211, 153, 0.7);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55), 0 0 20px rgba(16, 185, 129, 0.35);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      animation: bm-node-glow 2.8s ease-in-out infinite alternate;
+    }
+    .bm-hub-node .bm-node-emoji {
+      font-size: clamp(16px, 3.5vw, 20px);
+      line-height: 1;
+    }
+    .bm-hub-node .bm-node-texts {
+      display: flex;
+      flex-direction: column;
+      text-align: left;
+    }
+    .bm-hub-node .bm-node-label {
       font-weight: 700;
-      letter-spacing: 0.02em;
-      opacity: 0;
-      transform: translateY(4px);
-      animation: bm-fade-in 0.22s ease 0.04s forwards;
+      font-size: clamp(11px, 2.4vw, 13px);
+      color: #f0fdf4;
+      letter-spacing: 0.03em;
+      line-height: 1.2;
     }
-    @keyframes bm-loader-pulse {
-      0%, 100% { transform: scale(0.98); opacity: 0.9; }
-      50% { transform: scale(1.03); opacity: 1; }
+    .bm-hub-node .bm-node-state {
+      font-size: clamp(8px, 1.8vw, 10px);
+      color: #34d399;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-weight: 600;
+      line-height: 1.2;
+      margin-top: 2px;
     }
-    @keyframes bm-loader-mark-in {
-      to { opacity: 1; transform: translateY(0) scale(1); }
+
+    .bm-node-tl { top: 6%; left: 3%; }
+    .bm-node-tr { top: 6%; right: 3%; }
+    .bm-node-bl { bottom: 8%; left: 3%; }
+    .bm-node-br { bottom: 8%; right: 3%; }
+
+    .bm-loader-brand {
+      position: relative;
+      z-index: 10;
+      margin-top: clamp(8px, 2vh, 18px);
+      text-align: center;
+      padding: 0 16px;
     }
-    @keyframes bm-fade-in {
-      to { opacity: 1; transform: translateY(0); }
+    .bm-loader-brand-title {
+      font-size: clamp(20px, 4.5vw, 26px);
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      background: linear-gradient(90deg, #ffffff 10%, #6ee7b7 55%, #38bdf8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .bm-loader-brand-sub {
+      margin-top: 4px;
+      font-size: clamp(10px, 2.4vw, 12px);
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: #a7f3d0;
+      opacity: 0.85;
+      font-weight: 600;
+    }
+
+    @keyframes bm-grid-glow {
+      0% { border-color: rgba(16, 185, 129, 0.4); box-shadow: 0 0 35px rgba(16, 185, 129, 0.25); }
+      100% { border-color: rgba(6, 182, 212, 0.6); box-shadow: 0 0 55px rgba(6, 182, 212, 0.4); }
+    }
+    @keyframes bm-sonar-pulse {
+      0% { transform: rotateX(56deg) scale(0.65); opacity: 0.85; }
+      100% { transform: rotateX(56deg) scale(1.35); opacity: 0; }
+    }
+    @keyframes bm-core-float {
+      0% { transform: translateY(3px) scale(0.98); }
+      100% { transform: translateY(-5px) scale(1.02); }
+    }
+    @keyframes bm-scan-sweep {
+      0% { top: 12%; opacity: 0.6; }
+      50% { opacity: 1; }
+      100% { top: 84%; opacity: 0.6; }
+    }
+    @keyframes bm-laser-dash {
+      to { stroke-dashoffset: -22; }
+    }
+    @keyframes bm-node-glow {
+      0% { border-color: rgba(52, 211, 153, 0.55); box-shadow: 0 6px 18px rgba(0,0,0,0.5), 0 0 14px rgba(16, 185, 129, 0.25); }
+      100% { border-color: rgba(56, 189, 248, 0.8); box-shadow: 0 8px 26px rgba(0,0,0,0.65), 0 0 26px rgba(6, 182, 212, 0.45); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, ::before, ::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
     }
   </style>
 
@@ -403,18 +561,80 @@
   {% endif %}
 {% endif %}
 
-  <!-- LOADER IMMÉDIAT (s'affiche tout de suite) -->
+  <!-- LOADER IMMÉDIAT 3D SCI-FI (Dôme Radar & Réseau Spatial 3D) -->
   <div id="bm-loader">
-    <div class="bm-loader-mark">
-      <img src="{{ url_for('static', filename='apple-touch-icon.png') }}"
-           alt="{{ config.SITE_NAME }}"
-           class="bm-loader-logo"
-           width="74"
-           height="74"
-           fetchpriority="high"
-           decoding="sync">
+    <div class="bm-radar-wrapper">
+      <div class="bm-radar-grid"></div>
+      <div class="bm-sonar-wave bm-sonar-1"></div>
+      <div class="bm-sonar-wave bm-sonar-2"></div>
+
+      <svg class="bm-laser-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+        <defs>
+          <linearGradient id="bmLaserGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#10b981" stop-opacity="0.95"/>
+            <stop offset="100%" stop-color="#06b6d4" stop-opacity="0.95"/>
+          </linearGradient>
+        </defs>
+        <!-- Faisceaux laser du centre (50, 50) vers les 4 nœuds -->
+        <line x1="50" y1="50" x2="18" y2="18" class="bm-laser-line"/>
+        <line x1="50" y1="50" x2="82" y2="18" class="bm-laser-line"/>
+        <line x1="50" y1="50" x2="18" y2="82" class="bm-laser-line"/>
+        <line x1="50" y1="50" x2="82" y2="82" class="bm-laser-line"/>
+        <!-- Impulsions énergétiques en transit -->
+        <circle cx="34" cy="34" r="1.8" class="bm-laser-packet"/>
+        <circle cx="66" cy="34" r="1.8" class="bm-laser-packet" style="fill:#38bdf8"/>
+        <circle cx="34" cy="66" r="1.8" class="bm-laser-packet"/>
+        <circle cx="66" cy="66" r="1.8" class="bm-laser-packet" style="fill:#38bdf8"/>
+      </svg>
+
+      <div class="bm-hub-node bm-node-tl">
+        <div class="bm-node-emoji">📦</div>
+        <div class="bm-node-texts">
+          <span class="bm-node-label">Produits</span>
+          <span class="bm-node-state">● Connecté</span>
+        </div>
+      </div>
+
+      <div class="bm-hub-node bm-node-tr">
+        <div class="bm-node-emoji">🛠️</div>
+        <div class="bm-node-texts">
+          <span class="bm-node-label">Services</span>
+          <span class="bm-node-state">● Connecté</span>
+        </div>
+      </div>
+
+      <div class="bm-core-box bm-loader-mark">
+        <img src="{{ url_for('static', filename='apple-touch-icon.png') }}"
+             alt="{{ config.SITE_NAME }}"
+             class="bm-loader-logo"
+             width="74"
+             height="74"
+             fetchpriority="high"
+             decoding="sync">
+        <div class="bm-laser-scan-bar"></div>
+      </div>
+
+      <div class="bm-hub-node bm-node-bl">
+        <div class="bm-node-emoji">🔑</div>
+        <div class="bm-node-texts">
+          <span class="bm-node-label">Location</span>
+          <span class="bm-node-state">● Connecté</span>
+        </div>
+      </div>
+
+      <div class="bm-hub-node bm-node-br">
+        <div class="bm-node-emoji">🚚</div>
+        <div class="bm-node-texts">
+          <span class="bm-node-label">Livraison</span>
+          <span class="bm-node-state">● En transit</span>
+        </div>
+      </div>
     </div>
-    <div class="bm-loader-title">Baba Market</div>
+
+    <div class="bm-loader-brand">
+      <div class="bm-loader-brand-title bm-loader-title">{{ config.SITE_NAME or 'Baba Market' }}</div>
+      <div class="bm-loader-brand-sub">Produits • Services • Location • Livraison</div>
+    </div>
   </div>
 
   <!-- SCRIPT POUR CACHER LE LOADER (ultra léger) -->
@@ -424,11 +644,29 @@
       if (window.__BM_LOADER_INIT__) return;
       window.__BM_LOADER_INIT__ = true;
 
+      var LOADER_CONFIG = Object.assign(
+        {
+          initialDuration: 1500, // 1.5s d'affichage au premier lancement / refresh
+          navigationThreshold: 200 // Entre deux pages : n'apparaît que si > 200ms
+        },
+        window.BM_LOADER_CONFIG || {}
+      );
+
+      var bootTimestamp = Date.now();
+      var isNavTransition = false;
+      try {
+        isNavTransition = !!window.sessionStorage.getItem('__BM_NAV_PENDING__');
+        if (isNavTransition) {
+          window.sessionStorage.removeItem('__BM_NAV_PENDING__');
+        }
+      } catch (_navStorageErr) {}
+
       var perfFlags = window.BM_PERF_FLAGS || {};
       var fastLoaderEnabled = perfFlags.fastLoader !== false;
       var loader = document.getElementById('bm-loader');
       var hideTimer = null;
       var navigationFallbackTimer = null;
+      var navigationShowTimer = null;
       var navEntry = null;
       var navType = '';
       try {
@@ -440,7 +678,7 @@
         lastReadyAt = Number(window.sessionStorage.getItem('__BM_LAST_READY_AT__') || 0);
       } catch (_storageReadError) {}
       var warmReturn = !!(lastReadyAt && (Date.now() - lastReadyAt) < 12000);
-      var instantExit = navType === 'back_forward' || warmReturn;
+      var instantExit = navType === 'back_forward' || (warmReturn && isNavTransition);
       var readiness = window.__BM_PAGE_READINESS__ || {
         domReady: false,
         interactive: false,
@@ -471,6 +709,12 @@
         navigationFallbackTimer = null;
       }
 
+      function clearNavigationShowTimer() {
+        if (!navigationShowTimer) return;
+        window.clearTimeout(navigationShowTimer);
+        navigationShowTimer = null;
+      }
+
       function runAfterPaint(callback) {
         if (typeof window.requestAnimationFrame === 'function') {
           window.requestAnimationFrame(function() {
@@ -486,13 +730,14 @@
         readiness.loaderHidden = true;
         clearHideTimer();
         clearNavigationFallbackTimer();
+        clearNavigationShowTimer();
         loader.style.opacity = '0';
         try {
           window.sessionStorage.setItem('__BM_LAST_READY_AT__', String(Date.now()));
         } catch (_storageWriteError) {}
         setTimeout(() => {
           loader.style.display = 'none';
-        }, 120);
+        }, 160);
       }
 
       function hideTransientLoader() {
@@ -500,12 +745,13 @@
         readiness.loaderHidden = true;
         clearHideTimer();
         clearNavigationFallbackTimer();
+        clearNavigationShowTimer();
         loader.style.opacity = '0';
         window.setTimeout(function() {
           if (!loader || loader.style.opacity !== '0') return;
           loader.style.display = 'none';
           updateReadyState();
-        }, 120);
+        }, 160);
       }
 
       function normalizeNavigationUrl(input) {
@@ -635,6 +881,7 @@
         if (!loader || !normalizedUrl) return false;
         clearHideTimer();
         clearNavigationFallbackTimer();
+        clearNavigationShowTimer();
         readiness.loaderHidden = false;
         loader.style.display = 'flex';
         loader.style.opacity = '1';
@@ -646,6 +893,23 @@
         return true;
       }
 
+      function scheduleNavigationLoader(url, delayMs) {
+        var normalizedUrl = normalizeNavigationUrl(url);
+        if (!loader || !normalizedUrl) return false;
+        try {
+          window.sessionStorage.setItem('__BM_NAV_PENDING__', '1');
+        } catch (_) {}
+        clearNavigationShowTimer();
+        var threshold = typeof delayMs === 'number' ? delayMs : LOADER_CONFIG.navigationThreshold;
+        if (threshold <= 0) {
+          return showNavigationLoader(normalizedUrl);
+        }
+        navigationShowTimer = window.setTimeout(function() {
+          showNavigationLoader(normalizedUrl);
+        }, threshold);
+        return true;
+      }
+
       function navigateTo(url) {
         var normalizedUrl = normalizeNavigationUrl(url);
         if (!normalizedUrl) {
@@ -653,7 +917,7 @@
           return;
         }
         warmNavigation(normalizedUrl);
-        showNavigationLoader(normalizedUrl);
+        scheduleNavigationLoader(normalizedUrl, LOADER_CONFIG.navigationThreshold);
         window.location.assign(normalizedUrl);
       }
 
@@ -667,14 +931,21 @@
       window.BMPageNav = window.BMPageNav || {};
       window.BMPageNav.prefetch = warmNavigation;
       window.BMPageNav.show = showNavigationLoader;
+      window.BMPageNav.schedule = scheduleNavigationLoader;
       window.BMPageNav.navigate = navigateTo;
 
       function scheduleHide(delayMs) {
         if (readiness.loaderHidden) return;
         clearHideTimer();
+        var elapsed = Date.now() - bootTimestamp;
+        // Au démarrage initial ou rechargement : reste 1.5s (1500ms) pour admirer le dôme 3D
+        var minRemaining = (!isNavTransition && !instantExit)
+          ? Math.max(0, LOADER_CONFIG.initialDuration - elapsed)
+          : 0;
+        var finalDelay = Math.max(Number(delayMs) || 0, minRemaining);
         hideTimer = window.setTimeout(function() {
           hideLoader();
-        }, Math.max(0, Number(delayMs) || 0));
+        }, finalDelay);
       }
 
       function isI18nReady() {
@@ -774,12 +1045,16 @@
       }
 
       window.addEventListener('pageshow', function(event) {
+        clearNavigationShowTimer();
         if (!event || !event.persisted) return;
         markComplete();
         hideLoader();
       });
 
-      window.addEventListener('pagehide', clearNavigationFallbackTimer, { capture: true });
+      window.addEventListener('pagehide', function() {
+        clearNavigationFallbackTimer();
+        clearNavigationShowTimer();
+      }, { capture: true });
 
       document.addEventListener('pointerdown', function(event) {
         var targetUrl = resolveNavigationUrlFromTarget(event && event.target);
@@ -808,7 +1083,7 @@
         if (!isPlainPrimaryClick(event)) return;
         var targetUrl = resolveNavigationUrlFromTarget(event && event.target);
         if (!targetUrl) return;
-        showNavigationLoader(targetUrl);
+        scheduleNavigationLoader(targetUrl, LOADER_CONFIG.navigationThreshold);
       }, true);
 
       if (!isI18nReady()) {
@@ -818,7 +1093,7 @@
       // Fallback sécurité: ne jamais rester bloqué à cause des médias lents.
       window.setTimeout(function() {
         hideLoader();
-      }, instantExit ? 900 : 2200);
+      }, (!isNavTransition && !instantExit) ? 3500 : 2200);
     })();
   </script>
 
