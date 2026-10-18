@@ -104,7 +104,13 @@ body[data-page="landing"] :is(button, a, summary, input):focus-visible { outline
 .hub-categories { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 14px; margin: 16px 0 0; }
 .hub-category { min-width: 0; padding: 0; border: 0; border-radius: 13px; overflow: hidden; background: #fff; box-shadow: 0 3px 12px #243b2b06; color: #18261e; transition: transform .18s ease, box-shadow .18s ease; }
 .hub-category-photo { display: block; width: 100%; aspect-ratio: 4 / 3; background-image: url('../images/home-refresh/categories.webp'); background-size: 300% 200%; background-repeat: no-repeat; background-color: #e9eadf; }
-.hub-category-products { background-position: 0 0; }
+.hub-category-products {
+  /* Visuel dédié aux produits variés (alimentation, marché et commerce),
+     afin de ne pas réutiliser la devanture de la carte Boutiques. */
+  background-image: url('../images/produit.jpeg');
+  background-size: cover;
+  background-position: center 42%;
+}
 .hub-category-services { background-image: url('../images/home-refresh/services-multimetiers-v2.webp'); background-size: cover; background-position: center; }
 .hub-category-locations { background-position: 100% 0; }
 .hub-category-shops { background-position: 0 100%; }
