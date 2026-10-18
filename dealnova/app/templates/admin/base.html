@@ -914,8 +914,8 @@
             <li class="nav-item"><a class="nav-link {% if 'pricing' in ep or 'settings' in ep %}active{% endif %}" href="{{ url_for('admin.pricing_settings') }}"><i class="bi bi-sliders"></i><span>Parametres</span></a></li>
             {% if current_user.role == 'admin' %}
             <li class="nav-item"><a class="nav-link {% if 'admin.maintenance' in ep or 'run_maintenance' in ep or 'maintenance_reset_data' in ep %}active{% endif %}" href="{{ url_for('admin.maintenance') }}"><i class="bi bi-tools"></i><span>Maintenance systeme</span></a></li>
-            <li class="nav-item"><a class="nav-link {% if ep == 'admin.whatsapp_gateway' %}active{% endif %}" href="{{ url_for('admin.whatsapp_gateway') }}"><i class="bi bi-whatsapp"></i><span>Passerelle WhatsApp</span></a></li>
             {% endif %}
+            <li class="nav-item"><a class="nav-link {% if ep == 'admin.whatsapp_gateway' %}active{% endif %}" href="{{ url_for('admin.whatsapp_gateway') }}"><i class="bi bi-whatsapp"></i><span>Passerelle WhatsApp</span></a></li>
             <li class="nav-item"><a class="nav-link {% if 'admin_categories' in ep %}active{% endif %}" href="{{ url_for('admin_categories.index') }}"><i class="bi bi-tags-fill"></i><span>Categories</span></a></li>
             <li class="nav-item nav-item-site"><a class="nav-link" href="{{ url_for('shop.home') }}"><i class="bi bi-box-arrow-left"></i><span>Retour au site</span></a></li>
         </ul>

@@ -18,7 +18,7 @@ from .cache import cache
 from .shared_state import get_json_state, mutate_json_states, set_json_state
 
 try:
-    import redis as redis_lib
+    import redis as redis_lib  # type: ignore
 except Exception:  # pragma: no cover - optional dependency fallback
     redis_lib = None
 
@@ -30,7 +30,7 @@ ORDERS_BUCKETS_KEY = "stats:order_buckets"
 REQUESTS_TTL_SECONDS = 120
 ORDERS_TTL_SECONDS = 7200
 LIVE_METRICS_CACHE_TTL_SECONDS = 10
-ACTIVE_TTL_SECONDS = 300
+ACTIVE_TTL_SECONDS = 120
 DAILY_STATS_TTL_SECONDS = 60 * 60 * 24 * 8
 VISITOR_HISTORY_TTL_SECONDS = 60 * 60 * 24 * 180
 LIFETIME_STATS_TTL_SECONDS = 60 * 60 * 24 * 365 * 10
@@ -57,6 +57,33 @@ ALLOWED_EVENTS = {
     "login_success",
 }
 INTERNAL_ROLES = {"admin", "manager", "vendor"}
+
+_BOT_USER_AGENT_RE = re.compile(
+    r"(bot|crawler|spider|crawling|slurp|ahrefs|semrush|petalbot|yandex|baidu|"
+    r"curl|python-requests|aiohttp|httpx|wget|go-http-client|postman|headless|"
+    r"puppeteer|selenium|phantomjs|playwright|uptimerobot|pingdom|betterstack|"
+    r"facebookexternalhit|whatsapp|telegrambot|twitterbot|discordbot|screaming frog|"
+    r"dotbot|mj12bot|rogerbot|exabot|site24x7|datadog|newrelic|nodequery|freshping)",
+    re.IGNORECASE,
+)
+
+
+def is_bot_or_crawler(user_agent: str | None = None) -> bool:
+    """Detect automated bots, crawlers, and scrapers to prevent inflating audience metrics."""
+    if user_agent is not None:
+        ua = user_agent.strip()
+    else:
+        cached_flag = getattr(g, "is_bot_request", None)
+        if cached_flag is not None:
+            return bool(cached_flag)
+        try:
+            ua = (request.headers.get("User-Agent") or "").strip() if request else ""
+        except Exception:
+            return False
+    if not ua:
+        return True
+    return bool(_BOT_USER_AGENT_RE.search(ua))
+
 
 _DIGITS_SEGMENT_RE = re.compile(r"/\d+(?=/|$)")
 _TOKEN_SEGMENT_RE = re.compile(r"/[A-Za-z0-9_-]{20,}(?=/|$)")
@@ -397,6 +424,9 @@ def _redis_snapshot_daily_stats(client, now: datetime | None = None) -> dict[str
         active_snapshot = _redis_snapshot_active_visitors(client)
         page_views_total = _safe_int(raw_stats.get("page_views_total"), default=0)
         unique_visitors_today = _safe_int(raw_stats.get("unique_visitors_today"), default=0)
+        unique_clients_today = _safe_int(raw_stats.get("unique_clients_today"), default=0)
+        unique_internal_today = _safe_int(raw_stats.get("unique_internal_today"), default=0)
+        bot_hits_today = _safe_int(raw_stats.get("bot_hits_today"), default=0)
         new_visitors_today = _safe_int(raw_stats.get("new_visitors_today"), default=0)
         returning_visitors_today = _safe_int(raw_stats.get("returning_visitors_today"), default=0)
         peak_active_today = max(
@@ -406,6 +436,9 @@ def _redis_snapshot_daily_stats(client, now: datetime | None = None) -> dict[str
         snapshot = {
             "page_views_total": page_views_total,
             "unique_visitors_today": unique_visitors_today,
+            "unique_clients_today": unique_clients_today,
+            "unique_internal_today": unique_internal_today,
+            "bot_hits_today": bot_hits_today,
             "new_visitors_today": new_visitors_today,
             "returning_visitors_today": returning_visitors_today,
             "peak_active_today": peak_active_today,
@@ -425,6 +458,9 @@ def _redis_snapshot_daily_stats(client, now: datetime | None = None) -> dict[str
         snapshot = {
             "page_views_total": 0,
             "unique_visitors_today": 0,
+            "unique_clients_today": 0,
+            "unique_internal_today": 0,
+            "bot_hits_today": 0,
             "new_visitors_today": 0,
             "returning_visitors_today": 0,
             "peak_active_today": 0,
@@ -469,12 +505,37 @@ def _redis_record_page_view(now: datetime | None = None) -> bool:
     role = _role_bucket()
     hour_key = current_dt.strftime("%H")
     daily_key = _redis_daily_key(current_dt)
+    seen_clients_key = f"{_daily_seen_key(current_dt)}:clients"
+    seen_internal_key = f"{_daily_seen_key(current_dt)}:internal"
+
+    is_bot = is_bot_or_crawler()
 
     try:
         _redis_incr_bucket(client, _REDIS_REQUESTS_BUCKETS_KEY, _minute_stamp(current_dt), REQUESTS_TTL_SECONDS, MAX_REQUEST_COUNTER_BUCKETS)
+
+        if is_bot:
+            _redis_incr_bucket(client, daily_key, "bot_hits_today", DAILY_STATS_TTL_SECONDS)
+            _redis_incr_bucket(client, f"{daily_key}:hourly_requests", hour_key, DAILY_STATS_TTL_SECONDS, 24)
+            _redis_incr_bucket(client, f"{daily_key}:roles", "bot", DAILY_STATS_TTL_SECONDS, MAX_BUCKET_ENTRIES)
+            return True
+
         first_seen_today = bool(client.sadd(_daily_seen_key(current_dt), visitor_id))
         if DAILY_STATS_TTL_SECONDS > 0:
             client.expire(_daily_seen_key(current_dt), DAILY_STATS_TTL_SECONDS)
+
+        if _is_internal_role(role):
+            first_seen_internal = bool(client.sadd(seen_internal_key, visitor_id))
+            if DAILY_STATS_TTL_SECONDS > 0:
+                client.expire(seen_internal_key, DAILY_STATS_TTL_SECONDS)
+            if first_seen_internal:
+                _redis_incr_bucket(client, daily_key, "unique_internal_today", DAILY_STATS_TTL_SECONDS)
+        else:
+            first_seen_client = bool(client.sadd(seen_clients_key, visitor_id))
+            if DAILY_STATS_TTL_SECONDS > 0:
+                client.expire(seen_clients_key, DAILY_STATS_TTL_SECONDS)
+            if first_seen_client:
+                _redis_incr_bucket(client, daily_key, "unique_clients_today", DAILY_STATS_TTL_SECONDS)
+
         is_new_visitor = _redis_track_visitor_history(client, visitor_id, now_ts)
         active_entry = {
             "last_seen_ts": now_ts,
@@ -581,10 +642,13 @@ def _redis_live_metrics_snapshot(client, now: datetime | None = None) -> dict[st
     )
     active_snapshot = daily_snapshot.get("active_snapshot", {})
     unique_visitors_today = _safe_int(daily_snapshot.get("unique_visitors_today"), default=0)
+    unique_clients_today = _safe_int(daily_snapshot.get("unique_clients_today"), default=0)
+    unique_internal_today = _safe_int(daily_snapshot.get("unique_internal_today"), default=0)
+    bot_hits_today = _safe_int(daily_snapshot.get("bot_hits_today"), default=0)
     add_to_cart = _safe_int((daily_snapshot.get("events") or {}).get("add_to_cart"), default=0)
     orders = _safe_int((daily_snapshot.get("events") or {}).get("order_created"), default=0)
     whatsapp = _safe_int((daily_snapshot.get("events") or {}).get("whatsapp_open"), default=0)
-    visitors = unique_visitors_today
+    visitors = unique_clients_today if unique_clients_today > 0 else unique_visitors_today
 
     snapshot: dict[str, Any] = {
         "available": True,
@@ -601,6 +665,9 @@ def _redis_live_metrics_snapshot(client, now: datetime | None = None) -> dict[st
         "peak_active_today": _safe_int(daily_snapshot.get("peak_active_today"), default=0),
         "page_views_today": _safe_int(daily_snapshot.get("page_views_total"), default=0),
         "unique_visitors_today": unique_visitors_today,
+        "unique_clients_today": unique_clients_today,
+        "unique_internal_today": unique_internal_today,
+        "bot_hits_today": bot_hits_today,
         "new_visitors_today": _safe_int(daily_snapshot.get("new_visitors_today"), default=0),
         "returning_visitors_today": _safe_int(daily_snapshot.get("returning_visitors_today"), default=0),
         "top_pages": _sorted_bucket(daily_snapshot.get("top_pages", {}), limit=6),
@@ -823,6 +890,8 @@ def _extract_referrer_source(referrer: str | None) -> str:
 
 
 def _detect_device() -> str:
+    if is_bot_or_crawler():
+        return "bot"
     ua = (request.headers.get("User-Agent") or "").lower()
     if not ua:
         return "inconnu"
@@ -876,9 +945,14 @@ def _geo_debug_headers() -> list[dict[str, Any]]:
 
 
 def _role_bucket() -> str:
-    if current_user.is_authenticated:
-        role = _safe_label(getattr(current_user, "role", ""), default="client").lower()
-        return role or "client"
+    if is_bot_or_crawler():
+        return "bot"
+    try:
+        if current_user and getattr(current_user, "is_authenticated", False):
+            role = _safe_label(getattr(current_user, "role", ""), default="client").lower()
+            return role or "client"
+    except Exception:
+        return "guest"
     return "guest"
 
 
@@ -887,6 +961,8 @@ def _is_internal_role(role: str) -> bool:
 
 
 def _visitor_id() -> str:
+    if is_bot_or_crawler():
+        return "bot:crawler"
     candidate = _safe_label(getattr(g, "analytics_visitor_id", ""), default="")
     if candidate:
         return candidate
@@ -898,12 +974,15 @@ def _visitor_id() -> str:
 
 
 def _visitor_display_label() -> str:
-    if current_user.is_authenticated:
-        for attr in ("username", "email"):
-            value = _safe_label(getattr(current_user, attr, ""), default="")
-            if value:
-                return value
-        return f"User #{getattr(current_user, 'id', '?')}"
+    try:
+        if current_user and getattr(current_user, "is_authenticated", False):
+            for attr in ("username", "email"):
+                value = _safe_label(getattr(current_user, attr, ""), default="")
+                if value:
+                    return value
+            return f"User #{getattr(current_user, 'id', '?')}"
+    except Exception:
+        return "Invite"
     return "Invite"
 
 
@@ -911,6 +990,9 @@ def _fresh_daily_stats() -> dict[str, Any]:
     return {
         "page_views_total": 0,
         "unique_visitors_today": 0,
+        "unique_clients_today": 0,
+        "unique_internal_today": 0,
+        "bot_hits_today": 0,
         "new_visitors_today": 0,
         "returning_visitors_today": 0,
         "peak_active_today": 0,
@@ -965,8 +1047,10 @@ def _cleanup_active_visitors(active_visitors: dict[str, Any], now_ts: int) -> di
 
 
 def _touch_active_visitor(now: datetime | None = None) -> int:
+    if is_bot_or_crawler():
+        return 0
     visitor_id = _visitor_id()
-    if not visitor_id:
+    if not visitor_id or visitor_id == "bot:crawler":
         return 0
 
     now_ts = _now_ts(now)
@@ -1057,11 +1141,14 @@ def _record_daily_page_view(now: datetime | None = None, active_total: int | Non
     if not visitor_id:
         return
 
+    is_bot = is_bot_or_crawler()
     current_dt = now or datetime.utcnow()
     now_ts = _now_ts(current_dt)
     day_key = _day_stamp(current_dt)
     stats_key = _daily_stats_key(current_dt)
     seen_key = _daily_seen_key(current_dt)
+    seen_clients_key = f"{seen_key}:clients"
+    seen_internal_key = f"{seen_key}:internal"
     current_path = _normalize_path(request.path or "/")
     source = _extract_referrer_source(request.referrer)
     device = _detect_device()
@@ -1071,11 +1158,30 @@ def _record_daily_page_view(now: datetime | None = None, active_total: int | Non
 
     def _mutate(payloads: dict[str, dict[str, Any]]) -> None:
         stats = payloads.get(stats_key, _fresh_daily_stats())
+
+        if is_bot:
+            stats["bot_hits_today"] = _safe_int(stats.get("bot_hits_today"), default=0) + 1
+            hourly_requests = stats.setdefault("hourly_requests", {f"{hour:02d}": 0 for hour in range(24)})
+            hourly_requests[hour_key] = _safe_int(hourly_requests.get(hour_key), default=0) + 1
+            payloads[stats_key] = stats
+            return
+
         seen_today = payloads.get(seen_key, {})
+        seen_today_clients = payloads.get(seen_clients_key, {})
+        seen_today_internal = payloads.get(seen_internal_key, {})
         visitor_history = payloads.get(VISITOR_HISTORY_KEY, {})
 
         first_seen_today = visitor_id not in seen_today
         is_new_visitor = visitor_id not in visitor_history
+
+        if _is_internal_role(role):
+            if visitor_id not in seen_today_internal:
+                stats["unique_internal_today"] = _safe_int(stats.get("unique_internal_today"), default=0) + 1
+                seen_today_internal[visitor_id] = now_ts
+        else:
+            if visitor_id not in seen_today_clients:
+                stats["unique_clients_today"] = _safe_int(stats.get("unique_clients_today"), default=0) + 1
+                seen_today_clients[visitor_id] = now_ts
 
         if first_seen_today:
             stats["unique_visitors_today"] = _safe_int(stats.get("unique_visitors_today"), default=0) + 1
@@ -1112,17 +1218,23 @@ def _record_daily_page_view(now: datetime | None = None, active_total: int | Non
             )
         payloads[stats_key] = stats
         payloads[seen_key] = seen_today
+        payloads[seen_clients_key] = seen_today_clients
+        payloads[seen_internal_key] = seen_today_internal
         payloads[VISITOR_HISTORY_KEY] = visitor_history
 
     _mutate_durable_dicts(
         {
             stats_key: _fresh_daily_stats,
             seen_key: dict,
+            seen_clients_key: dict,
+            seen_internal_key: dict,
             VISITOR_HISTORY_KEY: dict,
         },
         {
             stats_key: DAILY_STATS_TTL_SECONDS,
             seen_key: DAILY_STATS_TTL_SECONDS,
+            seen_clients_key: DAILY_STATS_TTL_SECONDS,
+            seen_internal_key: DAILY_STATS_TTL_SECONDS,
             VISITOR_HISTORY_KEY: VISITOR_HISTORY_TTL_SECONDS,
         },
         _mutate,
@@ -1277,6 +1389,9 @@ def get_live_traffic_metrics(now: datetime | None = None) -> dict[str, Any]:
         "peak_active_today": 0,
         "page_views_today": 0,
         "unique_visitors_today": 0,
+        "unique_clients_today": 0,
+        "unique_internal_today": 0,
+        "bot_hits_today": 0,
         "new_visitors_today": 0,
         "returning_visitors_today": 0,
         "top_pages": [],
@@ -1330,12 +1445,18 @@ def get_live_traffic_metrics(now: datetime | None = None) -> dict[str, Any]:
     try:
         stats = _load_daily_stats(current_dt)
         visitors = _safe_int(stats.get("unique_visitors_today"), default=0)
+        unique_clients_today = _safe_int(stats.get("unique_clients_today"), default=0)
+        unique_internal_today = _safe_int(stats.get("unique_internal_today"), default=0)
+        bot_hits_today = _safe_int(stats.get("bot_hits_today"), default=0)
         add_to_cart = _safe_int((stats.get("events") or {}).get("add_to_cart"), default=0)
         orders = _safe_int((stats.get("events") or {}).get("order_created"), default=0)
         whatsapp = _safe_int((stats.get("events") or {}).get("whatsapp_open"), default=0)
         snapshot["peak_active_today"] = _safe_int(stats.get("peak_active_today"), default=0)
         snapshot["page_views_today"] = _safe_int(stats.get("page_views_total"), default=0)
         snapshot["unique_visitors_today"] = visitors
+        snapshot["unique_clients_today"] = unique_clients_today
+        snapshot["unique_internal_today"] = unique_internal_today
+        snapshot["bot_hits_today"] = bot_hits_today
         snapshot["new_visitors_today"] = _safe_int(stats.get("new_visitors_today"), default=0)
         snapshot["returning_visitors_today"] = _safe_int(stats.get("returning_visitors_today"), default=0)
         snapshot["top_pages"] = _sorted_bucket(stats.get("top_pages", {}), limit=6)
@@ -1372,14 +1493,15 @@ def get_live_traffic_metrics(now: datetime | None = None) -> dict[str, Any]:
             }
             for hour in range(24)
         ]
+        client_visitors = unique_clients_today if unique_clients_today > 0 else visitors
         snapshot["conversions"] = {
-            "visitors": visitors,
+            "visitors": client_visitors,
             "add_to_cart": add_to_cart,
             "orders": orders,
             "whatsapp": whatsapp,
-            "add_to_cart_rate_pct": round((add_to_cart / visitors) * 100, 1) if visitors else 0.0,
-            "order_rate_pct": round((orders / visitors) * 100, 1) if visitors else 0.0,
-            "whatsapp_rate_pct": round((whatsapp / visitors) * 100, 1) if visitors else 0.0,
+            "add_to_cart_rate_pct": round((add_to_cart / client_visitors) * 100, 1) if client_visitors else 0.0,
+            "order_rate_pct": round((orders / client_visitors) * 100, 1) if client_visitors else 0.0,
+            "whatsapp_rate_pct": round((whatsapp / client_visitors) * 100, 1) if client_visitors else 0.0,
         }
     except Exception as exc:
         snapshot["error"] = str(exc)

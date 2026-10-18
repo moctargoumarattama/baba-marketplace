@@ -141,6 +141,7 @@ def create_app(config_class=Config):
         return (
             endpoint.endswith(".static")
             or path.startswith("/static/")
+            or path.startswith("/lang/")
             or path in ROOT_STATIC_LIKE_PATHS
         )
 
@@ -393,6 +394,13 @@ def create_app(config_class=Config):
     def ensure_analytics_visitor_id():
         if _is_static_like_request():
             return None
+        from .services.traffic_stats import is_bot_or_crawler
+        if is_bot_or_crawler():
+            g.is_bot_request = True
+            g.analytics_visitor_id = "bot:crawler"
+            return None
+
+        g.is_bot_request = False
         visitor_id = (request.cookies.get("bm_vid") or "").strip()
         if not visitor_id:
             visitor_id = secrets.token_urlsafe(18)
@@ -751,7 +759,7 @@ def create_app(config_class=Config):
             response.set_cookie(
                 "bm_vid",
                 analytics_visitor_id,
-                max_age=60 * 60 * 24 * 180,
+                max_age=60 * 60 * 24 * 365,
                 samesite="Lax",
                 secure=bool(app.config.get("SESSION_COOKIE_SECURE", False)),
                 httponly=False,

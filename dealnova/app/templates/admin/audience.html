@@ -631,6 +631,7 @@
       quelles pages attirent le plus de monde et combien de demandes arrivent.
     </p>
     <div class="aud-hero-meta">
+      <span class="aud-pill"><i class="bi bi-shield-check text-success"></i> Filtre anti-robots actif</span>
       <span class="aud-pill"><i class="bi bi-arrow-repeat"></i> Mise à jour auto toutes les 15 s</span>
       <span class="aud-pill"><i class="bi bi-clock-history"></i> <span id="audUpdatedAt">Chargement...</span></span>
       <span class="aud-pill is-live-ok" id="audLiveStatus"><span class="aud-dot"></span><span id="audLiveStatusText">Suivi actif</span></span>
@@ -652,9 +653,9 @@
       </div>
     </div>
     <div class="aud-filters" id="audFilters">
-      <button type="button" class="aud-filter-btn active" data-scope="all">Tout voir</button>
-      <button type="button" class="aud-filter-btn" data-scope="clients">Clients seulement</button>
-      <button type="button" class="aud-filter-btn" data-scope="internal">Équipe seulement</button>
+      <button type="button" class="aud-filter-btn active" data-scope="clients"><i class="bi bi-people-fill me-1"></i>Clients réels</button>
+      <button type="button" class="aud-filter-btn" data-scope="internal"><i class="bi bi-shield-lock me-1"></i>Équipe Baba</button>
+      <button type="button" class="aud-filter-btn" data-scope="all"><i class="bi bi-grid-fill me-1"></i>Tout voir</button>
     </div>
   </section>
 
@@ -795,7 +796,7 @@
     const initialNode = document.getElementById("audienceInitialData");
     let pollTimer = null;
     let fetchInFlight = false;
-    let currentScope = "all";
+    let currentScope = "clients";
     let latestData = null;
 
     function readInitialData() {
@@ -846,7 +847,9 @@
         vendor: "Vendeur",
         vendeur: "Vendeur",
         user: "Client",
-        client: "Client"
+        client: "Client",
+        guest: "Visiteur (sans compte)",
+        bot: "Robot SEO / Indexation"
       };
       return labels[value] || String(role || "Compte");
     }
@@ -857,7 +860,8 @@
         desktop: "Ordinateur",
         mobile: "Téléphone",
         tablet: "Tablette",
-        phone: "Téléphone"
+        phone: "Téléphone",
+        bot: "Robot / Moteur SEO"
       };
       return labels[value] || String(device || "");
     }
@@ -895,42 +899,59 @@
     function scopeData(data) {
       const allRoles = Array.isArray(data.sessions_by_role) ? data.sessions_by_role : [];
       if (currentScope === "clients") {
+        const clientUnique = number(data.unique_clients_today) || Math.max(0, number(data.unique_visitors_today) - number(data.unique_internal_today));
         return {
           activeNow: number(data.active_clients_5m),
-          uniqueToday: number(data.unique_visitors_today),
-          roles: allRoles.filter(function (item) { return !isInternalRole(item.label); }),
+          uniqueToday: clientUnique,
+          roles: allRoles.filter(function (item) {
+            const role = String(item.label || "").toLowerCase();
+            return !isInternalRole(role) && role !== "bot";
+          }),
         };
       }
       if (currentScope === "internal") {
+        const internalUnique = number(data.unique_internal_today) || number(data.sessions_internal_today);
         return {
           activeNow: number(data.active_internal_5m),
-          uniqueToday: number(data.sessions_internal_today),
+          uniqueToday: internalUnique,
           roles: allRoles.filter(function (item) { return isInternalRole(item.label); }),
         };
       }
       return {
         activeNow: number(data.active_visitors_5m),
         uniqueToday: number(data.unique_visitors_today),
-        roles: allRoles,
+        roles: allRoles.filter(function (item) { return String(item.label || "").toLowerCase() !== "bot"; }),
       };
     }
 
     function renderCards(data) {
       const scoped = scopeData(data);
+      const isClientScope = currentScope === "clients";
       const cards = [
-        ["En ligne maintenant", scoped.activeNow, currentScope === "clients" ? "Clients qui ont utilisé le site récemment" : currentScope === "internal" ? "Membres de l'équipe actifs récemment" : "Personnes actives sur les 5 dernières minutes", true],
+        [
+          "En ligne maintenant",
+          scoped.activeNow,
+          isClientScope ? "Clients réels actifs ces 2 dernières minutes" : currentScope === "internal" ? "Membres de l'équipe actifs ces 2 dernières minutes" : "Personnes actives sur les 2 dernières minutes",
+          true
+        ],
         ["Avec compte", number(data.active_authenticated_5m), "Utilisateurs connectés à leur compte", true],
-        ["Sans compte", number(data.active_guests_5m), "Visiteurs qui naviguent sans connexion", true],
-        ["Record aujourd'hui", number(data.peak_active_today), "Plus grand nombre de personnes en ligne aujourd'hui", true],
-        ["Activité par minute", number(data.rpm), "Nombre de demandes reçues par minute", true],
-        ["Pages ouvertes", number(data.page_views_today), "Nombre total de pages ouvertes aujourd'hui", false],
-        ["Personnes différentes", scoped.uniqueToday, currentScope === "internal" ? "Comptes de l'équipe vus aujourd'hui" : "Nombre de personnes différentes aujourd'hui", false],
-        ["Clients en ligne", number(data.active_clients_5m), "Clients actifs maintenant", false],
-        ["Équipe en ligne", number(data.active_internal_5m), "Membres de l'équipe actifs maintenant", false],
+        ["Sans compte", number(data.active_guests_5m), "Clients qui naviguent sans connexion", true],
+        ["Record aujourd'hui", number(data.peak_active_today), "Plus grand nombre de personnes en ligne en simultané", true],
+        ["Activité par minute", number(data.rpm), "Requêtes reçues par minute sur le serveur", true],
+        ["Pages ouvertes", number(data.page_views_today), "Pages vues par des humains aujourd'hui (hors robots)", false],
+        [
+          isClientScope ? "Clients uniques vus" : "Personnes différentes",
+          scoped.uniqueToday,
+          isClientScope ? "Clients uniques réels vus aujourd'hui (hors équipe et robots)" : currentScope === "internal" ? "Comptes de l'équipe vus aujourd'hui" : "Nombre total de personnes aujourd'hui",
+          false
+        ],
+        ["Clients en ligne", number(data.active_clients_5m), "Clients réels actifs en ce moment", false],
+        ["Équipe en ligne", number(data.active_internal_5m), "Admin et vendeurs actifs en ce moment", false],
         ["Installations app aujourd'hui", number(data.pwa_installs_today), "Installations de l'application aujourd'hui", false],
         ["Installations app total", number(data.pwa_installs_total), "Total des installations détectées", false],
-        ["Nouveaux visiteurs", number(data.new_visitors_today), "Première visite aujourd'hui", false],
-        ["Visiteurs de retour", number(data.returning_visitors_today), "Personnes déjà venues avant", false]
+        ["Nouveaux clients", number(data.new_visitors_today), "Première visite aujourd'hui", false],
+        ["Clients de retour", number(data.returning_visitors_today), "Personnes déjà venues avant", false],
+        ["Passages Google / SEO", number(data.bot_hits_today), "Pages explorées par les robots (exclues de l'audience)", false]
       ];
       const html = cards.map(function (entry) {
         return (
