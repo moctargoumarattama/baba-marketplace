@@ -12,6 +12,9 @@ async function settled(page) {
 }
 async function closed(page) {
   await page.waitForFunction(() => !document.getElementById('vendorProductDialog').open);
+  // The animation and history.back() settle independently, especially in WebKit.
+  // Reopen only after the owner list has regained its base history entry.
+  await page.waitForFunction(() => !history.state?.bmVendorProductCreate);
 }
 async function loaded(page) {
   await page.locator('#vendorCreateForm').waitFor({ state: 'visible' });

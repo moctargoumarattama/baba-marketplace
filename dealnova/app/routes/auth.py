@@ -82,22 +82,6 @@ def _normalize_optional_email(value: str | None) -> str:
     return candidate if _EMAIL_BASIC_RE.match(candidate) else ""
 
 
-@bp.route("/support/help")
-def public_help():
-    return render_template(
-        "support/open_whatsapp.html",
-        wa_url=build_support_whatsapp_url(["Bonjour, je souhaite contacter le support BabaMarket."]),
-        support_scope="Support BabaMarket",
-        support_title="Support",
-        support_copy="Contactez notre équipe sur WhatsApp pour une question sur une commande, une livraison ou votre compte.",
-        support_note="Appuyez sur le bouton pour ouvrir la conversation.",
-        primary_label="Contacter l'équipe sur WhatsApp",
-        auto_open_whatsapp=False,
-        back_url=url_for("landing"),
-        back_label="Retour à l'accueil",
-    )
-
-
 @bp.route("/support/whatsapp")
 def support_whatsapp():
     role = (getattr(current_user, "role", "") or "").lower()

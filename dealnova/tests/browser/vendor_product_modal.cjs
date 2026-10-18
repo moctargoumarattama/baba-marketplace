@@ -12,12 +12,16 @@ async function isOpen(page) {
 }
 async function closed(page) {
   await page.waitForFunction(() => !document.getElementById('vendorProductDialog').open);
+  await page.waitForFunction(() => !history.state?.bmVendorProductCreate);
 }
 async function loaded(page) {
   await page.locator('#vendorCreateForm').waitFor({ state: 'visible' });
   await page.waitForTimeout(280);
 }
 async function open(page) {
+  if (!await page.locator('[data-vendor-product-create]:visible').count()) {
+    await page.locator('[data-vd-dialog="vendorAddChoiceDialog"]').click();
+  }
   await page.locator('[data-vendor-product-create]:visible').first().click();
   await loaded(page);
   assert.equal(new URL(page.url()).pathname, '/vendor/dashboard');

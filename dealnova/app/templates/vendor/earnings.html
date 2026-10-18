@@ -1,267 +1,52 @@
 {% extends "vendor/base.html" %}
-{% block title %}Caisse vendeur | Espace vendeur{% endblock %}
-
+{% from 'vendor/partials/_workspace_navigation.html' import sidebar, mobile_header, bottom_nav, menu with context %}
+{% block title %}Encaissements | {{ config.SITE_NAME|trim }}{% endblock %}
+{% block body_attrs %}class="bm-vendor-dashboard bm-vendor-records bm-vendor-earnings"{% endblock %}
 {% block head %}
 {{ super() }}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/vendor_earnings_page.css', v=app_static_version) }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/vendor_dashboard.css', v=app_static_version ~ '-dashboard-v7') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/vendor_records.css', v=app_static_version ~ '-records-v1') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/vendor_earnings_page.css', v=app_static_version ~ '-earnings-v2') }}">
 {% endblock %}
-
 {% block content %}
-<section class="earnings-page" data-vendor-earnings-root="true">
-  <div class="container earnings-shell">
-    <div class="earnings-hero">
-      <div style="position: relative; z-index: 2;">
-        <div class="earnings-hero-top">
-          <h1 class="earnings-title">
-            <i class="bi bi-cash-stack"></i>
-            Caisse vendeur
-          </h1>
-          <a href="{{ url_for('vendor.dashboard') }}" class="btn-back-quick" data-stop-nav>
-            <i class="bi bi-arrow-left"></i>
-            Retour
-          </a>
-        </div>
-        <p class="earnings-subtitle">
-          Comptez l'argent encaissé dans votre commerce. Baba Market affiche les commandes, vous gardez la main sur la caisse.
-        </p>
-      </div>
-
-      <div class="filter-section" style="margin-top: 1.5rem;">
-        <form class="filter-pill" method="get">
-          <span class="form-label mb-0">Filtre</span>
-          <select class="form-select form-select-sm" name="range" style="width: 150px;" data-earnings-range-select="true">
-            <option value="today" {% if range_filter == 'today' %}selected{% endif %}>Aujourd'hui</option>
-            <option value="month" {% if range_filter == 'month' %}selected{% endif %}>Ce mois</option>
-            <option value="year" {% if range_filter == 'year' %}selected{% endif %}>Cette année</option>
-            <option value="custom" {% if range_filter == 'custom' %}selected{% endif %}>Dates</option>
-          </select>
-          <input class="form-control form-control-sm" type="date" name="from" value="{{ date_from }}" style="width: 150px;" data-earnings-date-input="true">
-          <input class="form-control form-control-sm" type="date" name="to" value="{{ date_to }}" style="width: 150px;" data-earnings-date-input="true">
-          <select class="form-select form-select-sm" name="show" style="width: 145px;">
-            <option value="all" {% if show == 'all' %}selected{% endif %}>Tout</option>
-            <option value="pending" {% if show == 'pending' %}selected{% endif %}>À vérifier</option>
-            <option value="confirmed" {% if show == 'confirmed' %}selected{% endif %}>Encaissé</option>
-          </select>
-          <button class="btn-filter" type="submit">
-            <i class="bi bi-funnel"></i> Filtrer
-          </button>
-        </form>
-
-        <div class="search-pill" role="search" aria-label="Recherche rapide">
-          <i class="bi bi-search"></i>
-          <input id="quickSearch" class="search-input" type="search" placeholder="Rechercher commande ou produit" autocomplete="off" spellcheck="false">
-          <button id="clearSearch" class="search-clear" type="button" aria-label="Effacer la recherche" hidden>
-            <i class="bi bi-x-lg"></i>
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <div class="stats-grid">
-      <div class="stat-tile">
-        <div class="stat-label">
-          <i class="bi bi-cash-coin"></i> Encaissé
-        </div>
-        <div class="stat-value">{{ '%.2f'|format(total_confirmed / 100) }} <span class="stat-unit">MAD</span></div>
-      </div>
-      <div class="stat-tile">
-        <div class="stat-label">
-          <i class="bi bi-hourglass-split"></i> À vérifier
-        </div>
-        <div class="stat-value">{{ '%.2f'|format(total_pending / 100) }} <span class="stat-unit">MAD</span></div>
-      </div>
-      <div class="stat-tile">
-        <div class="stat-label">
-          <i class="bi bi-calculator"></i> Total ventes
-        </div>
-        <div class="stat-value">{{ '%.2f'|format((total_confirmed + total_pending) / 100) }} <span class="stat-unit">MAD</span></div>
-      </div>
-      <div class="stat-tile">
-        <div class="stat-label">
-          <i class="bi bi-receipt-cutoff"></i> Commandes
-        </div>
-        <div class="stat-value">
-          {{ total_orders_count }}
-        </div>
-      </div>
-    </div>
-
-    {% if orders %}
-      <div class="table-card">
-        <div class="table-card-header">
-          <h5>
-            <i class="bi bi-receipt"></i>
-            Commandes à compter
-          </h5>
-          <div class="earnings-note">
-            <i class="bi bi-info-circle"></i>
-            Marquez une commande seulement quand l'argent est bien dans votre caisse.
-          </div>
-        </div>
-
-        <div class="table-responsive">
-          <table class="table align-middle mb-0">
-            <thead>
-              <tr>
-                <th>Commande</th>
-                <th>Produits</th>
-                <th>Montant à compter</th>
-                <th>Date</th>
-                <th>Note caisse</th>
-                <th class="text-end">Statut</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% set coach_receipt = namespace(done=False) %}
-              {% for order in orders %}
-              {% set receipt = receipt_map.get(order.id) %}
-              {% set amount = order_amount_map.get(order.id, 0) %}
-              {% set vcount = namespace(val=0) %}
-              <tr class="order-row">
-                <td data-label="Commande">
-                  <span style="font-weight: 800; color: var(--earn-brand-dark);">#{{ order.id }}</span>
-                </td>
-                <td data-label="Produits">
-                  <div class="product-list">
-                    {% if order.items %}
-                      {% for item in order.items %}
-                        {% if item.product and item.product.vendor_id == current_user.id %}
-                          {% set vcount.val = vcount.val + (item.quantity or 0) %}
-                          <span class="product-pill">
-                            {{ item.product.name }} x{{ item.quantity }}
-                          </span>
-                        {% endif %}
-                      {% endfor %}
-                    {% endif %}
-                    {% if vcount.val == 0 %}
-                      <span class="text-muted">-</span>
-                    {% endif %}
-                  </div>
-                  {% if vcount.val > 0 %}
-                    <div class="product-count">
-                      {{ vcount.val }} produit(s)
-                    </div>
-                  {% endif %}
-                </td>
-                <td data-label="Montant">
-                  <span style="font-weight: 800; color: var(--earn-text);">
-                    {{ '%.2f'|format((amount or 0)/100) }} MAD
-                  </span>
-                </td>
-                <td data-label="Date">
-                  {{ order.created_at.strftime('%d/%m/%Y') if order and order.created_at else '-' }}
-                </td>
-                <td data-label="Note caisse">
-                  {% if receipt %}
-                    <span class="text-muted">{{ receipt.note if receipt.note else '-' }}</span>
-                  {% else %}
-                    <input class="pay-input" form="receipt-form-{{ order.id }}" name="note" placeholder="Ex: cash, virement..." maxlength="255">
-                  {% endif %}
-                </td>
-                <td data-label="Statut" class="text-end">
-                  {% if receipt %}
-                    <span class="pay-badge confirmed">
-                      <i class="bi bi-check2-circle"></i> Encaissé
-                    </span>
-                  {% else %}
-                    <div class="d-flex flex-column align-items-end gap-2">
-                      <span class="pay-badge to-confirm">
-                        <i class="bi bi-exclamation-circle"></i> À vérifier
-                      </span>
-                      <form id="receipt-form-{{ order.id }}" method="post" action="{{ url_for('vendor.confirm_receipt', oid=order.id) }}" class="pay-form">
-                        {% include "partials/_csrf.html" %}
-                        {% if not coach_receipt.done %}
-                          {% set coach_receipt.done = True %}
-                          <button class="pay-btn" type="submit" data-coach="vendor_receipt" data-coach-priority="10" data-coach-text="Astuce : marquez encaissé seulement quand l'argent est bien dans votre caisse.">
-                            <i class="bi bi-check2-circle"></i> Marquer encaissé
-                          </button>
-                        {% else %}
-                          <button class="pay-btn" type="submit">
-                            <i class="bi bi-check2-circle"></i> Marquer encaissé
-                          </button>
-                        {% endif %}
-                      </form>
-                    </div>
-                  {% endif %}
-                </td>
-              </tr>
-              {% endfor %}
-              <tr id="noSearchResults" class="search-empty-row" hidden>
-                <td colspan="6" class="text-center text-muted py-4">
-                  <i class="bi bi-search me-2"></i> Aucun résultat pour cette recherche.
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        {% if pagination and pagination.pages > 1 %}
-        <nav class="pagination-premium" aria-label="Navigation des encaissements">
-          <a href="{{ url_for('vendor.earnings', page=pagination.prev_num, range=range_filter, **{'from': date_from, 'to': date_to, 'show': show}) if pagination.has_prev else '#' }}"
-             class="pagination-item {% if not pagination.has_prev %}disabled{% endif %}">
-            <i class="bi bi-chevron-left"></i>
-          </a>
-
-          {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=1) %}
-            {% if p %}
-              <a href="{{ url_for('vendor.earnings', page=p, range=range_filter, **{'from': date_from, 'to': date_to, 'show': show}) }}"
-                 class="pagination-item {% if p == pagination.page %}active{% endif %}">
-                {{ p }}
-              </a>
-            {% else %}
-              <span class="pagination-item disabled">...</span>
-            {% endif %}
-          {% endfor %}
-
-          <a href="{{ url_for('vendor.earnings', page=pagination.next_num, range=range_filter, **{'from': date_from, 'to': date_to, 'show': show}) if pagination.has_next else '#' }}"
-             class="pagination-item {% if not pagination.has_next %}disabled{% endif %}">
-            <i class="bi bi-chevron-right"></i>
-          </a>
-        </nav>
-        {% endif %}
-      </div>
-
-    {% else %}
-      <div class="empty-earnings">
-        <i class="bi bi-cash-stack"></i>
-        <h5>Aucune commande à compter</h5>
-        <p>Les ventes de votre commerce s'afficheront ici quand des commandes seront créées.</p>
-        <div style="margin-top: 1.5rem;">
-          <a href="{{ url_for('vendor.dashboard') }}" class="btn-history" style="background: var(--earn-brand); color: white; border: none; display: inline-flex; align-items: center; gap: 0.5rem;">
-            <i class="bi bi-arrow-left-circle"></i>
-            Retour au dashboard
-          </a>
-        </div>
-      </div>
-    {% endif %}
+<div class="vd-shell earnings-page" data-vendor-earnings-root="true">
+  {{ sidebar('earnings', allows_catalog, allows_products, allows_location, shop) }}
+  {{ mobile_header('earnings') }}
+  <div class="vd-main earnings-main">
+    <header class="vd-topbar"><div><h1>Encaissements</h1><p>Suivez les règlements de vos commandes.</p></div></header>
+    <section class="vr-summary" data-earnings-summary aria-label="Résumé des encaissements">
+      <div class="vr-summary-item"><span class="vr-summary-label">Encaissé</span><strong class="vr-summary-value earnings-summary-confirmed">{{ '%.2f'|format(total_confirmed / 100) }} <small>DH</small></strong></div>
+      <div class="vr-summary-item"><span class="vr-summary-label">À vérifier</span><strong class="vr-summary-value earnings-summary-pending">{{ '%.2f'|format(total_pending / 100) }} <small>DH</small></strong></div>
+      <div class="vr-summary-item"><span class="vr-summary-label">Total des ventes</span><strong class="vr-summary-value">{{ '%.2f'|format((total_confirmed + total_pending) / 100) }} <small>DH</small></strong></div>
+      <div class="vr-summary-item"><span class="vr-summary-label">Commandes</span><strong class="vr-summary-value">{{ total_orders_count }}</strong></div>
+    </section>
+    <form id="earningsFilterForm" class="vr-filters earnings-filters" method="get" action="{{ url_for('vendor.earnings') }}" role="search" aria-label="Filtrer les encaissements">
+      <div class="vr-search vr-field earnings-search"><label class="visually-hidden" for="earningsSearchInput">Rechercher une commande ou un produit</label><i class="bi bi-search" aria-hidden="true"></i><input id="earningsSearchInput" type="search" name="q" value="{{ q|default('') }}" placeholder="Commande ou produit…" maxlength="240" autocomplete="off" aria-controls="earningsResultsRegion"><button type="button" class="earnings-search-clear" data-earnings-clear aria-label="Effacer la recherche" {% if not q|default('') %}hidden{% endif %}><i class="bi bi-x-lg" aria-hidden="true"></i></button></div>
+      <label class="vr-field earnings-range-field" for="earningsRange"><span>Période</span><select id="earningsRange" name="range" data-earnings-range-select><option value="today" {% if range_filter == 'today' %}selected{% endif %}>Aujourd’hui</option><option value="month" {% if range_filter == 'month' %}selected{% endif %}>Ce mois</option><option value="year" {% if range_filter == 'year' %}selected{% endif %}>Cette année</option><option value="custom" {% if range_filter == 'custom' %}selected{% endif %}>Dates personnalisées</option></select></label>
+      <label class="vr-field earnings-show-field" for="earningsShow"><span>État</span><select id="earningsShow" name="show"><option value="all" {% if show == 'all' %}selected{% endif %}>Tous</option><option value="pending" {% if show == 'pending' %}selected{% endif %}>À vérifier</option><option value="confirmed" {% if show == 'confirmed' %}selected{% endif %}>Encaissés</option></select></label>
+      <div class="earnings-date-fields" data-earnings-dates><label class="vr-field" for="earningsDateFrom"><span>Du</span><input id="earningsDateFrom" type="date" name="from" value="{{ date_from }}" data-earnings-date-input></label><label class="vr-field" for="earningsDateTo"><span>Au</span><input id="earningsDateTo" type="date" name="to" value="{{ date_to }}" data-earnings-date-input></label></div>
+      <button class="vr-button vr-primary earnings-filter-submit" type="submit">Appliquer</button>
+    </form>
+    <div class="earnings-feedback" data-earnings-feedback role="status" aria-live="polite" hidden></div>
+    <div id="earningsResultsRegion" aria-busy="false">{% include 'vendor/partials/_earnings_results.html' %}</div>
   </div>
-  <button id="earningsBackTop" class="earnings-back-top" type="button" aria-label="Retour en haut">
-    <i class="bi bi-arrow-up"></i>
-    Haut
-  </button>
-</section>
-
-<div id="earningsToast" class="earnings-toast" aria-live="polite">
-  <div class="toast-icon">
-    <i class="bi bi-check2-circle"></i>
-  </div>
-  <div class="toast-content">
-    <div class="toast-title">Encaissement enregistré</div>
-    <div class="toast-message" id="toastMessage">La commande est maintenant marquée encaissée</div>
-  </div>
-  <button class="toast-close" type="button" aria-label="Fermer" data-close-target=".earnings-toast" data-stop-nav>
-    <i class="bi bi-x"></i>
-  </button>
+  {{ bottom_nav('earnings', allows_catalog, allows_location, shop) }}
 </div>
 {% endblock %}
-
 {% block scripts %}
 {{ super() }}
-<script type="application/json" id="vendorEarningsPageConfig">{{ {
-  "refreshIntervalMs": 60000,
-  "reloadDelayMs": 1000,
-  "scrollStorageKey": "earningsScrollPosition",
-  "autoRefreshInfoEvery": 3
-} | tojson }}</script>
-<script src="{{ url_for('static', filename='js/pages/vendor/earnings_page.js', v=app_static_version) }}" defer></script>
+{{ menu(allows_products, allows_location) }}
+<dialog id="earningsReceiptDialog" class="vd-choice-dialog earnings-receipt-dialog" aria-labelledby="earningsReceiptTitle" aria-describedby="earningsReceiptDescription">
+  <form id="earningsReceiptForm" class="vd-choice-panel" method="post">
+    {% include 'partials/_csrf.html' %}
+    <header class="vd-choice-header"><h2 id="earningsReceiptTitle">Confirmer l’encaissement</h2><button type="button" class="vd-icon-button" data-vd-close aria-label="Fermer"><i class="bi bi-x-lg" aria-hidden="true"></i></button></header>
+    <div class="earnings-receipt-summary"><span data-earnings-receipt-order></span><strong data-earnings-receipt-amount></strong></div>
+    <p id="earningsReceiptDescription">Confirmez uniquement si vous avez reçu le paiement de cette commande.</p>
+    <label class="vr-field earnings-receipt-note" for="earningsReceiptNote"><span>Note <small>(facultative)</small></span><input id="earningsReceiptNote" name="note" type="text" maxlength="255" placeholder="Espèces, virement…" autocomplete="off"></label>
+    <p class="earnings-receipt-error" data-earnings-receipt-error role="alert" hidden></p>
+    <div class="earnings-receipt-actions"><button type="button" class="vr-button" data-vd-close>Annuler</button><button type="submit" class="vr-button vr-primary" data-earnings-confirm>Encaissé</button></div>
+  </form>
+</dialog>
+<script src="{{ url_for('static', filename='js/pages/vendor/dashboard_layout.js', v=app_static_version ~ '-dashboard-v7') }}" defer></script>
+<script src="{{ url_for('static', filename='js/pages/vendor/earnings_page.js', v=app_static_version ~ '-earnings-v2') }}" defer></script>
 {% endblock %}

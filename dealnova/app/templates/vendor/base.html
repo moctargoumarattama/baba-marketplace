@@ -3,10 +3,12 @@
 {% block head %}
 {{ super() }}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/vendor_shell.css', v=app_static_version) }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/vendor_global_nav.css', v=app_static_version ~ '-nav-v1') }}">
 {% endblock %}
 
 {% block scripts %}
 {{ super() }}
+{% if current_user.is_authenticated and current_user.role == 'vendor' and request.endpoint not in ['vendor.dashboard', 'vendor.catalog', 'vendor.earnings', 'vendor.manage_shop', 'rentals.owner_locations_archives'] %}{% include 'vendor/partials/_global_bottom_nav.html' %}{% endif %}
 {% set report_issue_endpoint = 'vendor.support_whatsapp' %}
 {% set report_issue_scope_label = report_issue_scope_label if report_issue_scope_label is defined and report_issue_scope_label else 'Support vendeur' %}
 {% set report_issue_scope_key = report_issue_scope_key if report_issue_scope_key is defined and report_issue_scope_key else 'vendor' %}

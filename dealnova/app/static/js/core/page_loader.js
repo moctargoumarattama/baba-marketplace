@@ -12,7 +12,6 @@
 
   var SHARED = {
     coreLive: "js/core/core_live.js",
-    liveShim: "js/live.js",
     ajaxPagination: "js/ajax_pagination.js",
     featurePagination: "js/ajax/features/pagination.js",
     featureForms: "js/ajax/features/forms.js",
@@ -23,7 +22,6 @@
 
   var ADMIN_STACK = [
     SHARED.coreLive,
-    SHARED.liveShim,
     SHARED.featurePagination,
     SHARED.featureForms,
     SHARED.featurePolling,
@@ -75,7 +73,7 @@
     var hasPollingHint = !!document.querySelector('[data-live], [data-orders-live-url], [data-notify-url], [data-track-poll]');
 
     if (hasAjaxForms || hasPollingHint) {
-      pushAssets(list, [SHARED.coreLive, SHARED.liveShim, SHARED.featureForms]);
+      pushAssets(list, [SHARED.coreLive, SHARED.featureForms]);
     }
     if (hasAjaxPagination) {
       pushAssets(list, [SHARED.ajaxPagination, SHARED.featurePagination]);

@@ -7,6 +7,7 @@
   let createType = dialog.dataset.defaultType === "location" ? "location" : "product";
   let editUrl = null;
   let formMode = "create";
+  let preferredKind = null;
   const triggers = "[data-vendor-product-create], [data-vendor-location-create], [data-vendor-product-edit], [data-vendor-location-edit]";
   function createUrl(type = createType) {
     return type === "location" ? dialog.dataset.locationCreateUrl : dialog.dataset.createUrl;
@@ -223,7 +224,7 @@
     if (reopenAfterClose) {
       const next = reopenAfterClose;
       reopenAfterClose = false;
-      openDialog(null, false, next.type, next.url);
+      openDialog(null, false, next.type, next.url, next.kind);
     }
   }
 
@@ -397,6 +398,10 @@
       categoryMemory.physical = "";
       categoryMemory.service = "";
       categoryMemory[currentKind()] = form.elements.namedItem("category_id").value;
+      if (formMode === "create" && preferredKind) {
+        const kindField = form.querySelector('[name="kind"][value="' + preferredKind + '"]');
+        if (kindField && !kindField.disabled && kindField.type === "radio") kindField.checked = true;
+      }
       syncKind();
     }
     renderPhotos();
@@ -446,12 +451,14 @@
     }
   }
 
-  function openDialog(trigger, pushHistory, type = createType, targetUrl = null) {
-    if (phase === "closing") { reopenAfterClose = { type, url: targetUrl }; return; }
+  function openDialog(trigger, pushHistory, type = createType, targetUrl = null, defaultKind = null) {
+    const requestedKind = trigger?.dataset.vendorDefaultKind || defaultKind;
+    if (phase === "closing") { reopenAfterClose = { type, url: targetUrl, kind: requestedKind }; return; }
     if (phase !== "closed") return;
     createType = type === "location" ? "location" : "product";
     editUrl = targetUrl ? editTarget(targetUrl, createType) : null;
     formMode = editUrl ? "edit" : "create";
+    preferredKind = createType === "product" && formMode === "create" && ["physical", "service"].includes(requestedKind) ? requestedKind : null;
     headers["X-Vendor-Modal"] = createType + "-" + formMode;
     dialog.dataset.activeType = createType;
     dialog.querySelectorAll("[data-vpm-icon]").forEach((node) => { node.hidden = node.dataset.vpmIcon !== createType; });
@@ -476,7 +483,8 @@
       ["new", "edit_product", "edit_location"].forEach((key) => url.searchParams.delete(key));
       if (editUrl) url.searchParams.set("edit_" + createType, new URL(editUrl).pathname.match(/\/(\d+)\/edit$/)[1]);
       else url.searchParams.set("new", createType);
-      window.history.pushState(Object.assign({}, window.history.state, { [historyKey]: editUrl ? { type: createType, url: editUrl } : createType }), "", url);
+      const state = editUrl ? { type: createType, url: editUrl } : preferredKind ? { type: createType, kind: preferredKind } : createType;
+      window.history.pushState(Object.assign({}, window.history.state, { [historyKey]: state }), "", url);
     }
     document.dispatchEvent(new CustomEvent("vendor:form-opened", { detail: { formType: createType } }));
     afterMotion(() => {
@@ -675,12 +683,13 @@
     // Backdrop clicks deliberately keep a form open to prevent accidental data loss.
   });
   dialog.addEventListener("cancel", (event) => {
+    if (standalone) return;
     event.preventDefault();
     if (!confirm.hidden) setConfirm(false);
     else requestClose();
   });
   dialog.addEventListener("keydown", (event) => {
-    if (event.key !== "Tab" || confirm.hidden) return;
+    if (standalone || event.key !== "Tab" || confirm.hidden) return;
     const buttons = Array.from(confirm.querySelectorAll("button"));
     const first = buttons[0];
     const last = buttons[buttons.length - 1];
@@ -700,8 +709,8 @@
       const saved = window.history.state[historyKey];
       const type = saved === "location" || saved?.type === "location" ? "location" : "product";
       const url = typeof saved === "object" ? editTarget(saved.url, type) : null;
-      if (phase === "closed") openDialog(null, false, type, url);
-      else if (phase === "closing") reopenAfterClose = { type, url };
+      if (phase === "closed") openDialog(null, false, type, url, saved?.kind);
+      else if (phase === "closing") reopenAfterClose = { type, url, kind: saved?.kind };
       return;
     }
     if (phase === "closed" || phase === "closing") return;
@@ -730,7 +739,7 @@
   const initialUrl = new URL(window.location.href);
   const initial = requestedForm(initialUrl);
   if (initial) {
-    if (window.history.state?.[historyKey]) openDialog(null, false, initial.type, initial.url);
+    if (window.history.state?.[historyKey]) openDialog(null, false, initial.type, initial.url, window.history.state[historyKey]?.kind);
     else {
       ["new", "edit_product", "edit_location"].forEach((key) => initialUrl.searchParams.delete(key));
       window.history.replaceState(window.history.state, "", initialUrl);

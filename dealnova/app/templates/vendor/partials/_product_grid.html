@@ -141,7 +141,7 @@
         Commencez par ajouter votre premier element
         {% endif %}
     </p>
-    <a href="{{ url_for('vendor.product_new') }}" class="btn-action primary" style="display: inline-flex; padding: 1rem 2rem; margin-top: 1rem;">
+    <a href="{{ url_for('vendor.product_new', standalone=1) }}" class="btn-action primary" data-vendor-product-create data-stop-nav aria-haspopup="dialog" aria-controls="vendorProductDialog" style="display: inline-flex; padding: 1rem 2rem; margin-top: 1rem;">
         <i class="bi bi-plus-circle"></i>
         <span>{{ catalog_create_label or "Nouveau produit" }}</span>
     </a>

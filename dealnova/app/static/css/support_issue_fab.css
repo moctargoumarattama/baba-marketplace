@@ -3,6 +3,7 @@
 }
 
 .support-issue-fab {
+  display: none !important;
   position: fixed;
   right: 1rem;
   bottom: calc(84px + env(safe-area-inset-bottom, 0px));

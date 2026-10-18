@@ -25,7 +25,6 @@ from ..models.rental import RentalListing, RentalMedia, RentalArchive
 from ..models.subscription_payment import SubscriptionPayment
 from ..models.vendor_application import VendorApplication
 from ..models.vendor_change_request import VendorChangeRequest
-from ..models.vendor_fulfillment import VendorFulfillment
 from ..models.vendor_payout import VendorPayout
 from ..models.vendor_push_subscription import VendorPushSubscription
 from ..models.vendor_receipt import VendorReceipt
@@ -421,9 +420,6 @@ def _cleanup_user_dependencies_for_delete(user: User, *, linked_shop: Shop | Non
     cleanup["reviews_deleted"] = int(Review.query.filter(Review.user_id == user.id).delete(synchronize_session=False) or 0)
     cleanup["vendor_push_deleted"] = int(
         VendorPushSubscription.query.filter(VendorPushSubscription.vendor_id == user.id).delete(synchronize_session=False) or 0
-    )
-    cleanup["vendor_fulfillment_deleted"] = int(
-        VendorFulfillment.query.filter(VendorFulfillment.vendor_id == user.id).delete(synchronize_session=False) or 0
     )
     cleanup["vendor_receipts_deleted"] = int(
         VendorReceipt.query.filter(VendorReceipt.vendor_id == user.id).delete(synchronize_session=False) or 0

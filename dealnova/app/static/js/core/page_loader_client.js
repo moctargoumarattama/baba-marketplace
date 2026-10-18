@@ -22,7 +22,6 @@
   var ASSETS = {
     coreCart: "js/core/core_cart.js",
     coreLive: "js/core/core_live.js",
-    liveShim: "js/live.js",
     ajaxPagination: "js/ajax_pagination.js",
     featurePagination: "js/ajax/features/pagination.js",
     featureForms: "js/ajax/features/forms.js",
@@ -37,7 +36,6 @@
 
   var VENDOR_RUNTIME = [
     ASSETS.coreLive,
-    ASSETS.liveShim,
     ASSETS.ajaxPagination,
     ASSETS.featurePagination,
     ASSETS.featureForms,
@@ -47,19 +45,19 @@
   var VENDOR_MAP = {
     "vendor.dashboard": VENDOR_RUNTIME,
     "vendor.earnings": VENDOR_RUNTIME,
-    "vendor.manage_shop": [ASSETS.coreLive, ASSETS.liveShim, ASSETS.featureForms],
-    "vendor.product_new": [ASSETS.coreLive, ASSETS.liveShim, ASSETS.featureForms],
-    "vendor.product_edit": [ASSETS.coreLive, ASSETS.liveShim, ASSETS.featureForms]
+    "vendor.manage_shop": [ASSETS.coreLive, ASSETS.featureForms],
+    "vendor.product_new": [ASSETS.coreLive, ASSETS.featureForms],
+    "vendor.product_edit": [ASSETS.coreLive, ASSETS.featureForms]
   };
 
   var LOAD_PLANS = {
     shops: [[ASSETS.shopsPage, ASSETS.coreCart, ASSETS.ajaxPagination]],
     "shops.list_shops": [[ASSETS.shopsPage, ASSETS.coreCart, ASSETS.ajaxPagination]],
-    "vendor.dashboard": [[ASSETS.coreLive], [ASSETS.liveShim, ASSETS.ajaxPagination, ASSETS.featurePagination, ASSETS.featureForms, ASSETS.featurePolling]],
-    "vendor.earnings": [[ASSETS.coreLive], [ASSETS.liveShim, ASSETS.ajaxPagination, ASSETS.featurePagination, ASSETS.featureForms, ASSETS.featurePolling]],
-    "vendor.manage_shop": [[ASSETS.coreLive], [ASSETS.liveShim, ASSETS.featureForms]],
-    "vendor.product_new": [[ASSETS.coreLive], [ASSETS.liveShim, ASSETS.featureForms]],
-    "vendor.product_edit": [[ASSETS.coreLive], [ASSETS.liveShim, ASSETS.featureForms]]
+    "vendor.dashboard": [[ASSETS.coreLive], [ASSETS.ajaxPagination, ASSETS.featurePagination, ASSETS.featureForms, ASSETS.featurePolling]],
+    "vendor.earnings": [[ASSETS.coreLive], [ASSETS.ajaxPagination, ASSETS.featurePagination, ASSETS.featureForms, ASSETS.featurePolling]],
+    "vendor.manage_shop": [[ASSETS.coreLive], [ASSETS.featureForms]],
+    "vendor.product_new": [[ASSETS.coreLive], [ASSETS.featureForms]],
+    "vendor.product_edit": [[ASSETS.coreLive], [ASSETS.featureForms]]
   };
 
   var QUIET_PAGES = new Set([
@@ -158,7 +156,7 @@
     }
 
     if (document.querySelector('form[data-ajax="true"], form[data-adm-ajax="1"], [data-adm-action="post"]')) {
-      pushUnique(assets, [ASSETS.coreLive, ASSETS.liveShim, ASSETS.featureForms]);
+      pushUnique(assets, [ASSETS.coreLive, ASSETS.featureForms]);
     }
 
     if (document.querySelector('[data-live], [data-orders-live-url], [data-notify-url], [data-track-poll]')) {

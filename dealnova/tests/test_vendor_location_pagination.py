@@ -25,17 +25,12 @@ def test_public_locations_use_one_stable_pagination_strategy():
     assert "RentalListing.created_at.desc(), RentalListing.id.desc()" in body
 
 
-def test_search_short_terms_do_not_trigger_wildcard_description_scans():
+def test_public_location_short_terms_limit_description_searches():
     rentals_body = _function_body(_read("app/routes/rentals.py"), "locations_home")
-    catalog_body = _function_body(_read("app/routes/vendor.py"), "catalog")
 
     assert "search_q = q if len(q) >= 2 else \"\"" in rentals_body
     assert "description_search_q = q if len(q) >= 3 else \"\"" in rentals_body
     assert "if description_search_q:" in rentals_body
-
-    assert "search_term_query = search_term if len(search_term) >= 2 else \"\"" in catalog_body
-    assert "if search_term_query:" in catalog_body
-    assert "Product.description.ilike(like_term)" in catalog_body
 
 
 def test_owner_locations_total_card_uses_full_pagination_total():

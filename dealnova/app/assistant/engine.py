@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import json
 import re
 import unicodedata
 from datetime import datetime
 from typing import Any
+
+import requests
 
 from flask import current_app, session, url_for
 from sqlalchemy import or_
@@ -1141,6 +1144,152 @@ def _is_shop_intent(text: str) -> bool:
     return _contains_any(text, ("boutique", "shop", "magasin"))
 
 
+_GEMINI_SESSION: requests.Session | None = None
+
+
+def _get_gemini_session() -> requests.Session:
+    global _GEMINI_SESSION
+    if _GEMINI_SESSION is None:
+        _GEMINI_SESSION = requests.Session()
+    return _GEMINI_SESSION
+
+
+def _reply_with_gemini(message_text: str | None, state: dict[str, Any]) -> dict[str, Any] | None:
+    api_key = (current_app.config.get("GEMINI_API_KEY") or "").strip()
+    if not api_key:
+        return None
+
+    raw_query = str(message_text or "").strip()
+    if not raw_query or len(raw_query) < 2:
+        return None
+
+    model = (current_app.config.get("GEMINI_MODEL") or "gemini-flash-lite-latest").strip() or "gemini-flash-lite-latest"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+
+    system_instruction = (
+        "Tu es l'assistant virtuel officiel et exclusif de la marketplace marocaine \"Baba Market\".\n\n"
+        "RÈGLE ABSOLUE ANTI-ABUS (PRIORITÉ MAXIMALE) :\n"
+        "Tu dois UNIQUEMENT et STRICTEMENT répondre aux questions concernant Baba Market au Maroc :\n"
+        "- Produits vendus sur la marketplace (alimentation, vêtements, beauté, artisanat, high-tech, maison...)\n"
+        "- Services professionnels (coiffure, esthétique, ménage, plomberie, électricité, informatique, etc.)\n"
+        "- Locations immobilières (studios, appartements, chambres, bureaux, magasins au Maroc)\n"
+        "- Boutiques partenaires vérifiées\n"
+        "- Livraisons (villes desservies : Rabat, Salé, Kénitra, Témara ; horaires : tous les jours de 8 h à 3 h du matin)\n"
+        "- Inscription et espace vendeur (ouvrir une boutique, vendre sur Baba Market)\n"
+        "- Assistance et contact du support ou des livreurs via WhatsApp\n\n"
+        "REFUS SYSTÉMATIQUE DE TOUTE QUESTION HORS-SUJET / INTERNET GÉNÉRAL :\n"
+        "Si l'utilisateur pose une question sans rapport direct avec Baba Market (programmation informatique, "
+        "devoirs scolaires, calculs mathématiques, politique, actualités mondiales, météo mondiale, histoire, blagues, "
+        "rédaction de textes généraux, etc.), tu dois REFUSER CATÉGORIQUEMENT en mettant is_off_topic=true, search_query='', "
+        "kind=null, action=null, et dans text :\n"
+        "\"Je suis l'assistant dédié exclusivement à Baba Market au Maroc. Je ne peux vous renseigner que sur nos offres, "
+        "services, locations, livraisons et boutiques sur la plateforme. Que recherchez-vous sur Baba Market ?\"\n\n"
+        "FORMAT DE RÉPONSE OBLIGATOIRE (JSON STRICT) :\n"
+        "Tu dois TOUJOURS répondre en JSON strict avec cette structure exacte :\n"
+        "{\n"
+        "  \"text\": \"Message d'aide pour le client (concis, 2 à 4 phrases max, chaleureux, en Français ou Darija selon sa langue)\",\n"
+        "  \"search_query\": \"Mots-clés de recherche nettoyés (ex: robes femmes, studio rabat, coiffeur) ou vide\",\n"
+        "  \"kind\": \"products\" ou \"services\" ou \"locations\" ou \"shops\" ou null,\n"
+        "  \"is_off_topic\": true ou false,\n"
+        "  \"action\": \"become_vendor\" ou \"help_delivery\" ou \"handoff\" ou null\n"
+        "}"
+    )
+
+    payload = {
+        "system_instruction": {"parts": [{"text": system_instruction}]},
+        "contents": [{"role": "user", "parts": [{"text": raw_query}]}],
+        "generationConfig": {
+            "response_mime_type": "application/json",
+            "temperature": 0.15,
+            "maxOutputTokens": 350,
+        },
+    }
+
+    try:
+        session = _get_gemini_session()
+        resp = session.post(url, json=payload, timeout=8)
+        if resp.status_code != 200:
+            current_app.logger.warning("assistant.gemini_failed status=%s", resp.status_code)
+            return None
+
+        body = resp.json()
+        candidates = body.get("candidates") or []
+        if not candidates:
+            return None
+
+        parts = candidates[0].get("content", {}).get("parts") or []
+        if not parts:
+            return None
+
+        raw_text = parts[0].get("text", "").strip()
+        if not raw_text:
+            return None
+
+        parsed = json.loads(raw_text)
+        reply_text = str(parsed.get("text") or "").strip()
+        search_query = str(parsed.get("search_query") or "").strip()
+        kind = parsed.get("kind")
+        is_off_topic = bool(parsed.get("is_off_topic"))
+        action = parsed.get("action")
+
+        if is_off_topic:
+            return {
+                "text": reply_text or "Je suis l'assistant dédié exclusivement à Baba Market au Maroc. Que recherchez-vous sur notre marketplace ?",
+                "quick_replies": _main_quick_replies(),
+            }
+
+        if action == "become_vendor":
+            return {
+                "text": reply_text or "Ouverture de la page pour devenir vendeur…",
+                "redirect_url": url_for("auth.vendor_access"),
+                "quick_replies": _main_quick_replies(),
+            }
+
+        if action == "handoff":
+            return {
+                "text": reply_text or "Utilisez le lien ci-dessous pour contacter un conseiller sur WhatsApp.",
+                "handoff": _handoff_payload(),
+                "quick_replies": _main_quick_replies(),
+            }
+
+        if action == "help_delivery":
+            return _start_delivery_flow(state)
+
+        cards = []
+        if search_query:
+            if kind == "shops":
+                cards = _search_shops_by_name(search_query)
+            elif kind in {CATALOG_KIND_PRODUCTS, CATALOG_KIND_SERVICES, CATALOG_KIND_LOCATIONS}:
+                cards = _run_catalog_search(kind, search_query, budget_max_dh=DEFAULT_MAX_BUDGET_DH)
+            else:
+                for try_kind in (CATALOG_KIND_PRODUCTS, CATALOG_KIND_SERVICES, CATALOG_KIND_LOCATIONS):
+                    cards = _run_catalog_search(try_kind, search_query, budget_max_dh=DEFAULT_MAX_BUDGET_DH)
+                    if cards:
+                        break
+
+        if cards:
+            return {
+                "text": reply_text,
+                "items": cards,
+                "quick_replies": [
+                    {"label": "Nouvelle recherche", "action": "start"},
+                    {"label": "Organiser une livraison", "action": "help_delivery"},
+                    {"label": "Contacter un conseiller", "action": "handoff"},
+                ],
+            }
+
+        if reply_text:
+            return {
+                "text": reply_text,
+                "quick_replies": _main_quick_replies(),
+            }
+
+        return None
+    except Exception as exc:
+        current_app.logger.info("assistant.gemini_fallback reason=%s", exc)
+        return None
+
+
 def assistant_reply(*, message: str | None, action: str | None = None, value: str | None = None) -> dict[str, Any]:
     text = _normalize_text(message)
     selected_value = _normalize_text(value)
@@ -1220,6 +1369,10 @@ def assistant_reply(*, message: str | None, action: str | None = None, value: st
 
     if not text or _is_greeting(text):
         return _menu_response()
+
+    gemini_resp = _reply_with_gemini(message_text=message, state=state)
+    if gemini_resp is not None:
+        return gemini_resp
 
     if _is_product_intent(text):
         return _start_catalog_flow(state, CATALOG_KIND_PRODUCTS)

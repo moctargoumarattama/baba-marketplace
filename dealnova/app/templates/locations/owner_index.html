@@ -1,10 +1,9 @@
 {% extends "base.html" %}
 {% block title %}Mes locations | {{ config.SITE_NAME }}{% endblock %}
 {% block head %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/locations/owner_pages.css', v=app_static_version) }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/locations/owner_refresh.css', v=app_static_version ~ '-location-v3') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/vendor_product_modal.css', v=app_static_version ~ '-create-v3') }}">
-<script src="{{ url_for('static', filename='js/pages/owner_locations_page.js', v=app_static_version ~ '-location-v3') }}" defer></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/locations/owner_pages.css', v=app_static_version ~ '-unified') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/vendor_product_modal.css', v=app_static_version ~ '-forms-v4') }}">
+<script src="{{ url_for('static', filename='js/pages/owner_locations_page.js', v=app_static_version ~ '-location-v4') }}" defer></script>
 {% endblock %}
 {% block content %}
 {% set status_labels = {'active': 'Active', 'reserved': 'Réservée', 'taken': 'Louée', 'expired': 'Expirée'} %}
@@ -15,7 +14,7 @@
     <h1>Mes locations</h1>
     <div class="owner-refresh-header-actions">
       <a class="owner-action owner-action-history" href="{{ archive_url }}"><i class="bi bi-clock-history" aria-hidden="true"></i><span>Historique</span></a>
-      <a class="owner-action owner-action-primary" href="{{ url_for('rentals.owner_location_new') }}" data-vendor-location-create data-stop-nav aria-haspopup="dialog" aria-controls="vendorProductDialog"><i class="bi bi-plus-lg" aria-hidden="true"></i><span>Nouvelle location</span></a>
+      <a class="owner-action owner-action-primary" href="{{ url_for('rentals.owner_location_new', standalone=1) }}" data-vendor-location-create data-stop-nav aria-haspopup="dialog" aria-controls="vendorProductDialog"><i class="bi bi-plus-lg" aria-hidden="true"></i><span>Nouvelle location</span></a>
     </div>
   </header>
   <section class="owner-refresh-stats" data-owner-stats aria-label="Résumé de vos locations">
@@ -76,7 +75,6 @@
 {% set vendor_dialog_type = 'location' %}
 {% set vendor_dialog_title = 'Nouvelle location' %}
 {% include "vendor/partials/_product_create_dialog.html" %}
-<script src="{{ url_for('static', filename='js/vendor/vendor_product_modal.js', v=app_static_version ~ '-create-v3') }}" defer></script>
-<noscript><p><a href="{{ url_for('rentals.owner_location_new', standalone=1) }}">Ouvrir le formulaire de location</a></p></noscript>
+<script src="{{ url_for('static', filename='js/vendor/vendor_product_modal.js', v=app_static_version ~ '-forms-v4') }}" defer></script>
 {% endblock %}
 

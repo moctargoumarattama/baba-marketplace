@@ -56,7 +56,7 @@
     const todayBookingsList = document.getElementById('todayBookingsList');
     const todayBookingsPager = document.getElementById('todayBookingsPager');
 
-    if (!productsContainer && !categoriesFilter) {
+    if (!cfgNode) {
         return;
     }
 
@@ -159,11 +159,6 @@
         lastBookingNotifiedId: 0,
     };
     const dashboardStatCards = Array.prototype.slice.call(document.querySelectorAll('.stats-grid .stat-card'));
-    const shopStatusOptimistic = {
-        active: false,
-        snapshot: null,
-        rollbackTimer: null
-    };
     const notifyStorageKey = 'vendorDashboardLastOrderId:' + cfg.vendorId;
     const bookingNotifyStorageKey = 'vendorDashboardLastBookingId:' + cfg.vendorId;
     try {
@@ -367,116 +362,60 @@
         }
     }
 
-    function captureShopStatusSnapshot(form) {
-        if (!dashboardShopStatusBar || !form) return null;
-        const pill = dashboardShopStatusBar.querySelector('.status-pill');
-        const button = form.querySelector('.status-btn');
-        const stateInput = form.querySelector('input[name="state"]');
-        return {
-            pill: pill,
-            button: button,
-            stateInput: stateInput,
-            barClassName: dashboardShopStatusBar.className,
-            pillClassName: pill ? pill.className : '',
-            pillHtml: pill ? pill.innerHTML : '',
-            buttonClassName: button ? button.className : '',
-            buttonText: button ? button.textContent : '',
-            nextState: stateInput ? stateInput.value : ''
-        };
-    }
-
-    function restoreShopStatusSnapshot() {
-        const snapshot = shopStatusOptimistic.snapshot;
-        if (!snapshot) return;
-        if (dashboardShopStatusBar && dashboardShopStatusBar.isConnected) {
-            dashboardShopStatusBar.className = snapshot.barClassName || 'shop-status-bar';
-        }
-        if (snapshot.pill && snapshot.pill.isConnected) {
-            snapshot.pill.className = snapshot.pillClassName || 'status-pill';
-            snapshot.pill.innerHTML = snapshot.pillHtml || '';
-        }
-        if (snapshot.button && snapshot.button.isConnected) {
-            snapshot.button.className = snapshot.buttonClassName || 'status-btn';
-            snapshot.button.textContent = snapshot.buttonText || '';
-            snapshot.button.disabled = false;
-        }
-        if (snapshot.stateInput && snapshot.stateInput.isConnected) {
-            snapshot.stateInput.value = snapshot.nextState || snapshot.stateInput.value;
-        }
-    }
-
-    function clearShopStatusOptimistic(restoreSnapshot) {
-        if (shopStatusOptimistic.rollbackTimer) {
-            window.clearTimeout(shopStatusOptimistic.rollbackTimer);
-            shopStatusOptimistic.rollbackTimer = null;
-        }
-        if (restoreSnapshot) {
-            restoreShopStatusSnapshot();
-        }
-        if (dashboardShopStatusBar && dashboardShopStatusBar.classList) {
-            dashboardShopStatusBar.classList.remove('is-optimistic');
-        }
-        shopStatusOptimistic.snapshot = null;
-        shopStatusOptimistic.active = false;
-    }
-
-    function applyShopStatusOptimistic(form) {
-        if (!dashboardShopStatusBar || !form) return;
-        const stateInput = form.querySelector('input[name="state"]');
-        const button = form.querySelector('.status-btn');
-        const pill = dashboardShopStatusBar.querySelector('.status-pill');
-        if (!stateInput || !button || !pill) return;
-
-        const targetState = String(stateInput.value || '').toLowerCase();
-        const willOpen = targetState === 'open';
-        const nextState = willOpen ? 'closed' : 'open';
-
-        pill.className = 'status-pill ' + (willOpen ? 'open' : 'closed');
-        pill.innerHTML = willOpen
-            ? '<i class="bi bi-door-open"></i> OUVERT'
-            : '<i class="bi bi-door-closed"></i> FERME';
-
-        button.className = 'status-btn ' + (willOpen ? 'closed' : 'open');
-        button.textContent = willOpen ? 'Passer en mode ferme' : 'Reouvrir la boutique';
-        button.disabled = true;
-        stateInput.value = nextState;
-
-        dashboardShopStatusBar.classList.add('is-optimistic');
-    }
-
-    function bindShopStatusOptimistic() {
-        if (!dashboardShopStatusBar || dashboardShopStatusBar.dataset.optimisticBound === '1') return;
-        dashboardShopStatusBar.dataset.optimisticBound = '1';
-
-        document.addEventListener('submit', function(event) {
-            const form = event.target && event.target.closest
-                ? event.target.closest('form[data-action="set-shop-open"]')
-                : null;
-            if (!form || !dashboardShopStatusBar.contains(form)) return;
-            if (shopStatusOptimistic.active) return;
-
-            shopStatusOptimistic.snapshot = captureShopStatusSnapshot(form);
-            if (!shopStatusOptimistic.snapshot) return;
-            shopStatusOptimistic.active = true;
-            applyShopStatusOptimistic(form);
-
-            shopStatusOptimistic.rollbackTimer = window.setTimeout(function() {
-                clearShopStatusOptimistic(true);
-            }, 12000);
-        }, true);
-
-        document.addEventListener('bm:ajax-form-success', function(event) {
-            const detail = event && event.detail ? event.detail : null;
-            const form = detail && detail.form ? detail.form : null;
-            if (!form || String(form.dataset.action || '') !== 'set-shop-open') return;
-            clearShopStatusOptimistic(false);
-        });
-
-        document.addEventListener('ajax:page-replaced', function(event) {
-            const detail = event && event.detail ? event.detail : null;
-            if (!detail) return;
-            if (detail.selector === '#dashboardShopStatusBar') {
-                clearShopStatusOptimistic(false);
+    function bindShopStateForm() {
+        const form = dashboardShopStatusBar && dashboardShopStatusBar.querySelector('form[data-action="set-shop-open"]');
+        if (!form || form.dataset.stateBound === '1') return;
+        form.dataset.stateBound = '1';
+        let saving = false;
+        form.addEventListener('submit', async function(event) {
+            event.preventDefault();
+            if (saving) return;
+            const body = new FormData(form);
+            const button = form.querySelector('.status-btn');
+            const input = form.elements.namedItem('state');
+            const pill = dashboardShopStatusBar.querySelector('.status-pill');
+            let feedback = dashboardShopStatusBar.querySelector('.vd-shop-feedback');
+            if (!feedback) {
+                feedback = document.createElement('p');
+                feedback.className = 'vd-shop-feedback';
+                feedback.setAttribute('role', 'status');
+                dashboardShopStatusBar.appendChild(feedback);
+            }
+            feedback.textContent = '';
+            saving = true;
+            button.disabled = true;
+            form.setAttribute('aria-busy', 'true');
+            const controller = new AbortController();
+            const timeout = window.setTimeout(function() { controller.abort(); }, 20000);
+            try {
+                const response = await fetch(form.action, {
+                    method: 'POST', body: body, credentials: 'same-origin',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' },
+                    signal: controller.signal
+                });
+                const data = response.headers.get('content-type')?.includes('application/json') ? await response.json() : null;
+                if (!response.ok || !data?.success || typeof data.is_open !== 'boolean') {
+                    throw new Error(data?.message || 'Impossible de modifier l’état de la boutique. Vérifiez votre connexion et votre session.');
+                }
+                const open = data.is_open;
+                pill.className = 'status-pill ' + (open ? 'open' : 'closed');
+                const dot = document.createElement('span');
+                dot.setAttribute('aria-hidden', 'true');
+                dot.textContent = '●';
+                pill.replaceChildren(dot, document.createTextNode(open ? ' Ouverte' : ' En pause'));
+                button.className = 'status-btn ' + (open ? 'closed' : 'open');
+                button.textContent = open ? 'Mettre en pause' : 'Rouvrir';
+                input.value = open ? 'closed' : 'open';
+                feedback.textContent = open ? 'Votre boutique est ouverte.' : 'Votre boutique est en pause.';
+            } catch (error) {
+                feedback.textContent = error.name === 'AbortError'
+                    ? 'La connexion a été interrompue. Actualisez la page pour vérifier l’état de votre boutique.'
+                    : error.message || 'Impossible de modifier l’état de la boutique.';
+            } finally {
+                window.clearTimeout(timeout);
+                saving = false;
+                button.disabled = false;
+                form.removeAttribute('aria-busy');
             }
         });
     }
@@ -507,10 +446,11 @@
     function updateSoundToggle() {
         if (!soundToggle) return;
         soundToggle.innerHTML = soundEnabled
-            ? '<i class="bi bi-volume-up"></i>'
-            : '<i class="bi bi-volume-mute"></i>';
+            ? '<i class="bi bi-volume-up" aria-hidden="true"></i><span>Son activé</span>'
+            : '<i class="bi bi-volume-mute" aria-hidden="true"></i><span>Son coupé</span>';
         soundToggle.classList.toggle('muted', !soundEnabled);
-        soundToggle.title = soundEnabled ? 'Desactiver le son' : 'Activer le son';
+        soundToggle.title = soundEnabled ? 'Couper le son' : 'Activer le son';
+        soundToggle.setAttribute('aria-pressed', String(soundEnabled));
     }
 
     function hideSoundActivationPrompt() {
@@ -893,10 +833,6 @@
             window.clearTimeout(orderToastTimer);
             orderToastTimer = null;
         }
-        if (shopStatusOptimistic.rollbackTimer) {
-            window.clearTimeout(shopStatusOptimistic.rollbackTimer);
-            shopStatusOptimistic.rollbackTimer = null;
-        }
     }
 
     function buildItemsSignature(items, keys) {
@@ -913,85 +849,47 @@
 
     function renderOrdersList(target, items, emptyText, signatureKey) {
         if (!target) return;
-        const nextSignature = String(signatureKey || '');
-        if (frontFluidityEnabled && target.dataset.renderSignature === nextSignature) {
-            return;
-        }
+        const signature = String(signatureKey || '');
+        if (frontFluidityEnabled && target.dataset.renderSignature === signature) return;
         if (!Array.isArray(items) || !items.length) {
-            target.innerHTML = '<div class="today-empty">' + escapeHtml(emptyText || 'Aucune commande.') + '</div>';
-            target.dataset.renderSignature = nextSignature;
-            return;
+            target.innerHTML = '<div class="today-empty vd-empty"><i class="bi bi-check2-circle" aria-hidden="true"></i><p>' + escapeHtml(emptyText || 'Aucune commande pour le moment.') + '</p></div>';
+        } else {
+            target.innerHTML = items.map(function(item) {
+                const id = Number(item.order_id || 0);
+                const qty = Number(item.items_qty || 0);
+                const amount = new Intl.NumberFormat('fr-MA', { maximumFractionDigits: 2 }).format(Number(item.amount_mad || 0));
+                const created = escapeHtml(item.created_label || '');
+                const url = escapeHtml(item.details_url || '#');
+                return '<div class="today-row"><span class="vd-order-icon" aria-hidden="true"><i class="bi bi-box-seam"></i></span>' +
+                    '<div class="today-row-top"><div class="today-row-title">Commande #' + id + '</div>' +
+                    '<div class="today-row-sub">' + qty + (qty === 1 ? ' article · ' : ' articles · ') + amount + ' DH' +
+                    (created ? '<span class="vd-order-time">' + created + '</span>' : '') + '</div></div>' +
+                    '<div class="today-row-actions"><a class="today-outline" href="' + url + '">Détails <i class="bi bi-arrow-right" aria-hidden="true"></i></a></div></div>';
+            }).join('');
         }
-        const rowsHtml = items.map(function(item) {
-            const orderId = Number(item && item.order_id ? item.order_id : 0);
-            const qty = Number(item && item.items_qty ? item.items_qty : 0);
-            const amountMad = Number(item && item.amount_mad ? item.amount_mad : 0).toFixed(2);
-            const createdLabel = escapeHtml((item && item.created_label) || '');
-            const detailsUrl = escapeHtml((item && item.details_url) || '#');
-            return (
-                '<div class="today-row">' +
-                    '<div>' +
-                        '<div class="today-row-top">' +
-                            '<div>' +
-                                '<div class="today-row-title">Commande #' + orderId + '</div>' +
-                                '<div class="today-row-sub">' +
-                                    qty + ' article(s)  ' + amountMad + ' MAD' + (createdLabel ? '  ' + createdLabel : '') +
-                                '</div>' +
-                            '</div>' +
-                        '</div>' +
-                    '</div>' +
-                    '<div class="today-row-actions">' +
-                        '<a class="today-outline" href="' + detailsUrl + '">' +
-                            '<i class="bi bi-receipt"></i> Details' +
-                        '</a>' +
-                    '</div>' +
-                '</div>'
-            );
-        }).join('');
-        target.innerHTML = rowsHtml;
-        target.dataset.renderSignature = nextSignature;
+        target.dataset.renderSignature = signature;
     }
 
     function renderBookingsList(target, items, emptyText, signatureKey) {
         if (!target) return;
-        const nextSignature = String(signatureKey || '');
-        if (frontFluidityEnabled && target.dataset.renderSignature === nextSignature) {
-            return;
-        }
+        const signature = String(signatureKey || '');
+        if (frontFluidityEnabled && target.dataset.renderSignature === signature) return;
         if (!Array.isArray(items) || !items.length) {
-            target.innerHTML = '<div class="today-empty">' + escapeHtml(emptyText || "Aucun rendez-vous planifie aujourd'hui.") + '</div>';
-            target.dataset.renderSignature = nextSignature;
-            return;
+            target.innerHTML = '<div class="today-empty vd-empty"><i class="bi bi-check2-circle" aria-hidden="true"></i><p>' + escapeHtml(emptyText || 'Aucun rendez-vous prévu aujourd’hui.') + '</p></div>';
+        } else {
+            target.innerHTML = items.map(function(item) {
+                const scheduled = escapeHtml(item.scheduled_label || '');
+                const name = escapeHtml(item.product_name || 'Service');
+                const customer = escapeHtml(item.full_name || '');
+                const phone = escapeHtml(item.phone || '');
+                const url = escapeHtml(item.call_url || '');
+                return '<div class="today-row"><span class="vd-order-icon" aria-hidden="true"><i class="bi bi-calendar-check"></i></span>' +
+                    '<div class="today-row-top"><div class="today-row-title">' + (scheduled ? scheduled + ' · ' : '') + name + '</div>' +
+                    '<div class="today-row-sub">' + customer + (phone ? ' · ' + phone : '') + '</div></div>' +
+                    (url ? '<div class="today-row-actions"><a class="today-outline" href="' + url + '"><i class="bi bi-telephone" aria-hidden="true"></i>Appeler</a></div>' : '') + '</div>';
+            }).join('');
         }
-        const rowsHtml = items.map(function(item) {
-            const scheduled = escapeHtml((item && item.scheduled_label) || '');
-            const productName = escapeHtml((item && item.product_name) || 'Service');
-            const fullName = escapeHtml((item && item.full_name) || '');
-            const phone = escapeHtml((item && item.phone) || '');
-            const callUrl = escapeHtml((item && item.call_url) || '');
-
-            return (
-                '<div class="today-row">' +
-                    '<div>' +
-                        '<div class="today-row-top">' +
-                            '<div>' +
-                                '<div class="today-row-title">' +
-                                    (scheduled ? (scheduled + '  ') : '') + productName +
-                                '</div>' +
-                                '<div class="today-row-sub">' + fullName + (phone ? ('  ' + phone) : '') + '</div>' +
-                            '</div>' +
-                        '</div>' +
-                    '</div>' +
-                    '<div class="today-row-actions">' +
-                        (callUrl
-                            ? ('<a class="today-outline" href="' + callUrl + '"><i class="bi bi-telephone"></i> Appeler</a>')
-                            : '<span class="today-outline" aria-disabled="true"><i class="bi bi-telephone"></i> Appeler</span>') +
-                    '</div>' +
-                '</div>'
-            );
-        }).join('');
-        target.innerHTML = rowsHtml;
-        target.dataset.renderSignature = nextSignature;
+        target.dataset.renderSignature = signature;
     }
 
     function updatePager(target, payload, signatureKey) {
@@ -1068,6 +966,7 @@
 
     function refreshOrdersLive(options) {
         const opts = options || {};
+        if (dashboardOverlayOpen()) return Promise.resolve();
         if (!cfg.ordersLiveUrl) return Promise.resolve();
         if (ordersState.isLoading) return Promise.resolve();
         if (document.hidden && !opts.force) return Promise.resolve();
@@ -1096,7 +995,7 @@
             signal: ordersAbortController.signal
         })
             .then(function(result) {
-                if (!ordersRequestSeq.isLatest(requestId)) return;
+                if (!ordersRequestSeq.isLatest(requestId) || dashboardOverlayOpen()) return;
                 if (!result || !result.ok || !result.data) return;
                 const data = result.data;
                 if (!data || !data.success) return;
@@ -1110,6 +1009,7 @@
                 const bookingItems = bookings.items || [];
 
                 batchUiCommit(function() {
+                    if (dashboardOverlayOpen()) return;
                     updateRecentChip(recent.count || 0);
                     if (todayPrepareCount) {
                         todayPrepareCount.textContent = String(Math.max(0, Number(prepare.count || 0)));
@@ -1461,7 +1361,7 @@
     }
 
     function refreshStats() {
-        if (!cfg.statsUrl || document.hidden) {
+        if (!cfg.statsUrl || document.hidden || dashboardOverlayOpen()) {
             return Promise.resolve();
         }
         const requestId = statsRequestSeq.next();
@@ -1478,7 +1378,7 @@
             signal: statsAbortController.signal
         })
             .then(function(result) {
-                if (!statsRequestSeq.isLatest(requestId)) return;
+                if (!statsRequestSeq.isLatest(requestId) || dashboardOverlayOpen()) return;
                 if (!result || !result.ok || !result.data) return;
                 const data = result.data;
                 if (!data || !data.success) return;
@@ -1490,6 +1390,7 @@
                 const ordersEl = document.getElementById('statOrders');
                 const revenueEl = document.getElementById('statRevenue');
                 batchUiCommit(function() {
+                    if (dashboardOverlayOpen()) return;
                     if (ordersEl && data.total_orders !== undefined) {
                         ordersEl.textContent = String(data.total_orders);
                     }
@@ -1576,7 +1477,7 @@
     attachDeleteConfirmEvents();
     bindProductImageFallback(productsContainer);
     bindProductImagePreview();
-    bindShopStatusOptimistic();
+    bindShopStateForm();
     setupDashboardPrefetch();
     document.addEventListener('vendor:product-created', function(event) {
         const data = event.detail || {};
@@ -1601,13 +1502,27 @@
     loadCategories();
 
     const shouldPollOrders = !!(cfg.ordersLiveUrl && (pendingCount || recentOrdersList || todayPrepareList || todayBookingsList));
+    function dashboardOverlayOpen() {
+        return !!document.querySelector('#vendorProductDialog[open], .vd-choice-dialog[open]');
+    }
     function isDashboardPageReady() {
         const bodyPage = String((document.body && document.body.dataset && document.body.dataset.page) || '');
         return !!document.getElementById('vendorDashboardConfig') &&
-            !document.querySelector('#vendorProductDialog[open]') &&
+            !dashboardOverlayOpen() &&
             (!!productsContainer || !!categoriesFilter || !!recentOrdersList || !!todayPrepareList || !!todayBookingsList) &&
             (bodyPage === 'vendor.dashboard' || window.location.pathname.indexOf('/vendor/dashboard') === 0);
     }
+    document.addEventListener('vendor:form-opened', abortDashboardRequests);
+    document.addEventListener('vendor:dashboard-dialog-opened', abortDashboardRequests);
+    function refreshAfterDashboardDialog() {
+        window.setTimeout(function() {
+            if (!isDashboardPageReady()) return;
+            refreshStats();
+            if (shouldPollOrders) refreshOrdersLive({ skipNotify: true });
+        }, 0);
+    }
+    document.addEventListener('vendor:form-closed', refreshAfterDashboardDialog);
+    document.addEventListener('vendor:dashboard-dialog-closed', refreshAfterDashboardDialog);
     if (shouldPollOrders) {
         bindOrderPagerControls();
         refreshOrdersLive({ skipNotify: true });

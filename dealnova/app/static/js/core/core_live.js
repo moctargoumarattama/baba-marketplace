@@ -1,4 +1,4 @@
-﻿(() => {
+(() => {
   if (typeof window === "undefined") return;
   const existing = window.BMCoreLive || {};
   if (existing.__loaded) return;
@@ -693,5 +693,14 @@
     handleAjaxForm,
     __loaded: true,
   };
+
+  // Auto-init to replace the old live.js shim seamlessly
+  if (typeof document !== "undefined") {
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", init, { once: true });
+    } else {
+      init();
+    }
+  }
 })();
 

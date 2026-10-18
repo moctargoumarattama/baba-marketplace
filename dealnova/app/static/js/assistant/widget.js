@@ -24,7 +24,6 @@
   var hintTimer = null;
 
   var POSITION_STORAGE_KEY = "bm_assistant_position_v2";
-  var HINT_SESSION_KEY = "bm_assistant_hint_seen_v1";
   var HINT_TEXT = root.getAttribute("data-welcome-hint") || "Comment puis-je vous aider ?";
   var MOBILE_BREAKPOINT = 768;
 
@@ -437,17 +436,11 @@
 
   function showHintIfNeeded() {
     if (!hintBtn || isPanelOpen()) return;
-    try {
-      if (window.sessionStorage.getItem(HINT_SESSION_KEY) === "1") return;
-      window.sessionStorage.setItem(HINT_SESSION_KEY, "1");
-    } catch (_error) {
-      // ignore storage issues
-    }
     var text = hintBtn.querySelector("span");
     if (text) text.textContent = HINT_TEXT;
     hintBtn.hidden = false;
     updatePanelPlacement();
-    hintTimer = window.setTimeout(hideHint, 6200);
+    hintTimer = window.setTimeout(hideHint, 3000);
   }
 
   async function openPanel() {

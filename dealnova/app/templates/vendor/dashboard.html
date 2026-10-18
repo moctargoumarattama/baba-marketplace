@@ -1,499 +1,97 @@
 {% extends "vendor/base.html" %}
-
-{% block title %}Tableau de bord vendeur  {{ config.SITE_NAME }}{% endblock %}
-
+{% from "vendor/partials/_workspace_navigation.html" import sidebar, mobile_header, bottom_nav, menu with context %}
+{% set offer_types = (1 if allows_products else 0) + (1 if allows_services else 0) + (1 if allows_location else 0) %}
+{% set initial_tab = 'prepare' if allows_products and today_prepare_count else ('recent' if allows_products else 'bookings') %}
+{% macro order_rows(items, empty_text) -%}
+{% for order in items %}
+<div class="today-row"><span class="vd-order-icon" aria-hidden="true"><i class="bi bi-box-seam"></i></span><div class="today-row-top"><div class="today-row-title">Commande #{{ order.order_id }}</div><div class="today-row-sub">{{ order.items_qty }} {{ 'article' if order.items_qty == 1 else 'articles' }} · {{ '%.2f'|format(order.amount_mad) }} DH{% if order.created_label %}<span class="vd-order-time">{{ order.created_label }}</span>{% endif %}</div></div><div class="today-row-actions"><a class="today-outline" href="{{ order.details_url }}">Détails <i class="bi bi-arrow-right" aria-hidden="true"></i></a></div></div>
+{% else %}<div class="today-empty vd-empty"><i class="bi bi-check2-circle" aria-hidden="true"></i><p>{{ empty_text }}</p></div>{% endfor %}
+{%- endmacro %}
+{% macro pager(id, kind, pagination) -%}
+<div class="today-pager" id="{{ id }}" data-page="{{ pagination.page }}" data-pages="{{ pagination.pages }}"{% if pagination.pages <= 1 %} hidden{% endif %}><button type="button" class="today-pager-btn" data-pager="{{ kind }}" data-direction="prev"{% if not pagination.has_prev %} disabled{% endif %} aria-label="Page précédente"><i class="bi bi-chevron-left" aria-hidden="true"></i></button><span class="today-pager-status">Page {{ pagination.page }} / {{ pagination.pages }}</span><button type="button" class="today-pager-btn" data-pager="{{ kind }}" data-direction="next"{% if not pagination.has_next %} disabled{% endif %} aria-label="Page suivante"><i class="bi bi-chevron-right" aria-hidden="true"></i></button></div>
+{%- endmacro %}
+{% block title %}Tableau de bord | {{ config.SITE_NAME|trim }}{% endblock %}
+{% block body_attrs %}class="bm-vendor-dashboard"{% endblock %}
 {% block head %}
 {{ super() }}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/vendor_dashboard.css', v=app_static_version) }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/vendor_product_modal.css', v=app_static_version ~ '-create-v3') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/vendor_dashboard.css', v=app_static_version ~ '-dashboard-v5') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/vendor_product_modal.css', v=app_static_version ~ '-forms-v5') }}">
 {% endblock %}
-
 {% block content %}
-<div class="dashboard-wrapper vendor-daily-dashboard">
-        <div class="dashboard-container">
-            <div id="vendorDashboardConfig"
-                 data-dashboard-url="{{ url_for('vendor.dashboard') }}"
-                 data-search-url="{{ url_for('vendor.products_search') }}"
-                 data-stats-url="{{ url_for('vendor.stats_live') }}"
-                 data-orders-live-url="{{ url_for('vendor.dashboard_orders_live') }}"
-                 data-orders-poll-ms="5000"
-                 data-orders-per-page="{{ recent_orders_pagination.per_page if recent_orders_pagination is defined else 8 }}"
-                 data-bookings-per-page="{{ today_bookings_pagination.per_page if today_bookings_pagination is defined else 8 }}"
-                  data-push-config-url="{{ url_for('vendor.vendor_push_config') }}"
-                  data-push-status-url="{{ url_for('vendor.vendor_push_status') }}"
-                  data-push-subscribe-url="{{ url_for('vendor.vendor_push_subscribe') }}"
-                  data-push-unsubscribe-url="{{ url_for('vendor.vendor_push_unsubscribe') }}"
-                  data-vendor-id="{{ current_user.id }}">
-            </div>
-            {% set has_stock_tasks = show_stock_alerts and (low_stock_products or no_image_products) %}
-            {% set dashboard_all_clear = (not (allows_products and recent_orders)) and (not (allows_products and today_prepare)) and (not (allows_services and today_bookings)) and (not has_stock_tasks) %}
-            <!-- Header -->
-            <div class="dashboard-header">
-                <div class="dashboard-welcome">
-                    <div class="dashboard-welcome-main">
-                        <h1 class="header-title">
-                            <span class="title-icon {% if shop and shop.logo %}with-logo{% endif %}" aria-hidden="true">
-                                {% if shop and shop.logo %}
-                                <img src="{{ url_for('static', filename='uploads/' + shop.logo) }}"
-                                     alt="Logo {{ shop.name if shop and shop.name else 'boutique' }}"
-                                     loading="lazy"
-                                     decoding="async">
-                                {% else %}
-                                <i class="bi bi-sun"></i>
-                                {% endif %}
-                            </span>
-                            <span class="welcome-title-full">Espace vendeur</span>
-                            <span class="welcome-title-short">Espace vendeur</span>
-                        </h1>
-                        <p class="dashboard-welcome-copy">Retrouvez ici l'essentiel pour gérer votre activité facilement.</p>
-                        <div class="dashboard-welcome-meta">
-                            <span class="welcome-pill"><i class="bi bi-shield-lock"></i> Espace protege</span>
-                        </div>
-                    </div>
-                    <div class="dashboard-welcome-orb" aria-hidden="true">
-                        <i class="bi bi-rocket-takeoff"></i>
-                    </div>
-                </div>
-
-                {% if featured_shop_notice %}
-                <div class="alert-card info" style="margin-bottom: 1rem;">
-                    <div class="alert-title">
-                        <i class="bi bi-star-fill"></i>
-                        <span>Boutique mise en avant</span>
-                    </div>
-                    <div class="alert-meta">
-                        Votre boutique est mise en avant jusqu'au {{ featured_shop_notice.ends_at.strftime('%d/%m/%Y %H:%M') }}.
-                    </div>
-                </div>
-                {% endif %}
-
-                {% if password_change_window_active %}
-                        <div class="vendor-password-card">
-                            <div class="vendor-password-title">
-                                <i class="bi bi-key"></i>
-                                <span>Securite compte: changer votre mot de passe</span>
-                            </div>
-                            <form method="post" action="{{ url_for('vendor.change_password') }}" class="vendor-password-form">
-                                {% include "partials/_csrf.html" %}
-                                <input class="vendor-password-input" type="password" name="current_password" placeholder="Mot de passe actuel" required>
-                                <input class="vendor-password-input" type="password" name="new_password" placeholder="Nouveau mot de passe (8+)" required>
-                                <div class="d-grid gap-2">
-                                    <input class="vendor-password-input" type="password" name="confirm_password" placeholder="Confirmer nouveau mot de passe" required>
-                                    <button type="submit" class="vendor-password-submit">Mettre a jour</button>
-                                </div>
-                            </form>
-                            {% if password_change_allowed_until %}
-                            <div class="vendor-password-meta">
-                                Disponible jusqu'au {{ password_change_allowed_until.strftime('%d/%m/%Y %H:%M') }}.
-                            </div>
-                            {% endif %}
-                        </div>
-                {% endif %}
-            </div>
-
-        <!-- Aujourd'hui -->
-        <section class="daily-overview" aria-labelledby="dailyOverviewTitle">
-            <div class="today-title-row">
-                <div class="today-title" id="dailyOverviewTitle">
-                    <i class="bi bi-calendar2-check"></i>
-                    <span>Aujourd'hui</span>
-                </div>
-                <div class="today-hint">Vue rapide de votre activite</div>
-            </div>
-            <div class="stats-grid daily-kpis">
-                {% if allows_products %}
-                <div class="stat-card">
-                    <div class="stat-value" id="statOrders">{{ total_orders }}</div>
-                    <div class="stat-label">Commandes</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value" id="statRevenue">{{ "%.0f"|format(total_revenue) }}</div>
-                    <div class="stat-label">Revenus (MAD)</div>
-                </div>
-                {% elif allows_services %}
-                <div class="stat-card">
-                    <div class="stat-value">{{ today_bookings_count }}</div>
-                    <div class="stat-label">Rendez-vous du jour</div>
-                </div>
-                {% endif %}
-                {% if allows_location %}
-                <div class="stat-card">
-                    <div class="stat-value">{{ today_locations_count }}</div>
-                    <div class="stat-label">Locations actives</div>
-                </div>
-                {% endif %}
-            </div>
-            {% if shop %}
-            <div class="shop-status-bar" id="dashboardShopStatusBar">
-                <div class="shop-status-left">
-                    <span class="status-pill {{ 'open' if shop_is_open else 'closed' }}">
-                        {% if shop_is_open %}
-                          <i class="bi bi-door-open"></i> OUVERT
-                        {% else %}
-                          <i class="bi bi-door-closed"></i> FERME
-                        {% endif %}
-                    </span>
-                    <span class="status-sub">Mode repos / vacances</span>
-                </div>
-                <div class="status-actions">
-                    <form method="post"
-                          action="{{ url_for('vendor.set_shop_open_state') }}"
-                          data-ajax="true"
-                          data-action="set-shop-open"
-                          data-refresh-target="#dashboardShopStatusBar">
-                        {% include "partials/_csrf.html" %}
-                        {% if shop_is_open %}
-                          <input type="hidden" name="state" value="closed">
-                          <button type="submit" class="status-btn closed" data-coach="vendor_open_closed" data-coach-priority="6" data-coach-text="Astuce : utilisez ce bouton pour fermer temporairement la boutique (repos/vacances), sans desactiver votre compte.">
-                              Mettre en pause
-                          </button>
-                        {% else %}
-                          <input type="hidden" name="state" value="open">
-                          <button type="submit" class="status-btn open" data-coach="vendor_open_closed" data-coach-priority="6" data-coach-text="Astuce : utilisez ce bouton pour rouvrir la boutique quand vous etes disponible.">
-                              Reouvrir
-                          </button>
-                        {% endif %}
-                    </form>
-                </div>
-            </div>
-            {% endif %}
-            <div id="vendorSoundPromptMount" class="vendor-sound-prompt-mount" aria-live="polite"></div>
-        </section>
-
-        <!-- A traiter maintenant -->
-        <div class="today-section">
-            {% set today_cards = (1 if allows_products else 0) + (1 if allows_services else 0) + (1 if allows_location else 0) %}
-            <div class="today-title-row">
-                <div class="today-title">
-                    <i class="bi bi-calendar-day"></i>
-                    <span>À traiter maintenant</span>
-                </div>
-                <div class="today-hint">{{ today_cards }} points à surveiller aujourd'hui</div>
-            </div>
-            {% if allows_products %}
-            <div class="vendor-notif-bar" aria-label="Notifications vendeur">
-                <div class="notif-chip pending" id="pendingPill" title="Nouvelles commandes ({{ recent_orders_window_hours }}h)" aria-live="polite">
-                    <i class="bi bi-bell"></i>
-                    <span>Nouvelles commandes ({{ recent_orders_window_hours }}h)</span>
-                    <span class="notif-count" id="pendingCount">{{ recent_orders_count }}</span>
-                </div>
-                <button class="notif-chip vendor-push-status" id="vendorPushStatus" type="button">
-                    <i class="bi bi-phone-vibrate"></i>
-                    <span>Alertes telephone</span>
-                </button>
-            </div>
-            <div class="today-list" id="recentOrdersList" data-empty-text="Aucune nouvelle commande sur les {{ recent_orders_window_hours }} dernieres heures.">
-                {% if recent_orders %}
-                    {% for o in recent_orders %}
-                    <div class="today-row">
-                        <div>
-                            <div class="today-row-top">
-                                <div>
-                                    <div class="today-row-title">Commande #{{ o.order_id }}</div>
-                                    <div class="today-row-sub">
-                                        {{ o.items_qty }} article(s)  {{ "%.2f"|format(o.amount_mad) }} MAD
-                                        {% if o.created_label %}  {{ o.created_label }}{% endif %}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="today-row-actions">
-                            <a class="today-outline" href="{{ o.details_url }}">
-                                <i class="bi bi-receipt"></i> Details
-                            </a>
-                        </div>
-                    </div>
-                    {% endfor %}
-                {% elif not dashboard_all_clear %}
-                    <div class="today-empty">Aucune nouvelle commande sur les {{ recent_orders_window_hours }} dernieres heures.</div>
-                {% endif %}
-            </div>
-            <div class="today-pager" id="recentOrdersPager" data-page="{{ recent_orders_pagination.page }}" data-pages="{{ recent_orders_pagination.pages }}">
-                <button type="button" class="today-pager-btn" data-pager="recent" data-direction="prev">Precedent</button>
-                <span class="today-pager-status">Page {{ recent_orders_pagination.page }} / {{ recent_orders_pagination.pages }}</span>
-                <button type="button" class="today-pager-btn" data-pager="recent" data-direction="next">Suivant</button>
-            </div>
-            {% endif %}
-
-            <div class="today-grid">
-                {% if allows_products %}
-                <div class="today-card" id="cardPrepare">
-                    <div class="today-card-top">
-                        <div class="today-meta">
-                            <div class="today-icon prepare">
-                                <i class="bi bi-box-seam"></i>
-                            </div>
-                            <div>
-                                <div class="today-label">A preparer</div>
-                                <div class="today-value" id="todayPrepareCount">{{ today_prepare_count }}</div>
-                            </div>
-                        </div>
-                        <div class="today-actions">
-                            <a class="today-link" href="#todayPrepareList">
-                                <i class="bi bi-eye"></i> Voir
-                            </a>
-                        </div>
-                    </div>
-                </div>
-                {% endif %}
-
-                {% if allows_services %}
-                <div class="today-card" id="cardBookings">
-                    <div class="today-card-top">
-                        <div class="today-meta">
-                            <div class="today-icon booking">
-                                <i class="bi bi-calendar-check"></i>
-                            </div>
-                            <div>
-                                <div class="today-label">Rendez-vous du jour</div>
-                                <div class="today-value" id="todayBookingsCount">{{ today_bookings_count }}</div>
-                            </div>
-                        </div>
-                        <div class="today-actions">
-                            <a class="today-link" href="#todayBookingsList">
-                                <i class="bi bi-eye"></i> Voir
-                            </a>
-                        </div>
-                    </div>
-                </div>
-                {% endif %}
-
-                {% if allows_location %}
-                <div class="today-card" id="cardLocations">
-                    <div class="today-card-top">
-                        <div class="today-meta">
-                            <div class="today-icon location">
-                                <i class="bi bi-house-door"></i>
-                            </div>
-                            <div>
-                                <div class="today-label">Locations actives</div>
-                                <div class="today-value" id="todayLocationsCount">{{ today_locations_count }}</div>
-                            </div>
-                        </div>
-                        <div class="today-actions">
-                            <a class="today-link" href="{{ url_for('rentals.owner_locations') }}">
-                                <i class="bi bi-eye"></i> Voir
-                            </a>
-                        </div>
-                    </div>
-                </div>
-                {% endif %}
-            </div>
-            {% if dashboard_all_clear %}
-            <div class="daily-all-clear">
-                <i class="bi bi-check2-circle"></i>
-                <div>
-                    <strong>Tout est a jour</strong>
-                    <span>Aucune action urgente pour le moment.</span>
-                </div>
-            </div>
-            {% endif %}
-            {% if allows_products %}
-            <div class="today-list" id="todayPrepareList" data-empty-text="Aucune commande a preparer aujourd'hui.">
-                {% if today_prepare %}
-                    {% for o in today_prepare %}
-                    <div class="today-row">
-                        <div>
-                            <div class="today-row-top">
-                                <div>
-                                    <div class="today-row-title">Commande #{{ o.order_id }}</div>
-                                    <div class="today-row-sub">
-                                        {{ o.items_qty }} article(s)  {{ "%.2f"|format(o.amount_mad) }} MAD
-                                        {% if o.created_label %}  {{ o.created_label }}{% endif %}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="today-row-actions">
-                            <a class="today-outline" href="{{ o.details_url }}">
-                                <i class="bi bi-receipt"></i> Details
-                            </a>
-                        </div>
-                    </div>
-                    {% endfor %}
-                {% elif not dashboard_all_clear %}
-                    <div class="today-empty">Aucune commande a preparer aujourd'hui.</div>
-                {% endif %}
-            </div>
-            <div class="today-pager" id="todayPreparePager" data-page="{{ today_prepare_pagination.page }}" data-pages="{{ today_prepare_pagination.pages }}">
-                <button type="button" class="today-pager-btn" data-pager="prepare" data-direction="prev">Precedent</button>
-                <span class="today-pager-status">Page {{ today_prepare_pagination.page }} / {{ today_prepare_pagination.pages }}</span>
-                <button type="button" class="today-pager-btn" data-pager="prepare" data-direction="next">Suivant</button>
-            </div>
-            {% endif %}
-
-            {% if allows_services %}
-            <div class="today-list" id="todayBookingsList" data-empty-text="Aucun rendez-vous planifie aujourd'hui.">
-                {% if today_bookings %}
-                    {% for b in today_bookings %}
-                    <div class="today-row">
-                        <div>
-                            <div class="today-row-top">
-                                <div>
-                                    <div class="today-row-title">
-                                        {% if b.scheduled_label %}{{ b.scheduled_label }}  {% endif %}
-                                        {{ b.product_name if b.product_name else "Service" }}
-                                    </div>
-                                    <div class="today-row-sub">
-                                        {{ b.full_name }}  {{ b.phone }}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="today-row-actions">
-                            <a class="today-outline" href="{{ b.call_url if b.call_url else '#' }}">
-                                <i class="bi bi-telephone"></i> Appeler
-                            </a>
-                        </div>
-                    </div>
-                    {% endfor %}
-                {% elif not dashboard_all_clear %}
-                    <div class="today-empty">Aucun rendez-vous planifie aujourd'hui.</div>
-                {% endif %}
-            </div>
-            <div class="today-pager" id="todayBookingsPager" data-page="{{ today_bookings_pagination.page }}" data-pages="{{ today_bookings_pagination.pages }}" {% if today_bookings_pagination.pages <= 1 %}hidden{% endif %}>
-                <button type="button" class="today-pager-btn" data-pager="bookings" data-direction="prev" {% if not today_bookings_pagination.has_prev %}disabled{% endif %}>Precedent</button>
-                <span class="today-pager-status">Page {{ today_bookings_pagination.page }} / {{ today_bookings_pagination.pages }}</span>
-                <button type="button" class="today-pager-btn" data-pager="bookings" data-direction="next" {% if not today_bookings_pagination.has_next %}disabled{% endif %}>Suivant</button>
-            </div>
-            {% endif %}
-
-            {% if has_stock_tasks %}
-            <div class="alerts-grid daily-alerts-panel">
-            {% if low_stock_products %}
-            <div class="alert-card">
-                <div class="alert-title">
-                    <i class="bi bi-exclamation-triangle"></i>
-                    Stock faible
-                </div>
-                <div class="alert-meta">{{ low_stock_total }} produits sous {{ low_stock_threshold }} unites</div>
-                <ul class="alert-list">
-                    {% for p in low_stock_products[:5] %}
-                    <li class="alert-item">
-                        <span>{{ p.name }}</span>
-                        <span class="alert-qty">{{ p.stock }} u</span>
-                    </li>
-                    {% endfor %}
-                </ul>
-            </div>
-            {% endif %}
-
-            {% if no_image_products %}
-            <div class="alert-card info">
-                <div class="alert-title">
-                    <i class="bi bi-image"></i>
-                    Sans image
-                </div>
-                <div class="alert-meta">{{ no_image_total }} produits a completer</div>
-                <ul class="alert-list">
-                    {% for p in no_image_products[:5] %}
-                    <li class="alert-item">
-                        <span>{{ p.name }}</span>
-                        <a class="alert-link" href="{{ url_for('vendor.product_edit', pid=p.id) }}">Ajouter</a>
-                    </li>
-                    {% endfor %}
-                </ul>
-            </div>
-            {% endif %}
-            </div>
-            {% endif %}
-        </div>
-
-        <!-- Actions -->
-        <div class="action-buttons daily-actions-grid">
-            {% if allows_catalog %}
-            <a href="{{ url_for('vendor.product_new') }}" class="btn-action primary dashboard-chevron-action" data-vendor-product-create data-stop-nav aria-haspopup="dialog" aria-controls="vendorProductDialog">
-                <i class="bi bi-plus-circle"></i>
-                <span>{{ catalog_create_label }}</span>
-            </a>
-            {% endif %}
-
-            {% if shop %}
-            <a href="{{ url_for('vendor.manage_shop') }}" class="btn-action dashboard-chevron-action" data-prefetch-critical="vendor-manage-shop">
-                <i class="bi bi-shop"></i>
-                <span>Ma boutique</span>
-            </a>
-            {% if allows_location %}
-            <a href="{{ url_for('rentals.owner_locations') }}" class="btn-action dashboard-chevron-action">
-                <i class="bi bi-house-door"></i>
-                <span>Mes locations</span>
-            </a>
-            <a href="{{ url_for('rentals.owner_location_new') }}" class="btn-action dashboard-chevron-action" data-vendor-location-create data-stop-nav aria-haspopup="dialog" aria-controls="vendorProductDialog">
-                <i class="bi bi-building"></i>
-                <span>Nouvelle location</span>
-            </a>
-            {% endif %}
-            {% endif %}
-        </div>
-
-        {% if allows_catalog %}
-        <div id="productsContainer" data-preview-bound="1" class="catalog-summary-card">
-            <div>
-                <div class="alert-title">
-                    <i class="bi bi-layers"></i>
-                    Catalogue complet
-                </div>
-                <div class="alert-meta"><span data-vendor-catalog-count>{{ total_products }}</span> {{ 'éléments' if allows_products and allows_services else ('services' if allows_services and not allows_products else 'produits') }}</div>
-            </div>
-            <div class="catalog-summary-actions">
-                <a href="{{ url_for('vendor.catalog') }}" class="btn-action">
-                    <i class="bi bi-eye"></i>
-                    <span>Voir le catalogue</span>
-                </a>
-                <a href="{{ url_for('vendor.product_new') }}" class="btn-action catalog-add" data-vendor-product-create data-stop-nav aria-haspopup="dialog" aria-controls="vendorProductDialog">
-                    <i class="bi bi-plus"></i>
-                    <span>Ajouter</span>
-                </a>
-            </div>
-        </div>
+<div class="vd-shell vendor-daily-dashboard">
+  {{ sidebar('dashboard', allows_catalog, allows_products, allows_location, shop) }}
+  {{ mobile_header('dashboard') }}
+  <div class="vd-main">
+    <div id="vendorDashboardConfig" data-dashboard-url="{{ url_for('vendor.dashboard') }}" data-search-url="{{ url_for('vendor.products_search') }}" data-stats-url="{{ url_for('vendor.stats_live') }}" data-orders-live-url="{{ url_for('vendor.dashboard_orders_live') }}" data-orders-poll-ms="5000" data-orders-per-page="{{ recent_orders_pagination.per_page if recent_orders_pagination is defined else 8 }}" data-bookings-per-page="{{ today_bookings_pagination.per_page if today_bookings_pagination is defined else 8 }}" data-push-config-url="{{ url_for('vendor.vendor_push_config') }}" data-push-status-url="{{ url_for('vendor.vendor_push_status') }}" data-push-subscribe-url="{{ url_for('vendor.vendor_push_subscribe') }}" data-push-unsubscribe-url="{{ url_for('vendor.vendor_push_unsubscribe') }}" data-vendor-id="{{ current_user.id }}"></div>
+    <div class="vd-topbar"><h1>Tableau de bord</h1><div class="vd-topbar-actions"><button type="button" class="vd-icon-button vd-desktop-notifications" data-vd-dialog="vendorDashboardNotifications" aria-label="Notifications"><i class="bi bi-bell" aria-hidden="true"></i></button>
+      {% if offer_types > 1 %}<button type="button" class="vd-add-button" data-vd-dialog="vendorAddChoiceDialog"><i class="bi bi-plus-lg" aria-hidden="true"></i>Ajouter</button>
+      {% elif allows_catalog %}<a class="vd-add-button" href="{{ url_for('vendor.product_new', standalone=1) }}" data-vendor-product-create data-stop-nav aria-haspopup="dialog" aria-controls="vendorProductDialog"><i class="bi bi-plus-lg" aria-hidden="true"></i>Ajouter</a>
+      {% elif allows_location %}<a class="vd-add-button" href="{{ url_for('rentals.owner_location_new', standalone=1) }}" data-vendor-location-create data-stop-nav aria-haspopup="dialog" aria-controls="vendorProductDialog"><i class="bi bi-plus-lg" aria-hidden="true"></i>Ajouter</a>{% endif %}
+    </div></div>
+    {% if shop %}
+    <section id="dashboardShopStatusBar" class="vd-shop-card" aria-label="État de la boutique">
+      <div class="vd-shop-summary"><span class="vd-shop-icon" aria-hidden="true">{% if shop.logo %}<img src="{{ url_for('static', filename='uploads/' + shop.logo) }}" width="48" height="48" alt="">{% else %}<i class="bi bi-shop"></i>{% endif %}</span><div><h2 class="vd-shop-name">{{ shop.name }}</h2>{% if shop.address %}<p class="vd-shop-location"><i class="bi bi-geo-alt" aria-hidden="true"></i>{{ shop.address }}</p>{% endif %}</div></div>
+      <span class="status-pill {{ 'open' if shop_is_open else 'closed' }}"><span aria-hidden="true">●</span> {{ 'Ouverte' if shop_is_open else 'En pause' }}</span>
+      <div class="status-actions"><form method="post" action="{{ url_for('vendor.set_shop_open_state') }}" data-action="set-shop-open">{% include "partials/_csrf.html" %}<input type="hidden" name="state" value="{{ 'closed' if shop_is_open else 'open' }}"><button type="submit" class="status-btn {{ 'closed' if shop_is_open else 'open' }}">{{ 'Mettre en pause' if shop_is_open else 'Rouvrir' }}</button></form></div>
+      <a class="vd-shop-view" href="{{ url_for('shops.shop_detail', shop_slug=shop.slug) }}" target="_blank" rel="noopener">Voir ma boutique <i class="bi bi-arrow-up-right" aria-hidden="true"></i></a>
+    </section>
+    {% endif %}
+    {% if featured_shop_notice %}<p class="vd-notice"><i class="bi bi-star" aria-hidden="true"></i>Boutique mise en avant jusqu’au {{ featured_shop_notice.ends_at.strftime('%d/%m/%Y à %H:%M') }}.</p>{% endif %}
+    <section class="vd-kpis stats-grid" aria-label="Vue d’ensemble de l’activité">
+      {% if allows_products %}
+      <div class="vd-kpi stat-card"><span class="vd-kpi-icon" aria-hidden="true"><i class="bi bi-cart3"></i></span><div><div class="vd-kpi-label">Commandes</div><div class="stat-value" id="statOrders">{{ total_orders }}</div><div class="vd-kpi-note">Depuis le début</div></div></div>
+      <div class="vd-kpi stat-card"><span class="vd-kpi-icon" aria-hidden="true"><i class="bi bi-coin"></i></span><div><div class="vd-kpi-label">Montant des commandes</div><div class="stat-value"><span id="statRevenue">{{ '%.0f'|format(total_revenue) }}</span><span class="vd-currency"> DH</span></div><div class="vd-kpi-note">Depuis le début</div></div></div>
+      {% endif %}
+      {% if allows_services %}<div class="vd-kpi stat-card"><span class="vd-kpi-icon" aria-hidden="true"><i class="bi bi-calendar4"></i></span><div><div class="vd-kpi-label">Rendez-vous</div><div class="stat-value" id="todayBookingsCount">{{ today_bookings_count }}</div><div class="vd-kpi-note">Aujourd’hui</div></div></div>{% endif %}
+      {% if allows_location %}<div class="vd-kpi stat-card"><span class="vd-kpi-icon" aria-hidden="true"><i class="bi bi-houses"></i></span><div><div class="vd-kpi-label">Locations</div><div class="stat-value" id="todayLocationsCount">{{ today_locations_count }}</div><div class="vd-kpi-note">Actives</div></div></div>{% endif %}
+    </section>
+    {% set has_dashboard_alerts = show_stock_alerts and (low_stock_products or no_image_products) %}
+    <div class="vd-content-grid{% if has_dashboard_alerts %} vd-has-tools{% endif %}">
+      <section class="vd-card vd-tasks today-section" aria-labelledby="vdTasksTitle" data-vd-initial-tab="{{ initial_tab }}">
+        <header class="vd-card-header"><h2 id="vdTasksTitle">À traiter</h2><p class="vd-card-subtitle" id="vdLiveStatus" role="status" aria-live="polite"></p></header>
+        <nav class="vd-tabs" aria-label="Tâches à traiter">
+          {% if allows_products %}<a id="vd-tab-recent" class="vd-tab" href="#vd-panel-recent" data-vd-tab="recent">Nouvelles <span class="vd-tab-count" id="pendingCount">{{ recent_orders_count }}</span></a><a id="vd-tab-prepare" class="vd-tab" href="#vd-panel-prepare" data-vd-tab="prepare">À préparer <span class="vd-tab-count" id="todayPrepareCount">{{ today_prepare_count }}</span></a>{% endif %}
+          {% if allows_services %}<a id="vd-tab-bookings" class="vd-tab" href="#vd-panel-bookings" data-vd-tab="bookings">Rendez-vous <span class="vd-tab-count" data-vd-booking-count>{{ today_bookings_count }}</span></a>{% endif %}
+        </nav>
+        {% if allows_products %}
+        <section id="vd-panel-recent" class="vd-tab-panel" aria-labelledby="vd-tab-recent"><h3 class="vd-panel-title">Nouvelles commandes</h3><p class="vd-caption">Sur les {{ recent_orders_window_hours }} dernières heures</p><div class="today-list" id="recentOrdersList" data-empty-text="Aucune nouvelle commande sur les {{ recent_orders_window_hours }} dernières heures.">{{ order_rows(recent_orders, 'Aucune nouvelle commande pour le moment.') }}</div>{{ pager('recentOrdersPager', 'recent', recent_orders_pagination) }}</section>
+        <section id="vd-panel-prepare" class="vd-tab-panel" aria-labelledby="vd-tab-prepare"><h3 class="vd-panel-title">Commandes à préparer</h3><p class="vd-caption">Commandes du jour</p><div class="today-list" id="todayPrepareList" data-empty-text="Aucune commande à préparer aujourd’hui.">{{ order_rows(today_prepare, 'Aucune commande à préparer aujourd’hui.') }}</div>{{ pager('todayPreparePager', 'prepare', today_prepare_pagination) }}</section>
         {% endif %}
+        {% if allows_services %}
+        <section id="vd-panel-bookings" class="vd-tab-panel" aria-labelledby="vd-tab-bookings"><h3 class="vd-panel-title">Rendez-vous du jour</h3><div class="today-list" id="todayBookingsList" data-empty-text="Aucun rendez-vous prévu aujourd’hui.">{% for booking in today_bookings %}<div class="today-row"><span class="vd-order-icon" aria-hidden="true"><i class="bi bi-calendar-check"></i></span><div class="today-row-top"><div class="today-row-title">{% if booking.scheduled_label %}{{ booking.scheduled_label }} · {% endif %}{{ booking.product_name or 'Service' }}</div><div class="today-row-sub">{{ booking.full_name }}{% if booking.phone %} · {{ booking.phone }}{% endif %}</div></div>{% if booking.call_url %}<div class="today-row-actions"><a class="today-outline" href="{{ booking.call_url }}"><i class="bi bi-telephone" aria-hidden="true"></i>Appeler</a></div>{% endif %}</div>{% else %}<div class="today-empty vd-empty"><i class="bi bi-check2-circle" aria-hidden="true"></i><p>Aucun rendez-vous prévu aujourd’hui.</p></div>{% endfor %}</div>{{ pager('todayBookingsPager', 'bookings', today_bookings_pagination) }}</section>
+        {% endif %}
+      </section>
+      {% if has_dashboard_alerts %}<div class="vd-tools-column">
+        {% if show_stock_alerts and low_stock_products %}<section class="vd-card vd-alert-card" aria-labelledby="vdStockTitle"><header class="vd-card-header"><h2 id="vdStockTitle"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i>Stock à vérifier</h2></header><ul class="vd-alert-list">{% for product in low_stock_products[:3] %}<li class="alert-item"><a class="alert-link" href="{{ url_for('vendor.product_edit', pid=product.id, standalone=1) }}" data-vendor-product-edit data-stop-nav aria-haspopup="dialog" aria-controls="vendorProductDialog"><span>{{ product.name }}</span><span class="alert-qty">{{ product.stock }} {{ 'restant' if product.stock == 1 else 'restants' }}</span><i class="bi bi-chevron-right" aria-hidden="true"></i></a></li>{% endfor %}</ul>{% if low_stock_total > 3 %}<a class="vd-text-link" href="{{ url_for('vendor.catalog', stock='low') }}">Voir les {{ low_stock_total }} produits <i class="bi bi-arrow-right" aria-hidden="true"></i></a>{% endif %}</section>{% endif %}
+        {% if show_stock_alerts and no_image_products %}<section class="vd-card" aria-labelledby="vdPhotosTitle"><header class="vd-card-header"><h2 id="vdPhotosTitle"><i class="bi bi-image" aria-hidden="true"></i>Photos à compléter</h2></header><ul class="vd-alert-list">{% for product in no_image_products[:3] %}<li class="alert-item"><a class="alert-link" href="{{ url_for('vendor.product_edit', pid=product.id, standalone=1) }}" data-vendor-product-edit data-stop-nav aria-haspopup="dialog" aria-controls="vendorProductDialog"><span>{{ product.name }}</span><i class="bi bi-chevron-right" aria-hidden="true"></i></a></li>{% endfor %}</ul></section>{% endif %}
+      </div>{% endif %}
     </div>
+    {% if allows_services and today_bookings %}{% set next_booking = today_bookings[0] %}<div class="vd-card vd-next-booking"><span class="vd-quick-icon" aria-hidden="true"><i class="bi bi-calendar-check"></i></span><div><strong>Rendez-vous du jour</strong><p>{{ next_booking.product_name or 'Service' }}{% if next_booking.scheduled_label %} · {{ next_booking.scheduled_label }}{% endif %}</p></div><a href="#vd-panel-bookings" class="vd-text-link" data-vd-show-tab="bookings">Voir <i class="bi bi-arrow-right" aria-hidden="true"></i></a></div>{% endif %}
+    {% if password_change_window_active %}<details class="vd-card vd-security-card"><summary><i class="bi bi-key" aria-hidden="true"></i>Modifier mon mot de passe</summary><form method="post" action="{{ url_for('vendor.change_password') }}" class="vendor-password-form">{% include "partials/_csrf.html" %}<label>Mot de passe actuel<input type="password" name="current_password" autocomplete="current-password" required></label><label>Nouveau mot de passe<input type="password" name="new_password" minlength="8" autocomplete="new-password" required></label><label>Confirmer le mot de passe<input type="password" name="confirm_password" minlength="8" autocomplete="new-password" required></label><button type="submit" class="vd-add-button">Mettre à jour</button>{% if password_change_allowed_until %}<p class="vd-caption">Disponible jusqu’au {{ password_change_allowed_until.strftime('%d/%m/%Y à %H:%M') }}.</p>{% endif %}</form></details>{% endif %}
+    <noscript><div class="vd-card vd-native-actions"><p>Créer une offre</p>{% if allows_catalog %}<a href="{{ url_for('vendor.product_new', standalone=1) }}">{{ catalog_create_label }}</a>{% endif %}{% if allows_location %}<a href="{{ url_for('rentals.owner_location_new', standalone=1) }}">Nouvelle location</a>{% endif %}<a href="{{ url_for('vendor.support_whatsapp') }}">Support</a><form method="post" action="{{ url_for('auth.logout') }}">{% include "partials/_csrf.html" %}<button type="submit">Se déconnecter</button></form></div></noscript>
+  </div>
+  {{ bottom_nav('dashboard', allows_catalog, allows_location, shop) }}
 </div>
-
-{% if allows_catalog or allows_location %}
-{% include "vendor/partials/_product_create_dialog.html" %}
-<noscript><p><a href="{{ url_for('vendor.product_new', standalone=1) }}">Ouvrir le formulaire d’ajout</a></p></noscript>
-{% endif %}
-
-<!-- Loading -->
-<div class="loading-overlay" id="loadingOverlay">
-    <div class="spinner"></div>
-</div>
-
-<!-- Stock notification toast -->
-{% if show_stock_alerts %}
-<div class="stock-toast" id="stockToast">
-    <i class="bi bi-exclamation-triangle"></i>
-    <div class="stock-toast-content">
-        <div class="stock-toast-title">Stock faible!</div>
-        <div class="stock-toast-text" id="stockToastText"></div>
-    </div>
-</div>
-{% endif %}
-
-{% if show_stock_alerts or allows_services %}
-<div class="stock-toast order-toast" id="orderToast">
-    <i class="bi bi-bell"></i>
-    <div class="stock-toast-content">
-        <div class="stock-toast-title" id="orderToastTitle">Nouvelle commande</div>
-        <div class="stock-toast-text" id="orderToastText"></div>
-    </div>
-</div>
-
-<!-- Sound toggle button -->
-<button type="button" class="sound-toggle" id="soundToggle" title="Activer/desactiver le son">
-    <i class="bi bi-volume-up"></i>
-</button>
-{% endif %}
 {% endblock %}
-
 {% block scripts %}
 {{ super() }}
-<script src="{{ url_for('static', filename='js/pages/vendor/dashboard_page.js', v=app_static_version) }}" defer></script>
-{% if allows_catalog or allows_location %}
-<script src="{{ url_for('static', filename='js/vendor/vendor_product_modal.js', v=app_static_version ~ '-create-v3') }}" defer></script>
+{% if allows_catalog or allows_location %}{% include "vendor/partials/_product_create_dialog.html" %}{% endif %}
+{% if offer_types > 1 %}
+<dialog id="vendorAddChoiceDialog" class="vd-choice-dialog" aria-labelledby="vdAddTitle"><div class="vd-choice-panel"><header class="vd-choice-header"><h2 id="vdAddTitle">Que souhaitez-vous proposer ?</h2><button type="button" class="vd-icon-button" data-vd-close aria-label="Fermer"><i class="bi bi-x-lg" aria-hidden="true"></i></button></header><div class="vd-choice-options">
+  {% if allows_products %}<a class="vd-add-option" href="{{ url_for('vendor.product_new', standalone=1, kind='physical') }}" data-vendor-product-create data-vendor-default-kind="physical" data-stop-nav aria-haspopup="dialog" aria-controls="vendorProductDialog"><i class="bi bi-box-seam" aria-hidden="true"></i><span><strong>Produit ou repas</strong><small>Prix, stock et photos</small></span><i class="bi bi-chevron-right" aria-hidden="true"></i></a>{% endif %}
+  {% if allows_services %}<a class="vd-add-option" href="{{ url_for('vendor.product_new', standalone=1, kind='service') }}" data-vendor-product-create data-vendor-default-kind="service" data-stop-nav aria-haspopup="dialog" aria-controls="vendorProductDialog"><i class="bi bi-tools" aria-hidden="true"></i><span><strong>Service</strong><small>Présenter une prestation</small></span><i class="bi bi-chevron-right" aria-hidden="true"></i></a>{% endif %}
+  {% if allows_location %}<a class="vd-add-option" href="{{ url_for('rentals.owner_location_new', standalone=1) }}" data-vendor-location-create data-stop-nav aria-haspopup="dialog" aria-controls="vendorProductDialog"><i class="bi bi-houses" aria-hidden="true"></i><span><strong>Location</strong><small>Publier un bien à louer</small></span><i class="bi bi-chevron-right" aria-hidden="true"></i></a>{% endif %}
+</div></div></dialog>
 {% endif %}
+{{ menu(allows_products, allows_location) }}
+<dialog id="vendorDashboardNotifications" class="vd-choice-dialog" aria-labelledby="vdNotificationsTitle"><div class="vd-choice-panel"><header class="vd-choice-header"><h2 id="vdNotificationsTitle">Notifications</h2><button type="button" class="vd-icon-button" data-vd-close aria-label="Fermer"><i class="bi bi-x-lg" aria-hidden="true"></i></button></header><div class="vd-notification-options"><p>Recevez les nouvelles commandes et les demandes de rendez-vous.</p><button type="button" class="vd-nav-link vendor-push-status" id="vendorPushStatus"><i class="bi bi-phone" aria-hidden="true"></i><span>Activer les alertes téléphone</span></button><button type="button" class="vd-nav-link sound-toggle" id="soundToggle" title="Activer ou couper le son"><i class="bi bi-volume-up" aria-hidden="true"></i><span>Son des notifications</span></button><div id="vendorSoundPromptMount" class="vendor-sound-prompt-mount" aria-live="polite"></div></div></div></dialog>
+<div class="stock-toast" id="stockToast" role="status"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i><div><strong>Stock faible</strong><p id="stockToastText"></p></div></div>
+<div class="stock-toast order-toast" id="orderToast" role="status"><i class="bi bi-bell" aria-hidden="true"></i><div><strong id="orderToastTitle">Nouvelle commande</strong><p id="orderToastText"></p></div></div>
+<script src="{{ url_for('static', filename='js/pages/vendor/dashboard_layout.js', v=app_static_version ~ '-dashboard-v5') }}" defer></script>
+<script src="{{ url_for('static', filename='js/pages/vendor/dashboard_page.js', v=app_static_version ~ '-dashboard-v5') }}" defer></script>
+{% if allows_catalog or allows_location %}<script src="{{ url_for('static', filename='js/vendor/vendor_product_modal.js', v=app_static_version ~ '-forms-v5') }}" defer></script>{% endif %}
 {% endblock %}
+
 
 
 

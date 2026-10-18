@@ -1,70 +1,62 @@
-<div class="catalog-toolbar">
-  <div class="catalog-toolbar-copy"><strong id="catalogVisibleCount">{{ products|length }}</strong> visibles sur cette page <strong>/ {{ pagination.total }}</strong> au total</div>
-  <div class="catalog-live" id="catalogLiveStatus"><span class="catalog-live-dot"></span>Résultats mis à jour</div>
+{% set first_result = ((pagination.page - 1) * pagination.per_page + 1) if pagination.total else 0 %}
+{% set last_result = (first_result + products|length - 1) if products else 0 %}
+<div class="catalog-results-meta" data-catalog-meta data-total="{{ pagination.total }}" data-page="{{ pagination.page }}" data-pages="{{ pagination.pages }}">
+  <p><strong id="catalogVisibleCount">{{ pagination.total }}</strong> {{ 'offre trouvée' if pagination.total == 1 else 'offres trouvées' }}</p>
+  {% if search_term or selected_category_id or selected_status != 'all' or selected_kind != 'all' or selected_stock != 'all' or selected_sort != 'recent' %}<a href="{{ url_for('vendor.catalog') }}" class="catalog-reset" data-catalog-reset>Tout afficher <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i></a>{% endif %}
 </div>
-
 {% if products %}
-<div class="catalog-grid" id="catalogGrid">
+<div class="catalog-list" id="catalogGrid">
+  <div class="catalog-list-heading" aria-hidden="true"><span>Offre</span><span>Prix</span><span>Stock</span><span>État</span><span class="catalog-actions-heading">Actions</span></div>
   {% for p in products %}
   {% set product_images = p.image_file.split('|') if p.image_file and '|' in p.image_file else [p.image_file] if p.image_file else [] %}
   {% set first_image = product_images[0] if product_images|length > 0 else '' %}
   {% set product_block_reasons = product_catalog_block_reasons(p) if product_catalog_block_reasons is defined else [] %}
   {% set promo = product_promos.get(p.id) if product_promos is defined else None %}
   {% set final_price = calculate_promo_price(p, promo) if calculate_promo_price is defined and promo else (p.price or 0) %}
-  <article class="catalog-card" data-catalog-card data-name="{{ (p.name or '')|lower }}" data-description="{{ (p.description or '')|lower }}" data-category="{{ (p.category.name if p.category else '')|lower }}" data-category-id="{{ p.category_id or '' }}" data-status="{{ 'active' if p.is_active else 'inactive' }}" data-kind="{{ 'service' if p.kind == 'service' else 'physical' }}" data-stock-state="{% if p.kind == 'service' %}available{% elif p.stock <= 0 %}out{% elif p.stock <= low_stock_threshold %}low{% else %}available{% endif %}">
-    <div class="catalog-media">
-      {% if first_image %}
-      <img src="{{ url_for('static', filename='uploads/' ~ image_variant(first_image, 'large')) }}" alt="{{ p.name }}" loading="lazy" decoding="async">
-      {% else %}
-      <div class="catalog-placeholder"><i class="bi bi-image"></i></div>
-      {% endif %}
-      <div class="catalog-badges">
-        <div class="d-flex flex-column align-items-start gap-2">
-          <span class="catalog-badge {% if p.is_active %}active{% else %}inactive{% endif %}"><i class="bi {% if p.is_active %}bi-check-circle-fill{% else %}bi-pause-circle-fill{% endif %}"></i>{{ 'En ligne' if p.is_active else 'À compléter' }}</span>
-          {% if p.category %}<span class="catalog-badge category">{{ p.category.name }}</span>{% endif %}
-        </div>
-        {% if promo %}<span class="catalog-badge promo"><i class="bi bi-tags-fill"></i>Promo</span>{% endif %}
+  <article class="catalog-card" data-catalog-card data-product-id="{{ p.id }}" aria-labelledby="catalogProductTitle{{ p.id }}">
+    <div class="catalog-product">
+      <div class="catalog-media">
+        <i class="bi bi-{{ 'tools' if p.kind == 'service' else 'image' }} catalog-placeholder" aria-hidden="true"></i>
+        {% if first_image %}<img src="{{ url_for('static', filename='uploads/' ~ image_variant(first_image, 'thumb')) }}" data-catalog-image data-fallback-src="{{ url_for('static', filename='uploads/' ~ first_image) }}" alt="" width="56" height="56" loading="lazy" decoding="async">{% endif %}
+      </div>
+      <div class="catalog-product-copy">
+        <h2 class="catalog-card-title" id="catalogProductTitle{{ p.id }}"><a href="{{ url_for('vendor.product_edit', pid=p.id, standalone=1) }}" data-vendor-product-edit data-stop-nav aria-haspopup="dialog" aria-controls="vendorProductDialog">{{ p.name }}</a></h2>
+        <p class="catalog-category" title="{{ p.category.name if p.category else ('Service' if p.kind == 'service' else 'Produit') }}">{{ p.category.name if p.category else ('Service' if p.kind == 'service' else 'Produit') }}{% if promo %}<span class="catalog-promo">Promo</span>{% endif %}</p>
+        {% if not p.is_active and product_block_reasons %}<p class="catalog-block-reason">{{ product_block_reasons|join(', ') }}</p>{% endif %}
       </div>
     </div>
-    <div class="catalog-card-body">
-      <div class="catalog-card-head">
-        <h2 class="catalog-card-title"><a href="{{ url_for('shop.product_detail', pid=p.id) }}">{{ p.name }}</a></h2>
-        <div class="catalog-price">{{ '%.2f'|format(final_price|float) }} MAD</div>
-      </div>
-      <p class="catalog-desc">{{ p.description|truncate(105) if p.description else "Ajoutez une description plus riche pour mieux convaincre les clients." }}</p>
-      <div class="catalog-mini-stats">
-        <div class="catalog-mini-stat"><div class="catalog-mini-label">Stock</div><div class="catalog-mini-value">{% if p.kind == 'service' %}Service{% else %}{{ p.stock }}{% endif %}</div></div>
-        <div class="catalog-mini-stat"><div class="catalog-mini-label">Vues</div><div class="catalog-mini-value">{{ p.view_count or 0 }}</div></div>
-        <div class="catalog-mini-stat"><div class="catalog-mini-label">Type</div><div class="catalog-mini-value">{{ 'Service' if p.kind == 'service' else 'Produit' }}</div></div>
-      </div>
-      {% if not p.is_active and product_block_reasons %}<div class="catalog-note">À compléter : {{ product_block_reasons|join(', ') }}.</div>{% endif %}
-      <div class="catalog-card-actions">
-        <a href="{{ url_for('shop.product_detail', pid=p.id) }}" class="catalog-action primary"><i class="bi bi-eye"></i>Voir</a>
-        <a href="{{ url_for('vendor.product_edit', pid=p.id, standalone=1) }}" class="catalog-action success" data-vendor-product-edit data-stop-nav aria-haspopup="dialog" aria-controls="vendorProductDialog"><i class="bi bi-pencil-square"></i>Modifier</a>
-        <a href="{{ url_for('vendor.product_promotion', pid=p.id) }}" class="catalog-action warm"><i class="bi bi-stars"></i>{{ 'Promo' if promo else 'Ajouter promo' }}</a>
-        <form method="POST" action="{{ url_for('vendor.product_delete', pid=p.id) }}" data-ajax="true" data-action="delete-product" data-remove-target=".catalog-card" data-confirm="Supprimer ce produit " data-confirm-submit="Supprimer ce produit ?">
-          {% include "partials/_csrf.html" %}
-          <button type="submit" class="catalog-action danger w-100"><i class="bi bi-trash3"></i>Supprimer</button>
-        </form>
-      </div>
+    <div class="catalog-price-cell"><span class="catalog-price">{{ '%.2f'|format(final_price|float) }} <span>DH</span></span><span class="catalog-stock-short">{% if p.kind != 'service' %} · {% if p.stock <= 0 %}Rupture{% else %}Stock : {{ p.stock }}{% endif %}{% endif %}</span></div>
+    <div class="catalog-stock-cell{% if p.kind != 'service' and p.stock <= 0 %} is-empty{% elif p.kind != 'service' and p.stock <= low_stock_threshold %} is-low{% endif %}">{% if p.kind == 'service' %}<span aria-label="Le stock ne s’applique pas aux services">—</span>{% elif p.stock <= 0 %}Rupture{% else %}{{ p.stock }}{% endif %}</div>
+    <div class="catalog-state-cell"><span class="catalog-state {{ 'is-active' if p.is_active else 'is-inactive' }}"><span class="catalog-state-dot" aria-hidden="true"></span>{{ 'En ligne' if p.is_active else 'À compléter' }}</span></div>
+    <div class="catalog-card-actions">
+      <a href="{{ url_for('vendor.product_edit', pid=p.id, standalone=1) }}" class="catalog-edit" data-vendor-product-edit data-stop-nav aria-haspopup="dialog" aria-controls="vendorProductDialog" aria-label="Modifier {{ p.name }}">Modifier</a>
+      <details class="catalog-more" data-catalog-menu>
+        <summary aria-label="Plus d’actions pour {{ p.name }}"><i class="bi bi-three-dots" aria-hidden="true"></i></summary>
+        <div class="catalog-more-options">
+          <a href="{{ url_for('shop.product_detail', pid=p.id) }}"><i class="bi bi-eye" aria-hidden="true"></i>Voir l’offre</a>
+          <a href="{{ url_for('vendor.product_promotion', pid=p.id) }}"><i class="bi bi-tag" aria-hidden="true"></i>{{ 'Gérer la promotion' if promo else 'Ajouter une promotion' }}</a>
+          <form method="post" action="{{ url_for('vendor.product_delete', pid=p.id) }}" data-catalog-delete data-product-name="{{ p.name }}">
+            {% include 'partials/_csrf.html' %}
+            <button type="submit" class="catalog-delete"><i class="bi bi-trash3" aria-hidden="true"></i>Supprimer</button>
+          </form>
+        </div>
+      </details>
     </div>
   </article>
   {% endfor %}
 </div>
 {% else %}
-<div class="catalog-empty is-visible"><div class="h4 fw-bold mb-2">{{ catalog_empty_label or "Aucun élément trouvé" }}</div><p class="mb-3">Commencez par créer votre premier élément pour alimenter le catalogue.</p><a href="{{ url_for('vendor.product_new') }}" class="catalog-btn catalog-btn-primary"><i class="bi bi-plus-circle"></i>{{ catalog_create_label }}</a></div>
+<div class="catalog-empty" id="catalogEmptyState">
+  <span class="catalog-empty-icon" aria-hidden="true"><i class="bi bi-{{ 'box-seam' if not total_products else 'search' }}"></i></span>
+  {% if not total_products %}<h2>Votre catalogue est vide</h2><p>Utilisez « Ajouter » pour créer votre première offre.</p>
+  {% else %}<h2>Aucune offre trouvée</h2><p>Essayez un autre mot ou changez de catégorie.</p><a href="{{ url_for('vendor.catalog') }}" class="catalog-reset" data-catalog-reset>Afficher toutes les offres <i class="bi bi-arrow-right" aria-hidden="true"></i></a>{% endif %}
+</div>
 {% endif %}
-
-<div class="catalog-empty" id="catalogEmptyState"><div class="h4 fw-bold mb-2">Aucun résultat</div><p class="mb-0">Essayez une recherche plus simple ou changez un filtre.</p></div>
-
-{% if pagination.pages > 1 %}
-<nav aria-label="Pagination catalogue" class="catalog-pagination mt-3">
-  <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
-    <div class="text-muted small">Page {{ pagination.page }} sur {{ pagination.pages }}</div>
-    <div class="btn-group" role="group" aria-label="Pagination">
-      <a class="btn btn-outline-secondary {% if not pagination.has_prev %}disabled{% endif %}" href="{{ prev_page_url or '#' }}" data-catalog-page-link="prev">Précédent</a>
-      <a class="btn btn-outline-secondary {% if not pagination.has_next %}disabled{% endif %}" href="{{ next_page_url or '#' }}" data-catalog-page-link="next">Suivant</a>
-    </div>
-  </div>
+<nav class="catalog-pagination" aria-label="Pagination du catalogue">
+  <span class="catalog-page-range">{{ first_result }}–{{ last_result }} sur {{ pagination.total }}</span>
+  {% if pagination.pages > 1 %}<div class="catalog-page-buttons">
+    {% if pagination.has_prev %}<a href="{{ prev_page_url }}" data-catalog-page-link="prev" class="catalog-page-button" aria-label="Page précédente"><i class="bi bi-chevron-left" aria-hidden="true"></i><span>Précédent</span></a>{% else %}<span class="catalog-page-button is-disabled" aria-disabled="true"><i class="bi bi-chevron-left" aria-hidden="true"></i><span>Précédent</span></span>{% endif %}
+    <span class="catalog-page-position">{{ pagination.page }} / {{ pagination.pages }}</span>
+    {% if pagination.has_next %}<a href="{{ next_page_url }}" data-catalog-page-link="next" class="catalog-page-button" aria-label="Page suivante"><span>Suivant</span><i class="bi bi-chevron-right" aria-hidden="true"></i></a>{% else %}<span class="catalog-page-button is-disabled" aria-disabled="true"><span>Suivant</span><i class="bi bi-chevron-right" aria-hidden="true"></i></span>{% endif %}
+  </div>{% endif %}
 </nav>
-{% endif %}

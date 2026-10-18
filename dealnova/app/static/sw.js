@@ -20,7 +20,6 @@ const PRECACHE_ASSETS = [
   "/static/android-chrome-192x192.png",
   "/static/android-chrome-512x512.png",
   "/apple-touch-icon.png",
-  "/static/js/live.js",
   "/static/js/i18n.js",
   "/static/js/ajax_pagination.js",
   "/static/js/ui_drawer.js",

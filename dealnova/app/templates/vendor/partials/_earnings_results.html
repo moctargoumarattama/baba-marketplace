@@ -1,0 +1,20 @@
+<section class="vr-card earnings-records" data-earnings-meta data-page="{{ pagination.page if pagination else 1 }}" data-total="{{ total_orders_count }}">
+  <header class="vr-list-header earnings-list-header"><div><h2>{{ total_orders_count }} {{ 'commande' if total_orders_count == 1 else 'commandes' }}</h2><p>{{ date_range_label }}</p></div><span class="earnings-list-tip"><i class="bi bi-info-circle" aria-hidden="true"></i>Confirmez après réception du paiement.</span></header>
+  {% if orders %}
+  <div class="earnings-column-head" aria-hidden="true"><span>Commande et produits</span><span>Montant</span><span>Règlement</span></div>
+  <div class="earnings-order-list">
+    {% for order in orders %}
+    {% set receipt = receipt_map.get(order.id) %}
+    {% set amount = order_amount_map.get(order.id, 0) %}
+    <article class="order-row earnings-order" data-order-id="{{ order.id }}" aria-label="Commande {{ order.id }}">
+      <div class="earnings-order-content"><div class="earnings-order-heading"><h3>Commande #{{ order.id }}</h3><time{% if order.created_at %} datetime="{{ order.created_at.isoformat() }}"{% endif %}>{{ order.created_at.strftime('%d/%m/%Y') if order.created_at else 'Date non renseignée' }}</time></div><ul class="earnings-products">{% for item in order.items %}{% if item.product and item.product.vendor_id == current_user.id and item.product.kind != 'service' %}<li>{{ item.product.name }} <span>× {{ item.quantity }}</span></li>{% endif %}{% endfor %}</ul>{% if receipt and receipt.note %}<p class="earnings-order-note"><i class="bi bi-chat-left-text" aria-hidden="true"></i><span>{{ receipt.note }}</span></p>{% endif %}</div>
+      <strong class="earnings-order-amount">{{ '%.2f'|format(amount / 100) }} <small>DH</small></strong>
+      <div class="earnings-order-payment">{% if receipt %}<span class="earnings-status earnings-status-confirmed"><i class="bi bi-check-circle" aria-hidden="true"></i>Encaissé</span>{% else %}<span class="earnings-status earnings-status-pending"><i class="bi bi-clock" aria-hidden="true"></i>À vérifier</span><form method="post" action="{{ url_for('vendor.confirm_receipt', oid=order.id) }}" class="pay-form" data-earnings-receipt>{% include 'partials/_csrf.html' %}<details class="earnings-note-editor"><summary>Ajouter une note</summary><label class="vr-field"><span class="visually-hidden">Note pour la commande {{ order.id }}</span><input name="note" type="text" maxlength="255" placeholder="Note facultative"></label></details><button class="vr-button pay-btn" type="submit" aria-label="Confirmer l’encaissement de la commande {{ order.id }}" data-order="{{ order.id }}" data-amount="{{ '%.2f'|format(amount / 100) }} DH">Confirmer</button></form>{% endif %}</div>
+    </article>
+    {% endfor %}
+  </div>
+  {% if pagination and pagination.pages > 1 %}<nav class="vr-pagination earnings-pagination" aria-label="Pages des encaissements">{% if pagination.has_prev %}<a class="vr-button" href="{{ url_for('vendor.earnings', page=pagination.prev_num, range=range_filter, q=q|default(''), **{'from': date_from, 'to': date_to, 'show': show}) }}" rel="prev"><i class="bi bi-chevron-left" aria-hidden="true"></i><span>Précédent</span></a>{% else %}<span></span>{% endif %}<span>Page {{ pagination.page }} sur {{ pagination.pages }}</span>{% if pagination.has_next %}<a class="vr-button" href="{{ url_for('vendor.earnings', page=pagination.next_num, range=range_filter, q=q|default(''), **{'from': date_from, 'to': date_to, 'show': show}) }}" rel="next"><span>Suivant</span><i class="bi bi-chevron-right" aria-hidden="true"></i></a>{% else %}<span></span>{% endif %}</nav>{% endif %}
+  {% else %}
+  <div class="vr-empty earnings-empty"><i class="bi bi-receipt" aria-hidden="true"></i><h3>Aucune commande trouvée</h3><p>{% if q|default('') or show != 'all' %}Essayez une autre recherche ou changez les filtres.{% else %}Les commandes de cette période apparaîtront ici.{% endif %}</p><a class="vr-button" href="{{ url_for('vendor.earnings', range=range_filter) }}" data-earnings-reset>Réinitialiser les filtres</a></div>
+  {% endif %}
+</section>

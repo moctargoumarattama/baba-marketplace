@@ -8,28 +8,29 @@ def _read(relative_path: str) -> str:
     return (ROOT / relative_path).read_text(encoding="utf-8-sig")
 
 
-def test_vendor_manage_shop_exports_valid_google_maps_link():
+def test_vendor_manage_shop_uses_one_shared_edit_form():
     template = _read("app/templates/vendor/manage_shop.html")
-
-    assert "https://www.google.com/maps?q=" in template
-    assert "https://www.google.com/mapsq=" not in template
+    routes = _read("app/routes/vendor.py")
+    assert "vendor/partials/_shop_edit_form.html" in template
+    assert "vendor/partials/_shop_edit_form.html" in routes
+    assert '"vendor/edit_shop.html"' not in routes
 
 
 def test_vendor_manage_shop_does_not_show_opening_control_card():
     template = _read("app/templates/vendor/manage_shop.html")
-    script = _read("app/static/js/pages/vendor/manage_shop_page.js")
+    content = _read("app/templates/vendor/partials/_shop_manage_content.html")
 
     assert "Ouverture de la boutique" not in template
     assert "manageShopOpenStateCard" not in template
     assert "vendor.set_shop_open_state" not in template
     assert "Fermer temporairement" not in template
     assert '<i class="bi bi-door-open me-2"></i> Ouvrir la boutique' not in template
-    assert "removeLegacyOpeningCard" in script
-    assert "Ouverture de la boutique" in script
+    assert "vendor.set_shop_open_state" not in content
+    assert "Mettre en pause" not in content
 
 
 def test_vendor_manage_shop_keeps_items_on_dedicated_pages():
-    template = _read("app/templates/vendor/manage_shop.html")
+    template = _read("app/templates/vendor/partials/_shop_manage_content.html")
     vendor_routes = _read("app/routes/vendor.py")
 
     assert "Locations de cette boutique" not in template
@@ -40,48 +41,33 @@ def test_vendor_manage_shop_keeps_items_on_dedicated_pages():
     assert "shop_locations=" not in vendor_routes
     assert "location_views_total=" not in vendor_routes
     assert "location_top=" not in vendor_routes
-    assert "Mes locations" in template
-    assert "Nouvelle location" in template
+    assert "Mes locations" not in template
+    assert "Nouvelle location" not in template
+    assert "vendor.product_new" not in template
 
 
-def test_vendor_manage_shop_uses_premium_compact_layout_without_losing_actions():
+def test_vendor_manage_shop_groups_settings_without_dashboard_shortcuts():
     template = _read("app/templates/vendor/manage_shop.html")
-    css = _read("app/static/css/vendor/vendor_manage_shop_page.css")
-
-    assert "vendor-premium-shell" in template
-    assert "shop-command-bar" in template
-    assert "premium-action-card" in template
-    assert "premium-info-card" in template
-    assert "premium-location-panel" in template
-    assert "Modifier la boutique" in template
-    assert "Voir ma boutique" in template
-    assert "Désactiver" in template
-    assert "Livre des encaissements" in template
-    assert "Mes locations" in template
-    assert "Nouvelle location" in template
-    assert "Utiliser ma position" in template
-    assert "Partager WhatsApp" in template
-    assert ".vendor-premium-shell" in css
-    assert ".shop-command-bar" in css
-    assert ".premium-action-card" in css
-    assert ".premium-location-panel" in css
-    assert template.index("premium-info-card") < template.index("premium-action-card")
-    assert "quick-action-chevron" in template
-    assert "clip-path: polygon" in css
-    assert "--chevron-cut" in css
+    content = _read("app/templates/vendor/partials/_shop_manage_content.html")
+    assert "_workspace_navigation.html" in template
+    assert "Modifier les informations" in content
+    assert "Coordonnées" in content
+    assert "Adresse et position" in content
+    assert "Demandes à l’administration" in content
+    assert "Options avancées" in content
+    for repeated_action in ("Voir ma boutique", "Livre des encaissements", "Nouvelle location", "Actions rapides"):
+        assert repeated_action not in content
 
 
 def test_product_service_shop_requires_phone_and_address():
     vendor_routes = _read("app/routes/vendor.py")
-    edit_template = _read("app/templates/vendor/edit_shop.html")
+    edit_template = _read("app/templates/vendor/partials/_shop_edit_form.html")
 
     assert "_shop_requires_contact_details" in vendor_routes
     assert "_shop_has_required_contact_details" in vendor_routes
-    assert "telephone et adresse sont obligatoires" in vendor_routes
-    assert "return redirect(url_for(\"vendor.edit_shop\"))" in vendor_routes
     assert 'name="contact_phone"' in edit_template
     assert 'name="address"' in edit_template
-    assert "required" in edit_template
+    assert "{% if allows_catalog %}required{% endif %}" in edit_template
 
 
 def test_client_welcome_heads_up_notification_is_loaded_for_public_shell():
@@ -119,10 +105,10 @@ def test_public_templates_do_not_keep_visible_typos():
 
     assert "choississez" not in shop_routes
     assert 'url_for("landing", open=universe' in shop_routes
-    assert "Caisse vendeur" in earnings
+    assert "Encaissements" in earnings
     assert "Paiements recus" not in earnings
     assert "A verifier" not in earnings
-    assert "Marquer encaissé" in earnings
+    assert "Confirmer l’encaissement" in earnings
 
 
 def test_vendor_dashboard_no_longer_depends_on_fontawesome_icons():
@@ -141,28 +127,31 @@ def test_vendor_dashboard_no_longer_depends_on_fontawesome_icons():
 
 def test_vendor_dashboard_uses_compact_premium_daily_layout():
     template = _read("app/templates/vendor/dashboard.html")
+    navigation = _read("app/templates/vendor/partials/_workspace_navigation.html")
     css = _read("app/static/css/vendor/vendor_dashboard.css")
     script = _read("app/static/js/pages/vendor/dashboard_page.js")
 
     assert "vendor-daily-dashboard" in template
-    assert "daily-overview" in template
-    assert "daily-kpis" in template
+    assert 'class="vd-kpis stats-grid"' in template
     assert "dashboardShopStatusBar" in template
-    assert "daily-alerts-panel" in template
-    assert "daily-all-clear" in template
-    assert "daily-actions-grid" in template
+    assert 'class="vd-tabs"' in template
+    assert 'data-vd-tab="prepare"' in template
+    assert 'data-vd-tab="bookings"' in template
+    assert 'bottom_nav(\'dashboard\'' in template
+    assert 'class="vd-bottom-nav"' in navigation
     assert "vendorSoundPromptMount" in template
-    assert template.index("daily-overview") < template.index("today-section")
+    assert template.index("vd-kpis") < template.index("today-section")
     assert template.index("dashboardShopStatusBar") < template.index("today-section")
     assert template.index("recentOrdersList") > template.index("today-section")
-    assert "À traiter maintenant" in template
+    assert "À traiter" in template
+    assert "Depuis le début" in template
+    assert "Espace protege" not in template
     assert "Compact unified layout" not in css
     assert "Premium polish" not in css
-    assert ".vendor-daily-dashboard" in css
-    assert ".daily-overview" in css
-    assert ".daily-kpis" in css
-    assert ".daily-actions-grid" in css
-    assert ".daily-all-clear" in css
+    assert ".bm-vendor-dashboard" in css
+    assert ".vd-kpis" in css
+    assert ".vd-bottom-nav" in css
+    assert ".vd-sidebar" in css
     assert ".vendor-sound-prompt" in css
     assert "vendorSoundPromptMount" in script
     assert "document.body.appendChild(prompt)" not in script

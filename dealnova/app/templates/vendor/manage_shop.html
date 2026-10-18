@@ -1,381 +1,42 @@
 {% extends "vendor/base.html" %}
-
-{% block title %}Gérer ma boutique | {{ config.SITE_NAME|trim }}{% endblock %}
-
+{% from 'vendor/partials/_workspace_navigation.html' import sidebar, mobile_header, bottom_nav, menu with context %}
+{% block title %}Ma boutique | {{ config.SITE_NAME|trim }}{% endblock %}
+{% block body_attrs %}class="bm-vendor-dashboard bm-shop-manage"{% endblock %}
 {% block head %}
 {{ super() }}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/vendor_manage_shop_page.css', v=app_static_version) }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/vendor_dashboard.css', v=app_static_version ~ '-dashboard-v6') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/vendor_manage_shop_page.css', v=app_static_version ~ '-shop-v2') }}">
 {% endblock %}
-
 {% block content %}
-<div class="container-fluid py-4 px-3 px-md-5 manage-shop-page vendor-premium-shell">
-    {% set back_href = url_for('vendor.dashboard') if allows_catalog else (url_for('rentals.owner_locations') if allows_location else url_for('vendor.manage_shop')) %}
-    <!-- Animated Back Button -->
-    <div class="mb-4 animate__animated animate__fadeInLeft shop-command-bar">
-        <a href="{{ back_href }}" 
-           class="btn btn-outline-secondary btn-hover-effect position-relative"
-           style="--i: 1">
-            <i class="bi bi-arrow-left me-2"></i> Retour
-        </a>
-    </div>
-
-    <!-- Shop Header with Animation -->
-    {% if shop %}
-    <div class="shop-header premium-shop-hero {% if shop.logo %}has-logo-cover{% endif %} animate__animated animate__fadeInDown">
-        {% if shop.logo %}
-        <div class="shop-header-cover" aria-hidden="true">
-            <img src="{{ url_for('static', filename='uploads/' + shop.logo) }}"
-                 alt=""
-                 loading="lazy">
-        </div>
-        {% endif %}
-        <div class="shop-header-content text-white text-center">
-            {% if shop.logo %}
-            <div class="shop-hero premium-shop-identity">
-                <div class="shop-hero-logo-wrap">
-                    <span class="shop-hero-logo floating-icon">
-                        <img src="{{ url_for('static', filename='uploads/' + shop.logo) }}"
-                             alt="Logo {{ shop.name }}"
-                             loading="lazy">
-                    </span>
-                    <span class="shop-hero-logo-label">Boutique vendeur</span>
-                </div>
-            </div>
-            {% else %}
-            <div class="shop-hero">
-                <div class="shop-hero-logo-wrap">
-                    <span class="shop-hero-logo floating-icon">
-                        {% if shop.logo %}
-                        <img src="{{ url_for('static', filename='uploads/' + shop.logo) }}"
-                             alt="Logo {{ shop.name }}"
-                             loading="lazy">
-                        {% else %}
-                        <i class="bi bi-shop"></i>
-                        {% endif %}
-                    </span>
-                    <span class="shop-hero-logo-label">Logo boutique</span>
-                </div>
-            </div>
-            {% endif %}
-            <h1 class="display-5 fw-bold mb-3 shop-title">{{ shop.name }}</h1>
-            <p class="lead mb-0 shop-subtitle">{{ shop.description|default("Votre boutique " ~ (config.SITE_NAME|trim), true) }}</p>
-            <div class="mt-4 shop-link-actions">
-                <a href="{{ shop_public_url }}"
-                   id="shopPublicUrlLink"
-                   class="badge fs-6 py-2 px-3 rounded-pill shop-link-badge text-decoration-none"
-                   target="_blank"
-                   rel="noopener noreferrer"
-                   title="Ouvrir la boutique publique">
-                    <i class="bi bi-link-45deg me-1"></i>
-                    {{ shop_public_url }}
-                </a>
-                <button type="button"
-                        class="btn btn-sm rounded-pill shop-link-copy-btn"
-                        id="copyShopPublicUrlBtn"
-                        data-bs-toggle="tooltip"
-                        data-bs-placement="top"
-                        title="Copier le lien">
-                    <i class="bi bi-clipboard me-1"></i> Copier
-                </button>
-            </div>
-            <div class="small mt-2 shop-link-hint" id="shopPublicUrlHint" aria-live="polite"></div>
-        </div>
-    </div>
+<div class="vd-shell shop-manage-page">
+  {{ sidebar('shop', allows_catalog, allows_products, allows_location, shop) }}
+  {{ mobile_header('shop') }}
+  <div class="vd-main sm-main">
+    <div id="shopPageFeedback" class="sm-feedback" role="status" aria-live="polite" hidden></div>
+    <div id="shopManageContent">{% include 'vendor/partials/_shop_manage_content.html' %}</div>
+    {% if edit_shop_open and shop %}
+    <section id="shopInlineEditor" class="sm-card sm-inline-editor" aria-labelledby="shopInlineTitle">
+      <h2 id="shopInlineTitle">Modifier les informations</h2>
+      {% include 'vendor/partials/_shop_edit_form.html' %}
+    </section>
     {% endif %}
-    
-    <!-- Si pas de boutique -->
-    {% if not shop %}
-    <div class="row justify-content-center mt-5">
-        <div class="col-md-6 col-lg-5">
-            <div class="card border-0 shadow-lg animated-card glass-effect" style="--i: 1">
-                <div class="card-body text-center py-5">
-                    <div class="display-1 text-muted mb-4 floating-icon">
-                        <i class="bi bi-shop"></i>
-                    </div>
-                    <h3 class="gradient-text fw-bold mb-3">Boutique en attente</h3>
-                    <p class="text-muted mb-0 fs-5">
-                        La création de boutique est gérée par l'administration. Contactez un administrateur pour l'activer.
-                    </p>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    {% else %}
-{% set enabled_types = shop.get_allowed_types() %}
-
-    {% if featured_shop_notice %}
-    <div class="alert alert-success border-0 shadow-sm rounded-4 mb-4">
-        <strong>Boutique mise en avant :</strong>
-        visible en priorite jusqu'au {{ featured_shop_notice.ends_at.strftime('%d/%m/%Y %H:%M') }}.
-    </div>
-    {% endif %}
-
-    <!-- Informations et Actions -->
-    <div class="row g-4 manage-main-grid">
-        <!-- Informations de la boutique -->
-        <div class="col-lg-8 manage-main-col">
-            <div class="card border-0 shadow-sm animated-card glass-effect premium-info-card" style="--i: 4">
-                <div class="card-header bg-transparent border-0">
-                    <div class="d-flex align-items-center premium-section-title">
-                        <div class="bg-primary p-3 rounded-circle me-3">
-                            <i class="bi bi-info-circle fs-4 text-white"></i>
-                        </div>
-                        <h4 class="mb-0 gradient-text fw-bold">
-                            {% if allows_services and not allows_products and not allows_location %}
-                            Informations services
-                            {% elif allows_location and not allows_catalog %}
-                            Informations location
-                            {% else %}
-                            Informations de la boutique
-                            {% endif %}
-                        </h4>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <div class="row g-4 info-grid" id="mobileInfoGrid">
-                        {% set info_items = [
-                            {'icon': 'bi-shop', 'label': 'Nom', 'value': shop.name, 'mobile_extra': false},
-                            {'icon': 'bi-link', 'label': 'URL', 'value': shop_public_url, 'link': true, 'mobile_extra': false},
-                            {'icon': 'bi-telephone', 'label': 'Téléphone', 'value': shop.contact_phone or "Non renseigné", 'mobile_extra': false},
-                            {'icon': 'bi-card-text', 'label': 'Description', 'value': shop.description or "Non renseignée", 'mobile_extra': true},
-                            {'icon': 'bi-envelope', 'label': 'Email', 'value': shop.contact_email or "Non renseigné", 'mobile_extra': true},
-                            {'icon': 'bi-geo-alt', 'label': 'Adresse', 'value': shop.address or "Non renseignée", 'mobile_extra': true}
-                        ] %}
-                        
-                        {% for item in info_items %}
-                        <div class="col-md-6 {% if item.mobile_extra %}mobile-info-extra{% endif %}">
-                            <div class="d-flex align-items-start p-3 rounded-3 info-chip">
-                                <i class="bi {{ item.icon }} fs-5 text-primary me-3 mt-1"></i>
-                                <div>
-                                    <div class="text-muted small">{{ item.label }}</div>
-                                    {% if item.link %}
-                                    <a href="{{ shop_public_url }}" 
-                                       target="_blank"
-                                       class="text-decoration-none fw-bold text-primary">
-                                        {{ item.value }}
-                                        <i class="bi bi-box-arrow-up-right ms-1"></i>
-                                    </a>
-                                    {% else %}
-                                    <div class="fw-bold">{{ item.value }}</div>
-                                    {% endif %}
-                                </div>
-                            </div>
-                        </div>
-                        {% endfor %}
-                        <div class="col-md-6 mobile-info-extra">
-                            <div class="d-flex align-items-start p-3 rounded-3 info-chip h-100">
-                                <i class="bi bi-diagram-3 fs-5 text-primary me-3 mt-1"></i>
-                                <div>
-                                    <div class="text-muted small">Type principal</div>
-                                    <div class="fw-bold">{{ shop.type_label(shop.primary_type) }}</div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-6 mobile-info-extra">
-                            <div class="d-flex align-items-start p-3 rounded-3 info-chip h-100">
-                                <i class="bi bi-grid fs-5 text-primary me-3 mt-1"></i>
-                                <div>
-                                    <div class="text-muted small">Activités proposées</div>
-                                    <div class="d-flex flex-wrap gap-2 mt-1">
-                                        {% for shop_type in enabled_types %}
-                                        <span class="badge bg-light text-dark border">
-                                            {{ shop_type_labels.get(shop_type, shop_type|title) }}
-                                        </span>
-                                        {% endfor %}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="mobile-info-toggle-wrap">
-                        <button type="button" class="mobile-info-toggle-btn" id="mobileInfoToggleBtn">Voir plus d'infos</button>
-                    </div>
-
-                    {% if allows_services or allows_products %}
-                    <div class="service-location-panel premium-location-panel" id="manageShopServiceLocationPanel">
-                        <div class="service-location-title">
-                            <i class="bi bi-geo-alt"></i>
-                            <span>Adresse pour les clients</span>
-                        </div>
-                        <div class="service-location-hint">
-                            Ajoutez l'adresse et un repère simple pour aider les clients à vous trouver.
-                        </div>
-                        <form method="post"
-                              action="{{ url_for('vendor.update_service_location') }}"
-                              class="row g-2"
-                              id="serviceLocationForm"
-                              data-ajax="true"
-                              data-action="update-service-location">
-                            {% include "partials/_csrf.html" %}
-                            <input type="hidden" name="service_latitude" id="serviceLatitudeInput" value="{{ shop.service_latitude if shop.service_latitude is not none else '' }}">
-                            <input type="hidden" name="service_longitude" id="serviceLongitudeInput" value="{{ shop.service_longitude if shop.service_longitude is not none else '' }}">
-                            <input type="hidden" name="clear_exact_location" id="clearExactLocationInput" value="0">
-
-                            <div class="col-12">
-                                <div class="d-flex flex-wrap gap-2">
-                                    <button type="button" class="btn btn-success btn-lg btn-hover-effect" id="captureExactLocationBtn">
-                                        <i class="bi bi-crosshair me-2"></i> Utiliser ma position
-                                    </button>
-                                    <button type="button" class="btn btn-outline-danger" id="clearExactLocationBtn"
-                                            {% if not shop.has_precise_service_location %}style="display:none;"{% endif %}>
-                                        <i class="bi bi-trash me-1"></i> Supprimer position
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="col-12">
-                                <div class="small fw-semibold text-muted" id="exactLocationStatus">
-                                    {% if shop.has_precise_service_location %}
-                                      Position enregistrée : {{ '%.6f'|format(shop.service_latitude) }}, {{ '%.6f'|format(shop.service_longitude) }}
-                                    {% else %}
-                                      Aucune position enregistrée.
-                                    {% endif %}
-                                </div>
-                            </div>
-                            <div class="col-12">
-                                <div class="service-raw-link-wrap">
-                                    <label class="form-label fw-semibold mb-1">Lien de localisation</label>
-                                    <input type="text"
-                                           id="serviceRawMapUrl"
-                                           class="form-control"
-                                           readonly
-                                           value="{% if shop.has_precise_service_location %}https://www.google.com/maps?q={{ '%.6f'|format(shop.service_latitude) }},{{ '%.6f'|format(shop.service_longitude) }}{% endif %}">
-                                    <div class="service-raw-link-actions">
-                                        <button type="button"
-                                                class="btn btn-outline-secondary"
-                                                id="copyRawMapUrlBtn"
-                                                {% if not shop.has_precise_service_location %}disabled{% endif %}>
-                                            <i class="bi bi-clipboard me-1"></i> Copier
-                                        </button>
-                                        <button type="button"
-                                                class="btn btn-outline-success"
-                                                id="shareRawMapWhatsappBtn"
-                                                {% if not shop.has_precise_service_location %}disabled{% endif %}>
-                                            <i class="bi bi-whatsapp me-1"></i> Partager WhatsApp
-                                        </button>
-                                    </div>
-                                    <div class="small text-muted mt-1" id="rawMapHint">
-                                        {% if shop.has_precise_service_location %}
-                                            Lien prêt à copier et partager.
-                                        {% else %}
-                                            Ajoutez votre position.
-                                        {% endif %}
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label fw-semibold mb-1">Adresse de retrait (optionnel)</label>
-                                <input type="text"
-                                       name="service_address"
-                                       class="form-control form-control-lg rounded-3"
-                                       value="{{ shop.address or '' }}"
-                                       placeholder="Ex: Rabat, Hay Riad, Avenue ...">
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label fw-semibold mb-1">Repère de retrait (optionnel)</label>
-                                <input type="text"
-                                       name="service_location_note"
-                                       class="form-control rounded-3"
-                                       maxlength="255"
-                                       value="{{ shop.service_location_note or '' }}"
-                                       placeholder="Ex: En face de la pharmacie X, 2e étage.">
-                            </div>
-                            <div class="col-12">
-                                <button type="submit" class="btn btn-primary btn-lg w-100 btn-hover-effect">
-                                    <i class="bi bi-save me-2"></i> Enregistrer l'adresse
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-        
-        <!-- Actions -->
-        <div class="col-lg-4 manage-side-col">
-            <div class="sticky-stack">
-            <!-- Actions Card -->
-            <div class="card border-0 shadow-sm animated-card glass-effect premium-action-card" style="--i: 5" id="manageShopActionsCard">
-                <div class="card-header bg-transparent border-0">
-                    <div class="d-flex align-items-center premium-section-title">
-                        <div class="bg-warning p-3 rounded-circle me-3">
-                            <i class="bi bi-lightning fs-4 text-white"></i>
-                        </div>
-                        <h4 class="mb-0 gradient-text fw-bold">Actions rapides</h4>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <div class="quick-actions-grid">
-                        <a href="{{ url_for('vendor.edit_shop') }}" 
-                           class="btn btn-primary btn-lg btn-hover-effect quick-action-chevron">
-                            <i class="bi bi-pencil me-2"></i> Modifier la boutique
-                        </a>
-                        
-                        <a href="{{ url_for('shops.shop_detail', shop_slug=shop.slug) }}" 
-                           target="_blank" 
-                           class="btn btn-outline-primary btn-lg btn-hover-effect quick-action-chevron">
-                            <i class="bi bi-eye me-2"></i> Voir ma boutique
-                        </a>
-                        
-                        <form method="post" action="{{ url_for('vendor.toggle_shop_status') }}"
-                              data-ajax="true"
-                              data-action="toggle-vendor-shop"
-                              data-refresh-target="#manageShopActionsCard"
-                              data-confirm="Voulez-vous activer/désactiver votre boutique ">
-                            {% include "partials/_csrf.html" %}
-                            <button type="submit" 
-                                    class="btn {{ 'btn-outline-danger' if shop.is_active else 'btn-outline-success' }} btn-lg btn-hover-effect quick-action-chevron">
-                                <i class="bi bi-power me-2"></i>
-                                {{ 'Désactiver' if shop.is_active else 'Activer' }} la boutique
-                            </button>
-                        </form>
-                        
-                        {% if allows_products %}
-                        <a href="{{ url_for('vendor.earnings') }}"
-                           class="btn btn-outline-success btn-lg btn-hover-effect quick-action-chevron">
-                            <i class="bi bi-wallet2 me-2"></i> Livre des encaissements
-                        </a>
-                        {% endif %}
-                        {% if allows_location %}
-                        <a href="{{ url_for('rentals.owner_locations') }}"
-                           class="btn btn-outline-success btn-lg btn-hover-effect quick-action-chevron">
-                            <i class="bi bi-house-door me-2"></i> Mes locations
-                        </a>
-                        <a href="{{ url_for('rentals.owner_location_new') }}"
-                           class="btn btn-outline-primary btn-lg btn-hover-effect quick-action-chevron">
-                            <i class="bi bi-building-add me-2"></i> Nouvelle location
-                        </a>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-
-            </div>
-        </div>
-    </div>
-    
-
-    {% endif %}
+  </div>
+  {{ bottom_nav('shop', allows_catalog, allows_location, shop) }}
 </div>
 {% endblock %}
-
 {% block scripts %}
 {{ super() }}
-<script type="application/json" id="vendorManageShopPageConfig">{{ {
-  "unsupportedGeolocationText": "Géolocalisation non supportée sur cet appareil.",
-  "locatingText": "Localisation en cours...",
-  "updatePositionLabel": "Mettre à jour ma position",
-  "sharePositionLabel": "Utiliser ma position",
-  "allowLocationMessage": "Autorisez la localisation pour enregistrer votre position.",
-  "locateFailedMessage": "Impossible de récupérer votre position. Réessayez.",
-  "positionReadyPrefix": "Position prête :",
-  "positionRemovedText": "Position retirée. Enregistrez pour confirmer.",
-  "copiedLinkText": "Lien copié",
-  "copyFailedText": "Copie impossible sur ce navigateur.",
-  "shareBaseUrl": "https://wa.me/text="
-} | tojson }}</script>
-<script src="{{ url_for('static', filename='js/pages/vendor/manage_shop_page.js', v=app_static_version) }}" defer></script>
+{{ menu(allows_products, allows_location) }}
+<dialog id="shopEditDialog" class="vd-choice-dialog sm-dialog" aria-labelledby="shopEditTitle">
+  <div class="sm-dialog-panel">
+    <header class="sm-dialog-header"><div><span class="sm-eyebrow">Ma boutique</span><h2 id="shopEditTitle">Modifier les informations</h2></div><button type="button" class="vd-icon-button" data-vd-close data-shop-close aria-label="Fermer"><i class="bi bi-x-lg" aria-hidden="true"></i></button></header>
+    <div id="shopEditBody" class="sm-dialog-body" aria-busy="false"></div>
+    <div id="shopDiscardConfirm" class="sm-discard" role="alert" hidden>
+      <p>Quitter sans enregistrer les modifications ?</p>
+      <div class="sm-button-row"><button type="button" class="sm-button" data-shop-keep-editing>Continuer la modification</button><button type="button" class="sm-button sm-danger" data-shop-discard>Quitter</button></div>
+    </div>
+  </div>
+</dialog>
+<script src="{{ url_for('static', filename='js/pages/vendor/dashboard_layout.js', v=app_static_version ~ '-workspace-v7') }}" defer></script>
+<script src="{{ url_for('static', filename='js/pages/vendor/manage_shop_page.js', v=app_static_version ~ '-shop-v2') }}" defer></script>
 {% endblock %}
-
-

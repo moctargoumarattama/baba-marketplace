@@ -1,7 +1,7 @@
 {% set rtl_enabled = current_lang in (rtl_langs or []) %}
 {% set base_endpoint = request.endpoint or '' %}
 {% set public_refresh_enabled = base_endpoint in [
-  'auth.login', 'auth.forgot_password', 'auth.public_help',
+  'auth.login', 'auth.forgot_password',
   'shops.list_shops', 'shops.shop_detail', 'rentals.locations_home',
   'rentals.location_detail', 'rentals.location_inquiry'
 ] %}
@@ -1101,14 +1101,6 @@
   <!-- NAVBAR -->
   <nav class="navbar navbar-expand-lg navbar-dark fixed-top">
     <div class="container-fluid">
-      <button class="navbar-toggler" type="button"
-              data-bs-toggle="collapse" data-bs-target="#mainNavbar"
-              aria-controls="mainNavbar" aria-expanded="false" aria-label="{{ t('Ouvrir le menu') }}">
-        <span class="menu-toggle-icon" aria-hidden="true"></span>
-        <span class="menu-toggle-label">{{ t('Menu') }}</span>
-        <span class="menu-help-bubble" id="menuHelpBubble" role="status" aria-live="polite"> {{ t('Cliquez ici pour voir le menu') }}</span>
-      </button>
-
       <!-- Brand -->
       <a class="navbar-brand" href="{{ url_for('landing') }}">
         {% set site_logo = config.get('SITE_LOGO') %}
@@ -1492,10 +1484,6 @@
       </div>
     </div>
   </nav>
-  <div class="drawer-overlay d-lg-none"
-       id="drawerOverlay"
-       aria-hidden="true"></div>
-
   <div id="offlineBanner" class="offline-banner" role="status" aria-live="polite">{{ t('Hors connexion - mode lecture') }}</div>
   <form id="langSwitchForm" method="post" class="d-none" aria-hidden="true">
     {% include "partials/_csrf.html" %}
@@ -1513,23 +1501,28 @@
   <main>
     <div class="container-fluid">
       <div id="pageContent">
-        <!-- Flash Messages -->
+        <!-- Flash Messages (Dynamic Glass Toast) -->
         {% with msgs = get_flashed_messages(with_categories=true) %}
           {% if msgs %}
+          <div class="bm-flash-toast-container" id="bmFlashToastContainer" aria-live="polite">
             {% for cat, msg in msgs %}
-            <div class="alert alert-{{ cat }} alert-dismissible fade show fade-in-up" role="alert">
-              <div class="d-flex align-items-center">
+            <div class="bm-flash-toast bm-flash-{{ cat }}" data-bm-toast role="status">
+              <div class="bm-toast-icon-wrap" aria-hidden="true">
                 <i class="bi
-                  {% if cat == 'success' %}bi-check-circle-fill text-success
-                  {% elif cat == 'danger' %}bi-exclamation-circle-fill text-danger
-                  {% elif cat == 'warning' %}bi-exclamation-triangle-fill text-warning
-                  {% else %}bi-info-circle-fill text-info{% endif %} me-3">
+                  {% if cat == 'success' %}bi-check2-circle
+                  {% elif cat == 'danger' %}bi-exclamation-octagon-fill
+                  {% elif cat == 'warning' %}bi-exclamation-triangle-fill
+                  {% else %}bi-info-circle-fill{% endif %}">
                 </i>
-                <div>{{ msg }}</div>
               </div>
-              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="{{ t('Fermer') }}"></button>
+              <div class="bm-toast-msg">{{ msg }}</div>
+              <button type="button" class="bm-toast-close" data-bm-toast-close aria-label="{{ t('Fermer') }}" title="{{ t('Fermer') }}">
+                <i class="bi bi-x-lg" aria-hidden="true"></i>
+              </button>
+              <div class="bm-toast-progress" aria-hidden="true"></div>
             </div>
             {% endfor %}
+          </div>
           {% endif %}
         {% endwith %}
 
@@ -1628,9 +1621,7 @@
     'cart.checkout'
   ] %}
   {% set has_special_role = current_user.is_authenticated and current_user.role in ['vendor', 'admin', 'manager'] %}
-  {% set client_support_visible = (
-    current_user.is_authenticated and not has_special_role
-  ) or (((request.endpoint or '') in public_support_endpoints) and not has_special_role) %}
+  {% set client_support_visible = not has_special_role %}
   {% if client_support_visible %}
   {% set report_issue_endpoint = 'auth.support_whatsapp' %}
   {% set report_issue_page_name = 'Espace client' %}

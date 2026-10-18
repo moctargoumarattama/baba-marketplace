@@ -1,4 +1,4 @@
-﻿(function () {
+(function () {
   "use strict";
 
   const csrfMeta = document.querySelector('meta[name="csrf-token"]');
@@ -421,7 +421,119 @@
     );
   }
 
+  function initFlashToasts(scopeRoot) {
+    const root = scopeRoot || document;
+    const toasts = root.querySelectorAll ? root.querySelectorAll("[data-bm-toast]") : [];
+    if (!toasts.length) return;
+
+    Array.prototype.forEach.call(toasts, function (toast) {
+      if (toast.__bmToastInit) return;
+      toast.__bmToastInit = true;
+
+      const closeBtn = toast.querySelector("[data-bm-toast-close]");
+      let dismissed = false;
+      let remainingMs = 3500;
+      let startTime = Date.now();
+      let timerId = null;
+
+      function dismissToast() {
+        if (dismissed) return;
+        dismissed = true;
+        if (timerId) {
+          clearTimeout(timerId);
+          timerId = null;
+        }
+        toast.classList.add("is-leaving");
+        const onEnd = function () {
+          const parent = toast.parentElement;
+          if (toast.parentNode) toast.parentNode.removeChild(toast);
+          if (parent && !parent.querySelectorAll("[data-bm-toast]").length) {
+            if (parent.parentNode) parent.parentNode.removeChild(parent);
+          }
+        };
+        toast.addEventListener("animationend", onEnd, { once: true });
+        setTimeout(onEnd, 350);
+      }
+
+      function startTimer() {
+        if (dismissed) return;
+        startTime = Date.now();
+        timerId = setTimeout(dismissToast, remainingMs);
+      }
+
+      function pauseTimer() {
+        if (dismissed || !timerId) return;
+        clearTimeout(timerId);
+        timerId = null;
+        const elapsed = Date.now() - startTime;
+        remainingMs = Math.max(0, remainingMs - elapsed);
+      }
+
+      startTimer();
+
+      toast.addEventListener("mouseenter", pauseTimer);
+      toast.addEventListener("mouseleave", function () {
+        if (!dismissed && remainingMs > 0) {
+          startTimer();
+        }
+      });
+
+      toast.addEventListener("touchstart", pauseTimer, { passive: true });
+      toast.addEventListener("touchend", function () {
+        if (!dismissed && remainingMs > 0) {
+          startTimer();
+        }
+      }, { passive: true });
+
+      if (closeBtn) {
+        closeBtn.addEventListener("click", function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          dismissToast();
+        });
+      }
+    });
+  }
+  window.initFlashToasts = initFlashToasts;
+
+  window.showFlashToast = function (msg, category) {
+    let container = document.getElementById("bmFlashToastContainer");
+    if (!container) {
+      container = document.createElement("div");
+      container.className = "bm-flash-toast-container";
+      container.id = "bmFlashToastContainer";
+      container.setAttribute("aria-live", "polite");
+      document.body.appendChild(container);
+    }
+    const cat = category || "info";
+    const iconClass =
+      cat === "success" ? "bi-check2-circle" :
+      cat === "danger" || cat === "error" ? "bi-exclamation-octagon-fill" :
+      cat === "warning" ? "bi-exclamation-triangle-fill" :
+      "bi-info-circle-fill";
+
+    const toast = document.createElement("div");
+    toast.className = "bm-flash-toast bm-flash-" + cat;
+    toast.setAttribute("data-bm-toast", "1");
+    toast.setAttribute("role", "status");
+    toast.innerHTML =
+      '<div class="bm-toast-icon-wrap" aria-hidden="true"><i class="bi ' + iconClass + '"></i></div>' +
+      '<div class="bm-toast-msg">' + (msg || "") + '</div>' +
+      '<button type="button" class="bm-toast-close" data-bm-toast-close aria-label="Fermer">' +
+      '<i class="bi bi-x-lg" aria-hidden="true"></i>' +
+      '</button>' +
+      '<div class="bm-toast-progress" aria-hidden="true"></div>';
+
+    container.appendChild(toast);
+    initFlashToasts(container);
+  };
+
+  if (document.readyState === "complete" || document.readyState === "interactive") {
+    initFlashToasts();
+  }
+
   document.addEventListener("DOMContentLoaded", function () {
+    initFlashToasts();
     let pwaScopeSyncQueued = false;
     function schedulePwaScopeSync(delayMs) {
       if (pwaScopeSyncQueued) return;

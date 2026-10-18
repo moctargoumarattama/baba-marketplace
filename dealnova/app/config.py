@@ -278,7 +278,14 @@ class Config:
         # 4 images * 12MB + 1 video * 30MB + marge formulaire
         MAX_CONTENT_LENGTH = 80 * 1024 * 1024
 
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
+    GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-lite-latest").strip()
+
 
 # Compatibilite anciens imports: la source reste Config.
+
+
+
+
 ADMIN_PHONE = Config.ADMIN_PHONE
 DELIVERY_PHONE = Config.DELIVERY_WHATSAPP_NUMBER

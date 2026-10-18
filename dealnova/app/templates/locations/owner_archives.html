@@ -1,273 +1,46 @@
-﻿{% extends "base.html" %}
-
-{% block title %}Historique location | {{ config.SITE_NAME }}{% endblock %}
-{% block body_attrs %}data-back-target="{{ url_for('rentals.owner_locations') }}"{% endblock %}
-
+{% extends "vendor/base.html" %}
+{% from 'vendor/partials/_workspace_navigation.html' import sidebar, mobile_header, bottom_nav, menu with context %}
+{% block title %}Historique des locations | {{ config.SITE_NAME|trim }}{% endblock %}
+{% block body_attrs %}class="bm-vendor-dashboard bm-vendor-records bm-owner-archives"{% endblock %}
 {% block head %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/locations/owner_pages.css', v=app_static_version) }}">
-<script src="{{ url_for('static', filename='js/pages/owner_locations_page.js', v=app_static_version ~ '-location-v3') }}" defer></script>
+{{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/vendor_dashboard.css', v=app_static_version ~ '-dashboard-v6') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/vendor_records.css', v=app_static_version ~ '-records-v1') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/locations/owner_archives.css', v=app_static_version ~ '-archives-v1') }}">
 {% endblock %}
-
 {% block content %}
-<div class="owner-archives-shell">
-  {% set history_labels = {
-    'taken': 'Prise',
-    'expired': 'Expiree',
-    'deleted_by_owner': 'Supprimee par vous',
-    'deleted_by_admin': "Supprimee par l'admin"
-  } %}
-  <section class="archives-hero">
-    <div>
-      <h1>Historique location</h1>
-      <p>Vue rapide des annonces cloturees sur les {{ history_days }} derniers jours.</p>
-    </div>
-    <div class="d-flex gap-2 flex-wrap">
-      <a class="btn btn-light" href="{{ url_for('rentals.owner_locations') }}">
-        <i class="bi bi-arrow-left me-1"></i> Retour aux locations
-      </a>
-    </div>
-  </section>
-
-  <section class="archives-summary">
-    <article class="sum-card">
-      <div class="label">Traces</div>
-      <div class="value">{{ pagination.total }}</div>
-    </article>
-    <article class="sum-card">
-      <div class="label">Fenetre</div>
-      <div class="value">{{ history_days }} jours</div>
-    </article>
-  </section>
-
-  <section class="archives-card">
-    <div class="archives-head">
-      <form method="get" class="archives-filter">
-        <input class="form-control form-control-sm" type="text" name="q" value="{{ q }}" placeholder="Titre, ville, zone...">
+<div class="vd-shell archive-workspace">
+  {{ sidebar('archives', allows_catalog, allows_products, allows_location, shop) }}
+  {{ mobile_header('archives') }}
+  <div class="vd-main vr-main">
+    <header class="vd-topbar archive-topbar"><div><h1>Historique des locations</h1><p>Annonces clôturées sur les {{ history_days }} derniers jours.</p></div></header>
+    <section id="archiveSummary" class="vr-summary archive-summary" aria-label="Résumé des archives">
+      <div class="vr-summary-item"><span class="vr-summary-label">Annonces archivées{% if q or status or selected_shop_id %} · filtrées{% endif %}</span><strong class="vr-summary-value">{{ pagination.total }}</strong></div>
+      <div class="vr-summary-item"><span class="vr-summary-label">Période</span><strong class="vr-summary-value">{{ history_days }} jours</strong></div>
+    </section>
+    <section class="vr-card archive-list-card" aria-label="Archives des locations">
+      <form id="archiveFilterForm" class="vr-filters archive-filters" method="get" action="{{ url_for('rentals.owner_locations_archives') }}" role="search">
+        <label class="vr-field vr-search archive-search" for="archiveSearchInput"><i class="bi bi-search" aria-hidden="true"></i><span class="visually-hidden">Rechercher dans les archives</span><input id="archiveSearchInput" type="search" name="q" maxlength="240" value="{{ q }}" placeholder="Titre, ville ou quartier" autocomplete="off"></label>
         {% if shops|length > 1 %}
-        <select class="form-select form-select-sm" name="shop">
-          <option value="">Toutes boutiques</option>
-          {% for shop in shops %}
-            <option value="{{ shop.id }}" {{ 'selected' if selected_shop_id == shop.id else '' }}>{{ shop.name }}</option>
-          {% endfor %}
-        </select>
-        {% else %}
-        <input type="hidden" name="shop" value="{{ selected_shop_id or (shops[0].id if shops else '') }}">
-        {% endif %}
-        <select class="form-select form-select-sm" name="status">
-          <option value="">Tous motifs</option>
-          {% for st in ['taken', 'expired', 'deleted_by_owner', 'deleted_by_admin'] %}
-            <option value="{{ st }}" {{ 'selected' if status == st else '' }}>{{ history_labels.get(st, st) }}</option>
-          {% endfor %}
-        </select>
-        <button type="submit" class="btn btn-success btn-sm">
-          <i class="bi bi-funnel me-1"></i> Filtrer
-        </button>
-        <a href="{{ url_for('rentals.owner_locations_archives') }}" class="btn btn-outline-secondary btn-sm">Reset</a>
+        <label class="vr-field" for="archiveShopSelect"><span class="visually-hidden">Boutique</span><select id="archiveShopSelect" name="shop"><option value="">Toutes les boutiques</option>{% for owned_shop in shops %}<option value="{{ owned_shop.id }}"{% if selected_shop_id == owned_shop.id %} selected{% endif %}>{{ owned_shop.name }}</option>{% endfor %}</select></label>
+        {% elif selected_shop_id %}<input type="hidden" name="shop" value="{{ selected_shop_id }}">{% endif %}
+        <label class="vr-field" for="archiveReasonSelect"><span class="visually-hidden">Motif de clôture</span><select id="archiveReasonSelect" name="status"><option value="">Tous les motifs</option><option value="taken"{% if status == 'taken' %} selected{% endif %}>Louée</option><option value="expired"{% if status == 'expired' %} selected{% endif %}>Expirée</option><option value="deleted_by_owner"{% if status == 'deleted_by_owner' %} selected{% endif %}>Retirée par vous</option><option value="deleted_by_admin"{% if status == 'deleted_by_admin' %} selected{% endif %}>Retirée par l’administration</option></select></label>
+        <button type="submit" class="vr-button archive-submit"><i class="bi bi-funnel" aria-hidden="true"></i>Filtrer</button>
+        <a class="vr-button archive-reset" href="{{ url_for('rentals.owner_locations_archives') }}" data-archive-reset aria-label="Effacer les filtres" title="Effacer les filtres"><i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i><span>Réinitialiser</span></a>
       </form>
-    </div>
-
-    <div class="archives-body">
-      {% if archives %}
-        <div class="trace-table-wrap table-responsive">
-          <table class="table table-sm align-middle trace-table mb-0">
-            <thead>
-              <tr>
-                <th>Titre</th>
-                <th>Boutique</th>
-                <th>Motif</th>
-                <th>Loyer</th>
-                <th>Commission Baba</th>
-                <th>Vues</th>
-                <th>Cloturee le</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for archive in archives %}
-                {% set archived_commission = archive.platform_commission_amount_cents if archive.platform_commission_amount_cents else (commission_amount_from_owner_fee(archive.owner_fee_cents, archive.platform_commission_rate_bps) + (archive.platform_commission_fixed_cents or 0)) %}
-                <tr>
-                  <td>
-                    <div class="trace-title">{{ archive.title }}</div>
-                    <div class="small text-muted">{{ archive.city }}{% if archive.area %}, {{ archive.area }}{% endif %}</div>
-                  </td>
-                  <td>{{ archive.shop.name if archive.shop else '-' }}</td>
-                  <td><span class="status-pill {{ archive.closed_reason }}">{{ history_labels.get(archive.closed_reason, archive.closed_reason) }}</span></td>
-                  <td>{{ cents_to_dh(archive.rent_cents) }}</td>
-                  <td>
-                    {% if archive.closed_reason == 'taken' %}
-                      {{ bps_to_percent(archive.platform_commission_rate_bps) }}% · {{ cents_to_dh(archived_commission) }}
-                    {% else %}
-                      -
-                    {% endif %}
-                  </td>
-                  <td>{{ archive.archived_view_count }}</td>
-                  <td>{{ archive.closed_at.strftime('%d/%m/%Y %H:%M') if archive.closed_at else '-' }}</td>
-                  <td>
-                    <button class="btn btn-outline-primary btn-sm trace-action-btn"
-                            type="button"
-                            data-bs-toggle="collapse"
-                            data-bs-target="#archiveDetail{{ archive.id }}"
-                            aria-expanded="false"
-                            aria-controls="archiveDetail{{ archive.id }}">
-                      <i class="bi bi-info-circle me-1"></i> Info complet
-                    </button>
-                  </td>
-                </tr>
-                <tr class="collapse trace-details-row" id="archiveDetail{{ archive.id }}">
-                  <td colspan="8">
-                    <div class="trace-details">
-                      <div class="trace-detail-chip">
-                        <div class="k">Quartier</div>
-                        <div class="v">{{ archive.area or 'N/A' }}</div>
-                      </div>
-                      <div class="trace-detail-chip">
-                        <div class="k">Ville</div>
-                        <div class="v">{{ archive.city or 'N/A' }}</div>
-                      </div>
-                      <div class="trace-detail-chip">
-                        <div class="k">Type</div>
-                        <div class="v">{{ archive.property_type or 'N/A' }} · {{ archive.listing_type or 'N/A' }}</div>
-                      </div>
-                      <div class="trace-detail-chip">
-                        <div class="k">Loyer</div>
-                        <div class="v">{{ cents_to_dh(archive.rent_cents) }}</div>
-                      </div>
-                      <div class="trace-detail-chip">
-                        <div class="k">Caution</div>
-                        <div class="v">{{ cents_to_dh(archive.deposit_cents) if archive.deposit_cents is not none else 'N/A' }}</div>
-                      </div>
-                      <div class="trace-detail-chip">
-                        <div class="k">Commission Baba totale</div>
-                        <div class="v">{{ cents_to_dh(archived_commission) }}</div>
-                      </div>
-                      <div class="trace-detail-chip">
-                        <div class="k">Taux commission</div>
-                        <div class="v">{{ bps_to_percent(archive.platform_commission_rate_bps) }}%</div>
-                      </div>
-                      <div class="trace-detail-chip">
-                        <div class="k">Frais proprietaire</div>
-                        <div class="v">{{ cents_to_dh(archive.owner_fee_cents) if archive.owner_fee_cents is not none else 'N/A' }}</div>
-                      </div>
-                      <div class="trace-detail-chip">
-                        <div class="k">Motif cloture</div>
-                        <div class="v">{{ history_labels.get(archive.closed_reason, archive.closed_reason) }}</div>
-                      </div>
-                      <div class="trace-detail-chip">
-                        <div class="k">Cloturee le</div>
-                        <div class="v">{{ archive.closed_at.strftime('%d/%m/%Y %H:%M') if archive.closed_at else '-' }}</div>
-                      </div>
-                      <div class="trace-detail-chip">
-                        <div class="k">Creee le</div>
-                        <div class="v">{{ archive.created_at_original.strftime('%d/%m/%Y %H:%M') if archive.created_at_original else '-' }}</div>
-                      </div>
-                      <div class="trace-detail-chip">
-                        <div class="k">Expiration initiale</div>
-                        <div class="v">{{ archive.expires_at_original.strftime('%d/%m/%Y %H:%M') if archive.expires_at_original else '-' }}</div>
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-
-        <div class="archive-cards-mobile">
-          {% for archive in archives %}
-            {% set archived_commission = archive.platform_commission_amount_cents if archive.platform_commission_amount_cents else (commission_amount_from_owner_fee(archive.owner_fee_cents, archive.platform_commission_rate_bps) + (archive.platform_commission_fixed_cents or 0)) %}
-            <article class="archive-item-mobile">
-              <h3 class="title">{{ archive.title|truncate(54) }}</h3>
-              <div class="line"><span>Motif</span><span class="status-pill {{ archive.closed_reason }}">{{ history_labels.get(archive.closed_reason, archive.closed_reason) }}</span></div>
-              <div class="line"><span>Boutique</span><span>{{ archive.shop.name if archive.shop else '-' }}</span></div>
-              <div class="line"><span>Loyer</span><span>{{ cents_to_dh(archive.rent_cents) }}</span></div>
-              <div class="line">
-                <span>Commission</span>
-                <span>
-                  {% if archive.closed_reason == 'taken' %}
-                    {{ bps_to_percent(archive.platform_commission_rate_bps) }}% · {{ cents_to_dh(archived_commission) }}
-                  {% else %}
-                    -
-                  {% endif %}
-                </span>
-              </div>
-              <div class="line"><span>Consultations</span><span>{{ archive.archived_view_count }}</span></div>
-              <div class="line"><span>Cloturee</span><span>{{ archive.closed_at.strftime('%d/%m/%Y %H:%M') if archive.closed_at else '-' }}</span></div>
-              <div class="archive-mobile-actions">
-                <button class="btn btn-outline-primary btn-sm"
-                        type="button"
-                        data-bs-toggle="collapse"
-                        data-bs-target="#archiveDetailMobile{{ archive.id }}"
-                        aria-expanded="false"
-                        aria-controls="archiveDetailMobile{{ archive.id }}">
-                  <i class="bi bi-info-circle me-1"></i> Info complet
-                </button>
-              </div>
-              <div class="collapse archive-mobile-details" id="archiveDetailMobile{{ archive.id }}">
-                <div class="line"><span>Quartier</span><span>{{ archive.area or 'N/A' }}</span></div>
-                <div class="line"><span>Type</span><span>{{ archive.property_type or 'N/A' }} · {{ archive.listing_type or 'N/A' }}</span></div>
-                <div class="line"><span>Caution</span><span>{{ cents_to_dh(archive.deposit_cents) if archive.deposit_cents is not none else 'N/A' }}</span></div>
-                <div class="line"><span>Commission totale Baba</span><span>{{ cents_to_dh(archived_commission) }}</span></div>
-                <div class="line"><span>Taux commission</span><span>{{ bps_to_percent(archive.platform_commission_rate_bps) }}%</span></div>
-                <div class="line"><span>Frais proprietaire</span><span>{{ cents_to_dh(archive.owner_fee_cents) if archive.owner_fee_cents is not none else 'N/A' }}</span></div>
-                <div class="line"><span>Creee le</span><span>{{ archive.created_at_original.strftime('%d/%m/%Y %H:%M') if archive.created_at_original else '-' }}</span></div>
-                <div class="line"><span>Expiree initiale</span><span>{{ archive.expires_at_original.strftime('%d/%m/%Y %H:%M') if archive.expires_at_original else '-' }}</span></div>
-              </div>
-            </article>
-          {% endfor %}
-        </div>
-
-        {% if pagination.pages > 1 %}
-          <div class="pagination-wrap">
-            <nav aria-label="Pagination archives locations">
-              <ul class="pagination pagination-sm mb-0">
-                {% if pagination.has_prev %}
-                  <li class="page-item">
-                    <a class="page-link"
-                       href="{{ url_for('rentals.owner_locations_archives', page=pagination.prev_num, q=q, status=status, shop=selected_shop_id) }}">
-                      Prec.
-                    </a>
-                  </li>
-                {% else %}
-                  <li class="page-item disabled"><span class="page-link">Prec.</span></li>
-                {% endif %}
-
-                {% for p in pagination.iter_pages(left_edge=1, left_current=2, right_current=2, right_edge=1) %}
-                  {% if p %}
-                    <li class="page-item {{ 'active' if p == pagination.page else '' }}">
-                      <a class="page-link"
-                         href="{{ url_for('rentals.owner_locations_archives', page=p, q=q, status=status, shop=selected_shop_id) }}">{{ p }}</a>
-                    </li>
-                  {% else %}
-                    <li class="page-item disabled"><span class="page-link">...</span></li>
-                  {% endif %}
-                {% endfor %}
-
-                {% if pagination.has_next %}
-                  <li class="page-item">
-                    <a class="page-link"
-                       href="{{ url_for('rentals.owner_locations_archives', page=pagination.next_num, q=q, status=status, shop=selected_shop_id) }}">
-                      Suiv.
-                    </a>
-                  </li>
-                {% else %}
-                  <li class="page-item disabled"><span class="page-link">Suiv.</span></li>
-                {% endif %}
-              </ul>
-            </nav>
-          </div>
-        {% endif %}
-      {% else %}
-        <div class="text-center text-muted fw-semibold py-4">
-          Aucun historique location sur les {{ history_days }} derniers jours pour ces filtres.
-        </div>
-      {% endif %}
-    </div>
-  </section>
+      <div id="archiveFeedback" class="archive-feedback" role="status" aria-live="polite" hidden></div>
+      <div id="archiveResultsRegion" aria-live="polite" aria-busy="false">{% include 'locations/partials/_owner_archives_results.html' %}</div>
+    </section>
+  </div>
+  {{ bottom_nav('archives', allows_catalog, allows_location, shop) }}
 </div>
-{% set report_issue_endpoint = 'rentals.owner_support_whatsapp' %}
-{% set report_issue_page_name = 'Historique location' %}
-{% set report_issue_scope_label = 'Support location' %}
-{% set report_issue_scope_key = 'location' %}
-{% include "partials/_support_issue_fab.html" %}
 {% endblock %}
-
+{% block scripts %}
+{{ super() }}
+{{ menu(allows_products, allows_location) }}
+<dialog id="archiveDetailDialog" class="vd-choice-dialog archive-detail-dialog" aria-labelledby="archiveDetailTitle">
+  <div class="vd-choice-panel archive-dialog-panel"><header class="vd-choice-header"><div><span class="archive-eyebrow">Annonce archivée</span><h2 id="archiveDetailTitle">Détails de la location</h2></div><button type="button" class="vd-icon-button" data-vd-close aria-label="Fermer"><i class="bi bi-x-lg" aria-hidden="true"></i></button></header><div id="archiveDetailBody" class="archive-dialog-body"></div></div>
+</dialog>
+<script src="{{ url_for('static', filename='js/pages/vendor/dashboard_layout.js', v=app_static_version ~ '-workspace-v7') }}" defer></script>
+<script src="{{ url_for('static', filename='js/pages/owner_archives_page.js', v=app_static_version ~ '-archives-v1') }}" defer></script>
+{% endblock %}

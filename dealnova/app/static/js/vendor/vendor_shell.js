@@ -65,6 +65,30 @@
       function (event) {
         const anchor = event.target && event.target.closest ? event.target.closest("a[href]") : null;
         if (!anchor) return;
+        if (
+          !event.defaultPrevented &&
+          !anchor.target &&
+          !anchor.hasAttribute("download") &&
+          !anchor.hasAttribute("data-stop-nav") &&
+          !anchor.hasAttribute("data-lang-switch")
+        ) {
+          let clickedUrl;
+          try {
+            clickedUrl = new URL(anchor.getAttribute("href"), window.location.href);
+          } catch (_error) {
+            clickedUrl = null;
+          }
+          if (
+            clickedUrl &&
+            clickedUrl.origin === window.location.origin &&
+            clickedUrl.pathname === window.location.pathname &&
+            clickedUrl.search === window.location.search &&
+            clickedUrl.hash === window.location.hash
+          ) {
+            event.preventDefault();
+            return;
+          }
+        }
         if (anchor.dataset.preserveScroll === "off") return;
         if (anchor.target && anchor.target !== "_self") return;
         const href = String(anchor.getAttribute("href") || "").trim();

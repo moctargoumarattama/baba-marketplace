@@ -15,6 +15,7 @@ body[data-public-refresh="1"] :is(a,button,input,select,summary):focus-visible {
 .public-header .hub-desktop-nav .bi { font-size: 19px; }
 .public-header .hub-header-cart { text-decoration: none; }
 .public-footer { width: min(1180px, calc(100% - 40px)); margin-inline: auto; padding-bottom: 24px; }
+.public-footer button { border:0; padding:0; background:none; color:inherit; font:inherit; text-decoration:underline; cursor:pointer; }
 body[data-public-refresh="1"] .support-issue-fab { bottom: 24px; }
 @media (max-width: 1100px) and (min-width: 769px) {
   .public-location { display: none; }

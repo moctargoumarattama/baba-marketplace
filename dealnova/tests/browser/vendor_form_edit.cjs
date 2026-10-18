@@ -93,10 +93,16 @@ async function journey(browser, engineName, width, kind) {
     });
     await page.goto(base + fixture.page, { waitUntil: 'domcontentloaded' });
     const initialDocuments = documents.length;
+    await page.locator('[data-vendor-' + kind + '-edit][href^="' + fixture.url + '"]:visible').first()
+      .evaluate(node => { node.dataset.vendorDefaultKind = 'service'; });
     await open(page, kind, fixture);
     await geometry(page);
     const title = page.locator('#vendorCreateForm [name="' + (kind === 'product' ? 'name' : 'title') + '"]');
     assert.equal(await title.inputValue(), fixture.title);
+    if (kind === 'product') {
+      assert.equal(await page.locator('#vendorCreateForm [name="kind"]:checked').inputValue(), 'physical',
+        'creation defaults never override the kind of an existing offer');
+    }
     assert.equal(await page.locator('[name="delete_images"]').count(), 1);
     assert.equal(await page.locator('[name="delete_images"]:checked').count(), 0);
     await page.keyboard.press('Escape');
@@ -165,6 +171,43 @@ async function journey(browser, engineName, width, kind) {
   } finally { await context.close(); }
 }
 
+async function explicitCreationKinds(browser, engineName) {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
+  try {
+    const auth = await context.request.get(base + '/__owner_modal_fixture__');
+    const ids = await auth.json();
+    const page = await context.newPage();
+    const exceptions = [];
+    page.on('pageerror', error => exceptions.push(error.message));
+    await page.route('**/*', route => new URL(route.request().url()).origin === new URL(base).origin
+      ? route.continue() : route.abort());
+    await page.goto(base + '/vendor/catalog', { waitUntil: 'domcontentloaded' });
+    const button = page.locator('[data-vendor-product-create]').first();
+    for (const kind of ['service', 'physical']) {
+      await button.evaluate((node, value) => { node.dataset.vendorDefaultKind = value; }, kind);
+      await button.click();
+      await loaded(page);
+      assert.equal(await page.locator('#vendorCreateForm [name="kind"]:checked').inputValue(), kind);
+      assert.equal(await page.locator('#vpmStock').isDisabled(), kind === 'service');
+      assert.equal(await page.locator('#vpmCategory option[value="' + ids[kind] + '"]').count(), 1);
+      await page.locator('[data-vpm-close]:visible').first().click();
+      await closed(page);
+      assert.equal(await page.locator('#vpmDiscardConfirm').isVisible(), false,
+        'the requested kind is the initial value, so opening the form does not dirty it');
+      if (kind === 'service') {
+        await page.goForward();
+        await loaded(page);
+        assert.equal(await page.locator('#vendorCreateForm [name="kind"]:checked').inputValue(), 'service',
+          'Forward restores the chosen creation kind');
+        await page.locator('[data-vpm-close]:visible').first().click();
+        await closed(page);
+      }
+    }
+    assert.deepEqual(exceptions, []);
+    console.log(engineName + ': explicit product/service creation passed');
+  } finally { await context.close(); }
+}
+
 async function withoutJavaScript(browser, engineName, kind) {
   const context = await browser.newContext({ javaScriptEnabled: false, serviceWorkers: 'block' });
   try {
@@ -191,6 +234,7 @@ async function withoutJavaScript(browser, engineName, kind) {
     const browser = await engine.launch({ headless: true });
     try {
       for (const width of [390, 1440]) for (const kind of ['product', 'location']) await journey(browser, name, width, kind);
+      await explicitCreationKinds(browser, name);
       for (const kind of ['product', 'location']) await withoutJavaScript(browser, name, kind);
     } finally { await browser.close(); }
   }

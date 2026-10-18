@@ -380,21 +380,3 @@ def save_product_video(file_storage) -> str:
                 except Exception:
                     pass
         raise ValueError("Video invalide ou non lisible.") from exc
-
-
-def delete_product_video(relative_path: str | None) -> bool:
-    normalized = (relative_path or "").replace("\\", "/").lstrip("/")
-    if not normalized:
-        return False
-
-    abs_path = os.path.abspath(os.path.join(current_app.static_folder, normalized))
-    static_root = os.path.abspath(current_app.static_folder)
-    if not abs_path.startswith(static_root):
-        return False
-    if not os.path.exists(abs_path) or not os.path.isfile(abs_path):
-        return False
-    try:
-        os.remove(abs_path)
-        return True
-    except Exception:
-        return False

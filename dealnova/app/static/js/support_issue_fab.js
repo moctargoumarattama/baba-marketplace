@@ -65,6 +65,10 @@
     }
 
     function openDialog() {
+      var workspaceMenu = document.getElementById("vendorDashboardMenu");
+      if (workspaceMenu && workspaceMenu.open && typeof workspaceMenu.close === "function") {
+        workspaceMenu.close();
+      }
       backdrop.hidden = false;
       dialog.hidden = false;
       document.body.classList.add("support-issue-open");
@@ -94,6 +98,17 @@
         return;
       }
       openDialog();
+    });
+
+    // Le menu vendeur peut déclencher le même support depuis un bouton
+    // situé en dehors du widget flottant.
+    document.querySelectorAll("[data-support-open]").forEach(function (trigger) {
+      if (trigger === fab || trigger.dataset.supportTriggerBound === "1") return;
+      trigger.dataset.supportTriggerBound = "1";
+      trigger.addEventListener("click", function (event) {
+        event.preventDefault();
+        openDialog();
+      });
     });
 
     fab.addEventListener("pointerdown", function (event) {
@@ -161,4 +176,15 @@
       applyPosition(fab.offsetLeft, fab.offsetTop, false);
     });
   });
+
+  // Support déclenché depuis un menu externe (par exemple « Plus » vendeur).
+  document.addEventListener("click", function (event) {
+    var trigger = event.target && event.target.closest ? event.target.closest("[data-support-open]") : null;
+    if (!trigger || trigger.closest("[data-support-fab]")) return;
+    var widget = document.querySelector("[data-support-fab]");
+    var fab = widget && widget.querySelector("[data-support-open]");
+    if (!fab) return;
+    event.preventDefault();
+    fab.click();
+  }, true);
 })();

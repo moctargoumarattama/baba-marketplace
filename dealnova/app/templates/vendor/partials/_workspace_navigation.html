@@ -1,0 +1,35 @@
+{% macro nav_link(endpoint, label, icon, active=false, current='page') -%}
+<a class="vd-nav-link{% if active %} is-active{% endif %}" href="{{ url_for(endpoint) }}"{% if active %} aria-current="{{ current }}"{% endif %}><i class="bi bi-{{ icon }}" aria-hidden="true"></i><span>{{ label }}</span></a>
+{%- endmacro %}
+
+{% macro sidebar(page, allows_catalog, allows_products, allows_location, shop) -%}
+<aside class="vd-sidebar" aria-label="Navigation vendeur">
+  <a class="vd-brand" href="{{ url_for('vendor.dashboard') }}"><img src="{{ url_for('static', filename='images/logo-public.webp') }}" width="48" height="48" alt=""><span><strong>BabaMarket</strong><small>Espace vendeur</small></span></a>
+  <nav class="vd-sidebar-links">
+    {{ nav_link('vendor.dashboard', 'Tableau de bord', 'house-door', page == 'dashboard') }}
+    {% if allows_catalog %}{{ nav_link('vendor.catalog', 'Catalogue', 'box-seam', page == 'catalog') }}{% endif %}
+    {% if allows_products %}{{ nav_link('vendor.earnings', 'Encaissements', 'credit-card', page == 'earnings') }}{% endif %}
+    {% if allows_location %}{{ nav_link('rentals.owner_locations', 'Locations', 'houses', page in ['locations', 'archives'], 'location' if page == 'archives' else 'page') }}{% endif %}
+    {% if shop %}{{ nav_link('vendor.manage_shop', 'Ma boutique', 'shop', page == 'shop') }}{% endif %}
+  </nav>
+  <div class="vd-sidebar-bottom"><button type="button" class="vd-nav-link" data-support-open><i class="bi bi-headset" aria-hidden="true"></i><span>Support</span></button><button type="button" class="vd-profile" data-vd-dialog="vendorDashboardMenu"><span class="vd-avatar" aria-hidden="true">{{ (current_user.username or 'V')[:2]|upper }}</span><span>{{ current_user.username }}</span><i class="bi bi-chevron-right" aria-hidden="true"></i></button></div>
+</aside>
+{%- endmacro %}
+
+{% macro mobile_header(page) -%}
+<header class="vd-mobile-header"><a class="vd-brand" href="{{ url_for('vendor.dashboard') }}"><img src="{{ url_for('static', filename='images/logo-public.webp') }}" width="42" height="42" alt=""><strong>BabaMarket</strong></a>{% if page == 'dashboard' %}<button type="button" class="vd-icon-button" data-vd-dialog="vendorDashboardNotifications" aria-label="Notifications"><i class="bi bi-bell" aria-hidden="true"></i></button>{% endif %}</header>
+{%- endmacro %}
+
+{% macro bottom_nav(page, allows_catalog, allows_location, shop) -%}
+<nav class="vd-bottom-nav" aria-label="Navigation vendeur mobile">
+  <a{% if page == 'dashboard' %} class="is-active" aria-current="page"{% endif %} href="{{ url_for('vendor.dashboard') }}"><i class="bi bi-house-door{{ '-fill' if page == 'dashboard' else '' }}" aria-hidden="true"></i><span>Accueil</span></a>
+  {% if allows_catalog %}<a{% if page == 'catalog' %} class="is-active" aria-current="page"{% endif %} href="{{ url_for('vendor.catalog') }}"><i class="bi bi-box-seam" aria-hidden="true"></i><span>Catalogue</span></a>{% elif allows_location %}<a{% if page in ['locations','archives'] %} class="is-active" aria-current="{{ 'location' if page == 'archives' else 'page' }}"{% endif %} href="{{ url_for('rentals.owner_locations') }}"><i class="bi bi-houses" aria-hidden="true"></i><span>Locations</span></a>{% endif %}
+  {% if shop %}<a{% if page == 'shop' %} class="is-active" aria-current="page"{% endif %} href="{{ url_for('vendor.manage_shop') }}"><i class="bi bi-shop" aria-hidden="true"></i><span>Boutique</span></a>{% endif %}
+  <button type="button"{% if page == 'earnings' or (page == 'archives' and allows_catalog) %} class="is-active"{% endif %} data-vd-dialog="vendorDashboardMenu"><i class="bi bi-three-dots" aria-hidden="true"></i><span>Plus</span></button>
+</nav>
+{%- endmacro %}
+
+{% macro menu(allows_products, allows_location) -%}
+<dialog id="vendorDashboardMenu" class="vd-choice-dialog" aria-labelledby="vdMenuTitle"><div class="vd-choice-panel"><header class="vd-choice-header"><h2 id="vdMenuTitle">Mon espace vendeur</h2><button type="button" class="vd-icon-button" data-vd-close aria-label="Fermer"><i class="bi bi-x-lg" aria-hidden="true"></i></button></header><nav class="vd-choice-options">{% if allows_location %}{{ nav_link('rentals.owner_locations', 'Mes locations', 'houses') }}{{ nav_link('rentals.owner_locations_archives', 'Historique des locations', 'clock-history', request.endpoint == 'rentals.owner_locations_archives') }}{% endif %}{% if allows_products %}{{ nav_link('vendor.earnings', 'Encaissements', 'credit-card', request.endpoint == 'vendor.earnings') }}{% endif %}<button type="button" class="vd-nav-link" data-support-open><i class="bi bi-headset" aria-hidden="true"></i><span>Support</span></button><section class="vd-language-section" aria-labelledby="vdLanguageTitle"><h3 id="vdLanguageTitle"><i class="bi bi-translate" aria-hidden="true"></i>Langue</h3><div class="vd-language-options">{% for language, label in [('fr', 'Français'), ('en', 'English'), ('ary', 'Darija')] %}<a href="{{ url_for('set_language_route', lang_code=language, next=request.full_path) }}" lang="{{ language }}" data-lang-switch="{{ language }}" data-stop-nav{% if current_lang == language %} aria-current="true"{% endif %}"><span>{{ label }}</span><small data-no-i18n>{{ language|upper if language != 'ary' else 'DA' }}</small></a>{% endfor %}</div></section><form method="post" action="{{ url_for('auth.logout') }}">{% include "partials/_csrf.html" %}<button type="submit" class="vd-nav-link"><i class="bi bi-box-arrow-right" aria-hidden="true"></i>Se déconnecter</button></form></nav></div></dialog>
+{%- endmacro %}
+

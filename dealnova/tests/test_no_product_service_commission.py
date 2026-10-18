@@ -34,7 +34,7 @@ def test_vendor_earnings_no_longer_depends_on_vendor_payouts():
 
 
 def test_vendor_earnings_template_tracks_direct_receipts_not_payout_claims():
-    template = _read("app/templates/vendor/earnings.html")
+    template = _read("app/templates/vendor/earnings.html") + _read("app/templates/vendor/partials/_earnings_results.html")
 
     assert "vendor.claim_payout" not in template
     assert "vendor.confirm_receipt" in template
@@ -82,7 +82,7 @@ def test_vendor_earnings_has_day_month_year_filters():
     assert 'value="today"' in template
     assert 'value="month"' in template
     assert 'value="year"' in template
-    assert "Aujourd'hui" in template
+    assert "Aujourd’hui" in template
     assert "Ce mois" in template
     assert "Cette année" in template
     assert "range_filter" in body
@@ -92,14 +92,13 @@ def test_vendor_earnings_reads_like_vendor_cashbook_not_platform_payout():
     template = _read("app/templates/vendor/earnings.html")
 
     expected = [
-        "Caisse vendeur",
-        "Comptez l'argent encaissé dans votre commerce",
+        "Encaissements",
+        "Suivez les règlements de vos commandes",
         "Encaissé",
         "À vérifier",
-        "Total ventes",
+        "Total des ventes",
         "Commandes",
-        "Commandes à compter",
-        "Marquer encaissé",
+        "Confirmer l’encaissement",
     ]
     for text in expected:
         assert text in template
@@ -176,15 +175,14 @@ def test_vendor_earnings_status_filter_applies_to_totals_and_list():
     assert "base_list_query = base_list_query.filter(receipt_order_subquery.c.order_id.isnot(None))" in body
 
 
-def test_vendor_earnings_date_inputs_drive_custom_range_safely():
+def test_vendor_earnings_custom_date_form_keeps_native_get_fields():
     template = _read("app/templates/vendor/earnings.html")
-    script = _read("app/static/js/pages/vendor/earnings_page.js")
 
-    assert 'data-earnings-range-select="true"' in template
-    assert 'data-earnings-date-input="true"' in template
-    assert "bindFilterDateBehavior" in script
-    assert 'rangeSelect.value = "custom"' in script
-    assert "dateInputs.forEach(function (input) {" in script
+    assert 'name="range"' in template
+    assert 'name="from"' in template
+    assert 'name="to"' in template
+    assert 'method="get"' in template
+    assert "Dates personnalisées" in template
 
 
 def test_vendor_earnings_paginates_with_sql_instead_of_memory_lists():

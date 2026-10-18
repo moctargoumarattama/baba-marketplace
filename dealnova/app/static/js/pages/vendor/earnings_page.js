@@ -1,696 +1,302 @@
-﻿(function () {
+(function () {
   "use strict";
+  const form = document.getElementById("earningsFilterForm");
+  const results = document.getElementById("earningsResultsRegion");
+  const dialog = document.getElementById("earningsReceiptDialog");
+  const receiptForm = document.getElementById("earningsReceiptForm");
+  const workspace = window.BMVendorWorkspace;
+  if (!form || !results || !dialog || !receiptForm || !workspace || form.dataset.bound ||
+      typeof dialog.showModal !== "function" || typeof window.fetch !== "function" ||
+      typeof window.AbortController !== "function" || typeof window.DOMParser !== "function") return;
+  form.dataset.bound = "1";
+  document.body.classList.add("earnings-enhanced");
+  const search = document.getElementById("earningsSearchInput");
+  const range = document.getElementById("earningsRange");
+  const show = document.getElementById("earningsShow");
+  const dates = form.querySelector("[data-earnings-dates]");
+  const dateFrom = document.getElementById("earningsDateFrom");
+  const dateTo = document.getElementById("earningsDateTo");
+  const clear = form.querySelector("[data-earnings-clear]");
+  const feedback = document.querySelector("[data-earnings-feedback]");
+  const error = dialog.querySelector("[data-earnings-receipt-error]");
+  const confirm = dialog.querySelector("[data-earnings-confirm]");
+  const note = document.getElementById("earningsReceiptNote");
+  const defaultRange = "month";
+  const draftNotes = new Map();
+  let controller = null;
+  let sequence = 0;
+  let timer = 0;
+  let writing = false;
+  let selected = null;
+  let retryRead = null;
+  let pendingRead = null;
+  let uncertain = false;
 
-  if (typeof window === "undefined" || typeof document === "undefined") return;
-
-  if (window.__BM_VENDOR_EARNINGS_INIT__ || window.__BM_VENDOR_EARNINGS_PAGE_INIT__) return;
-  window.__BM_VENDOR_EARNINGS_INIT__ = true;
-  window.__BM_VENDOR_EARNINGS_PAGE_INIT__ = true;
-
-  const ROOT_SELECTOR = '[data-vendor-earnings-root="true"]';
-  const HISTORY_FLAG = "bmVendorEarnings";
-  const state = {
-    activeRequest: null,
-    requestSeq: null,
-    popstateBound: false,
-    backToTopBound: false,
-    backToTopButton: null,
-    uiBusy: false,
-    pendingTrigger: null,
-  };
-
-  function readConfig() {
-    const defaults = {
-      refreshIntervalMs: 60000,
-      reloadDelayMs: 1000,
-      scrollStorageKey: "earningsScrollPosition",
-      autoRefreshInfoEvery: 3,
-    };
-    const node = document.getElementById("vendorEarningsPageConfig");
-    if (!node) return defaults;
+  function localUrl(value) {
     try {
-      const parsed = JSON.parse(node.textContent || "{}");
-      if (!parsed || typeof parsed !== "object") return defaults;
-      return {
-        refreshIntervalMs: Math.max(1000, Number(parsed.refreshIntervalMs || defaults.refreshIntervalMs)),
-        reloadDelayMs: Math.max(0, Number(parsed.reloadDelayMs || defaults.reloadDelayMs)),
-        scrollStorageKey: String(parsed.scrollStorageKey || defaults.scrollStorageKey),
-        autoRefreshInfoEvery: Math.max(1, Number(parsed.autoRefreshInfoEvery || defaults.autoRefreshInfoEvery)),
-      };
-    } catch (_error) {
-      return defaults;
-    }
+      const url = new URL(value, location.href);
+      if (url.origin !== location.origin || url.pathname !== new URL(form.action).pathname) return null;
+      url.hash = "";
+      return url;
+    } catch (_) { return null; }
   }
-
-  const cfg = readConfig();
-  const VendorUI = window.VendorUI || {};
-  const coreDomApi = window.BMCoreDom || {};
-  const perfFlags = window.BM_PERF_FLAGS || {};
-  const interactionFeedbackEnabled = perfFlags.interactionFeedback !== false;
-  if (typeof VendorUI.initOnce === "function") {
-    VendorUI.initOnce();
-  }
-  state.requestSeq =
-    (window.BMAjaxGuard && typeof window.BMAjaxGuard.makeRequestSeq === "function"
-      ? window.BMAjaxGuard.makeRequestSeq()
-      : null) ||
-    (typeof VendorUI.createRequestSeq === "function" ? VendorUI.createRequestSeq() : null) ||
-    (function () {
-      let latestId = 0;
-      return {
-        next: function () {
-          latestId += 1;
-          return latestId;
-        },
-        isLatest: function (id) {
-          return Number(id) === latestId;
-        },
-      };
-    })();
-  const fallbackRequestText =
-    typeof coreDomApi.requestText === "function"
-      ? coreDomApi.requestText
-      : window.BMAjaxFetch.requestText.bind(window.BMAjaxFetch);
-  const requestText = (typeof VendorUI.requestText === "function")
-    ? VendorUI.requestText
-    : fallbackRequestText;
-
-  function getRoot() {
-    return document.querySelector(ROOT_SELECTOR);
-  }
-
-  function clearPendingTrigger() {
-    if (state.pendingTrigger && state.pendingTrigger.removeAttribute) {
-      state.pendingTrigger.removeAttribute("data-bm-pending");
-    }
-    state.pendingTrigger = null;
-  }
-
-  function setPageLoading(active, options) {
-    state.uiBusy = !!active;
-    const cfgOptions = options || {};
-    const root = (cfgOptions.root && cfgOptions.root.classList) ? cfgOptions.root : getRoot();
-    if (root && root.classList) {
-      root.classList.toggle("is-loading", !!active);
-    }
-    if (!interactionFeedbackEnabled) {
-      if (!active) clearPendingTrigger();
-      return;
-    }
-    if (!active) {
-      clearPendingTrigger();
-      return;
-    }
-    clearPendingTrigger();
-    if (cfgOptions.triggerEl && cfgOptions.triggerEl.setAttribute) {
-      state.pendingTrigger = cfgOptions.triggerEl;
-      state.pendingTrigger.setAttribute("data-bm-pending", "1");
-    }
-  }
-
-  function showToast(message, type) {
-    const toast = document.getElementById("earningsToast");
-    const toastMessage = document.getElementById("toastMessage");
-    if (!toast || !toastMessage) return;
-
-    const icon = toast.querySelector(".toast-icon i");
-    toastMessage.textContent = String(message || "");
-
-    if (icon) {
-      if (type === "info") {
-        icon.className = "bi bi-info-circle";
-        toast.style.background = "linear-gradient(145deg, #ffffff, #eff6ff)";
-      } else {
-        icon.className = "bi bi-check2-circle";
-        toast.style.background = "linear-gradient(145deg, #ffffff, #f0fdf4)";
-      }
-    }
-
-    toast.classList.add("show");
-    window.setTimeout(function () {
-      toast.classList.remove("show");
-    }, 5000);
-  }
-
-  function optimizeTouchFeedback(root) {
-    if (!("ontouchstart" in window)) return;
-    if (!root || root.dataset.touchFeedbackBound === "1") return;
-    root.dataset.touchFeedbackBound = "1";
-
-    function resolveTouchTarget(event) {
-      const target = event.target && event.target.closest
-        ? event.target.closest(".stat-tile, .product-pill, .pagination-item")
-        : null;
-      return target && root.contains(target) ? target : null;
-    }
-
-    function clearTouchScale(event) {
-      const el = resolveTouchTarget(event);
-      if (!el) return;
-      el.style.transform = "";
-    }
-
-    root.addEventListener("touchstart", function (event) {
-      const el = resolveTouchTarget(event);
-      if (!el) return;
-      el.style.transform = "scale(0.98)";
-    }, { passive: true });
-    root.addEventListener("touchend", clearTouchScale, { passive: true });
-    root.addEventListener("touchcancel", clearTouchScale, { passive: true });
-  }
-
-  function optimizeFilterPillOnSmallScreens(root) {
-    if (!root) return;
-    const filterPill = root.querySelector(".filter-pill");
-    if (!filterPill || window.innerWidth >= 640) return;
-    filterPill.querySelectorAll(".form-control, .form-select").forEach(function (input) {
-      input.style.width = "100%";
+  function formUrl(page = 1) {
+    const url = new URL(form.action, location.href);
+    url.search = "";
+    new FormData(form).forEach((value, key) => {
+      value = String(value).trim();
+      if (value && !(key === "show" && value === "all")) url.searchParams.set(key, value);
     });
+    if (page > 1) url.searchParams.set("page", String(page));
+    return url;
   }
-
-  function normalizeText(value) {
-    return String(value || "")
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "");
-  }
-
-  function bindQuickSearch(root) {
-    if (!root) return;
-    const searchInput = root.querySelector("#quickSearch");
-    const clearSearchBtn = root.querySelector("#clearSearch");
-    const noResultsRow = root.querySelector("#noSearchResults");
-    const orderRows = Array.from(root.querySelectorAll("tbody tr.order-row"));
-
-    if (!searchInput || !orderRows.length) return;
-
-    const rowIndex = new Map(
-      orderRows.map(function (row) {
-        return [row, normalizeText(row.textContent)];
-      })
-    );
-
-    function applySearch() {
-      const query = normalizeText(searchInput.value.trim());
-      let visibleCount = 0;
-
-      orderRows.forEach(function (row) {
-        const matches = !query || String(rowIndex.get(row) || "").includes(query);
-        row.hidden = !matches;
-        if (matches) visibleCount += 1;
-      });
-
-      if (noResultsRow) {
-        noResultsRow.hidden = visibleCount !== 0;
-      }
-      if (clearSearchBtn) {
-        clearSearchBtn.hidden = !searchInput.value;
-      }
+  function overlayOpen() { return !!document.querySelector(".vd-choice-dialog[open]"); }
+  function loading(value) { results.setAttribute("aria-busy", String(value)); }
+  function message(text, failed = false, retry = false) {
+    feedback.replaceChildren(document.createTextNode(text || ""));
+    feedback.hidden = !text;
+    feedback.classList.toggle("is-error", failed);
+    feedback.setAttribute("role", failed ? "alert" : "status");
+    if (retry) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.earningsRetry = "1";
+      button.textContent = "Réessayer";
+      feedback.append(" ", button);
     }
-
-    searchInput.addEventListener("input", applySearch, { passive: true });
-    if (clearSearchBtn) {
-      clearSearchBtn.addEventListener("click", function () {
-        searchInput.value = "";
-        applySearch();
-        searchInput.focus();
-      });
+  }
+  function showError(text) { error.textContent = text; error.hidden = !text; }
+  function stopRead() {
+    clearTimeout(timer);
+    timer = 0;
+    ++sequence;
+    controller?.abort();
+    controller = null;
+    loading(false);
+  }
+  function updateDates() {
+    const custom = range.value === "custom";
+    dates.hidden = !custom;
+    dateFrom.disabled = dateTo.disabled = !custom;
+    dateTo.min = dateFrom.value || "";
+    dateFrom.max = dateTo.value || "";
+    clear.hidden = !search.value;
+  }
+  function syncFilters(value) {
+    const url = new URL(value, location.href);
+    search.value = url.searchParams.get("q") || "";
+    range.value = url.searchParams.get("range") || defaultRange;
+    show.value = url.searchParams.get("show") || "all";
+    if (url.searchParams.has("from")) dateFrom.value = url.searchParams.get("from");
+    if (url.searchParams.has("to")) dateTo.value = url.searchParams.get("to");
+    updateDates();
+  }
+  async function read(value, historyMode = "replace", options = {}) {
+    const url = localUrl(value);
+    if (!url) return false;
+    if (writing || (overlayOpen() && !options.allowDialog)) {
+      pendingRead = { url: url.href, mode: historyMode };
+      return false;
     }
-    applySearch();
-  }
-
-  function bindFilterDateBehavior(root) {
-    if (!root || root.dataset.filterDateBehaviorBound === "1") return;
-    const rangeSelect = root.querySelector('[data-earnings-range-select="true"]');
-    const dateInputs = Array.from(root.querySelectorAll('[data-earnings-date-input="true"]'));
-    if (!rangeSelect || !dateInputs.length) return;
-
-    root.dataset.filterDateBehaviorBound = "1";
-
-    dateInputs.forEach(function (input) {
-      input.addEventListener("input", function () {
-        if (input.value) {
-          rangeSelect.value = "custom";
-        }
-      });
-      input.addEventListener("change", function () {
-        if (input.value) {
-          rangeSelect.value = "custom";
-        }
-      });
-    });
-
-    rangeSelect.addEventListener("change", function () {
-      if (rangeSelect.value === "custom") return;
-      dateInputs.forEach(function (input) {
-        input.value = "";
-      });
-    });
-  }
-
-  function bindScrollMemory() {
-    const key = cfg.scrollStorageKey || "earningsScrollPosition";
-    window.addEventListener("beforeunload", function () {
-      try {
-        sessionStorage.setItem(key, String(window.scrollY || 0));
-      } catch (_error) {}
-    });
-
-    window.addEventListener(
-      "load",
-      function () {
-        try {
-          const saved = sessionStorage.getItem(key);
-          if (!saved) return;
-          window.scrollTo(0, parseInt(saved, 10) || 0);
-          sessionStorage.removeItem(key);
-        } catch (_error) {}
-      },
-      { once: true }
-    );
-  }
-
-  function updateBackToTopVisibility() {
-    const button = state.backToTopButton;
-    if (!button || !button.classList) return;
-    const y = Math.max(0, Number(window.scrollY || window.pageYOffset || 0));
-    button.classList.toggle("show", y > 360);
-  }
-
-  function bindBackToTop(root) {
-    if (!root) return;
-    const button = root.querySelector("#earningsBackTop");
-    state.backToTopButton = button || null;
-    if (!button) return;
-
-    if (button.dataset.bound !== "1") {
-      button.dataset.bound = "1";
-      button.addEventListener("click", function (event) {
-        event.preventDefault();
-        window.scrollTo({ top: 0, behavior: "smooth" });
-      });
-    }
-
-    updateBackToTopVisibility();
-
-    if (state.backToTopBound) return;
-    const onScroll = typeof VendorUI.rafThrottle === "function"
-      ? VendorUI.rafThrottle(updateBackToTopVisibility)
-      : (function () {
-          let ticking = false;
-          return function () {
-            if (ticking) return;
-            ticking = true;
-            window.requestAnimationFrame(function () {
-              ticking = false;
-              updateBackToTopVisibility();
-            });
-          };
-        })();
-
-    window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll, { passive: true });
-    state.backToTopBound = true;
-  }
-
-  function applyEntranceAnimationDelay(root) {
-    if (!root) return;
-    root.querySelectorAll(".stat-tile, .table-card, .empty-earnings").forEach(function (el, index) {
-      el.style.animationDelay = String(0.1 * (index + 1)) + "s";
-    });
-  }
-
-  function markHistoryScroll(scrollY) {
+    controller?.abort();
+    const active = new AbortController();
+    const seq = ++sequence;
+    controller = active;
+    const timeout = setTimeout(() => active.abort(), 20000);
+    retryRead = { url: url.href, mode: historyMode };
+    loading(true);
+    message("");
     try {
-      const current = history.state && typeof history.state === "object" ? history.state : {};
-      history.replaceState(
-        Object.assign({}, current, {
-          [HISTORY_FLAG]: true,
-          scrollY: Math.max(0, Number(scrollY) || 0),
-        }),
-        "",
-        window.location.href
-      );
-    } catch (_error) {}
-  }
-
-  function ensureHistoryState() {
-    try {
-      const current = history.state && typeof history.state === "object" ? history.state : {};
-      if (current[HISTORY_FLAG]) return;
-      history.replaceState(
-        Object.assign({}, current, {
-          [HISTORY_FLAG]: true,
-          scrollY: Math.max(0, Number(window.scrollY) || 0),
-        }),
-        "",
-        window.location.href
-      );
-    } catch (_error) {}
-  }
-
-  async function fetchAndSwap(url, options) {
-    const opts = options || {};
-    const requestUrl = String(url || window.location.href);
-    const requestId = state.requestSeq.next();
-    const preserveScroll = opts.preserveScroll !== false;
-    const showFeedback = opts.feedback !== false;
-    const currentScrollY = Math.max(0, Number(window.scrollY) || 0);
-    const currentScrollX = Math.max(0, Number(window.scrollX) || 0);
-
-    if (showFeedback) {
-      setPageLoading(true, { triggerEl: opts.triggerEl || null });
-    }
-
-    if (state.activeRequest) {
-      try {
-        state.activeRequest.abort();
-      } catch (_error) {}
-    }
-    const controller = new AbortController();
-    state.activeRequest = controller;
-
-    const headers = Object.assign(
-      {
-        "X-Requested-With": "fetch",
-        "Accept": "text/html,application/xhtml+xml",
-      },
-      opts.headers || {}
-    );
-    const method = String(opts.method || "GET").toUpperCase();
-    const fetchOptions = {
-      method: method,
-      headers: headers,
-      credentials: "same-origin",
-      redirect: "follow",
-      signal: controller.signal,
-    };
-    if (method !== "GET" && opts.body) {
-      fetchOptions.body = opts.body;
-    }
-
-    try {
-      const result = await requestText(requestUrl, fetchOptions);
-      if (!state.requestSeq.isLatest(requestId)) {
-        return false;
-      }
-      if (!result || result.aborted || result.timedOut) {
-        return false;
-      }
-      if (!result.ok) {
-        throw new Error(String(result.error || ("HTTP " + String(result.status || "error"))));
-      }
-      const html = String(result.data || "");
+      const response = await fetch(url, { credentials: "same-origin", signal: active.signal, cache: "no-store", headers: { "X-Requested-With": "fetch", Accept: "text/html" } });
+      const html = await response.text();
+      if (seq !== sequence) return false;
+      if (!response.ok || !response.headers.get("content-type")?.includes("text/html")) throw new Error("invalid_response");
       const doc = new DOMParser().parseFromString(html, "text/html");
-      const nextRoot = doc.querySelector(ROOT_SELECTOR);
-      if (!nextRoot) {
-        throw new Error("missing vendor earnings root");
+      const incoming = doc.getElementById("earningsResultsRegion");
+      const summary = doc.querySelector("[data-earnings-summary]");
+      if (!incoming?.querySelector("[data-earnings-meta]") || !summary) throw new Error("invalid_document");
+      if (overlayOpen() && !options.allowDialog) {
+        pendingRead = { url: url.href, mode: historyMode };
+        return false;
       }
-      const currentRoot = getRoot();
-      if (!currentRoot) {
-        throw new Error("current vendor earnings root missing");
-      }
-
-      currentRoot.replaceWith(nextRoot);
-
-      if (doc.title) {
-        document.title = doc.title;
-      }
-
-      const finalUrl = requestUrl;
-      if (opts.history === "push") {
-        markHistoryScroll(currentScrollY);
-        try {
-          history.pushState(
-            {
-              [HISTORY_FLAG]: true,
-              scrollY: currentScrollY,
-            },
-            "",
-            finalUrl
-          );
-        } catch (_error) {}
-      } else if (opts.history === "replace") {
-        try {
-          const currentState = history.state && typeof history.state === "object" ? history.state : {};
-          history.replaceState(
-            Object.assign({}, currentState, {
-              [HISTORY_FLAG]: true,
-              scrollY: currentScrollY,
-            }),
-            "",
-            finalUrl
-          );
-        } catch (_error) {}
-      }
-
-      bindPageInteractions();
-
-      const targetY = typeof opts.restoreScroll === "number"
-        ? Math.max(0, opts.restoreScroll)
-        : (preserveScroll ? currentScrollY : 0);
-      window.scrollTo({
-        top: targetY,
-        left: currentScrollX,
-        behavior: "auto",
+      results.replaceChildren(...Array.from(incoming.childNodes));
+      results.querySelectorAll("[data-earnings-receipt]").forEach((rowForm) => {
+        const id = rowForm.querySelector(".pay-btn").dataset.order;
+        if (draftNotes.has(id)) rowForm.elements.note.value = draftNotes.get(id);
       });
-
-      if (opts.successMessage) {
-        showToast(opts.successMessage, opts.toastType || "success");
+      document.querySelector("[data-earnings-summary]").replaceChildren(...Array.from(summary.childNodes));
+      if (!dates.contains(document.activeElement)) {
+        dateFrom.value = doc.getElementById("earningsDateFrom").value;
+        dateTo.value = doc.getElementById("earningsDateTo").value;
+        updateDates();
       }
+      const page = Number(results.querySelector("[data-earnings-meta]").dataset.page || 1);
+      if (page > 1) url.searchParams.set("page", String(page)); else url.searchParams.delete("page");
+      if (historyMode) history[historyMode === "push" ? "pushState" : "replaceState"](Object.assign({}, history.state, { vendorEarnings: true }), "", url);
+      else if (url.href !== location.href) history.replaceState(history.state, "", url);
+      retryRead = null;
       return true;
-    } catch (error) {
-      if (error && error.name === "AbortError") return false;
-      console.error("[vendor-earnings] ajax navigation failed", error);
+    } catch (_) {
+      if (seq === sequence) message("Impossible d’actualiser les encaissements. La liste affichée est conservée.", true, true);
       return false;
     } finally {
-      if (showFeedback && state.requestSeq.isLatest(requestId)) {
-        setPageLoading(false);
-      }
-      if (state.activeRequest === controller) {
-        state.activeRequest = null;
-      }
+      clearTimeout(timeout);
+      if (seq === sequence) { controller = null; loading(false); }
     }
   }
-
-  function buildGetUrlFromForm(form) {
-    const action = form.getAttribute("action") || window.location.pathname;
-    const url = new URL(action, window.location.origin);
-    const params = new URLSearchParams(new FormData(form));
-    url.search = params.toString();
-    return url.toString();
+  function schedule(mode = "replace") {
+    stopRead();
+    updateDates();
+    if (form.checkValidity()) timer = setTimeout(() => { timer = 0; read(formUrl(), mode); }, 300);
   }
-
-  function bindAjaxInteractions(root) {
-    if (!root || root.dataset.ajaxBound === "1") return;
-    root.dataset.ajaxBound = "1";
-
-    root.addEventListener("submit", function (event) {
-      const form = event.target;
-      if (!(form instanceof HTMLFormElement)) return;
-
-      if (form.matches(".filter-pill")) {
-        event.preventDefault();
-        if (state.uiBusy) return;
-        const submitter = (event.submitter instanceof HTMLElement)
-          ? event.submitter
-          : form.querySelector(".btn-filter");
-        const targetUrl = buildGetUrlFromForm(form);
-        fetchAndSwap(targetUrl, {
-          history: "push",
-          preserveScroll: true,
-          triggerEl: submitter || null,
-        }).then(function (ok) {
-          if (!ok) window.location.assign(targetUrl);
-        });
-        return;
-      }
-
-      if (form.matches(".pay-form")) {
-        event.preventDefault();
-        if (state.uiBusy) return;
-        const submitBtn = form.querySelector('button[type="submit"]');
-        const wasDisabled = submitBtn ? Boolean(submitBtn.disabled) : false;
-        if (submitBtn) submitBtn.disabled = true;
-
-        const targetUrl = form.getAttribute("action") || window.location.href;
-        const payload = new FormData(form);
-        fetchAndSwap(targetUrl, {
-          method: "POST",
-          body: payload,
-          history: "replace",
-          preserveScroll: true,
-          successMessage: "Encaissement confirmé.",
-          triggerEl: submitBtn || null,
-        }).then(function (ok) {
-          if (!ok) form.submit();
-        }).finally(function () {
-          if (submitBtn) submitBtn.disabled = wasDisabled;
-        });
-      }
-    });
-
-    root.addEventListener("click", function (event) {
-      const link = event.target.closest(".pagination-premium a.pagination-item");
-      if (!link || !root.contains(link)) return;
-
-      const href = link.getAttribute("href");
-      if (!href || href === "#" || link.classList.contains("disabled")) {
-        event.preventDefault();
-        return;
-      }
-
-      event.preventDefault();
-      if (state.uiBusy) return;
-      fetchAndSwap(href, {
-        history: "push",
-        preserveScroll: true,
-        triggerEl: link,
-      }).then(function (ok) {
-        if (!ok) window.location.assign(href);
-      });
-    }, { passive: false });
+  function resumeRead() {
+    if (!pendingRead || writing || overlayOpen()) return;
+    const next = pendingRead;
+    pendingRead = null;
+    read(next.url, next.mode);
   }
-
-  function bindPopStateNavigation() {
-    if (state.popstateBound) return;
-    state.popstateBound = true;
-
-    window.addEventListener("popstate", function (event) {
-      const targetY = event && event.state && typeof event.state.scrollY === "number"
-        ? event.state.scrollY
-        : 0;
-      fetchAndSwap(window.location.href, {
-        history: "replace",
-        preserveScroll: false,
-        restoreScroll: targetY,
-        feedback: false,
-      }).then(function (ok) {
-        if (!ok) window.location.reload();
-      });
-    });
+  search.addEventListener("input", (event) => {
+    stopRead();
+    clear.hidden = !search.value;
+    if (!event.isComposing) schedule();
+  });
+  search.addEventListener("compositionend", () => schedule());
+  clear.addEventListener("click", () => { search.value = ""; search.focus({ preventScroll: true }); schedule(); });
+  form.addEventListener("change", () => { updateDates(); stopRead(); if (form.reportValidity()) read(formUrl(), "push"); });
+  form.addEventListener("submit", (event) => { event.preventDefault(); stopRead(); if (form.reportValidity()) read(formUrl(), "push"); });
+  feedback.addEventListener("click", (event) => {
+    if (event.target.closest("[data-earnings-retry]") && retryRead) read(retryRead.url, retryRead.mode);
+  });
+  results.addEventListener("click", (event) => {
+    const link = event.target.closest(".earnings-pagination a, [data-earnings-reset]");
+    if (!link || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+    const url = localUrl(link.href);
+    if (!url) return;
+    event.preventDefault();
+    stopRead();
+    if (link.hasAttribute("data-earnings-reset")) syncFilters(url);
+    read(url, "push");
+  });
+  results.addEventListener("submit", (event) => {
+    const rowForm = event.target.closest("[data-earnings-receipt]");
+    if (!rowForm) return;
+    event.preventDefault();
+    if (writing || overlayOpen()) return;
+    if (controller || timer) pendingRead = { url: formUrl().href, mode: "replace" };
+    stopRead();
+    const trigger = rowForm.querySelector(".pay-btn");
+    selected = { id: trigger.dataset.order, form: rowForm, trigger };
+    receiptForm.action = rowForm.action;
+    receiptForm.elements.csrf_token.value = rowForm.elements.csrf_token.value;
+    note.value = draftNotes.get(selected.id) ?? rowForm.elements.note?.value ?? "";
+    dialog.querySelector("[data-earnings-receipt-order]").textContent = "Commande #" + selected.id;
+    dialog.querySelector("[data-earnings-receipt-amount]").textContent = trigger.dataset.amount;
+    uncertain = false;
+    confirm.textContent = "Encaissé";
+    showError("");
+    workspace.openDialog(dialog.id, trigger);
+  });
+  function setWriting(value) {
+    writing = value;
+    dialog.dataset.busy = value ? "1" : "0";
+    receiptForm.setAttribute("aria-busy", String(value));
+    dialog.querySelectorAll("button").forEach((button) => { button.disabled = value; });
+    note.readOnly = value;
   }
-
-  function bindPageInteractions() {
-    const root = getRoot();
-    if (!root) return;
-    optimizeTouchFeedback(root);
-    optimizeFilterPillOnSmallScreens(root);
-    bindBackToTop(root);
-    bindQuickSearch(root);
-    bindFilterDateBehavior(root);
-    bindAjaxInteractions(root);
-    applyEntranceAnimationDelay(root);
+  async function verifyReceipt() {
+    const orderId = selected.id;
+    dialog.dataset.busy = "1";
+    dialog.querySelectorAll("button").forEach((button) => { button.disabled = true; });
+    note.readOnly = true;
+    const ok = await read(localUrl(location.href), "replace", { allowDialog: true });
+    dialog.dataset.busy = "0";
+    dialog.querySelectorAll("button").forEach((button) => { button.disabled = false; });
+    note.readOnly = false;
+    if (!dialog.open || selected?.id !== orderId) return;
+    if (!ok) { showError("Impossible de vérifier pour le moment. Votre note est conservée."); return; }
+    const row = results.querySelector('[data-order-id="' + orderId + '"]');
+    if (row?.querySelector(".earnings-status-confirmed")) {
+      workspace.closeDialog();
+      message("Cet encaissement est enregistré.");
+    } else {
+      // A filtered row can disappear after confirmation; its absence is not proof.
+      showError("La liste a été actualisée. Vérifiez l’état de cette commande avant une nouvelle confirmation.");
+      workspace.closeDialog();
+      message("La liste a été actualisée. Vérifiez l’état de la commande #" + orderId + ".");
+    }
   }
-
-  function bindAutoRefresh() {
-    let refreshCount = 0;
-
-    function isEarningsPageReady() {
-      const root = getRoot();
-      const bodyPage = String((document.body && document.body.dataset && document.body.dataset.page) || "");
-      return !!root && (bodyPage === "vendor.earnings" || window.location.pathname.indexOf("/vendor/earnings") === 0);
-    }
-
-    function shouldPauseRefresh() {
-      const active = document.activeElement;
-      if (
-        active &&
-        (
-          active.tagName === "INPUT" ||
-          active.tagName === "TEXTAREA" ||
-          active.tagName === "SELECT"
-        )
-      ) {
-        return true;
-      }
-      const root = getRoot();
-      if (!root) return false;
-      const searchInput = root.querySelector("#quickSearch");
-      return Boolean(searchInput && String(searchInput.value || "").trim());
-    }
-
-    function runRefreshCycle() {
-      if (document.hidden) return;
-      if (shouldPauseRefresh()) return;
-      refreshCount += 1;
-      const shouldInform = refreshCount % cfg.autoRefreshInfoEvery === 0;
-      fetchAndSwap(window.location.href, {
-        history: "replace",
-        preserveScroll: true,
-        feedback: false,
-      }).then(function (ok) {
-        if (!ok) {
-          window.setTimeout(function () {
-            window.location.reload();
-          }, cfg.reloadDelayMs);
-          return;
-        }
-        if (shouldInform) {
-          showToast("Mise à jour automatique des données", "info");
-        }
-      });
-    }
-
-    if (typeof VendorUI.startAdaptivePoll === "function") {
-      VendorUI.startAdaptivePoll("vendor-earnings-refresh", runRefreshCycle, {
-        activeInterval: cfg.refreshIntervalMs,
-        inactiveInterval: Math.max(cfg.refreshIntervalMs * 3, 180000),
-        immediate: false,
-        refreshOnVisible: false,
-        when: isEarningsPageReady,
-      });
-      return;
-    }
-
-    let refreshTimer = null;
-    function clearRefreshTimer() {
-      if (refreshTimer) {
-        window.clearTimeout(refreshTimer);
-        refreshTimer = null;
-      }
-    }
-    function scheduleRefresh(delayMs) {
-      clearRefreshTimer();
-      refreshTimer = window.setTimeout(runTick, Math.max(1000, Number(delayMs) || cfg.refreshIntervalMs));
-    }
-    function runTick() {
-      if (document.hidden) {
-        clearRefreshTimer();
-        return;
-      }
-      if (!isEarningsPageReady()) {
-        scheduleRefresh(cfg.refreshIntervalMs);
-        return;
-      }
-      Promise.resolve(runRefreshCycle()).finally(function () {
-        scheduleRefresh(cfg.refreshIntervalMs);
-      });
-    }
-    document.addEventListener("visibilitychange", function () {
-      if (document.hidden) {
-        clearRefreshTimer();
-        return;
-      }
-      scheduleRefresh(1000);
-    });
-    window.addEventListener(
-      "beforeunload",
-      function () {
-        clearRefreshTimer();
-      },
-      { once: true }
-    );
-    scheduleRefresh(cfg.refreshIntervalMs);
+  async function refreshCsrf(signal) {
+    try {
+      const response = await fetch(formUrl(), { credentials: "same-origin", cache: "no-store", signal, headers: { "X-Requested-With": "fetch", Accept: "text/html" } });
+      const doc = new DOMParser().parseFromString(await response.text(), "text/html");
+      const token = doc.querySelector('#earningsReceiptForm [name="csrf_token"]')?.value;
+      if (!response.ok || !doc.getElementById("earningsResultsRegion") || !token) return false;
+      document.querySelectorAll('[name="csrf_token"]').forEach((input) => { input.value = token; });
+      document.querySelector('meta[name="csrf-token"]')?.setAttribute("content", token);
+      return true;
+    } catch (_) { return false; }
   }
-
-  // Keep backward compatibility for templates that call it directly.
-  window.showEarningsToast = showToast;
-
-  ensureHistoryState();
-  bindPopStateNavigation();
-  bindPageInteractions();
-  bindScrollMemory();
-  bindAutoRefresh();
+  receiptForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (writing || !selected) return;
+    if (uncertain) { await verifyReceipt(); return; }
+    const data = new FormData(receiptForm);
+    const url = receiptForm.action;
+    setWriting(true);
+    showError("");
+    confirm.textContent = "Enregistrement…";
+    const active = new AbortController();
+    const timeout = setTimeout(() => active.abort(), 25000);
+    let committed = false;
+    try {
+      const response = await fetch(url, { method: "POST", credentials: "same-origin", signal: active.signal, headers: { "X-Requested-With": "fetch", Accept: "application/json" }, body: data });
+      const payload = response.headers.get("content-type")?.includes("application/json") ? await response.json() : null;
+      if (response.status === 400 && payload?.error === "csrf") {
+        const refreshed = await refreshCsrf(active.signal);
+        throw { known: true, message: refreshed ? "Votre session a été actualisée. Confirmez à nouveau pour enregistrer." : "Votre session a expiré. Reconnectez-vous avant de confirmer. Votre note est conservée." };
+      }
+      if (response.status === 401 || (response.redirected && new URL(response.url).pathname !== new URL(url).pathname)) {
+        throw { known: true, message: "Votre session a expiré. Reconnectez-vous avant de confirmer. Votre note est conservée." };
+      }
+      if (!response.ok || !payload?.success) {
+        if (response.status >= 400 && response.status < 500 && payload) throw { known: true, message: payload.message || payload.error };
+        throw new Error("uncertain_result");
+      }
+      committed = true;
+    } catch (failure) {
+      uncertain = !failure.known;
+      showError(failure.known ? String(failure.message || "Impossible de confirmer cet encaissement.") : "La confirmation n’a pas pu être vérifiée. Votre note est conservée. Vérifiez la liste avant de recommencer.");
+    } finally {
+      clearTimeout(timeout);
+      setWriting(false);
+      confirm.textContent = uncertain ? "Vérifier la liste" : "Encaissé";
+    }
+    if (committed) {
+      // Close only after the POST has completed; perform no automatic POST retry.
+      const refresh = pendingRead || { url: formUrl(Number(results.querySelector("[data-earnings-meta]")?.dataset.page || 1)).href, mode: "replace" };
+      pendingRead = null;
+      workspace.closeDialog();
+      const refreshed = await read(refresh.url, refresh.mode);
+      if (refreshed) message("Encaissement enregistré.");
+    }
+  });
+  dialog.addEventListener("vendor:workspace-dialog-closed", () => {
+    if (selected) draftNotes.set(selected.id, note.value);
+    if (selected?.form.isConnected) selected.form.elements.note.value = note.value;
+    selected = null;
+  });
+  document.addEventListener("vendor:dashboard-dialog-opened", () => {
+    if (controller || timer) pendingRead = { url: formUrl().href, mode: "replace" };
+    stopRead();
+  });
+  document.addEventListener("vendor:dashboard-dialog-closed", resumeRead);
+  window.addEventListener("popstate", () => {
+    const url = localUrl(location.href);
+    if (!url) return;
+    stopRead();
+    syncFilters(url);
+    if (dialog.open && !writing) workspace.requestCloseDialog();
+    read(url, "");
+  });
+  updateDates();
 })();
-

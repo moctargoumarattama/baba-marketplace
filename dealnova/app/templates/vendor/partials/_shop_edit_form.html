@@ -1,0 +1,22 @@
+{% set values = form_values|default({}) %}
+{% set errors = form_errors|default({}) %}
+<form id="shopEditForm" class="sm-edit-form" method="post" action="{{ url_for('vendor.edit_shop') }}" enctype="multipart/form-data">
+  {% include 'partials/_csrf.html' %}
+  <div class="sm-form-error sm-error" data-shop-form-error role="alert" {% if not errors %}hidden{% endif %}>{% if errors %}Vérifiez les champs indiqués avant d’enregistrer.{% endif %}</div>
+  <fieldset><legend>Présentation</legend>
+    <div class="sm-logo-field"><div class="sm-avatar" id="shopLogoPreview">{% if shop.logo %}<img src="{{ url_for('static', filename='uploads/' ~ shop.logo) }}" alt="Logo actuel" width="64" height="64">{% else %}<i class="bi bi-shop" aria-hidden="true"></i>{% endif %}</div><div class="sm-logo-input"><label class="sm-field" for="shopLogo">Logo<input id="shopLogo" type="file" name="logo" accept="image/jpeg,image/png,image/webp"></label><small class="sm-hint">JPG, PNG ou WebP.</small>{% if shop.logo %}<label class="sm-checkbox"><input name="remove_logo" type="checkbox" value="1" {% if values.get('remove_logo') %}checked{% endif %}>Retirer le logo actuel</label>{% endif %}</div></div><span class="sm-field-error" data-field-error="logo">{{ errors.get('logo', '') }}</span>
+    <label class="sm-field" for="shopDescription">Description<textarea id="shopDescription" name="description" rows="3" maxlength="5000" placeholder="Présentez votre activité en quelques mots.">{{ values.get('description', shop.description or '') }}</textarea></label><span class="sm-field-error" data-field-error="description">{{ errors.get('description', '') }}</span>
+    <label class="sm-field" for="shopPhone">Téléphone{% if allows_catalog %} *{% endif %}<input id="shopPhone" type="tel" name="contact_phone" autocomplete="tel" maxlength="30" value="{{ values.get('contact_phone', shop.contact_phone or '') }}" {% if allows_catalog %}required{% endif %}></label><span class="sm-field-error" data-field-error="contact_phone">{{ errors.get('contact_phone', '') }}</span>
+  </fieldset>
+  <fieldset><legend>Adresse{% if allows_catalog %} et position{% endif %}</legend>
+    <label class="sm-field" for="shopAddress">Adresse{% if allows_catalog %} *{% endif %}<input id="shopAddress" name="address" autocomplete="street-address" maxlength="255" value="{{ values.get('address', shop.address or '') }}" {% if allows_catalog %}required{% endif %}></label><span class="sm-field-error" data-field-error="address">{{ errors.get('address', '') }}</span>
+    {% if allows_catalog %}
+    <label class="sm-field" for="shopLocationNote">Repère <span class="sm-optional">(facultatif)</span><input id="shopLocationNote" name="service_location_note" maxlength="255" value="{{ values.get('service_location_note', shop.service_location_note or '') }}" placeholder="En face de la pharmacie, 2e étage…"></label><span class="sm-field-error" data-field-error="service_location_note">{{ errors.get('service_location_note', '') }}</span>
+    <input type="hidden" name="service_latitude" value="{{ values.get('service_latitude', shop.service_latitude if shop.service_latitude is not none else '') }}">
+    <input type="hidden" name="service_longitude" value="{{ values.get('service_longitude', shop.service_longitude if shop.service_longitude is not none else '') }}">
+    <input type="hidden" name="clear_exact_location" value="{{ values.get('clear_exact_location', '0') }}">
+    <div class="sm-location-tools"><p class="sm-hint" id="shopLocationStatus" role="status">{{ 'Position enregistrée' if shop.has_precise_service_location else 'Aucune position GPS enregistrée' }}</p><div class="sm-button-row"><button type="button" class="sm-button" data-shop-locate><i class="bi bi-crosshair" aria-hidden="true"></i>Utiliser ma position</button><button type="button" class="sm-button sm-danger" data-shop-clear-location {% if not shop.has_precise_service_location %}hidden{% endif %}>Retirer</button></div></div><span class="sm-field-error" data-field-error="service_latitude">{{ errors.get('service_latitude', '') }}</span><span class="sm-field-error" data-field-error="service_longitude">{{ errors.get('service_longitude', '') }}</span>
+    {% endif %}
+  </fieldset>
+  <footer class="sm-form-footer"><a class="sm-button" href="{{ url_for('vendor.manage_shop') }}" data-vd-close data-shop-close>Annuler</a><button type="submit" class="sm-button sm-primary" data-shop-edit-submit><i class="bi bi-check2" aria-hidden="true"></i>Enregistrer</button></footer>
+</form>

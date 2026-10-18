@@ -237,3 +237,34 @@ def test_standalone_validation_preserves_entered_values_and_renders_same_fields(
     assert f'data-vpm-field-error="{amount_field}"' in html
     assert _record(offer) == offer.initial
     assert _files(offer.fixture) == offer.files
+
+
+@pytest.mark.parametrize("failed_variant", [1, 2])
+def test_incomplete_image_variants_are_removed_without_touching_existing_media(tmp_path, monkeypatch, failed_variant):
+    from flask import Flask
+    from werkzeug.datastructures import FileStorage
+    from dealnova.app.services import image as image_service
+
+    app = Flask(__name__)
+    app.config["UPLOAD_FOLDER"] = str(tmp_path)
+    previous = tmp_path / "previous.webp"
+    previous.write_bytes(b"existing media must stay usable")
+    real_save_variant = image_service._save_variant
+    calls = 0
+
+    def fail_variant(img, destination, *args, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == failed_variant:
+            from pathlib import Path
+            Path(destination).write_bytes(b"partial thumbnail")
+            raise OSError("fixture thumbnail write failure")
+        return real_save_variant(img, destination, *args, **kwargs)
+
+    monkeypatch.setattr(image_service, "_save_variant", fail_variant)
+    with app.app_context():
+        result = image_service.save_image(FileStorage(stream=_image(), filename="new.png", content_type="image/png"))
+    assert result is None
+    assert {file.name: file.read_bytes() for file in tmp_path.iterdir()} == {
+        "previous.webp": b"existing media must stay usable",
+    }

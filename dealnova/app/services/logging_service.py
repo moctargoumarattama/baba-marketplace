@@ -333,20 +333,6 @@ class LoggingService:
             'daily_stats': daily_stats[::-1]
         }
 
-    @staticmethod
-    def cleanup_old_logs(days=10):
-        """Supprime les logs plus vieux que days."""
-        try:
-            cutoff = datetime.utcnow() - timedelta(days=days)
-            deleted = ActivityLog.query.filter(ActivityLog.timestamp < cutoff).delete()
-            db.session.commit()
-            current_app.logger.info(f"Cleanup: {deleted} logs supprimés (> {days} jours)")
-            return deleted
-        except Exception as e:
-            db.session.rollback()
-            current_app.logger.error(f"Cleanup logs failed: {e}")
-            return 0
-
 
 # Instance globale du service
 logging_service = LoggingService()

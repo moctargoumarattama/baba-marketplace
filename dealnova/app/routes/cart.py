@@ -421,14 +421,6 @@ def _shop_open_message(product) -> str | None:
 
     return None
 
-
-def _safe_float(value: str):
-    try:
-        return float(str(value).replace(",", "."))
-    except (TypeError, ValueError):
-        return None
-
-
 def _is_ajax_request():
     return (
         request.headers.get("X-Requested-With") in ("XMLHttpRequest", "fetch")

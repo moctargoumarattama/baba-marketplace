@@ -5,7 +5,7 @@
 {% set report_issue_scope_label = report_issue_scope_label if report_issue_scope_label is defined and report_issue_scope_label else 'Aide' %}
 {% set report_issue_scope_key = report_issue_scope_key if report_issue_scope_key is defined and report_issue_scope_key else ('location' if report_issue_endpoint == 'rentals.owner_support_whatsapp' else 'client' if report_issue_endpoint == 'auth.support_whatsapp' else 'vendor') %}
 {% set report_issue_storage_key = report_issue_storage_key if report_issue_storage_key is defined and report_issue_storage_key else report_issue_scope_key %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/support_issue_fab.css', v=app_static_version) }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/support_issue_fab.css', v=app_static_version ~ '-support-v2') }}">
 <div class="support-issue-widget"
      data-support-fab
      data-support-storage-key="bm-support-fab-{{ report_issue_storage_key }}">
@@ -114,5 +114,5 @@
     </div>
   </div>
 </div>
-<script src="{{ url_for('static', filename='js/support_issue_fab.js', v=app_static_version ~ '-textes-v1') }}"></script>
+<script src="{{ url_for('static', filename='js/support_issue_fab.js', v=app_static_version ~ '-textes-v2') }}"></script>
 {% endif %}

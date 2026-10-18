@@ -80,7 +80,7 @@
   <footer class="hub-footer">
     <nav class="hub-footer-links" aria-label="{{ t('Liens utiles') }}">
       <a href="{{ url_for('auth.vendor_access') }}"><i class="bi bi-shop" aria-hidden="true"></i><span>{{ t('Devenir vendeur') }}</span></a>
-      <a href="{{ url_for('auth.public_help') }}"><i class="bi bi-question-circle" aria-hidden="true"></i><span>{{ t('Support') }}</span></a>
+      <button type="button" data-support-open><i class="bi bi-question-circle" aria-hidden="true"></i><span>{{ t('Support') }}</span></button>
     </nav>
     <p class="hub-footer-copyright">© {{ current_year or 2026 }} <strong>BabaMarket</strong></p>
   </footer>

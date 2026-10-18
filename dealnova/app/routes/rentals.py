@@ -17,7 +17,7 @@ from ..services.audit import log_access
 from ..services.db_session import safe_session_rollback
 from ..services.pagination import paginate_with_clamped_page, page_from_args
 from ..services.date_filters import resolve_date_filter
-from ..services.shop_access import ensure_shop_allows, ensure_vendor_allows
+from ..services.shop_access import ensure_shop_allows, ensure_vendor_allows, resolve_vendor_shop, shop_allows_any
 from ..services.support_whatsapp import (
     append_support_request,
     build_support_whatsapp_url,
@@ -608,7 +608,7 @@ def owner_locations_archives():
     if access_guard:
         return access_guard
 
-    q = (request.args.get("q") or "").strip()
+    q = (request.args.get("q") or "").strip()[:240]
     status = (request.args.get("status") or "").strip().lower()
     shop_id = request.args.get("shop", type=int)
     page = page_from_args(request.args)
@@ -619,6 +619,11 @@ def owner_locations_archives():
     if not shop_ids:
         flash("Activez le type Location sur votre boutique pour utiliser cette section.", "warning")
         return redirect(url_for("vendor.manage_shop"))
+
+    if shop_id not in shop_ids:
+        shop_id = None
+    if status not in ("taken", "expired", "deleted_by_owner", "deleted_by_admin"):
+        status = ""
 
     query = (
         RentalArchive.query
@@ -646,12 +651,17 @@ def owner_locations_archives():
     )
     archives = pagination.items
     settings = PlatformSettings.get()
+    workspace_shop = resolve_vendor_shop(current_user)
 
     return render_template(
         "locations/owner_archives.html",
         archives=archives,
         pagination=pagination,
         shops=shops,
+        shop=workspace_shop,
+        allows_catalog=shop_allows_any(workspace_shop, "products", "services"),
+        allows_products=shop_allows_any(workspace_shop, "products"),
+        allows_location=shop_allows_any(workspace_shop, "location"),
         q=q,
         status=status,
         selected_shop_id=shop_id,

@@ -30,6 +30,7 @@ from ..services.shop_access import (
     shop_is_currently_open,
 )
 from ..services.pagination import page_from_args, paginate_with_clamped_page
+from ..services.vendor_catalog_search import apply_vendor_catalog_search
 from ..services.support_whatsapp import (
     append_support_request,
     build_support_whatsapp_url,
@@ -194,6 +195,22 @@ def guard_product_form_modal():
             {"success": False, "message": "Accès réservé aux vendeurs."},
             403,
         )
+
+
+@bp.before_request
+def guard_shop_settings_modal():
+    if request.headers.get("X-BM-Shop-Modal") != "1" or request.endpoint not in {
+        "vendor.edit_shop", "vendor.manage_shop", "vendor.request_locked_shop_change",
+        "vendor.update_service_location", "vendor.toggle_shop_status",
+    }:
+        return None
+    if not current_user.is_authenticated:
+        return _shop_settings_json({
+            "success": False, "message": "Votre session a expiré. Connectez-vous pour continuer.",
+            "redirect_url": url_for("auth.login", next=url_for("vendor.manage_shop")),
+        }, 401)
+    if getattr(current_user, "role", None) != "vendor":
+        return _shop_settings_json({"success": False, "message": "Accès réservé aux vendeurs."}, 403)
 
 
 @bp.before_request
@@ -702,13 +719,6 @@ def _shop_has_required_contact_details(shop: Shop | None) -> bool:
         return True
     return bool((getattr(shop, "contact_phone", "") or "").strip() and (getattr(shop, "address", "") or "").strip())
 
-
-def _require_shop_contact_details(shop: Shop | None):
-    if _shop_has_required_contact_details(shop):
-        return None
-    flash("Pour vendre des produits ou services, telephone et adresse sont obligatoires.", "warning")
-    return redirect(url_for("vendor.edit_shop"))
-
 # ==================== DASHBOARD & GESTION PRODUITS ====================
 
 @bp.route("/dashboard")
@@ -969,14 +979,13 @@ def catalog():
         maximum=100,
     )
 
-    search_term = (request.args.get("q") or "").strip()
+    search_term = (request.args.get("q") or "").strip()[:240]
     status_filter = (request.args.get("status") or "all").strip().lower()
     kind_filter = (request.args.get("kind") or "all").strip().lower()
     sort_filter = (request.args.get("sort") or "recent").strip().lower()
     stock_filter = (request.args.get("stock") or "all").strip().lower()
     category_id = _safe_int(request.args.get("category_id"))
     partial_only = _is_ajax_request() and request.headers.get("X-Catalog-Partial") == "1"
-    search_term_query = search_term if len(search_term) >= 2 else ""
 
     base_query = Product.query.filter(Product.vendor_id == current_user.id)
     base_query = _scope_catalog_query(base_query, allows_products, allows_services)
@@ -987,16 +996,7 @@ def catalog():
         base_query.options(selectinload(Product.category))
     )
 
-    if search_term and not search_term_query:
-        product_query = product_query.filter(False)
-    elif search_term_query:
-        like_term = f"%{search_term_query}%"
-        product_query = product_query.filter(
-            or_(
-                Product.name.ilike(like_term),
-                Product.description.ilike(like_term),
-            )
-        )
+    product_query = apply_vendor_catalog_search(product_query, search_term)
 
     if status_filter == "active":
         product_query = product_query.filter(Product.is_active.is_(True))
@@ -1039,22 +1039,20 @@ def catalog():
     else:
         stock_filter = "all"
 
-    category_options = []
-    if not partial_only:
-        category_options_query = (
-            db.session.query(Category.id, Category.name, db.func.count(Product.id).label("count"))
-            .join(Product, Product.category_id == Category.id)
-            .filter(Product.vendor_id == current_user.id)
-        )
-        category_options_query = _scope_catalog_query(category_options_query, allows_products, allows_services)
-        category_options = (
-            category_options_query
-            .group_by(Category.id, Category.name)
-            .order_by(Category.name.asc())
-            .all()
-        )
+    category_options_query = (
+        db.session.query(Category.id, Category.name, db.func.count(Product.id).label("count"))
+        .join(Product, Product.category_id == Category.id)
+        .filter(Product.vendor_id == current_user.id)
+    )
+    category_options_query = _scope_catalog_query(category_options_query, allows_products, allows_services)
+    category_options = (
+        category_options_query
+        .group_by(Category.id, Category.name)
+        .order_by(Category.name.asc(), Category.id.asc())
+        .all()
+    )
     category_ids = {int(row.id) for row in category_options}
-    if category_id and (partial_only or category_id in category_ids):
+    if category_id and category_id in category_ids:
         product_query = product_query.filter(Product.category_id == category_id)
     else:
         category_id = None
@@ -1100,16 +1098,14 @@ def catalog():
     if low_stock_threshold < 0:
         low_stock_threshold = 0
 
-    total_products = active_products = inactive_products = service_total = physical_total = 0
-    if not partial_only:
-        total_products = int(summary_query.count())
-        active_products = int(summary_query.filter(Product.is_active.is_(True)).count())
-        inactive_products = max(0, total_products - active_products)
-        service_total = int(summary_query.filter(Product.kind == "service").count()) if allows_services else 0
-        physical_total = (
-            int(summary_query.filter(Product.kind != "service").count())
-            if allows_products else 0
-        )
+    summary_row = summary_query.with_entities(
+        db.func.count(Product.id),
+        db.func.sum(case((Product.is_active.is_(True), 1), else_=0)),
+        db.func.sum(case((Product.kind == "service", 1), else_=0)),
+        db.func.sum(case((Product.kind != "service", 1), else_=0)),
+    ).one()
+    total_products, active_products, service_total, physical_total = (int(value or 0) for value in summary_row)
+    inactive_products = max(0, total_products - active_products)
 
     pagination_args = request.args.to_dict(flat=True)
     pagination_args.pop("page", None)
@@ -1154,6 +1150,13 @@ def catalog():
             total=pagination.total,
             page=pagination.page,
             pages=pagination.pages,
+            summary={
+                "total": total_products, "active": active_products, "inactive": inactive_products,
+                "physical": physical_total, "service": service_total,
+            },
+            categories=[{"id": int(row.id), "name": row.name, "count": int(row.count)}
+                        for row in category_options],
+            selected_category_id=category_id,
         )
 
     return render_template(
@@ -1958,44 +1961,125 @@ def product_delete(pid):
 
 # ==================== GESTION BOUTIQUE ====================
 
+MAX_SHOP_LOGO_BYTES = 5 * 1024 * 1024
+
+
+def _shop_settings_json(payload: dict, status: int = 200):
+    response = jsonify(payload)
+    response.status_code = status
+    response.headers["Cache-Control"] = "private, no-store, max-age=0"
+    response.headers["Vary"] = "Cookie, X-BM-Shop-Modal"
+    return response
+
+
+def _shop_manage_context(shop, **extra) -> dict:
+    """The page and modal share the same values, permissions and form fields."""
+    recent = []
+    if shop:
+        recent = (VendorChangeRequest.query
+                  .filter_by(vendor_id=current_user.id, shop_id=shop.id)
+                  .order_by(VendorChangeRequest.created_at.desc(), VendorChangeRequest.id.desc())
+                  .limit(8).all())
+    context = {
+        **_vendor_type_flags(shop), "shop": shop,
+        "shop_public_url": _public_shop_url(shop.slug) if shop else "",
+        "shop_type_labels": SHOP_TYPE_LABELS,
+        "locked_contact_email": ((shop.contact_email if shop else "") or current_user.email or "").strip(),
+        "recent_change_requests": recent,
+        "pending_change_requests": [item for item in recent if item.status == VendorChangeRequest.STATUS_PENDING],
+        "change_request_type_labels": VENDOR_CHANGE_TYPE_LABELS,
+        "allowed_change_types": VendorChangeRequest.allowed_types(),
+        "product_catalog_block_reasons": _catalog_block_reasons,
+        "max_shop_logo_bytes": MAX_SHOP_LOGO_BYTES,
+        "edit_shop_open": request.args.get("edit_shop") == "1",
+        "form_values": {
+            "description": (shop.description or "") if shop else "",
+            "contact_phone": (shop.contact_phone or "") if shop else "",
+            "address": (shop.address or "") if shop else "",
+            "service_location_note": (shop.service_location_note or "") if shop else "",
+            "service_latitude": shop.service_latitude if shop and shop.service_latitude is not None else "",
+            "service_longitude": shop.service_longitude if shop and shop.service_longitude is not None else "",
+            "clear_exact_location": "0",
+        },
+        "form_errors": {}, "change_form_values": {}, "change_form_errors": {},
+    }
+    context.update(extra)
+    return context
+
+
+def _shop_settings_success(shop, message: str, **extra):
+    if request.headers.get("X-BM-Shop-Modal") == "1" or _is_ajax_request():
+        return _shop_settings_json({
+            "success": True, "message": message,
+            "html": render_template("vendor/partials/_shop_manage_content.html", **_shop_manage_context(shop)),
+            "shop": {"id": shop.id, "is_active": bool(shop.is_active), "name": shop.name,
+                     "contact_phone": shop.contact_phone, "address": shop.address},
+            **extra,
+        })
+    flash(message, "success")
+    return redirect(url_for("vendor.manage_shop"), code=303)
+
+
+def _shop_form_reject(shop, errors: dict, *, values=None, status=422, change=False, message=None):
+    message = message or next(iter(errors.values()), "Vérifiez les informations saisies.")
+    if request.headers.get("X-BM-Shop-Modal") == "1" or _is_ajax_request():
+        return _shop_settings_json({"success": False, "message": message, "errors": errors}, status)
+    context = {"change_form_values": values or {}, "change_form_errors": errors} if change else {
+        "edit_shop_open": True, "form_values": values or {}, "form_errors": errors,
+    }
+    return render_template("vendor/manage_shop.html", **_shop_manage_context(shop, **context)), status
+
+
+def _validated_shop_location(shop, form, *, address_field="address"):
+    """Validate before touching the SQLAlchemy instance, including legacy callers."""
+    errors = {}
+    values = {
+        "address": str(form.get(address_field, shop.address or "")).strip(),
+        "service_location_note": str(form.get("service_location_note", shop.service_location_note or "")).strip(),
+        "service_latitude": shop.service_latitude, "service_longitude": shop.service_longitude,
+    }
+    if _shop_requires_contact_details(shop) and not values["address"]:
+        errors[address_field] = "Indiquez une adresse pour vos clients."
+    elif len(values["address"]) > 255:
+        errors[address_field] = "L’adresse doit contenir au maximum 255 caractères."
+    if len(values["service_location_note"]) > 255:
+        errors["service_location_note"] = "Le repère doit contenir au maximum 255 caractères."
+    clear = str(form.get("clear_exact_location", "0")) in {"1", "on", "true"}
+    lat_raw = str(form.get("service_latitude", "")).strip()
+    lng_raw = str(form.get("service_longitude", "")).strip()
+    if not shop_allows_any(shop, "services", "products"):
+        if clear or lat_raw or lng_raw:
+            errors["service_latitude"] = "La position de retrait concerne les boutiques de produits et services."
+    elif clear:
+        values["service_latitude"] = values["service_longitude"] = None
+    elif lat_raw or lng_raw:
+        try:
+            lat, lng = Decimal(lat_raw), Decimal(lng_raw)
+            if not lat.is_finite() or not lng.is_finite() or not -90 <= lat <= 90 or not -180 <= lng <= 180:
+                raise ValueError("Invalid coordinates")
+            values["service_latitude"], values["service_longitude"] = float(lat), float(lng)
+        except (InvalidOperation, ValueError):
+            errors["service_latitude"] = "Position invalide. Utilisez à nouveau la localisation."
+    return values, errors
+
+
+def _shop_settings_post_commit(shop_id, action, changes):
+    # A committed save must remain successful even if cache or audit is unavailable.
+    try:
+        bump_catalog_version()
+    except Exception:
+        current_app.logger.exception("vendor.shop_settings.cache_failed shop_id=%s", shop_id)
+    try:
+        log_access(action, "shop", shop_id, success=True, changes=changes)
+    except Exception:
+        current_app.logger.exception("vendor.shop_settings.audit_failed shop_id=%s", shop_id)
+
+
 @bp.route("/shop/manage")
 @login_required
 def manage_shop():
-    """Page de gestion de la boutique"""
-    if current_user.role != "vendor":
-        flash("Accs rserv aux vendeurs", "warning")
-        return redirect(url_for("shop.home"))
-
-    # Vrifier si le vendeur a une boutique
     shop = Shop.query.filter_by(vendor_id=current_user.id).first()
-    if shop:
-        type_flags = _vendor_type_flags(shop)
-        shop_public_url = _public_shop_url(shop.slug)
-    else:
-        shop_public_url = ""
-        type_flags = {
-            "allows_products": False,
-            "allows_services": False,
-            "allows_location": False,
-            "allows_catalog": False,
-            "catalog_title": "Catalogue",
-            "catalog_placeholder": "Rechercher...",
-            "catalog_create_label": "Nouveau",
-            "catalog_empty_label": "Aucun element",
-        }
-    return render_template(
-        "vendor/manage_shop.html",
-        shop=shop,
-        shop_public_url=shop_public_url,
-        shop_type_labels=SHOP_TYPE_LABELS,
-        allows_products=type_flags["allows_products"],
-        allows_services=type_flags["allows_services"],
-        allows_location=type_flags["allows_location"],
-        allows_catalog=type_flags["allows_catalog"],
-        catalog_title=type_flags["catalog_title"],
-        catalog_create_label=type_flags["catalog_create_label"],
-        product_catalog_block_reasons=_catalog_block_reasons,
-    )
+    return render_template("vendor/manage_shop.html", **_shop_manage_context(shop))
 
 @bp.route("/shop/create", methods=["GET", "POST"])
 @login_required
@@ -2009,160 +2093,127 @@ def create_shop():
 @bp.route("/shop/edit", methods=["GET", "POST"])
 @login_required
 def edit_shop():
-    """Modifier la boutique"""
-    if current_user.role != "vendor":
-        flash("Accs rserv aux vendeurs", "warning")
-        return redirect(url_for("shop.home"))
-
-    # Rcuprer la boutique du vendeur
+    """One edit form, displayed in the settings page or its modal."""
     shop = Shop.query.filter_by(vendor_id=current_user.id).first()
-
     if not shop:
+        if request.headers.get("X-BM-Shop-Modal") == "1" or _is_ajax_request():
+            return _shop_settings_json({"success": False, "message": "Votre boutique doit être créée par l’administration."}, 404)
         return _redirect_vendor_shop_admin_only()
+    if request.method == "GET":
+        if request.headers.get("X-BM-Shop-Modal") == "1":
+            return _shop_settings_json({"success": True, "html": render_template(
+                "vendor/partials/_shop_edit_form.html", **_shop_manage_context(shop)),
+            })
+        return redirect(url_for("vendor.manage_shop", edit_shop=1), code=303)
 
-    recent_change_requests = (
-        VendorChangeRequest.query
-        .filter_by(vendor_id=current_user.id, shop_id=shop.id)
-        .order_by(VendorChangeRequest.created_at.desc())
-        .limit(8)
-        .all()
-    )
-    locked_contact_email = (shop.contact_email or current_user.email or "").strip()
+    submitted = {key: str(request.form.get(key, "")).strip() for key in (
+        "description", "contact_phone", "address", "service_location_note",
+        "service_latitude", "service_longitude", "clear_exact_location", "remove_logo",
+    )}
+    location, errors = _validated_shop_location(shop, request.form)
+    description, phone = submitted["description"], submitted["contact_phone"]
+    if len(description) > 5000:
+        errors["description"] = "La description doit contenir au maximum 5 000 caractères."
+    if len(phone) > 30:
+        errors["contact_phone"] = "Le téléphone doit contenir au maximum 30 caractères."
+    elif _shop_requires_contact_details(shop) and not phone:
+        errors["contact_phone"] = "Indiquez un numéro de téléphone pour vos clients."
+    logo_files = [file for file in request.files.getlist("logo") if file and file.filename]
+    remove_logo = submitted["remove_logo"] in {"on", "1", "true"}
+    if len(logo_files) > 1:
+        errors["logo"] = "Choisissez une seule image pour votre logo."
+    elif logo_files:
+        if remove_logo:
+            errors["logo"] = "Choisissez un nouveau logo ou retirez le logo actuel."
+        elif not allowed_file(logo_files[0].filename):
+            errors["logo"] = "Choisissez une image JPG, PNG ou WebP."
+        elif _uploaded_files_total_bytes(logo_files) > MAX_SHOP_LOGO_BYTES:
+            errors["logo"] = "Le logo doit peser au maximum 5 Mo."
+    if errors:
+        return _shop_form_reject(shop, errors, values=submitted)
 
-    if request.method == "POST":
-        before = {
-            "description": shop.description,
-            "contact_phone": shop.contact_phone,
-            "address": shop.address,
-            "logo": shop.logo,
-        }
+    before = {key: getattr(shop, key) for key in (
+        "description", "contact_phone", "address", "logo", "service_location_note",
+        "service_latitude", "service_longitude",
+    )}
+    new_logo = None
+    try:
+        if logo_files:
+            new_logo = save_image(logo_files[0])
+            if not new_logo:
+                return _shop_form_reject(shop, {"logo": "Cette image est illisible. Choisissez une autre image."}, values=submitted)
+        shop.description, shop.contact_phone = description, phone
+        for key, value in location.items():
+            setattr(shop, key, value)
+        if new_logo or remove_logo:
+            shop.logo = new_logo
+        shop.updated_at = datetime.utcnow()
+        changed = [key for key, value in before.items() if getattr(shop, key) != value]
+        shop_id = shop.id
+        db.session.commit()
+    except Exception:
+        safe_session_rollback()
+        if new_logo:
+            _cleanup_product_media([new_logo], None)
+        current_app.logger.exception("vendor.edit_shop.failed shop_id=%s", shop.id)
+        return _shop_form_reject(shop, {"form": "L’enregistrement a échoué. Votre saisie est conservée, réessayez."},
+                                 values=submitted, status=500)
+    old_logo = before["logo"]
+    if old_logo and old_logo != shop.logo:
         try:
-            shop.description = request.form.get("description", "").strip()
-            shop.contact_phone = request.form.get("contact_phone", "").strip()
-            shop.address = request.form.get("address", "").strip()
-            if _shop_requires_contact_details(shop) and not _shop_has_required_contact_details(shop):
-                flash("Pour vendre des produits ou services, telephone et adresse sont obligatoires.", "warning")
-                return redirect(url_for("vendor.edit_shop"))
-
-            # Grer le logo
-            if 'logo' in request.files:
-                file = request.files['logo']
-                if file and file.filename and allowed_file(file.filename):
-                    logo_filename = save_image(file)
-                    if logo_filename:
-                        shop.logo = logo_filename
-
-            # Supprimer le logo si demand
-            if request.form.get("remove_logo") == "on":
-                shop.logo = None
-
-            shop.updated_at = datetime.utcnow()
-            db.session.commit()
-            bump_catalog_version()
-
-            changed_fields = [k for k, v in before.items() if getattr(shop, k) != v]
-            if changed_fields:
-                log_access(
-                    "update_shop",
-                    "shop",
-                    shop.id,
-                    success=True,
-                    changes={"fields": changed_fields}
-                )
-
-            flash(" Boutique mise  jour avec succs !", "success")
-            return redirect(url_for("vendor.manage_shop"))
-
-        except (SQLAlchemyError, ValueError, TypeError, OSError):
-            db.session.rollback()
-            current_app.logger.exception(
-                "vendor.edit_shop.failed",
-                extra={"vendor_id": getattr(current_user, "id", None), "shop_id": getattr(shop, "id", None)},
-            )
-            flash("Erreur lors de la mise  jour", "danger")
-
-    return render_template(
-        "vendor/edit_shop.html",
-        shop=shop,
-        shop_public_url=_public_shop_url(shop.slug),
-        locked_contact_email=locked_contact_email,
-        recent_change_requests=recent_change_requests,
-        change_request_type_labels=VENDOR_CHANGE_TYPE_LABELS,
-        allowed_change_types=VendorChangeRequest.allowed_types(),
-    )
+            shared = (Shop.query.filter(Shop.id != shop_id, Shop.logo == old_logo).first()
+                      or Product.query.filter(Product.image_file.contains(old_logo)).first())
+            if not shared:
+                _cleanup_product_media([old_logo], None)
+        except Exception:
+            current_app.logger.exception("vendor.edit_shop.logo_cleanup_failed shop_id=%s", shop_id)
+    _shop_settings_post_commit(shop_id, "update_shop", {"fields": changed})
+    return _shop_settings_success(shop, "Les informations de votre boutique ont été enregistrées.")
 
 
 @bp.route("/shop/change-request", methods=["POST"])
 @login_required
 def request_locked_shop_change():
-    if current_user.role != "vendor":
-        flash("Acces reserve aux vendeurs", "warning")
-        return redirect(url_for("shop.home"))
-
     shop = Shop.query.filter_by(vendor_id=current_user.id).first()
     if not shop:
+        if request.headers.get("X-BM-Shop-Modal") == "1" or _is_ajax_request():
+            return _shop_settings_json({"success": False, "message": "Boutique introuvable."}, 404)
         return _redirect_vendor_shop_admin_only()
-
     request_type = VendorChangeRequest.normalize_type(request.form.get("request_type"))
-    if not request_type:
-        flash("Type de demande invalide.", "warning")
-        return redirect(url_for("vendor.edit_shop"))
-
     requested_value_raw = (request.form.get("requested_value") or "").strip()
-    reason = (request.form.get("reason") or "").strip()[:1000]
-    if len(reason) < 8:
-        flash("Merci d'ajouter un motif plus detaille (au moins 8 caracteres).", "warning")
-        return redirect(url_for("vendor.edit_shop"))
-
-    pending_request = (
-        VendorChangeRequest.query
-        .filter_by(
-            vendor_id=current_user.id,
-            shop_id=shop.id,
-            request_type=request_type,
-            status=VendorChangeRequest.STATUS_PENDING,
-        )
-        .first()
-    )
-    if pending_request:
-        flash("Une demande du meme type est deja en attente.", "warning")
-        return redirect(url_for("vendor.edit_shop"))
-
+    reason = (request.form.get("reason") or "").strip()
+    values = {"request_type": request_type, "requested_value": requested_value_raw, "reason": reason}
+    errors = {}
+    if not request_type:
+        errors["request_type"] = "Choisissez le type de changement souhaité."
+    if not 8 <= len(reason) <= 1000:
+        errors["reason"] = "Expliquez votre demande en 8 à 1 000 caractères."
+    if request_type and VendorChangeRequest.query.filter_by(
+        vendor_id=current_user.id, shop_id=shop.id, request_type=request_type,
+        status=VendorChangeRequest.STATUS_PENDING,
+    ).first():
+        errors["request_type"] = "Une demande de ce type est déjà en attente."
     current_value = ""
     requested_value = ""
-
     if request_type == VendorChangeRequest.TYPE_ACCOUNT_EMAIL:
         requested_email = _normalize_optional_email(requested_value_raw)
-        if not requested_email:
-            flash("Email invalide.", "warning")
-            return redirect(url_for("vendor.edit_shop"))
-        if requested_email == (current_user.email or "").strip().lower():
-            flash("Le nouvel email est identique a l'email actuel.", "warning")
-            return redirect(url_for("vendor.edit_shop"))
-        existing = User.query.filter(User.email == requested_email, User.id != current_user.id).first()
-        if existing:
-            flash("Cet email est deja utilise.", "danger")
-            return redirect(url_for("vendor.edit_shop"))
-
+        if not requested_email or len(requested_email) > 120:
+            errors["requested_value"] = "Indiquez une adresse email valide (120 caractères maximum)."
+        elif requested_email == (current_user.email or "").strip().lower():
+            errors["requested_value"] = "Cet email correspond déjà à votre compte."
+        elif User.query.filter(User.email == requested_email, User.id != current_user.id).first():
+            errors["requested_value"] = "Cet email est déjà utilisé."
         current_value = (current_user.email or "").strip()
         requested_value = requested_email
-
     elif request_type == VendorChangeRequest.TYPE_SHOP_NAME:
-        requested_name = requested_value_raw
-        if len(requested_name) < 3 or len(requested_name) > 100:
-            flash("Le nom de boutique doit contenir entre 3 et 100 caracteres.", "warning")
-            return redirect(url_for("vendor.edit_shop"))
-        if requested_name.casefold() == (shop.name or "").strip().casefold():
-            flash("Le nouveau nom est identique au nom actuel.", "warning")
-            return redirect(url_for("vendor.edit_shop"))
-
+        if not 3 <= len(requested_value_raw) <= 100:
+            errors["requested_value"] = "Le nom doit contenir entre 3 et 100 caractères."
+        elif requested_value_raw.casefold() == (shop.name or "").strip().casefold():
+            errors["requested_value"] = "Ce nom correspond déjà à votre boutique."
         current_value = (shop.name or "").strip()
-        requested_value = requested_name
-
-    else:
-        flash("Type de demande non pris en charge.", "warning")
-        return redirect(url_for("vendor.edit_shop"))
-
+        requested_value = requested_value_raw
+    if errors:
+        return _shop_form_reject(shop, errors, values=values, change=True)
     try:
         change_request = VendorChangeRequest(
             vendor_id=current_user.id,
@@ -2175,137 +2226,74 @@ def request_locked_shop_change():
         )
         db.session.add(change_request)
         db.session.commit()
-        try:
-            notify_admin_vendor_change_request(change_request)
-        except Exception:
-            current_app.logger.exception(
-                "vendor_push.change_request_notify_failed",
-                extra={"change_request_id": getattr(change_request, "id", None)},
-            )
     except Exception:
-        db.session.rollback()
-        current_app.logger.exception(
-            "vendor.request_locked_shop_change.failed",
-            extra={"vendor_id": current_user.id, "shop_id": shop.id, "request_type": request_type},
-        )
-        flash("Impossible d'envoyer la demande pour le moment.", "danger")
-        return redirect(url_for("vendor.edit_shop"))
-
-    log_access(
-        "vendor_change_request_create",
-        "vendor_change_request",
-        change_request.id,
-        success=True,
-        changes={"request_type": request_type},
-    )
-    flash("Demande envoyee a l'administration.", "success")
-    return redirect(url_for("vendor.edit_shop"))
+        safe_session_rollback()
+        current_app.logger.exception("vendor.request_locked_shop_change.failed shop_id=%s", shop.id)
+        return _shop_form_reject(shop, {"form": "Impossible d’envoyer la demande. Réessayez dans quelques instants."},
+                                 values=values, change=True, status=500)
+    try:
+        notify_admin_vendor_change_request(change_request)
+    except Exception:
+        current_app.logger.exception("vendor_push.change_request_notify_failed request_id=%s", change_request.id)
+    try:
+        log_access("vendor_change_request_create", "vendor_change_request", change_request.id,
+                   success=True, changes={"request_type": request_type})
+    except Exception:
+        current_app.logger.exception("vendor.request_locked_shop_change.audit_failed request_id=%s", change_request.id)
+    return _shop_settings_success(shop, "Votre demande a été envoyée à l’administration.", request_id=change_request.id)
 
 
 @bp.route("/shop/service-location", methods=["POST"])
 @login_required
 def update_service_location():
-    if current_user.role != "vendor":
-        if _is_ajax_request():
-            return jsonify(success=False, message="Acces reserve aux vendeurs"), 403
-        flash("Acces reserve aux vendeurs", "warning")
-        return redirect(url_for("shop.home"))
-
+    """Compatibility endpoint; the settings modal now posts to edit_shop."""
     shop = Shop.query.filter_by(vendor_id=current_user.id).first()
     if not shop:
-        if _is_ajax_request():
-            return jsonify(success=False, message="Boutique non trouvee"), 404
+        if request.headers.get("X-BM-Shop-Modal") == "1" or _is_ajax_request():
+            return _shop_settings_json({"success": False, "message": "Boutique introuvable."}, 404)
         return _redirect_vendor_shop_admin_only()
-
     if not shop_allows_any(shop, "services", "products"):
-        if _is_ajax_request():
-            return jsonify(
-                success=False,
-                message="Point de retrait disponible uniquement pour les boutiques produits/services.",
-            ), 400
-        flash("Point de retrait disponible uniquement pour les boutiques produits/services.", "warning")
-        return redirect(url_for("vendor.manage_shop"))
-
-    shop.address = (request.form.get("service_address") or "").strip()
-    shop.service_location_note = (request.form.get("service_location_note") or "").strip()[:255]
-    if _shop_requires_contact_details(shop) and not (shop.address or "").strip():
-        if _is_ajax_request():
-            return jsonify(success=False, message="Adresse obligatoire pour les boutiques produits/services."), 400
-        flash("Adresse obligatoire pour les boutiques produits/services.", "warning")
-        return redirect(url_for("vendor.manage_shop"))
-
-    lat_raw = (request.form.get("service_latitude") or "").strip()
-    lng_raw = (request.form.get("service_longitude") or "").strip()
-    clear_exact = (request.form.get("clear_exact_location") or "").strip() == "1"
-
-    if clear_exact:
-        shop.service_latitude = None
-        shop.service_longitude = None
-    elif lat_raw and lng_raw:
-        try:
-            lat = float(lat_raw)
-            lng = float(lng_raw)
-            if -90 <= lat <= 90 and -180 <= lng <= 180:
-                shop.service_latitude = lat
-                shop.service_longitude = lng
-            else:
-                flash("Coordonnees invalides. Utilisez le bouton position exacte.", "warning")
-        except (TypeError, ValueError):
-            flash("Coordonnees invalides. Utilisez le bouton position exacte.", "warning")
-
-    shop.updated_at = datetime.utcnow()
-    db.session.commit()
-    bump_catalog_version()
-
-    if _is_ajax_request():
-        return jsonify(
-            success=True,
-            message="Point de retrait mis a jour.",
-            service_latitude=shop.service_latitude,
-            service_longitude=shop.service_longitude,
-            service_address=shop.address,
-            service_location_note=shop.service_location_note,
-        )
-
-    flash("Point de retrait mis a jour (position exacte + repere).", "success")
-    return redirect(url_for("vendor.manage_shop"))
+        return _shop_form_reject(shop, {"form": "Le point de retrait concerne les boutiques de produits et services."}, status=403)
+    values, errors = _validated_shop_location(shop, request.form, address_field="service_address")
+    if errors:
+        return _shop_form_reject(shop, errors, values=dict(request.form))
+    try:
+        for key, value in values.items():
+            setattr(shop, key, value)
+        shop.updated_at = datetime.utcnow()
+        db.session.commit()
+    except Exception:
+        safe_session_rollback()
+        current_app.logger.exception("vendor.update_service_location.failed shop_id=%s", shop.id)
+        return _shop_form_reject(shop, {"form": "Impossible d’enregistrer l’adresse. Réessayez."}, status=500)
+    _shop_settings_post_commit(shop.id, "update_shop_location", {"fields": list(values)})
+    return _shop_settings_success(shop, "L’adresse et la position ont été enregistrées.",
+                                  service_latitude=shop.service_latitude, service_longitude=shop.service_longitude,
+                                  service_address=shop.address, service_location_note=shop.service_location_note)
 
 @bp.route("/shop/toggle", methods=["POST"])
 @login_required
 def toggle_shop_status():
-    """Activer/desactiver la boutique"""
-    if current_user.role != "vendor":
-        if _is_ajax_request():
-            return jsonify(success=False, message="Acces reserve aux vendeurs"), 403
-        flash("Acces reserve aux vendeurs", "warning")
-        return redirect(url_for("shop.home"))
-
+    """Set visibility explicitly; old callers without is_active retain toggle behavior."""
     shop = Shop.query.filter_by(vendor_id=current_user.id).first()
-
     if not shop:
-        if _is_ajax_request():
-            return jsonify(success=False, message="Boutique non trouvee"), 404
-        flash("Boutique non trouvee", "danger")
-        return redirect(url_for("vendor.dashboard"))
-
-    shop.is_active = not shop.is_active
-    db.session.commit()
-    bump_catalog_version()
-
-    if _is_ajax_request():
-        return jsonify(success=True, shop_id=shop.id, is_active=shop.is_active)
-
-    log_access(
-        "toggle_shop",
-        "shop",
-        shop.id,
-        success=True,
-        changes={"is_active": shop.is_active}
-    )
-
-    status = "activee" if shop.is_active else "desactivee"
-    flash(f"Boutique {status}", "success")
-    return redirect(url_for("vendor.manage_shop"))
+        if request.headers.get("X-BM-Shop-Modal") == "1" or _is_ajax_request():
+            return _shop_settings_json({"success": False, "message": "Boutique introuvable."}, 404)
+        return _redirect_vendor_shop_admin_only()
+    desired = request.form.get("is_active")
+    if desired is not None and desired not in {"0", "1"}:
+        return _shop_form_reject(shop, {"is_active": "Choisissez un état de visibilité valide."})
+    target = desired == "1" if desired is not None else not shop.is_active
+    try:
+        shop.is_active = target
+        db.session.commit()
+    except Exception:
+        safe_session_rollback()
+        current_app.logger.exception("vendor.toggle_shop_status.failed shop_id=%s", shop.id)
+        return _shop_form_reject(shop, {"form": "Impossible de modifier la visibilité. Réessayez."}, status=500)
+    _shop_settings_post_commit(shop.id, "toggle_shop", {"is_active": target})
+    return _shop_settings_success(shop, "Votre boutique est visible." if target else "Votre boutique est masquée.",
+                                  shop_id=shop.id, is_active=target)
 
 
 @bp.route("/shop/set-open", methods=["POST"])
@@ -2373,13 +2361,21 @@ def orders():
 
 @bp.route("/orders/receipt/<int:oid>", methods=["POST"])
 @login_required
-@order_access_required
 def confirm_receipt(oid):
     access_guard = _require_physical_vendor_access(strict_forbidden=True)
     if access_guard:
         return access_guard
 
     vendor_id = current_user.id
+
+    def result(success, message, status=200, already_confirmed=False):
+        if _is_ajax_request():
+            response = jsonify(success=success, message=message, order_id=oid,
+                               already_confirmed=already_confirmed)
+            response.headers["Cache-Control"] = "private, no-store"
+            return response, status
+        flash(message, "success" if success else "warning")
+        return redirect(request.referrer or url_for("vendor.earnings"), code=303)
 
     # Vérifie que la commande contient bien au moins un produit physique
     # appartenant à ce vendeur.
@@ -2392,22 +2388,20 @@ def confirm_receipt(oid):
         .first()
     )
     if not physical_order_line:
-        flash(
-            "Cette commande ne contient aucun produit physique pouvant être confirmé pour votre boutique.",
-            "warning",
-        )
-        return redirect(request.referrer or url_for("vendor.earnings"))
+        return result(False, "Cette commande n’est pas disponible pour votre boutique.", 403)
+
+    order = db.session.get(Order, oid)
+    if not order or order.status in CASHBOOK_EXCLUDED_ORDER_STATUSES:
+        return result(False, "Cette commande est annulée ou clôturée et ne peut pas être encaissée.", 409)
 
     # Empêche un double encaissement sur la même commande pour ce vendeur
     existing = VendorReceipt.query.filter_by(vendor_id=vendor_id, order_id=oid).first()
     if existing:
-        flash(
-            "Cet encaissement a déjà été confirmé pour cette commande.",
-            "info",
-        )
-        return redirect(request.referrer or url_for("vendor.earnings"))
+        return result(True, "Cet encaissement est déjà enregistré.", already_confirmed=True)
 
-    note = (request.form.get("note") or "").strip()[:255] or None
+    note = (request.form.get("note") or "").strip() or None
+    if note and len(note) > 255:
+        return result(False, "La note doit contenir au maximum 255 caractères.", 422)
 
     try:
         receipt = VendorReceipt(
@@ -2426,18 +2420,12 @@ def confirm_receipt(oid):
             "vendor.confirm_receipt.failed",
             extra={"vendor_id": vendor_id, "order_id": oid},
         )
-        flash(
-            "Une erreur est survenue pendant la confirmation de l'encaissement. "
-            "Veuillez réessayer.",
-            "danger",
-        )
-        return redirect(request.referrer or url_for("vendor.earnings"))
+        # A concurrent confirmation may have won the unique vendor/order key.
+        if VendorReceipt.query.filter_by(vendor_id=vendor_id, order_id=oid).first():
+            return result(True, "Cet encaissement est déjà enregistré.", already_confirmed=True)
+        return result(False, "Impossible d’enregistrer l’encaissement. Votre note est conservée ; réessayez.", 500)
 
-    flash(
-        "Encaissement confirme.",
-        "success",
-    )
-    return redirect(request.referrer or url_for("vendor.earnings"))
+    return result(True, "Encaissement enregistré.")
 
 
 @bp.route("/notifications/push/config")
@@ -2729,8 +2717,10 @@ def earnings():
     show = earnings_filter["show"]
     start = earnings_filter["start"]
     end = earnings_filter["end"]
+    q = (request.args.get("q") or "").strip()[:240]
+    shop = resolve_vendor_shop(current_user)
 
-    order_amounts_subquery = (
+    order_amounts_query = (
         db.session.query(
             OrderItem.order_id.label("order_id"),
             db.func.sum(OrderItem.price * OrderItem.quantity).label("amount_cents"),
@@ -2741,9 +2731,23 @@ def earnings():
         .filter(Product.kind != "service")
         .filter(Order.created_at >= start, Order.created_at < end)
         .filter(~Order.status.in_(CASHBOOK_EXCLUDED_ORDER_STATUSES))
-        .group_by(OrderItem.order_id)
-        .subquery()
     )
+    if q:
+        reference = q.removeprefix("#")
+        numeric_reference = reference.isascii() and reference.isdigit() and len(reference) <= 10
+        if q.startswith("#") and reference.isascii() and reference.isdigit():
+            order_amounts_query = order_amounts_query.filter(Order.id == int(reference) if numeric_reference else False)
+        else:
+            matching_products = apply_vendor_catalog_search(
+                db.session.query(Product.id).filter(Product.vendor_id == vendor_id, Product.kind != "service"), q
+            )
+            matching_orders = db.session.query(OrderItem.order_id).filter(OrderItem.product_id.in_(matching_products))
+            matches = Order.id.in_(matching_orders)
+            if numeric_reference:
+                matches = or_(matches, Order.id == int(reference))
+            order_amounts_query = order_amounts_query.filter(matches)
+    # Search chooses orders; their full physical subtotal remains unchanged.
+    order_amounts_subquery = order_amounts_query.group_by(OrderItem.order_id).subquery()
 
     receipt_order_subquery = (
         db.session.query(VendorReceipt.order_id.label("order_id"))
@@ -2804,7 +2808,7 @@ def earnings():
             selectinload(Order.items)
             .load_only(OrderItem.id, OrderItem.order_id, OrderItem.product_id, OrderItem.quantity)
             .selectinload(OrderItem.product)
-            .load_only(Product.id, Product.vendor_id, Product.name),
+            .load_only(Product.id, Product.vendor_id, Product.name, Product.kind),
         )
         .join(order_amounts_subquery, order_amounts_subquery.c.order_id == Order.id)
         .outerjoin(receipt_order_subquery, receipt_order_subquery.c.order_id == Order.id)
@@ -2851,6 +2855,9 @@ def earnings():
 
     return render_template(
         "vendor/earnings.html",
+        shop=shop,
+        **_vendor_type_flags(shop),
+        q=q,
         range_filter=range_filter,
         date_range_label=date_range_label,
         date_from=date_from,
@@ -2991,13 +2998,7 @@ def stats_live():
         vendor_flags = _vendor_type_flags(vendor_shop)
         allows_products = vendor_flags["allows_products"]
 
-    now = datetime.utcnow()
-    start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    if start.month == 12:
-        end = start.replace(year=start.year + 1, month=1)
-    else:
-        end = start.replace(month=start.month + 1)
-
+    # Match the cumulative totals rendered by dashboard() before live refresh.
     try:
         if current_user.role == "admin":
             orders_query = db.session.query(db.func.count(db.func.distinct(Order.id))).join(
@@ -3010,7 +3011,6 @@ def stats_live():
                 .join(Product, Product.id == OrderItem.product_id)
                 .filter(Product.vendor_id == current_user.id)
                 .filter(Product.kind != "service")
-                .filter(Order.created_at >= start, Order.created_at < end)
             )
         else:
             total_orders = 0
@@ -3028,7 +3028,6 @@ def stats_live():
                 .join(Product, Product.id == OrderItem.product_id)
                 .filter(Product.vendor_id == current_user.id)
                 .filter(Product.kind != "service")
-                .filter(Order.created_at >= start, Order.created_at < end)
             )
         else:
             total_revenue = 0.0

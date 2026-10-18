@@ -1,0 +1,48 @@
+{% set history_labels = {'taken': 'Louée', 'expired': 'Expirée', 'deleted_by_owner': 'Retirée par vous', 'deleted_by_admin': 'Retirée par l’administration'} %}
+{% set property_labels = {'room': 'Chambre', 'apartment': 'Appartement', 'studio': 'Studio', 'store': 'Local commercial'} %}
+{% set listing_labels = {'monthly': 'Au mois', 'daily': 'À la journée'} %}
+<div class="archive-results" data-archive-total="{{ pagination.total }}" data-archive-page="{{ pagination.page }}">
+{% if archives %}
+  <div class="vr-list-header archive-list-header"><span>{{ pagination.total }} annonce{{ 's' if pagination.total != 1 else '' }}</span><span class="archive-column-label">Motif</span><span class="archive-column-label">Loyer</span><span class="archive-column-label">Clôturée le</span><span class="visually-hidden">Détails</span></div>
+  <div class="archive-list">
+  {% for archive in archives %}
+    {% set archived_commission = archive.platform_commission_amount_cents if archive.platform_commission_amount_cents else (commission_amount_from_owner_fee(archive.owner_fee_cents, archive.platform_commission_rate_bps) + (archive.platform_commission_fixed_cents or 0)) %}
+    <article class="archive-row" data-archive-row data-archive-id="{{ archive.id }}">
+      <div class="archive-identity"><span class="archive-property-icon" aria-hidden="true"><i class="bi bi-house-door"></i></span><div><h2 class="archive-title">{{ archive.title }}</h2><p>{{ archive.city }}{% if archive.area %} · {{ archive.area }}{% endif %}</p>{% if shops|length > 1 and archive.shop %}<small>{{ archive.shop.name }}</small>{% endif %}</div></div>
+      <span class="archive-reason archive-reason-{{ archive.closed_reason }}">{{ history_labels.get(archive.closed_reason, 'Clôturée') }}</span>
+      <div class="archive-rent"><strong>{{ cents_to_dh(archive.rent_cents) }}</strong><small>{{ 'par jour' if archive.listing_type == 'daily' else 'par mois' }}</small></div>
+      <time class="archive-closed"{% if archive.closed_at %} datetime="{{ archive.closed_at.isoformat() }}"{% endif %}>{{ archive.closed_at.strftime('%d/%m/%Y') if archive.closed_at else 'Non renseigné' }}</time>
+      <details class="archive-details"><summary class="vr-button archive-detail-trigger" data-archive-details>Détails<i class="bi bi-arrow-up-right" aria-hidden="true"></i></summary>
+        <div class="archive-detail-content" data-archive-detail-content>
+          <h3>{{ archive.title }}</h3>
+          <p class="archive-detail-location"><i class="bi bi-geo-alt" aria-hidden="true"></i> {{ archive.city }}{% if archive.area %} · {{ archive.area }}{% endif %}</p>
+          <dl class="archive-detail-grid">
+            <div><dt>Motif de clôture</dt><dd>{{ history_labels.get(archive.closed_reason, 'Clôturée') }}</dd></div>
+            <div><dt>Boutique</dt><dd>{{ archive.shop.name if archive.shop else 'Non renseignée' }}</dd></div>
+            <div><dt>Type de logement</dt><dd>{{ property_labels.get(archive.property_type, archive.property_type or 'Non renseigné') }}</dd></div>
+            <div><dt>Location</dt><dd>{{ listing_labels.get(archive.listing_type, 'Non renseignée') }}</dd></div>
+            <div><dt>Loyer</dt><dd>{{ cents_to_dh(archive.rent_cents) }}</dd></div>
+            <div><dt>Caution</dt><dd>{{ cents_to_dh(archive.deposit_cents) if archive.deposit_cents is not none else 'Non renseignée' }}</dd></div>
+            <div><dt>Frais du propriétaire</dt><dd>{{ cents_to_dh(archive.owner_fee_cents) if archive.owner_fee_cents is not none else 'Non renseignés' }}{% if archive.owner_fee_negotiable %}<small>Négociables</small>{% endif %}{% if archive.owner_fee_text %}<small>{{ archive.owner_fee_text }}</small>{% endif %}</dd></div>
+            <div><dt>Consultations</dt><dd>{{ archive.archived_view_count }}</dd></div>
+            <div><dt>Commission BabaMarket</dt><dd>{% if archive.closed_reason == 'taken' %}{{ cents_to_dh(archived_commission) }}<small>{{ bps_to_percent(archive.platform_commission_rate_bps) }} %{% if archive.platform_commission_fixed_cents %} + {{ cents_to_dh(archive.platform_commission_fixed_cents) }}{% endif %}</small>{% else %}Non applicable{% endif %}</dd></div>
+            <div><dt>Clôturée le</dt><dd>{{ archive.closed_at.strftime('%d/%m/%Y à %H:%M') if archive.closed_at else 'Non renseigné' }}</dd></div>
+            <div><dt>Publiée le</dt><dd>{{ archive.created_at_original.strftime('%d/%m/%Y à %H:%M') if archive.created_at_original else 'Non renseigné' }}</dd></div>
+            <div><dt>Expiration prévue</dt><dd>{{ archive.expires_at_original.strftime('%d/%m/%Y à %H:%M') if archive.expires_at_original else 'Non renseignée' }}</dd></div>
+          </dl>
+        </div>
+      </details>
+    </article>
+  {% endfor %}
+  </div>
+  {% if pagination.pages > 1 %}
+  <nav class="vr-pagination archive-pagination" aria-label="Pagination des archives">
+    {% if pagination.has_prev %}<a class="vr-button" href="{{ url_for('rentals.owner_locations_archives', page=pagination.prev_num, q=q or none, status=status or none, shop=selected_shop_id) }}" rel="prev"><i class="bi bi-chevron-left" aria-hidden="true"></i>Précédent</a>{% else %}<span></span>{% endif %}
+    <span>Page {{ pagination.page }} sur {{ pagination.pages }}</span>
+    {% if pagination.has_next %}<a class="vr-button" href="{{ url_for('rentals.owner_locations_archives', page=pagination.next_num, q=q or none, status=status or none, shop=selected_shop_id) }}" rel="next">Suivant<i class="bi bi-chevron-right" aria-hidden="true"></i></a>{% else %}<span></span>{% endif %}
+  </nav>
+  {% endif %}
+{% else %}
+  <div class="vr-empty archive-empty"><span class="archive-empty-icon"><i class="bi bi-clock-history" aria-hidden="true"></i></span><h2>{{ 'Aucune annonce trouvée' if q or status or selected_shop_id else 'Aucune location archivée' }}</h2><p>{% if q or status or selected_shop_id %}Essayez un autre mot ou effacez les filtres.{% else %}Les annonces clôturées ces {{ history_days }} derniers jours apparaîtront ici.{% endif %}</p>{% if q or status or selected_shop_id %}<a href="{{ url_for('rentals.owner_locations_archives') }}" class="vr-button" data-archive-reset>Effacer les filtres</a>{% endif %}</div>
+{% endif %}
+</div>
