@@ -289,7 +289,7 @@ body[data-page="landing"] .hub-feedback { position: fixed; left: 50%; bottom: 24
 @media (max-width: 768px) {
   body[data-page="landing"] .u-modal-fullscreen-btn { display: none !important; }
   body[data-page="landing"] { padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
-  .hub-header-inner { grid-template-columns: minmax(0, 1fr) auto; gap: 3px 14px; padding: calc(10px + env(safe-area-inset-top, 0px)) 18px 10px; }
+  .hub-header-inner { grid-template-columns: minmax(0, 1fr) auto; gap: 3px 14px; padding: max(14px, calc(12px + env(safe-area-inset-top, 0px))) 18px 10px; }
   .hub-brand { grid-row: 1; font-size: 25px; gap: 8px; letter-spacing: -.9px; }
   .hub-brand-logo { width: 48px; height: 48px; }
   .hub-header-actions { grid-row: 1; grid-column: 2; }

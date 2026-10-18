@@ -1,4 +1,4 @@
-﻿    :root {
+    :root {
       /* Brand colors */
       --primary-green: #10b981;
       --primary-green-dark: #059669;
@@ -143,7 +143,7 @@
       background: linear-gradient(135deg, var(--primary-green), var(--secondary-green)) !important;
       border-bottom: 1px solid rgba(255, 255, 255, 0.15);
       min-height: var(--bm-nav-min-height);
-      padding: calc(var(--bm-nav-pad-top) + var(--bm-safe-top)) 0 var(--bm-nav-pad-bottom);
+      padding: max(12px, calc(var(--bm-nav-pad-top) + var(--bm-safe-top))) 0 var(--bm-nav-pad-bottom);
       box-shadow: var(--shadow-md);
       transition:
         padding 0.3s cubic-bezier(0.4, 0, 0.2, 1),
@@ -2143,10 +2143,10 @@
    ========================================================================== */
 .bm-flash-toast-container {
   position: fixed;
-  top: clamp(14px, 2.5vw, 24px);
+  top: max(18px, calc(14px + env(safe-area-inset-top, 0px)));
   left: 50%;
   transform: translateX(-50%);
-  z-index: 999999;
+  z-index: 9999999;
   display: flex;
   flex-direction: column;
   align-items: center;

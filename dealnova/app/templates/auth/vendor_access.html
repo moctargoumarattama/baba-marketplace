@@ -16,6 +16,30 @@
     background: #f4faf6;
     font-family: inherit;
     padding: 1rem;
+    max-width: 100vw;
+  }
+
+  .vd-page,
+  .vd-page *,
+  .vd-page *::before,
+  .vd-page *::after {
+    box-sizing: border-box;
+    max-width: 100%;
+  }
+
+  .vd-card,
+  .vd-card form,
+  .vd-grid,
+  .vd-grid > div {
+    min-width: 0;
+  }
+
+  .vd-page.vd-keyboard-open {
+    align-items: flex-start;
+    min-height: 0;
+    height: auto;
+    padding-top: .5rem;
+    padding-bottom: .75rem;
   }
 
   @supports (min-height: 100dvh) {
@@ -171,6 +195,10 @@
     .vd-page {
       align-items: flex-start;
       min-height: auto;
+      width: 100%;
+      max-width: 100vw;
+      overflow-x: hidden;
+      overflow-y: visible;
       padding: .75rem .72rem 1rem;
     }
 
@@ -209,7 +237,7 @@
     .vd-input {
       min-height: 2.15rem;
       padding: .42rem .62rem;
-      font-size: .82rem;
+      font-size: 16px;
     }
 
     textarea.vd-input {
@@ -225,7 +253,7 @@
     <div class="vd-header">
       <div class="vd-icon"><i class="bi bi-shop"></i></div>
       <div>
-        <h2>Devenir vendeur</h2>
+        <h2>Inscription Vendeur</h2>
         <p>Créez votre compte et votre boutique en quelques minutes.</p><!-- Texte historique : Creation immediate du compte et de la boutique. -->
       </div>
     </div>
@@ -291,5 +319,20 @@
     <a href="{{ url_for('auth.login') }}" class="vd-back"><i class="bi bi-arrow-left"></i> Retour à la connexion</a>
   </div>
 </div>
+<script>
+(function () {
+  var page = document.querySelector('.vd-page');
+  if (!page || !window.visualViewport) return;
+  var initialHeight = window.visualViewport.height;
+  function syncKeyboard() {
+    var keyboardOpen = initialHeight - window.visualViewport.height > 120;
+    page.classList.toggle('vd-keyboard-open', keyboardOpen);
+    if (keyboardOpen) page.style.maxWidth = '100vw';
+  }
+  window.visualViewport.addEventListener('resize', syncKeyboard, { passive: true });
+  window.visualViewport.addEventListener('scroll', syncKeyboard, { passive: true });
+  syncKeyboard();
+}());
+</script>
 {% endblock %}
 

@@ -23,7 +23,7 @@ body[data-public-refresh="1"] .support-issue-fab { bottom: 24px; }
 }
 @media (max-width: 768px) {
   body[data-public-refresh="1"] { padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
-  .public-header .hub-header-inner { grid-template-columns: minmax(0, 1fr) auto; }
+  .public-header .hub-header-inner { grid-template-columns: minmax(0, 1fr) auto; padding-top: max(14px, calc(12px + env(safe-area-inset-top, 0px))); }
   .public-location { grid-column: 1; grid-row: 2; min-height: 28px; padding: 3px 0; font-size: 13px; }
   body[data-public-refresh="1"] .support-issue-fab { bottom: calc(90px + env(safe-area-inset-bottom, 0px)); }
   .public-footer { padding: 24px 0 10px; }

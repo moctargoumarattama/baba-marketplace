@@ -69,7 +69,7 @@
   <!-- Google Fonts -->
   <link rel="stylesheet" href="{{ url_for('static', filename='fonts/public.css', v=app_static_version) }}">
 
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/ui_shell.css', v=app_static_version) }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/ui_shell.css', v=app_static_version ~ '-toasts-v7-safearea') }}">
 
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <meta name="theme-color" content="#10B981">
@@ -1504,6 +1504,153 @@
         <!-- Flash Messages (Dynamic Glass Toast) -->
         {% with msgs = get_flashed_messages(with_categories=true) %}
           {% if msgs %}
+          <style>
+            .bm-flash-toast-container {
+              position: fixed !important;
+              top: max(18px, calc(14px + env(safe-area-inset-top, 0px))) !important;
+              left: 50% !important;
+              transform: translateX(-50%) !important;
+              z-index: 9999999 !important;
+              display: flex !important;
+              flex-direction: column !important;
+              align-items: center !important;
+              gap: 10px !important;
+              pointer-events: none !important;
+              width: min(92vw, 440px) !important;
+              margin: 0 !important;
+              padding: 0 !important;
+            }
+            .bm-flash-toast {
+              pointer-events: auto !important;
+              position: relative !important;
+              display: flex !important;
+              align-items: center !important;
+              gap: 12px !important;
+              width: 100% !important;
+              padding: 10px 14px 12px 14px !important;
+              border-radius: 999px !important;
+              backdrop-filter: blur(16px) saturate(180%) !important;
+              -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
+              box-shadow: 0 16px 36px rgba(15, 23, 42, 0.18), 0 4px 12px rgba(15, 23, 42, 0.08) !important;
+              overflow: hidden !important;
+              animation: bmToastPopIn 0.38s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+              transition: transform 0.2s ease, opacity 0.2s ease !important;
+              box-sizing: border-box !important;
+            }
+            .bm-flash-toast.bm-flash-info,
+            .bm-flash-toast.bm-flash-primary {
+              background: linear-gradient(135deg, rgba(240, 249, 255, 0.98), rgba(224, 242, 254, 0.96)) !important;
+              border: 1.5px solid #0284c7 !important;
+              color: #0369a1 !important;
+            }
+            .bm-flash-toast.bm-flash-info .bm-toast-icon-wrap,
+            .bm-flash-toast.bm-flash-primary .bm-toast-icon-wrap {
+              background: linear-gradient(135deg, #0284c7, #0ea5e9) !important;
+              color: #ffffff !important;
+              box-shadow: 0 3px 8px rgba(2, 132, 199, 0.4) !important;
+            }
+            .bm-flash-toast.bm-flash-info .bm-toast-progress,
+            .bm-flash-toast.bm-flash-primary .bm-toast-progress {
+              background: linear-gradient(90deg, #0284c7, #38bdf8) !important;
+            }
+            .bm-flash-toast.bm-flash-success {
+              background: linear-gradient(135deg, rgba(236, 253, 245, 0.98), rgba(209, 250, 229, 0.96)) !important;
+              border: 1.5px solid #059669 !important;
+              color: #065f46 !important;
+            }
+            .bm-flash-toast.bm-flash-success .bm-toast-icon-wrap {
+              background: linear-gradient(135deg, #059669, #10b981) !important;
+              color: #ffffff !important;
+              box-shadow: 0 3px 8px rgba(5, 150, 105, 0.4) !important;
+            }
+            .bm-flash-toast.bm-flash-success .bm-toast-progress {
+              background: linear-gradient(90deg, #059669, #34d399) !important;
+            }
+            .bm-flash-toast.bm-flash-warning {
+              background: linear-gradient(135deg, rgba(255, 251, 235, 0.98), rgba(254, 243, 199, 0.96)) !important;
+              border: 1.5px solid #d97706 !important;
+              color: #92400e !important;
+            }
+            .bm-flash-toast.bm-flash-warning .bm-toast-icon-wrap {
+              background: linear-gradient(135deg, #d97706, #f59e0b) !important;
+              color: #ffffff !important;
+              box-shadow: 0 3px 8px rgba(217, 119, 6, 0.4) !important;
+            }
+            .bm-flash-toast.bm-flash-warning .bm-toast-progress {
+              background: linear-gradient(90deg, #d97706, #fbbf24) !important;
+            }
+            .bm-flash-toast.bm-flash-danger,
+            .bm-flash-toast.bm-flash-error {
+              background: linear-gradient(135deg, rgba(254, 242, 242, 0.98), rgba(254, 226, 226, 0.96)) !important;
+              border: 1.5px solid #dc2626 !important;
+              color: #991b1b !important;
+            }
+            .bm-flash-toast.bm-flash-danger .bm-toast-icon-wrap,
+            .bm-flash-toast.bm-flash-error .bm-toast-icon-wrap {
+              background: linear-gradient(135deg, #dc2626, #ef4444) !important;
+              color: #ffffff !important;
+              box-shadow: 0 3px 8px rgba(220, 38, 38, 0.4) !important;
+            }
+            .bm-flash-toast.bm-flash-danger .bm-toast-progress,
+            .bm-flash-toast.bm-flash-error .bm-toast-progress {
+              background: linear-gradient(90deg, #dc2626, #f87171) !important;
+            }
+            .bm-toast-icon-wrap {
+              width: 32px !important;
+              height: 32px !important;
+              border-radius: 999px !important;
+              display: grid !important;
+              place-items: center !important;
+              flex-shrink: 0 !important;
+              font-size: 1.05rem !important;
+            }
+            .bm-toast-msg {
+              flex: 1 !important;
+              min-width: 0 !important;
+              font-size: 0.92rem !important;
+              font-weight: 700 !important;
+              line-height: 1.35 !important;
+              word-break: break-word !important;
+            }
+            .bm-toast-close {
+              width: 28px !important;
+              height: 28px !important;
+              border-radius: 999px !important;
+              border: none !important;
+              background: rgba(15, 23, 42, 0.08) !important;
+              color: currentColor !important;
+              display: grid !important;
+              place-items: center !important;
+              font-size: 0.78rem !important;
+              cursor: pointer !important;
+              flex-shrink: 0 !important;
+              padding: 0 !important;
+              outline: none !important;
+              -webkit-appearance: none !important;
+            }
+            .bm-toast-progress {
+              position: absolute !important;
+              bottom: 0 !important;
+              left: 0 !important;
+              right: 0 !important;
+              height: 3px !important;
+              transform-origin: left center !important;
+              animation: bmToastTimer 3.5s linear forwards !important;
+            }
+            @keyframes bmToastPopIn {
+              0% { opacity: 0; transform: translateY(-20px) scale(0.94); }
+              60% { transform: translateY(2px) scale(1.01); }
+              100% { opacity: 1; transform: translateY(0) scale(1); }
+            }
+            @keyframes bmToastPopOut {
+              0% { opacity: 1; transform: translateY(0) scale(1); max-height: 80px; }
+              100% { opacity: 0; transform: translateY(-16px) scale(0.94); max-height: 0; }
+            }
+            @keyframes bmToastTimer {
+              from { transform: scaleX(1); }
+              to { transform: scaleX(0); }
+            }
+          </style>
           <div class="bm-flash-toast-container" id="bmFlashToastContainer" aria-live="polite">
             {% for cat, msg in msgs %}
             <div class="bm-flash-toast bm-flash-{{ cat }}" data-bm-toast role="status">
@@ -1523,6 +1670,29 @@
             </div>
             {% endfor %}
           </div>
+          <script>
+            (function(){
+              var c = document.getElementById('bmFlashToastContainer');
+              if (!c) return;
+              c.querySelectorAll('[data-bm-toast]').forEach(function(t){
+                function dismiss(){
+                  if (t.classList.contains('is-leaving')) return;
+                  t.classList.add('is-leaving');
+                  t.style.animation = 'bmToastPopOut 0.28s cubic-bezier(0.4,0,1,1) forwards';
+                  setTimeout(function(){
+                    t.remove();
+                    if (!c.querySelector('[data-bm-toast]')) c.remove();
+                  }, 280);
+                }
+                var timer = setTimeout(dismiss, 3500);
+                var btn = t.querySelector('[data-bm-toast-close]');
+                if (btn) btn.addEventListener('click', function(e){ e.stopPropagation(); clearTimeout(timer); dismiss(); });
+                t.addEventListener('click', function(){ clearTimeout(timer); dismiss(); });
+                t.addEventListener('mouseenter', function(){ clearTimeout(timer); });
+                t.addEventListener('mouseleave', function(){ timer = setTimeout(dismiss, 2000); });
+              });
+            })();
+          </script>
           {% endif %}
         {% endwith %}
 
@@ -1611,7 +1781,7 @@
   <script src="{{ url_for('static', filename='vendor/bootstrap/5.3.3/js/bootstrap.bundle.min.js', v=app_static_version) }}"></script>
 
   <script src="{{ url_for('static', filename='js/core/safe_refresh.js', v=app_static_version) }}"></script>
-  <script src="{{ url_for('static', filename='js/ui_shell.js', v=app_static_version ~ '-textes-v1' ~ '-public-v2') }}"></script>
+  <script src="{{ url_for('static', filename='js/ui_shell.js', v=app_static_version ~ '-textes-v1' ~ '-public-v2' ~ '-toasts-v7-safearea') }}"></script>
   <script src="{{ url_for('static', filename='js/client_welcome_notification.js', v=app_static_version) }}" defer></script>
 
   {% block scripts %}{% endblock %}
