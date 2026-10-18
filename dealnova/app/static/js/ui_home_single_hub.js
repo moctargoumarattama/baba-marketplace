@@ -34,6 +34,9 @@
     var pDetailShopRating = document.getElementById('pDetailShopRating');
     var pDetailShopBtn = document.getElementById('pDetailShopBtn');
     var pDetailMainImg = document.getElementById('pDetailMainImg');
+    var pDetailMainVideo = document.getElementById('pDetailMainVideo');
+    var pDetailVideoBadge = document.getElementById('pDetailVideoBadge');
+    var pDetailZoomChip = document.getElementById('pDetailZoomChip');
     var pDetailImgWrap = document.getElementById('pDetailImgWrap');
     var pDetailMainImgBlur = document.getElementById('pDetailMainImgBlur');
     var pDetailLightbox = document.getElementById('pDetailLightbox');
@@ -366,6 +369,13 @@
         var closingLayer = Object.keys(hubLayers).map(function (kind) { return hubLayers[kind]; }).find(function (layer) { return layer.node && layer.node.classList.contains('is-closing'); });
         if (closingLayer) lockHubBackground(document.body, closingLayer.node, closingLayer.backdrop);
         finishHubEffects();
+      }
+      if (pDetailMainVideo && (!top || top.kind !== 'product')) {
+        pDetailMainVideo.pause();
+        pDetailMainVideo.removeAttribute('src');
+        pDetailMainVideo.removeAttribute('data-loaded-src');
+        pDetailMainVideo.load();
+        pDetailMainVideo.style.display = 'none';
       }
       if (window.BMCatalog && previousTop === 'universe' && (!top || top.kind !== 'universe')) window.BMCatalog.pause();
       document.querySelectorAll('[data-hub-home]').forEach(function (link) {
@@ -1106,13 +1116,34 @@
       if (pDetailLightboxCounter) {
         pDetailLightboxCounter.textContent = (index + 1) + ' / ' + activeGalleryImages.length;
       }
-      updateGalleryImage(index);
+      var itemIndex = activeGalleryItems.findIndex(function (it) {
+        return it.type === 'image' && it.src === imgName;
+      });
+      if (itemIndex !== -1) {
+        activeGalleryIndex = itemIndex;
+        if (pDetailPhotoIndex) pDetailPhotoIndex.textContent = (itemIndex + 1);
+        if (pDetailThumbs) {
+          var thumbs = pDetailThumbs.querySelectorAll('.u-pdetail-thumb');
+          thumbs.forEach(function (th, i) {
+            th.classList.toggle('is-active', i === itemIndex);
+          });
+        }
+      }
     }
 
     function openLightbox(index) {
       if (deferHubAction(function () { openLightbox(index); })) return;
       if (!pDetailLightbox) return;
-      lightboxActiveIndex = typeof index === 'number' ? index : activeGalleryIndex;
+      var curItem = activeGalleryItems[activeGalleryIndex];
+      if (curItem && curItem.type === 'video') return;
+      if (!activeGalleryImages.length) return;
+
+      var targetImgIdx = 0;
+      if (curItem && curItem.type === 'image') {
+        var foundIdx = activeGalleryImages.indexOf(curItem.src);
+        if (foundIdx !== -1) targetImgIdx = foundIdx;
+      }
+      lightboxActiveIndex = targetImgIdx;
       pDetailLightbox.style.display = 'flex';
       pDetailLightbox.offsetHeight; // reflow
 
@@ -1132,20 +1163,50 @@
     // ========================================================
     // GESTION DE LA MODALE DÉTAIL PRODUIT (QUICK-VIEW OPTION A)
     // ========================================================
-    function updateGalleryImage(index) {
-      if (!activeGalleryImages.length) return;
-      if (index < 0) index = activeGalleryImages.length - 1;
-      if (index >= activeGalleryImages.length) index = 0;
+    var activeGalleryItems = [];
+    var currentProductHasPromo = false;
+
+    function updateGalleryMedia(index) {
+      if (!activeGalleryItems.length) return;
+      if (index < 0) index = activeGalleryItems.length - 1;
+      if (index >= activeGalleryItems.length) index = 0;
       activeGalleryIndex = index;
 
-      var imgName = activeGalleryImages[index];
-      var fullImg = imgName ? ('/static/uploads/' + imgName) : '/static/images/produit.jpeg';
-      if (pDetailMainImg) {
-        pDetailMainImg.src = fullImg;
+      var currentItem = activeGalleryItems[index];
+
+      if (currentItem.type === 'video') {
+        if (pDetailMainImg) pDetailMainImg.style.display = 'none';
+        if (pDetailMainImgBlur) pDetailMainImgBlur.style.display = 'none';
+        if (pDetailZoomChip) pDetailZoomChip.style.display = 'none';
+        if (pDetailPromoBadge) pDetailPromoBadge.style.display = 'none';
+        if (pDetailVideoBadge) pDetailVideoBadge.style.display = 'inline-flex';
+        if (pDetailMainVideo) {
+          pDetailMainVideo.style.display = 'block';
+          if (pDetailMainVideo.getAttribute('data-loaded-src') !== currentItem.src) {
+            pDetailMainVideo.src = currentItem.src;
+            pDetailMainVideo.setAttribute('data-loaded-src', currentItem.src);
+            pDetailMainVideo.load();
+          }
+        }
+      } else {
+        if (pDetailMainVideo) {
+          pDetailMainVideo.pause();
+          pDetailMainVideo.style.display = 'none';
+        }
+        if (pDetailVideoBadge) pDetailVideoBadge.style.display = 'none';
+        var fullImg = currentItem.src ? ('/static/uploads/' + currentItem.src) : '/static/images/produit.jpeg';
+        if (pDetailMainImg) {
+          pDetailMainImg.style.display = 'block';
+          pDetailMainImg.src = fullImg;
+        }
+        if (pDetailMainImgBlur) {
+          pDetailMainImgBlur.style.display = 'block';
+          pDetailMainImgBlur.src = fullImg;
+        }
+        if (pDetailZoomChip) pDetailZoomChip.style.display = 'inline-flex';
+        if (pDetailPromoBadge && currentProductHasPromo) pDetailPromoBadge.style.display = 'inline-block';
       }
-      if (pDetailMainImgBlur) {
-        pDetailMainImgBlur.src = fullImg;
-      }
+
       if (pDetailPhotoIndex) pDetailPhotoIndex.textContent = (index + 1);
 
       if (pDetailThumbs) {
@@ -1155,6 +1216,7 @@
         });
       }
     }
+    var updateGalleryImage = updateGalleryMedia;
 
     function configureDetailShare(button, name, url, label) {
       if (!button) return;
@@ -1240,26 +1302,52 @@
             }
           }
 
-          // Galerie Photos
-          activeGalleryImages = (product.images && product.images.length) ? product.images : [''];
+          // Galerie Photos & Vidéos
+          activeGalleryItems = [];
+          if (product.images && product.images.length) {
+            product.images.forEach(function (imgName) {
+              activeGalleryItems.push({ type: 'image', src: imgName });
+            });
+          }
+          if (product.video_url) {
+            activeGalleryItems.push({ type: 'video', src: product.video_url });
+          }
+          if (!activeGalleryItems.length) {
+            activeGalleryItems.push({ type: 'image', src: '' });
+          }
+          activeGalleryImages = activeGalleryItems
+            .filter(function (it) { return it.type === 'image'; })
+            .map(function (it) { return it.src; });
           activeGalleryIndex = 0;
+
+          // Prix & Promos
+          currentProductHasPromo = Boolean(product.has_promo && product.price > product.final_price);
 
           if (pDetailThumbs) {
             pDetailThumbs.innerHTML = '';
-            if (activeGalleryImages.length > 1) {
-              activeGalleryImages.forEach(function (imgName, idx) {
-                var thumb = document.createElement('img');
-                thumb.className = 'u-pdetail-thumb' + (idx === 0 ? ' is-active' : '');
-                thumb.src = imgName ? ('/static/uploads/' + imgName) : '/static/images/produit.jpeg';
-                thumb.alt = product.name;
+            if (activeGalleryItems.length > 1) {
+              activeGalleryItems.forEach(function (item, idx) {
+                var thumb;
+                if (item.type === 'video') {
+                  thumb = document.createElement('button');
+                  thumb.type = 'button';
+                  thumb.className = 'u-pdetail-thumb u-pdetail-thumb-video' + (idx === 0 ? ' is-active' : '');
+                  thumb.setAttribute('aria-label', 'Voir la vidéo');
+                  thumb.innerHTML = '<i class="bi bi-play-circle-fill"></i><span>Vidéo</span>';
+                } else {
+                  thumb = document.createElement('img');
+                  thumb.className = 'u-pdetail-thumb' + (idx === 0 ? ' is-active' : '');
+                  thumb.src = item.src ? ('/static/uploads/' + item.src) : '/static/images/produit.jpeg';
+                  thumb.alt = product.name;
+                }
                 thumb.addEventListener('click', function () {
-                  updateGalleryImage(idx);
+                  updateGalleryMedia(idx);
                 });
                 pDetailThumbs.appendChild(thumb);
               });
               if (pDetailPhotoCounter) {
                 pDetailPhotoCounter.style.display = 'inline-flex';
-                if (pDetailPhotoTotal) pDetailPhotoTotal.textContent = activeGalleryImages.length;
+                if (pDetailPhotoTotal) pDetailPhotoTotal.textContent = activeGalleryItems.length;
               }
               if (pDetailNavPrev) pDetailNavPrev.style.display = 'flex';
               if (pDetailNavNext) pDetailNavNext.style.display = 'flex';
@@ -1269,7 +1357,7 @@
               if (pDetailNavNext) pDetailNavNext.style.display = 'none';
             }
           }
-          updateGalleryImage(0);
+          updateGalleryMedia(0);
 
           // Titre
           if (pDetailTitle) pDetailTitle.textContent = product.name;
@@ -1279,7 +1367,7 @@
           // Prix & Promos
           if (pDetailPriceFinal) pDetailPriceFinal.textContent = Number(product.final_price).toFixed(2) + ' DH';
 
-          if (product.has_promo && product.price > product.final_price) {
+          if (currentProductHasPromo) {
             if (pDetailPriceOrig) {
               pDetailPriceOrig.textContent = Number(product.price).toFixed(2) + ' DH';
               pDetailPriceOrig.style.display = 'inline';
@@ -1571,6 +1659,8 @@
     if (pDetailImgWrap) {
       pDetailImgWrap.addEventListener('click', function (e) {
         if (e.target.closest('.u-pdetail-nav-arrow')) return;
+        if (e.target.closest('video, .u-pdetail-video-main, .u-pdetail-badge-video')) return;
+        if (activeGalleryItems[activeGalleryIndex] && activeGalleryItems[activeGalleryIndex].type === 'video') return;
         openLightbox(activeGalleryIndex);
       });
     }

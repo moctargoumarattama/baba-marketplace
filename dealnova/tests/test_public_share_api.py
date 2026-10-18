@@ -56,3 +56,29 @@ def test_shop_api_always_shares_canonical_slug_even_when_loaded_by_id(share_app,
     assert response.status_code == 200
     assert response.json["shop"]["share_url"] == "https://market.example.test/shops/atelier-test"
     assert response.json["products"] == []
+
+
+@pytest.mark.parametrize("video_file,expected_url,expected_has_video", [
+    ("demo.mp4", "/static/uploads/product_videos/demo.mp4", True),
+    ("uploads/product_videos/custom.mp4", "/static/uploads/product_videos/custom.mp4", True),
+    ("/static/videos/sample.mp4", "/static/videos/sample.mp4", True),
+    ("", None, False),
+    (None, None, False),
+])
+def test_product_api_returns_video_url_and_has_video(share_app, monkeypatch, video_file, expected_url, expected_has_video):
+    product = SimpleNamespace(
+        id=303, is_active=True, name="Produit avec vidéo", description="Description",
+        price_cents=1500, image_file="", video_file=video_file, shop=None, category=None,
+        stock=5, kind="physical"
+    )
+    query = Mock()
+    query.get_or_404.return_value = product
+    monkeypatch.setattr(api, "Product", SimpleNamespace(query=query))
+
+    response = share_app.test_client().get("/api/product/303")
+
+    assert response.status_code == 200
+    data = response.json["product"]
+    assert data["video_url"] == expected_url
+    assert data["has_video"] is expected_has_video
+

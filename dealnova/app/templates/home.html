@@ -70,7 +70,7 @@
   }}
 </script>
 <link rel="preload" as="image" href="{{ url_for('static', filename='images/home-refresh/hero.webp', v=app_static_version) }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/ui_home_single_hub.css', v=(app_static_version ~ '-catalog-v3')) }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/ui_home_single_hub.css', v=(app_static_version ~ '-catalog-v3-video-v1')) }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/assistant/widget.css', v=(app_static_version ~ '-assistant-kb-v4')) }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/home_refresh.css', v=(app_static_version ~ '-catalog-v3-header-v2-hero-v1-services-v3-discovery-v1-footer-v2-fluid-v1-cleanup-v1-share-v1-wa-compact-v1-safearea-v2-products-v1')) }}">
 <script src="{{ url_for('static', filename='js/public_live_search.js', v=app_static_version ~ '-header-v3') }}" defer></script>
@@ -202,16 +202,18 @@
         <a href="#" class="u-pdetail-shop-btn" id="pDetailShopBtn"><i class="bi bi-shop"></i> Voir la boutique</a>
       </div>
 
-      <!-- GRANDE PHOTO & MINIATURES & NAVIGATION FLÈCHES -->
+      <!-- GRANDE PHOTO & VIDÉO & MINIATURES & NAVIGATION FLÈCHES -->
       <div class="u-pdetail-gallery">
         <div class="u-pdetail-main-img-wrap" id="pDetailImgWrap">
           <img id="pDetailMainImgBlur" class="u-pdetail-img-blur" src="" alt="" aria-hidden="true" />
           <img id="pDetailMainImg" class="u-pdetail-img-main" src="" alt="" />
+          <video id="pDetailMainVideo" class="u-pdetail-video-main" playsinline webkit-playsinline="true" controls preload="metadata" style="display:none;" aria-label="Vidéo"></video>
           <span class="u-pdetail-badge-promo" id="pDetailPromoBadge" style="display:none;">PROMO</span>
+          <span class="u-pdetail-badge-video" id="pDetailVideoBadge" style="display:none;"><i class="bi bi-play-circle-fill"></i> Vidéo</span>
           <span class="u-pdetail-counter-chip" id="pDetailPhotoCounter" style="display:none;"><i class="bi bi-camera"></i> <span id="pDetailPhotoIndex">1</span>/<span id="pDetailPhotoTotal">1</span></span>
           <span class="u-pdetail-zoom-chip" id="pDetailZoomChip"><i class="bi bi-arrows-fullscreen"></i> Plein écran</span>
-          <button type="button" class="u-pdetail-nav-arrow arrow-prev" id="pDetailNavPrev" style="display:none;" aria-label="Photo précédente"><i class="bi bi-chevron-left"></i></button>
-          <button type="button" class="u-pdetail-nav-arrow arrow-next" id="pDetailNavNext" style="display:none;" aria-label="Photo suivante"><i class="bi bi-chevron-right"></i></button>
+          <button type="button" class="u-pdetail-nav-arrow arrow-prev" id="pDetailNavPrev" style="display:none;" aria-label="Média précédent"><i class="bi bi-chevron-left"></i></button>
+          <button type="button" class="u-pdetail-nav-arrow arrow-next" id="pDetailNavNext" style="display:none;" aria-label="Média suivant"><i class="bi bi-chevron-right"></i></button>
         </div>
         <div class="u-pdetail-thumbs" id="pDetailThumbs"></div>
       </div>
@@ -539,6 +541,6 @@
 <script src="{{ url_for('static', filename='js/home_hero.js', v=app_static_version ~ '-hero-v1') }}" defer></script>
 <script src="{{ url_for('static', filename='js/home_refresh.js', v=(app_static_version ~ '-textes-v1-catalog-v3-cleanup-v1')) }}" defer></script>
 <script src="{{ url_for('static', filename='js/public_catalog.js', v=(app_static_version ~ '-textes-v1' ~ '-catalog-v3')) }}" defer></script>
-<script src="{{ url_for('static', filename='js/ui_home_single_hub.js', v=(app_static_version ~ '-textes-v1-catalog-v3-header-v2-discovery-v1-delivery-v3-share-v1-modals-v2-produits-v1')) }}" defer></script>
+<script src="{{ url_for('static', filename='js/ui_home_single_hub.js', v=(app_static_version ~ '-textes-v1-catalog-v3-header-v2-discovery-v1-delivery-v3-share-v1-modals-v2-produits-v1-video-v1')) }}" defer></script>
 <script src="{{ url_for('static', filename='js/assistant/widget.js', v=(app_static_version ~ '-textes-v1' ~ '-assistant-kb-v4')) }}" defer></script>
 {% endblock %}

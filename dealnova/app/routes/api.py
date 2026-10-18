@@ -97,6 +97,19 @@ def get_product_detail(pid):
             "contact_phone": getattr(shop, "contact_phone", None),
         }
 
+    video_url = None
+    if getattr(product, "video_file", None):
+        clean_video = str(product.video_file).strip()
+        if clean_video:
+            if clean_video.startswith("/static/"):
+                video_url = clean_video
+            elif clean_video.startswith("http://") or clean_video.startswith("https://"):
+                video_url = clean_video
+            elif clean_video.startswith("uploads/"):
+                video_url = url_for("static", filename=clean_video)
+            else:
+                video_url = url_for("static", filename=f"uploads/product_videos/{clean_video}")
+
     return jsonify({
         "success": True,
         "product": {
@@ -113,6 +126,8 @@ def get_product_detail(pid):
             "stock": getattr(product, "stock", 0) or 0,
             "kind": getattr(product, "kind", "physical") or "physical",
             "images": images,
+            "video_url": video_url,
+            "has_video": bool(video_url),
             "category": product.category.name if getattr(product, "category", None) else "",
             "shop": shop_data,
             "whatsapp_order_url": f"https://wa.me/{clean_wa}?text={quote(wa_message)}",
