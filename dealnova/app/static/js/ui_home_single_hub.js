@@ -1182,6 +1182,11 @@
         if (pDetailVideoBadge) pDetailVideoBadge.style.display = 'inline-flex';
         if (pDetailMainVideo) {
           pDetailMainVideo.style.display = 'block';
+          if (activeGalleryImages.length && activeGalleryImages[0]) {
+            pDetailMainVideo.poster = '/static/uploads/' + activeGalleryImages[0];
+          } else {
+            pDetailMainVideo.removeAttribute('poster');
+          }
           if (pDetailMainVideo.getAttribute('data-loaded-src') !== currentItem.src) {
             pDetailMainVideo.src = currentItem.src;
             pDetailMainVideo.setAttribute('data-loaded-src', currentItem.src);
@@ -1208,6 +1213,12 @@
       }
 
       if (pDetailPhotoIndex) pDetailPhotoIndex.textContent = (index + 1);
+      if (pDetailPhotoCounter) {
+        var counterIcon = pDetailPhotoCounter.querySelector('i');
+        if (counterIcon) {
+          counterIcon.className = currentItem.type === 'video' ? 'bi bi-play-circle-fill' : 'bi bi-camera';
+        }
+      }
 
       if (pDetailThumbs) {
         var thumbs = pDetailThumbs.querySelectorAll('.u-pdetail-thumb');
@@ -1302,15 +1313,15 @@
             }
           }
 
-          // Galerie Photos & Vidéos
+          // Galerie Photos & Vidéos (la vidéo est toujours affichée en premier si présente)
           activeGalleryItems = [];
+          if (product.video_url) {
+            activeGalleryItems.push({ type: 'video', src: product.video_url });
+          }
           if (product.images && product.images.length) {
             product.images.forEach(function (imgName) {
               activeGalleryItems.push({ type: 'image', src: imgName });
             });
-          }
-          if (product.video_url) {
-            activeGalleryItems.push({ type: 'video', src: product.video_url });
           }
           if (!activeGalleryItems.length) {
             activeGalleryItems.push({ type: 'image', src: '' });
