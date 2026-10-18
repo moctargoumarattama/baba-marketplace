@@ -1,11 +1,15 @@
 {% if report_issue_endpoint %}
-{% set report_issue_page_name = report_issue_page_name if report_issue_page_name is defined and report_issue_page_name else (request.path or request.endpoint or 'Page') %}
+{% set is_auth_vendor = current_user.is_authenticated and current_user.role == 'vendor' %}
+{% set is_vendor = is_auth_vendor or report_issue_scope_key == 'vendor' or report_issue_endpoint == 'vendor.support_whatsapp' %}
+{% set is_location = report_issue_scope_key == 'location' or report_issue_endpoint == 'rentals.owner_support_whatsapp' %}
+{% set is_client = not is_vendor and not is_location %}
+{% set report_issue_scope_key = 'location' if is_location else ('vendor' if is_vendor else 'client') %}
+{% set report_issue_scope_label = report_issue_scope_label if report_issue_scope_label is defined and report_issue_scope_label else ('Support location' if is_location else ('Support vendeur' if is_vendor else 'Support client')) %}
+{% set report_issue_page_name = report_issue_page_name if report_issue_page_name is defined and report_issue_page_name else ('Mes locations' if is_location else ('Espace vendeur' if is_vendor else 'Espace client')) %}
 {% set report_issue_item = report_issue_item if report_issue_item is defined and report_issue_item else '' %}
 {% set report_issue_back = request.full_path if request.query_string else request.path %}
-{% set report_issue_scope_label = report_issue_scope_label if report_issue_scope_label is defined and report_issue_scope_label else 'Aide' %}
-{% set report_issue_scope_key = report_issue_scope_key if report_issue_scope_key is defined and report_issue_scope_key else ('location' if report_issue_endpoint == 'rentals.owner_support_whatsapp' else 'client' if report_issue_endpoint == 'auth.support_whatsapp' else 'vendor') %}
 {% set report_issue_storage_key = report_issue_storage_key if report_issue_storage_key is defined and report_issue_storage_key else report_issue_scope_key %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/support_issue_fab.css', v=app_static_version ~ '-support-v2') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/support_issue_fab.css', v=app_static_version ~ '-support-v3') }}">
 <div class="support-issue-widget"
      data-support-fab
      data-support-storage-key="bm-support-fab-{{ report_issue_storage_key }}">
@@ -28,8 +32,16 @@
 
       <div class="support-issue-head">
         <div>
-          <h2 class="support-issue-title" id="supportIssueTitle">Signaler un problème</h2>
-          <p class="support-issue-copy">Décrivez le problème, puis envoyez votre message sur WhatsApp.</p>
+          {% if is_vendor %}
+          <h2 class="support-issue-title" id="supportIssueTitle">Support Vendeur Baba Market</h2>
+          <p class="support-issue-copy">Une question sur vos commandes, produits, gains ou votre boutique ?</p>
+          {% elif is_location %}
+          <h2 class="support-issue-title" id="supportIssueTitle">Support Propriétaire Location</h2>
+          <p class="support-issue-copy">Un souci sur votre annonce, vos disponibilités ou vos réservations ?</p>
+          {% else %}
+          <h2 class="support-issue-title" id="supportIssueTitle">Support Client Baba Market</h2>
+          <p class="support-issue-copy">Une question sur vos commandes, un produit ou une livraison ? Contactez-nous sur WhatsApp.</p>
+          {% endif %}
         </div>
         <button type="button" class="support-issue-close" data-support-close aria-label="Fermer">
           <i class="bi bi-x-lg"></i>
@@ -47,46 +59,83 @@
         <input type="hidden" name="back" value="{{ report_issue_back }}">
 
         <div class="support-issue-context">
+          {% if is_vendor %}
+          <div><strong>Rôle :</strong> Vendeur ({{ current_user.full_name or current_user.name or current_user.phone }})</div>
+          {% if current_user.shop %}
+          <div><strong>Boutique :</strong> {{ current_user.shop.name }}</div>
+          {% endif %}
           <div><strong>Page :</strong> {{ report_issue_page_name }}</div>
+          {% elif is_location %}
+          <div><strong>Rôle :</strong> Propriétaire Location</div>
+          <div><strong>Page :</strong> {{ report_issue_page_name }}</div>
+          {% else %}
+          <div><strong>Statut :</strong> Client / Visiteur (Achat sans compte)</div>
+          <div><strong>Page :</strong> {{ report_issue_page_name }}</div>
+          {% endif %}
           {% if report_issue_item %}
           <div><strong>Élément concerné :</strong> {{ report_issue_item }}</div>
           {% endif %}
         </div>
 
+        {% if is_client %}
         <div class="support-issue-field">
-          <label for="supportIssueType-{{ report_issue_scope_key }}">Sujet</label>
+          <label for="supportClientContact-client">Vos coordonnées (Nom, Téléphone ou N° commande)</label>
+          <input class="support-issue-input"
+                 id="supportClientContact-client"
+                 name="client_contact"
+                 type="text"
+                 placeholder="Ex: Karim - 06 12 34 56 78 (ou commande #1234)">
+        </div>
+        {% endif %}
+
+        <div class="support-issue-field">
+          <label for="supportIssueType-{{ report_issue_scope_key }}">Sujet de votre demande</label>
           <select class="support-issue-select" id="supportIssueType-{{ report_issue_scope_key }}" name="issue_type">
-            {% if report_issue_scope_key == 'location' %}
-            <option value="Annonce">Annonce</option>
-            <option value="Photo ou video">Photo ou vidéo</option>
-            <option value="Prix ou reservation">Prix ou réservation</option>
-            <option value="Calendrier">Calendrier</option>
-            <option value="Affichage">Affichage</option>
-            <option value="Autre">Autre</option>
-            {% elif report_issue_scope_key == 'client' %}
-            <option value="Commande ou panier">Commande ou panier</option>
-            <option value="Paiement">Paiement</option>
-            <option value="Livraison">Livraison</option>
-            <option value="Compte">Compte</option>
-            <option value="Affichage">Affichage</option>
-            <option value="Autre">Autre</option>
+            {% if is_location %}
+            <option value="Annonce de location">Annonce de location</option>
+            <option value="Photos ou visite">Photos ou visite</option>
+            <option value="Prix ou réservation">Prix ou réservation</option>
+            <option value="Calendrier des disponibilités">Calendrier des disponibilités</option>
+            <option value="Affichage ou bug technique">Affichage ou bug technique</option>
+            <option value="Autre">Autre demande</option>
+            {% elif is_vendor %}
+            <option value="Mes produits & stock">Mes produits & stock (ajout, prix, photos...)</option>
+            <option value="Commandes reçues & livraisons">Commandes reçues & livraisons</option>
+            <option value="Paiements, retraits & gains">Paiements, retraits & gains</option>
+            <option value="Paramètres de ma boutique">Paramètres de ma boutique</option>
+            <option value="Affichage ou bug technique">Affichage ou bug technique</option>
+            <option value="Autre demande vendeur">Autre demande vendeur</option>
             {% else %}
-            <option value="Produit ou service">Produit ou service</option>
-            <option value="Photo ou video">Photo ou vidéo</option>
-            <option value="Prix ou promo">Prix ou promotion</option>
-            <option value="Commande">Commande</option>
-            <option value="Affichage">Affichage</option>
-            <option value="Autre">Autre</option>
+            <option value="Commande ou panier">Commande ou panier (panier bloqué, validation...)</option>
+            <option value="Suivi de livraison">Suivi de livraison (délai, livreur, adresse...)</option>
+            <option value="Paiement à la livraison">Paiement à la livraison</option>
+            <option value="Question sur un produit ou boutique">Question sur un produit ou boutique</option>
+            <option value="Affichage ou bug technique">Affichage ou bug technique</option>
+            <option value="Autre demande client">Autre demande client</option>
             {% endif %}
           </select>
         </div>
 
         <div class="support-issue-field">
+          {% if is_vendor %}
+          <label for="supportIssueDetails-{{ report_issue_scope_key }}">Quel problème rencontrez-vous sur votre boutique ?</label>
+          <textarea class="support-issue-textarea"
+                    id="supportIssueDetails-{{ report_issue_scope_key }}"
+                    name="details"
+                    placeholder="Exemple : Impossible d'ajouter la photo de mon produit, ou question sur le montant d'une commande reçue."></textarea>
+          {% elif is_location %}
+          <label for="supportIssueDetails-{{ report_issue_scope_key }}">Quel problème rencontrez-vous sur votre annonce ?</label>
+          <textarea class="support-issue-textarea"
+                    id="supportIssueDetails-{{ report_issue_scope_key }}"
+                    name="details"
+                    placeholder="Exemple : Mon annonce ne s'affiche pas ou les dates sont bloquées sur le calendrier."></textarea>
+          {% else %}
           <label for="supportIssueDetails-{{ report_issue_scope_key }}">Quel problème rencontrez-vous ?</label>
           <textarea class="support-issue-textarea"
                     id="supportIssueDetails-{{ report_issue_scope_key }}"
                     name="details"
-                    placeholder="Exemple : le bouton ne répond pas ou la photo ne s'affiche pas."></textarea>
+                    placeholder="Exemple : Je n'arrive pas à valider mon panier, ou ma commande n'est pas encore arrivée."></textarea>
+          {% endif %}
         </div>
 
         <div class="support-issue-field">
@@ -95,10 +144,16 @@
                  id="supportIssueExpected-{{ report_issue_scope_key }}"
                  name="expected"
                  type="text"
-                 placeholder="Exemple : ajouter un article au panier.">
+                 placeholder="{% if is_vendor %}Exemple : Mettre à jour mon stock ou expédier une commande.{% elif is_location %}Exemple : Modifier le loyer ou ajouter des photos.{% else %}Exemple : Finaliser ma commande pour 2 articles à Rabat.{% endif %}">
         </div>
 
-        <p class="support-issue-hint">La page concernée et les informations de votre compte seront ajoutées au message.</p>
+        {% if is_vendor %}
+        <p class="support-issue-hint">La page, votre identifiant vendeur et votre boutique seront automatiquement inclus dans votre message WhatsApp.</p>
+        {% elif is_location %}
+        <p class="support-issue-hint">Votre annonce et vos informations de contact seront incluses dans votre message WhatsApp.</p>
+        {% else %}
+        <p class="support-issue-hint">Votre message WhatsApp sera pré-rempli pour vous mettre directement en relation avec le support client Baba Market.</p>
+        {% endif %}
 
         <div class="support-issue-actions">
           <button type="button" class="support-issue-btn secondary" data-support-close>

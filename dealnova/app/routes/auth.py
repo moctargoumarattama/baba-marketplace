@@ -23,8 +23,21 @@ from ..services.support_whatsapp import (
     safe_support_back_target,
     support_user_label,
 )
+from ..services.baba_whatsapp import (
+    build_vendor_welcome_message,
+    normalize_whatsapp_number,
+    send_vendor_welcome_whatsapp,
+    send_whatsapp_message,
+)
+from ..services.shop_access import (
+    _build_unique_shop_slug,
+    _create_shop_for_vendor,
+    _shop_types_from_vendor_application,
+    _unique_vendor_username,
+    shop_allows_any,
+)
 from ..services.traffic_stats import track_custom_event
-from .forms import LoginForm
+from .forms import LoginForm, VendorLoginForm
 
 bp = Blueprint("auth", __name__)
 
@@ -82,6 +95,22 @@ def _normalize_optional_email(value: str | None) -> str:
     return candidate if _EMAIL_BASIC_RE.match(candidate) else ""
 
 
+@bp.route("/support/help")
+def public_help():
+    return render_template(
+        "support/open_whatsapp.html",
+        wa_url=build_support_whatsapp_url(["Bonjour, je souhaite contacter le support BabaMarket."]),
+        support_scope="Support BabaMarket",
+        support_title="Support",
+        support_copy="Contactez notre équipe sur WhatsApp pour une question sur une commande, une livraison ou votre compte.",
+        support_note="Appuyez sur le bouton pour ouvrir la conversation.",
+        primary_label="Contacter l'équipe sur WhatsApp",
+        auto_open_whatsapp=False,
+        back_url=url_for("landing"),
+        back_label="Retour à l'accueil",
+    )
+
+
 @bp.route("/support/whatsapp")
 def support_whatsapp():
     role = (getattr(current_user, "role", "") or "").lower()
@@ -93,6 +122,7 @@ def support_whatsapp():
     page_url = (request.args.get("page_url") or "").strip()[:400]
     source = (request.args.get("source") or "").strip()[:160]
     item_name = (request.args.get("item") or "").strip()[:160]
+    client_contact = (request.args.get("client_contact") or "").strip()[:160]
     back_url = safe_support_back_target(request.args.get("back"), url_for("shop.home"))
 
     lines = [
@@ -102,7 +132,9 @@ def support_whatsapp():
     if getattr(current_user, "is_authenticated", False):
         lines.insert(1, f"Compte: {support_user_label(current_user)} (id: {current_user.id})")
     else:
-        lines.insert(1, "Compte: Visiteur")
+        lines.insert(1, "Statut: Client (Visiteur)")
+        if client_contact:
+            lines.insert(2, f"Coordonnées: {client_contact}")
     if item_name:
         lines.append(f"Élément concerné : {item_name}")
     if source:
@@ -119,9 +151,9 @@ def support_whatsapp():
     return render_template(
         "support/open_whatsapp.html",
         wa_url=build_support_whatsapp_url(lines),
-        support_scope="Aide",
-        support_title="Signaler un problème",
-        support_copy="Votre message contient les informations sur la page et votre compte. Vérifiez-le dans WhatsApp avant de l'envoyer.",
+        support_scope="Support client",
+        support_title="Support Client Baba Market",
+        support_copy="Votre message WhatsApp est prêt avec vos coordonnées et les détails de votre demande. Vérifiez-le avant de l'envoyer.",
         back_url=back_url,
         back_label="Retour à la page",
     )
@@ -132,30 +164,106 @@ def register():
     return redirect(url_for("landing"), code=303)
 
 
+def _phone_lookup_variants(phone_input: str | None) -> list[str]:
+    raw = str(phone_input or "").strip()
+    digits = "".join(_PHONE_DIGIT_RE.findall(raw))
+    if not digits:
+        return [raw] if raw else []
+    variants = [digits]
+    if digits.startswith("0") and len(digits) == 10:
+        variants.append(digits[1:])
+        variants.append("212" + digits[1:])
+        variants.append("+212" + digits[1:])
+        variants.append("+212 " + digits[1:])
+    elif digits.startswith("212") and len(digits) == 12:
+        variants.append("0" + digits[3:])
+        variants.append(digits[3:])
+        variants.append("+" + digits)
+    elif len(digits) == 9 and digits[0] in ("6", "7"):
+        variants.append("0" + digits)
+        variants.append("212" + digits)
+        variants.append("+212" + digits)
+    if raw and raw not in variants:
+        variants.append(raw)
+    return variants
+
+
+def find_user_by_phone(phone_input: str | None) -> User | None:
+    variants = _phone_lookup_variants(phone_input)
+    if not variants:
+        return None
+    user = User.query.filter(
+        or_(
+            User.phone.in_(variants),
+            User.username.in_(variants),
+        )
+    ).first()
+    if user:
+        return user
+    for v in variants:
+        digits = "".join(_PHONE_DIGIT_RE.findall(v))
+        if len(digits) >= 8:
+            suffix = digits[-9:]
+            matched = User.query.filter(User.phone.like(f"%{suffix}%")).first()
+            if matched:
+                return matched
+    return None
+
+
+@bp.route("/vendor/login", methods=["GET", "POST"])
+@bp.route("/vendeur/login", methods=["GET", "POST"])
+def vendor_login():
+    """Redirection permanente vers la page de connexion unique Baba Market."""
+    return redirect(url_for("auth.login", **request.args), code=301)
+
+
+@bp.route("/vendeur/register")
+@bp.route("/vendeur/inscription")
+def vendor_register_alias():
+    return redirect(url_for("auth.vendor_access"), code=301)
+
+
 @bp.route("/login", methods=["GET", "POST"])
 @rate_limit(
     limit=6,
     window_seconds=60,
     key_prefix="login",
     methods=("POST",),
-    key_func=lambda: f"{request.remote_addr}:{(request.form.get('email') or '').lower()}",
+    key_func=lambda: f"{request.remote_addr}:{(request.form.get('email') or '').strip().lower()}",
 )
 def login():
+    if current_user.is_authenticated:
+        role = (getattr(current_user, "role", "") or "").lower()
+        if role == "vendor":
+            vendor_shop = Shop.query.filter_by(vendor_id=current_user.id).first()
+            if vendor_shop and shop_allows_any(vendor_shop, "location") and not shop_allows_any(vendor_shop, "products", "services"):
+                return redirect(url_for("rentals.owner_locations"))
+            return redirect(url_for("vendor.dashboard"))
+        if role in {"admin", "manager"}:
+            return redirect("/admin/")
+        return redirect(url_for("shop.home"))
+
     form = LoginForm()
     if form.validate_on_submit():
         login_identifier = (form.email.data or "").strip().lower()
         login_password = (form.password.data or "").strip()
 
-        user = (
-            User.query
-            .filter(
-                or_(
-                    func.lower(User.email) == login_identifier,
-                    func.lower(User.username) == login_identifier,
+        user = None
+        digits = "".join(_PHONE_DIGIT_RE.findall(login_identifier))
+        if len(digits) >= 8:
+            user = find_user_by_phone(login_identifier)
+
+        if not user:
+            user = (
+                User.query
+                .filter(
+                    or_(
+                        func.lower(User.email) == login_identifier,
+                        func.lower(User.username) == login_identifier,
+                    )
                 )
+                .first()
             )
-            .first()
-        )
         if user and user.check_password(login_password):
             role = (user.role or "").strip().lower()
             if role not in User.ALLOWED_ROLES:
@@ -219,7 +327,7 @@ def login():
             ),
             level="WARNING",
         )
-        flash("L'adresse e-mail ou le mot de passe est incorrect.", "danger")
+        flash("Identifiant (numéro de téléphone ou e-mail) ou mot de passe incorrect.", "danger")
 
     return render_template("auth/login.html", form=form)
 
@@ -320,19 +428,12 @@ def reset_password(token):
 
 
 @bp.route("/vendor-access", methods=["GET", "POST"])
-@rate_limit(limit=4, window_seconds=900, key_prefix="vendor_access", methods=("POST",))
+@rate_limit(limit=6, window_seconds=900, key_prefix="vendor_access", methods=("POST",))
 def vendor_access():
-    """Creation directe d'un compte vendeur public."""
-    from .admin_users import (
-        _create_shop_for_vendor,
-        _shop_types_from_vendor_application,
-        _unique_vendor_username,
-    )
-
+    """Inscription autonome d'un vendeur public (sans e-mail, validation par mot de passe et WhatsApp)."""
     form_data = {
         "full_name": "",
         "phone": "",
-        "email": "",
         "city": "",
         "shop_name": "",
         "shop_type": "",
@@ -345,7 +446,6 @@ def vendor_access():
         raw_password_confirm = (request.form.get("password_confirm") or "").strip()
         form_data["full_name"] = (request.form.get("full_name") or "").strip()
         form_data["phone"] = (request.form.get("phone") or "").strip()
-        form_data["email"] = (request.form.get("email") or "").strip()
         form_data["city"] = (request.form.get("city") or "").strip()
         form_data["shop_name"] = (request.form.get("shop_name") or "").strip()
         form_data["shop_type"] = (request.form.get("shop_type") or "").strip().lower()
@@ -354,12 +454,11 @@ def vendor_access():
         if (
             not form_data["full_name"]
             or not form_data["phone"]
-            or not form_data["email"]
             or not form_data["shop_name"]
             or not form_data["city"]
             or not form_data["shop_type"]
         ):
-            flash("Nom, telephone, email, boutique, ville et type sont obligatoires.", "warning")
+            flash("Nom, téléphone, boutique, ville et type sont obligatoires.", "warning")
             return render_template(
                 "auth/vendor_access.html",
                 form_data=form_data,
@@ -367,7 +466,7 @@ def vendor_access():
             )
 
         if len(raw_password) < 8:
-            flash("Le mot de passe doit contenir au moins 8 caracteres.", "warning")
+            flash("Le mot de passe doit contenir au moins 8 caractères.", "warning")
             return render_template(
                 "auth/vendor_access.html",
                 form_data=form_data,
@@ -392,8 +491,6 @@ def vendor_access():
             form_data["full_name"] = form_data["full_name"][:120]
         if len(form_data["phone"]) > 40:
             form_data["phone"] = form_data["phone"][:40]
-        if len(form_data["email"]) > 120:
-            form_data["email"] = form_data["email"][:120]
         if len(form_data["city"]) > 80:
             form_data["city"] = form_data["city"][:80]
         if len(form_data["shop_name"]) > 160:
@@ -411,41 +508,20 @@ def vendor_access():
 
         phone_digits = _phone_digits(form_data["phone"])
         if len(phone_digits) < 8:
-            flash("Numero de telephone invalide.", "warning")
+            flash("Numéro de téléphone invalide (au moins 8 chiffres).", "warning")
             return render_template(
                 "auth/vendor_access.html",
                 form_data=form_data,
                 request_submitted=False,
             )
 
-        email_normalized = _normalize_optional_email(form_data["email"])
-        if not email_normalized:
-            flash("Email invalide.", "warning")
-            return render_template(
-                "auth/vendor_access.html",
-                form_data=form_data,
-                request_submitted=False,
-            )
-        existing_user = (
-            User.query
-            .filter(func.lower(User.email) == email_normalized)
-            .first()
-        )
-        if existing_user:
-            flash(
-                "Cet email est deja utilise. Connectez-vous avec cet email ou choisissez un autre email vendeur.",
-                "warning",
-            )
-            return render_template(
-                "auth/vendor_access.html",
-                form_data=form_data,
-                request_submitted=False,
-            )
+        # Vérifier si ce numéro de téléphone est déjà utilisé
+        existing_vendor = find_user_by_phone(form_data["phone"])
+        if existing_vendor:
+            flash("Ce numéro de téléphone est déjà associé à un compte vendeur. Vous pouvez vous connecter directement.", "warning")
+            return redirect(url_for("auth.login"))
 
         contact_match_filters = [VendorApplication.phone_digits == phone_digits]
-        if email_normalized:
-            contact_match_filters.append(VendorApplication.email_normalized == email_normalized)
-
         blocked_match = (
             VendorApplication.query
             .filter(
@@ -456,7 +532,7 @@ def vendor_access():
             .first()
         )
         if blocked_match:
-            flash("Votre demande ne peut pas etre enregistree. Contactez l'administration.", "danger")
+            flash("Votre demande ne peut pas être enregistrée. Contactez l'administration.", "danger")
             return render_template(
                 "auth/vendor_access.html",
                 form_data=form_data,
@@ -475,12 +551,18 @@ def vendor_access():
         latest_pending_request = pending_requests[0] if pending_requests else None
         primary_type, allowed_types = _shop_types_from_vendor_application(form_data["shop_type"])
         username = _unique_vendor_username(form_data["shop_name"] or form_data["full_name"])
-        auto_review_note = "Compte vendeur cree automatiquement via le formulaire public."
+
+        # E-mail technique généré pour satisfaire la contrainte SQL NOT NULL / UNIQUE
+        technical_email = f"vendor_{phone_digits}@babamarket.ma"
+        if User.query.filter_by(email=technical_email).first():
+            technical_email = f"vendor_{phone_digits}_{int(datetime.utcnow().timestamp())}@babamarket.ma"
+
+        auto_review_note = "Compte vendeur créé automatiquement sans e-mail (authentification par téléphone)."
 
         try:
             user = User(
                 username=username,
-                email=email_normalized,
+                email=technical_email,
                 role="vendor",
                 full_name=form_data["full_name"],
                 phone=form_data["phone"],
@@ -496,7 +578,6 @@ def vendor_access():
                 user,
                 name=form_data["shop_name"],
                 description=form_data["short_description"],
-                contact_email=form_data["email"],
                 contact_phone=form_data["phone"],
                 address=form_data["city"],
                 primary_type=primary_type,
@@ -508,8 +589,8 @@ def vendor_access():
                     full_name=form_data["full_name"],
                     phone=form_data["phone"],
                     phone_digits=phone_digits,
-                    email=form_data["email"],
-                    email_normalized=email_normalized,
+                    email=None,
+                    email_normalized=None,
                     shop_name=form_data["shop_name"],
                     city=form_data["city"],
                     shop_type=form_data["shop_type"],
@@ -529,8 +610,8 @@ def vendor_access():
                 latest_pending_request.full_name = form_data["full_name"]
                 latest_pending_request.phone = form_data["phone"]
                 latest_pending_request.phone_digits = phone_digits
-                latest_pending_request.email = form_data["email"]
-                latest_pending_request.email_normalized = email_normalized
+                latest_pending_request.email = None
+                latest_pending_request.email_normalized = None
                 latest_pending_request.shop_name = form_data["shop_name"]
                 latest_pending_request.city = form_data["city"]
                 latest_pending_request.shop_type = form_data["shop_type"]
@@ -554,7 +635,7 @@ def vendor_access():
             db.session.commit()
         except IntegrityError:
             db.session.rollback()
-            flash("Impossible de creer le compte vendeur pour le moment. Verifiez les donnees puis reessayez.", "danger")
+            flash("Impossible de créer le compte vendeur pour le moment. Vérifiez les données puis réessayez.", "danger")
             return render_template(
                 "auth/vendor_access.html",
                 form_data=form_data,
@@ -562,19 +643,21 @@ def vendor_access():
             )
         except Exception:
             db.session.rollback()
-            current_app.logger.exception("vendor_access.auto_create.failed email=%s", _mask_email(email_normalized))
-            flash("Impossible de creer le compte vendeur pour le moment.", "danger")
+            current_app.logger.exception("vendor_access.auto_create.failed phone=%s", form_data.get("phone"))
+            flash("Impossible de créer le compte vendeur pour le moment.", "danger")
             return render_template(
                 "auth/vendor_access.html",
                 form_data=form_data,
                 request_submitted=False,
             )
 
-        mail_result = send_account_created_email(
-            recipient_email=user.email,
-            account_email=user.email,
-            password_plaintext=raw_password,
-            login_url=build_public_url("auth.login"),
+        # Envoi automatique WhatsApp de bienvenue via la passerelle baba-whatsapp
+        login_url = build_public_url("auth.login")
+        wa_result = send_vendor_welcome_whatsapp(
+            phone=user.phone,
+            full_name=user.full_name,
+            shop_name=shop.name,
+            login_url=login_url,
         )
 
         logging_service.log_activity(
@@ -583,8 +666,8 @@ def vendor_access():
             resource_type="user",
             resource_id=user.id,
             message=(
-                "Compte vendeur cree automatiquement "
-                f"(uid={user.id}, shop_id={shop.id}, email={_mask_email(user.email)})"
+                "Compte vendeur créé automatiquement sans e-mail "
+                f"(uid={user.id}, shop_id={shop.id}, tel={user.phone}, wa_status={wa_result.get('method')})"
             ),
             level="INFO",
         )
@@ -599,9 +682,7 @@ def vendor_access():
                 "shop_type": form_data["shop_type"] or None,
             },
         )
-        flash("Compte vendeur cree avec succes. Vous pouvez vous connecter immediatement.", "success")
-        if not mail_result.get("sent"):
-            flash("L'e-mail automatique n'a pas pu etre envoye pour le moment.", "warning")
+        flash("Félicitations ! Votre compte et votre boutique ont été créés et activés avec succès. Vos identifiants ont été envoyés sur votre WhatsApp. Vous pouvez vous connecter dès maintenant.", "success")
         return redirect(url_for("auth.login"))
 
     return render_template(

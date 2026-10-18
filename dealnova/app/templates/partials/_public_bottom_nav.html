@@ -1,5 +1,5 @@
 {% if base_endpoint not in ['auth.login', 'auth.forgot_password'] %}
-<footer class="hub-footer public-footer"><span>© {{ current_year or 2026 }} BabaMarket</span><a href="{{ url_for('auth.vendor_access') }}">{{ t('Devenir vendeur') }}</a><button type="button" data-support-open>{{ t('Support') }}</button></footer>
+<footer class="hub-footer public-footer"><span>© {{ current_year or 2026 }} BabaMarket</span><a href="{{ url_for('auth.vendor_access') }}">{{ t('Devenir vendeur') }}</a><a href="{{ url_for('auth.public_help') }}" data-support-open>{{ t('Support') }}</a></footer>
 {% endif %}
 <nav class="hub-bottom-nav" aria-label="{{ t('Navigation principale') }}">
   <a href="{{ url_for('landing') }}"><i class="bi bi-house-door" aria-hidden="true"></i><span>{{ t('Accueil') }}</span></a>

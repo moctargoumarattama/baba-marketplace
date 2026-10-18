@@ -1,4 +1,4 @@
-﻿{% extends "base.html" %}
+{% extends "base.html" %}
 
 {% block head %}
 {{ super() }}
@@ -9,11 +9,15 @@
 {% block scripts %}
 {{ super() }}
 {% if current_user.is_authenticated and current_user.role == 'vendor' and request.endpoint not in ['vendor.dashboard', 'vendor.catalog', 'vendor.earnings', 'vendor.manage_shop', 'rentals.owner_locations_archives'] %}{% include 'vendor/partials/_global_bottom_nav.html' %}{% endif %}
+<script src="{{ url_for('static', filename='js/vendor/vendor_shell.js', v=app_static_version) }}" defer></script>
+{% endblock %}
+
+{% block support_widget %}
 {% set report_issue_endpoint = 'vendor.support_whatsapp' %}
+{% set report_issue_page_name = report_issue_page_name if report_issue_page_name is defined and report_issue_page_name else 'Espace vendeur' %}
 {% set report_issue_scope_label = report_issue_scope_label if report_issue_scope_label is defined and report_issue_scope_label else 'Support vendeur' %}
 {% set report_issue_scope_key = report_issue_scope_key if report_issue_scope_key is defined and report_issue_scope_key else 'vendor' %}
 {% include "partials/_support_issue_fab.html" %}
-<script src="{{ url_for('static', filename='js/vendor/vendor_shell.js', v=app_static_version) }}" defer></script>
 {% endblock %}
 
 

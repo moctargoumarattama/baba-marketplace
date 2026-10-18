@@ -475,6 +475,9 @@ def create_app(config_class=Config):
 
         allowed_endpoints = {
             "auth.logout",
+            "auth.login",
+            "auth.vendor_login",
+            "auth.vendor_access",
             "set_language_route",
             "service_worker",
             "health",
@@ -601,6 +604,8 @@ def create_app(config_class=Config):
 
     @app.before_request
     def csrf_protect():
+        if not app.config.get("WTF_CSRF_ENABLED", True) or app.config.get("TESTING"):
+            return None
         if request.method in ("GET", "HEAD", "OPTIONS", "TRACE"):
             return None
         if request.endpoint is None:

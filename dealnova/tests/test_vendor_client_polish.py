@@ -177,12 +177,12 @@ def test_mobile_drawer_height_adapts_to_content_without_bottom_gap():
     assert "min-height: calc(100dvh - var(--bm-safe-top, 0px));" not in css
 
 
-def test_vendor_access_backend_requires_email():
+def test_vendor_access_backend_requires_phone_and_no_email():
     source = _read("app/routes/auth.py")
 
-    assert 'or not form_data["email"]' in source
-    assert "Nom, telephone, email, boutique, ville et type sont obligatoires." in source
-    assert "if not email_normalized:" in source
+    assert 'or not form_data["phone"]' in source
+    assert 'or not form_data["email"]' not in source
+    assert "Nom, téléphone, boutique, ville et type sont obligatoires." in source
 
 
 def test_admin_vendor_request_pages_use_plain_french_guidance():
@@ -228,11 +228,11 @@ def test_vendor_access_form_is_compact_and_mobile_adaptive():
     assert "max-width: 100%" in template
     assert "min-height: auto;" in template
     assert "min-height: 2.15rem" in template
-    assert 'rows="2"' in template
-    assert "Email *" in template
-    assert 'name="email"' in template
-    assert "Email (optionnel)" not in template
-    assert "Creation immediate du compte et de la boutique." in template
+    assert "short_description" not in template
+    assert "Email *" not in template
+    assert 'name="email"' not in template
+    assert 'name="phone"' in template
+    assert "Inscription Vendeur" in template
     assert "Creer mon espace vendeur" in template
     assert "Validation admin avant activation." not in template
     assert "Votre demande sera verifiee par un admin/gestionnaire" not in template

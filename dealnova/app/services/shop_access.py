@@ -32,6 +32,10 @@ RESERVED_ROOT_SHOP_SLUGS = {
     "sitemap.xml",
     "sw.js",
     "vendor",
+    "vendeur",
+    "vendeurs",
+    "inscription",
+    "connexion",
 }
 
 
@@ -155,3 +159,130 @@ def ensure_shop_allows(
     if endpoint.startswith("vendor.") or endpoint.startswith("rentals.owner_"):
         return redirect(url_for("vendor.manage_shop"))
     return redirect(url_for("shop.home"))
+
+
+def _sanitize_shop_slug(raw_value: str | None, fallback_name: str | None = None) -> str:
+    from slugify import slugify
+    candidate = slugify((raw_value or "").strip())
+    if not candidate and fallback_name:
+        candidate = slugify((fallback_name or "").strip())
+    return candidate
+
+
+def _build_unique_shop_slug(name: str, *, exclude_shop_id: int | None = None) -> str:
+    base_slug = _sanitize_shop_slug(None, fallback_name=name) or "boutique"
+    slug = base_slug
+    counter = 1
+
+    while True:
+        if slug.lower() in RESERVED_ROOT_SHOP_SLUGS:
+            slug = f"{base_slug}-{counter}"
+            counter += 1
+            continue
+        query = Shop.query.filter_by(slug=slug)
+        if exclude_shop_id is not None:
+            query = query.filter(Shop.id != exclude_shop_id)
+        if not query.first():
+            return slug
+
+        slug = f"{base_slug}-{counter}"
+        counter += 1
+        if counter > 999:
+            slug = f"{base_slug}-{int(datetime.utcnow().timestamp())}"
+
+
+_USERNAME_SAFE_RE = re.compile(r"[^a-z0-9_]+")
+
+
+def _unique_vendor_username(base: str | None) -> str:
+    from slugify import slugify
+    from ..models.user import User
+
+    seed = _USERNAME_SAFE_RE.sub("_", slugify((base or "").strip() or "vendeur", separator="_").lower())
+    seed = re.sub(r"_+", "_", seed).strip("_")
+    if not seed:
+        seed = "vendeur"
+    if len(seed) < 3:
+        seed = f"{seed}_user"
+    seed = seed[:40]
+
+    candidate = seed
+    counter = 1
+    while User.query.filter_by(username=candidate).first():
+        suffix = f"_{counter}"
+        candidate = f"{seed[: max(1, 50 - len(suffix))]}{suffix}"
+        counter += 1
+        if counter > 2000:
+            candidate = f"vendor_{int(datetime.utcnow().timestamp())}"
+            if not User.query.filter_by(username=candidate).first():
+                break
+    return candidate
+
+
+def _shop_types_from_vendor_application(shop_type_text: str | None):
+    from ..models.shop import SHOP_TYPE_ORDER, normalize_allowed_shop_types
+
+    raw = (shop_type_text or "").strip().lower()
+    if not raw:
+        return "products", ["products"]
+
+    allowed: list[str] = []
+    has_mix = any(token in raw for token in ("mix", "multi", "tous", "all"))
+    if has_mix:
+        return "products", list(SHOP_TYPE_ORDER)
+
+    if any(token in raw for token in ("produit", "product", "marchandise", "article")):
+        allowed.append("products")
+    if any(token in raw for token in ("service", "prestation")):
+        allowed.append("services")
+    if any(token in raw for token in ("location", "rental", "locatif", "louer", "louage")):
+        allowed.append("location")
+
+    normalized_allowed = normalize_allowed_shop_types(allowed, primary_type=allowed[0] if allowed else "products")
+    primary_type = normalized_allowed[0] if normalized_allowed else "products"
+    return primary_type, normalized_allowed or ["products"]
+
+
+def _create_shop_for_vendor(
+    vendor,
+    *,
+    name: str,
+    description: str = "",
+    contact_email: str = "",
+    contact_phone: str = "",
+    address: str = "",
+    primary_type: str = "products",
+    allowed_types: list[str] | None = None,
+) -> Shop:
+    from ..extensions import db
+    from ..models.product import Product
+    from ..models.shop import normalize_allowed_shop_types
+
+    normalized_primary = normalize_shop_type(primary_type) or "products"
+    normalized_allowed = normalize_allowed_shop_types(allowed_types, primary_type=normalized_primary)
+
+    shop = Shop(
+        vendor_id=vendor.id,
+        name=name.strip(),
+        slug=_build_unique_shop_slug(name),
+        description=(description or "").strip() or None,
+        contact_email=(contact_email or "").strip() or None,
+        contact_phone=(contact_phone or "").strip() or getattr(vendor, "phone", None) or None,
+        address=(address or "").strip() or getattr(vendor, "address", None) or None,
+        primary_type=normalized_primary,
+        is_active=True,
+        is_open=True,
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+    )
+    shop.set_allowed_types(normalized_allowed)
+
+    db.session.add(shop)
+    db.session.flush()
+
+    Product.query.filter_by(vendor_id=vendor.id).update(
+        {"shop_id": shop.id},
+        synchronize_session=False,
+    )
+    return shop
+

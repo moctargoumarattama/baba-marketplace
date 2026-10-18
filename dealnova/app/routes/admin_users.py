@@ -35,7 +35,14 @@ from ..services.date_filters import resolve_date_filter
 from ..services.email_service import build_public_url, send_account_created_email
 from ..services.finance_entries import record_subscription_entry
 from ..services.pagination import normalize_limit, page_from_args
-from ..services.shop_access import RESERVED_ROOT_SHOP_SLUGS
+from ..services.shop_access import (
+    RESERVED_ROOT_SHOP_SLUGS,
+    _build_unique_shop_slug,
+    _create_shop_for_vendor,
+    _sanitize_shop_slug,
+    _shop_types_from_vendor_application,
+    _unique_vendor_username,
+)
 from ..services.traffic_stats import get_live_traffic_metrics
 from datetime import datetime, timedelta
 from sqlalchemy.orm import selectinload, load_only

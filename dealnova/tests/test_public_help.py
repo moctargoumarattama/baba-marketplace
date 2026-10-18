@@ -69,3 +69,67 @@ def test_support_template_only_auto_opens_when_requested(auto_open):
     assert 'id="supportWaLink"' in source
     assert 'target="_blank"' in source
     assert ("window.location.href = link.href" in source) is (auto_open is not False)
+
+
+def test_client_whatsapp_support_includes_client_contact(help_app, monkeypatch):
+    monkeypatch.setattr(auth, "current_user", SimpleNamespace(is_authenticated=False, role=None))
+
+    response = help_app.test_client().get(
+        "/support/whatsapp?client_contact=Karim+0612345678&details=Panier+bloque&expected=Commander"
+    )
+
+    assert response.status_code == 200
+    data = response.get_json()
+    link = urlparse(data["wa_url"])
+    text = parse_qs(link.query)["text"][0]
+    assert "Coordonnées: Karim 0612345678" in text
+    assert "Panier bloque" in text
+    assert data["support_scope"] == "Support client"
+    assert data["support_title"] == "Support Client Baba Market"
+
+
+def test_support_fab_renders_contextual_fields_for_client_and_vendor():
+    app = Flask("fab-context-test")
+    app.config["SITE_NAME"] = "BabaMarket"
+    app.add_url_rule("/support/whatsapp", "auth.support_whatsapp", lambda: "ok")
+    app.add_url_rule("/vendeur/support/whatsapp", "vendor.support_whatsapp", lambda: "ok")
+    app.jinja_loader = ChoiceLoader([
+        DictLoader({
+            "base.html": "{% block head %}{% endblock %}{% block content %}{% endblock %}",
+            "partials/_csrf.html": "",
+        }),
+        FileSystemLoader(Path(__file__).resolve().parents[1] / "app/templates"),
+    ])
+
+    # 1. Client context (non connected)
+    with app.test_request_context("/"):
+        client_rendered = render_template(
+            "partials/_support_issue_fab.html",
+            report_issue_endpoint="auth.support_whatsapp",
+            current_user=SimpleNamespace(is_authenticated=False, role=None),
+            app_static_version="1",
+        )
+    assert "Support Client Baba Market" in client_rendered
+    assert 'name="client_contact"' in client_rendered
+    assert "Commande ou panier" in client_rendered
+    assert "Vos coordonnées" in client_rendered
+
+    # 2. Vendor context (connected vendor)
+    with app.test_request_context("/vendeur/dashboard"):
+        vendor_rendered = render_template(
+            "partials/_support_issue_fab.html",
+            report_issue_endpoint="vendor.support_whatsapp",
+            current_user=SimpleNamespace(
+                is_authenticated=True,
+                role="vendor",
+                full_name="Fatima Zahra",
+                phone="0611223344",
+                shop=SimpleNamespace(name="Boutique Fatima"),
+            ),
+            app_static_version="1",
+        )
+    assert "Support Vendeur Baba Market" in vendor_rendered
+    assert "Boutique Fatima" in vendor_rendered
+    assert 'name="client_contact"' not in vendor_rendered
+    assert "Mes produits &amp; stock" in vendor_rendered or "Mes produits & stock" in vendor_rendered
+

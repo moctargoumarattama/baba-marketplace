@@ -124,10 +124,10 @@ def support_whatsapp():
         "support/open_whatsapp.html",
         wa_url=build_support_whatsapp_url(lines),
         support_scope="Support vendeur",
-        support_title="Signaler un probleme vendeur",
-        support_copy="Votre message est pret avec la page, l'element et votre compte.",
+        support_title="Support Vendeur Baba Market",
+        support_copy="Votre message WhatsApp est prêt avec votre boutique, votre compte et le problème décrit. Vérifiez-le avant de l'envoyer.",
         back_url=back_url,
-        back_label="Retour a la page",
+        back_label="Retour à la page",
     )
 
 

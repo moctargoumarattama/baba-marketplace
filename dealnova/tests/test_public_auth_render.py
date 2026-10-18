@@ -33,7 +33,7 @@ def auth_app():
     app.jinja_env.globals.update(csrf_token=lambda: "recovery-csrf", app_static_version="test")
     for endpoint, path in {
         "auth.login": "/login", "auth.register": "/register", "auth.forgot_password": "/forgot-password",
-        "auth.vendor_access": "/vendor-access", "shop.home": "/shop/", "landing": "/",
+        "auth.vendor_access": "/vendor-access", "auth.vendor_login": "/vendeur/login", "shop.home": "/shop/", "landing": "/",
     }.items():
         app.add_url_rule(path, endpoint, lambda: "")
     return app

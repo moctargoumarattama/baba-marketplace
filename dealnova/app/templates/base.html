@@ -1620,14 +1620,20 @@
     'cart.view',
     'cart.checkout'
   ] %}
-  {% set has_special_role = current_user.is_authenticated and current_user.role in ['vendor', 'admin', 'manager'] %}
-  {% set client_support_visible = not has_special_role %}
-  {% if client_support_visible %}
+  {% block support_widget %}
+  {% if current_user.is_authenticated and current_user.role == 'vendor' %}
+  {% set report_issue_endpoint = 'vendor.support_whatsapp' %}
+  {% set report_issue_page_name = report_issue_page_name if report_issue_page_name is defined and report_issue_page_name else ('Espace vendeur' if request.path.startswith('/vendeur') else 'Site public (' ~ (request.endpoint or 'accueil') ~ ')') %}
+  {% set report_issue_scope_label = 'Support vendeur' %}
+  {% set report_issue_scope_key = 'vendor' %}
+  {% include "partials/_support_issue_fab.html" %}
+  {% elif not (current_user.is_authenticated and current_user.role in ['admin', 'manager']) %}
   {% set report_issue_endpoint = 'auth.support_whatsapp' %}
-  {% set report_issue_page_name = 'Espace client' %}
+  {% set report_issue_page_name = report_issue_page_name if report_issue_page_name is defined and report_issue_page_name else 'Espace client' %}
   {% set report_issue_scope_label = 'Support client' %}
   {% set report_issue_scope_key = 'client' %}
   {% include "partials/_support_issue_fab.html" %}
   {% endif %}
+  {% endblock %}
 </body>
 </html>

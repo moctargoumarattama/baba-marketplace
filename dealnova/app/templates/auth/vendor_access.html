@@ -3,8 +3,6 @@
 
 {% block head %}
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
-
   .vd-page {
     min-height: calc(100svh - var(--bm-nav-main-offset, 60px));
     width: 100%;
@@ -15,9 +13,9 @@
     justify-content: center;
     overflow-x: hidden;
     overflow-x: clip;
-    background: #f0faf5;
-    font-family: 'DM Sans', sans-serif;
-    padding: clamp(0.7rem, 2.6vw, 1.4rem);
+    background: #f4faf6;
+    font-family: inherit;
+    padding: 1rem;
   }
 
   @supports (min-height: 100dvh) {
@@ -29,6 +27,7 @@
   }
 
   .vd-card {
+    border: 1px solid #e2eee5;
     background: #fff;
     border-radius: 18px;
     padding: clamp(0.9rem, 3vw, 1.45rem);
@@ -36,7 +35,7 @@
     width: 100%;
     min-width: 0;
     overflow-x: hidden;
-    box-shadow: 0 4px 36px rgba(16,185,129,.10);
+    box-shadow: 0 8px 28px rgba(16,88,55,.08);
   }
 
   .vd-card form,
@@ -86,7 +85,7 @@
   .vd-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: .65rem .75rem;
+    gap: .55rem .7rem;
   }
 
   .vd-grid .full { grid-column: 1 / -1; }
@@ -108,7 +107,7 @@
     border: 1.5px solid #d1fae5;
     border-radius: 10px;
     padding: .5rem .72rem;
-    min-height: 2.35rem;
+    min-height: 2.25rem;
     font-size: .88rem;
     font-family: 'DM Sans', sans-serif;
     color: #0f172a;
@@ -227,7 +226,7 @@
       <div class="vd-icon"><i class="bi bi-shop"></i></div>
       <div>
         <h2>Devenir vendeur</h2>
-        <p>Creation immediate du compte et de la boutique.</p>
+        <p>Créez votre compte et votre boutique en quelques minutes.</p><!-- Texte historique : Creation immediate du compte et de la boutique. -->
       </div>
     </div>
 
@@ -240,18 +239,14 @@
         </div>
 
         <div>
-          <label class="vd-label">Téléphone *</label>
+          <label class="vd-label">Téléphone WhatsApp *</label>
           <input class="vd-input" type="tel" name="phone" maxlength="40" autocomplete="tel" inputmode="tel" required value="{{ form_data.phone or '' }}">
         </div>
 
-        <div>
-          <label class="vd-label">Email *</label>
-          <input class="vd-input" type="email" name="email" maxlength="120" autocomplete="email" inputmode="email" required value="{{ form_data.email or '' }}">
-        </div>
 
         <div>
           <label class="vd-label">Ville *</label>
-          <input class="vd-input" type="text" name="city" maxlength="80" autocomplete="address-level2" required value="{{ form_data.city or '' }}">
+          <input class="vd-input" type="text" name="city" maxlength="80" autocomplete="address-level2" placeholder="Rabat, Salé, Témara…" required value="{{ form_data.city or '' }}">
         </div>
 
         <div>
@@ -262,10 +257,10 @@
         <div>
           <label class="vd-label">Type de boutique *</label>
           <select class="vd-input" name="shop_type" required>
-            <option value="">Choisir un type</option>
-            <option value="products" {% if form_data.shop_type == 'products' %}selected{% endif %}>Produits</option>
+            <option value="">Choisir une activité</option>
+            <option value="products" {% if form_data.shop_type == 'products' %}selected{% endif %}>Produits et repas</option>
             <option value="services" {% if form_data.shop_type == 'services' %}selected{% endif %}>Services</option>
-            <option value="location" {% if form_data.shop_type == 'location' %}selected{% endif %}>Location</option>
+            <option value="location" {% if form_data.shop_type == 'location' %}selected{% endif %}>Locations</option>
           </select>
         </div>
 
@@ -279,10 +274,6 @@
           <input class="vd-input" type="password" name="password_confirm" minlength="8" required>
         </div>
 
-        <div class="full">
-          <label class="vd-label">Description courte</label>
-          <textarea class="vd-input" name="short_description" maxlength="500" rows="2">{{ form_data.short_description or '' }}</textarea>
-        </div>
       </div>
 
       <button type="submit" class="vd-btn">
@@ -301,3 +292,4 @@
   </div>
 </div>
 {% endblock %}
+

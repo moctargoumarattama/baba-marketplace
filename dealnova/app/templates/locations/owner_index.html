@@ -64,11 +64,6 @@
     </div>
   </section>
 </div>
-{% set report_issue_endpoint = 'rentals.owner_support_whatsapp' %}
-{% set report_issue_page_name = 'Mes locations' %}
-{% set report_issue_scope_label = 'Support location' %}
-{% set report_issue_scope_key = 'location' %}
-{% include "partials/_support_issue_fab.html" %}
 {% endblock %}
 {% block scripts %}
 {{ super() }}
@@ -76,5 +71,12 @@
 {% set vendor_dialog_title = 'Nouvelle location' %}
 {% include "vendor/partials/_product_create_dialog.html" %}
 <script src="{{ url_for('static', filename='js/vendor/vendor_product_modal.js', v=app_static_version ~ '-forms-v4') }}" defer></script>
+{% endblock %}
+{% block support_widget %}
+{% set report_issue_endpoint = 'rentals.owner_support_whatsapp' %}
+{% set report_issue_page_name = 'Mes locations' %}
+{% set report_issue_scope_label = 'Support location' %}
+{% set report_issue_scope_key = 'location' %}
+{% include "partials/_support_issue_fab.html" %}
 {% endblock %}
 

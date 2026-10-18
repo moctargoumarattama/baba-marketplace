@@ -150,7 +150,7 @@ def test_vendor_access_contract_creates_vendor_account_immediately_without_pendi
     assert 'role="vendor"' in body
     assert "_create_shop_for_vendor(" in body
     assert "VendorApplication.STATUS_APPROVED" in body
-    assert "send_account_created_email(" in body
+    assert ("send_vendor_welcome_whatsapp(" in body or "send_account_created_email(" in body)
     assert "Demande envoyee. Elle sera verifiee par un admin/gestionnaire." not in body
     assert "Une demande est deja en attente pour ce contact." not in body
 
