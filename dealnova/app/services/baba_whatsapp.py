@@ -1,11 +1,36 @@
 import os
 import re
 import threading
+from datetime import datetime
 from urllib.parse import quote
 import requests
 from flask import current_app
 
 from .logging_service import logging_service
+
+DEFAULT_WHATSAPP_SEND_URL = "http://127.0.0.1:3002/api/send"
+DEFAULT_WHATSAPP_STATUS_URL = "http://127.0.0.1:3002/api/status"
+
+_SAFE_QR_DATA_URI_RE = re.compile(
+    r"^data:image/(?:png|jpeg|jpg|webp|gif|svg\+xml);base64,[A-Za-z0-9+/=\s]+$",
+    re.IGNORECASE,
+)
+
+STATUS_LABELS = {
+    "connected": "Connecté",
+    "qr_ready": "En attente de scan",
+    "disconnected": "Déconnecté",
+}
+
+
+def sanitize_whatsapp_qr_data_uri(raw_qr: str | None) -> str | None:
+    """Valide et nettoie une image QR Code encodée en base64 (data URI)."""
+    if not raw_qr or not isinstance(raw_qr, str):
+        return None
+    candidate = raw_qr.strip()
+    if not _SAFE_QR_DATA_URI_RE.match(candidate):
+        return None
+    return re.sub(r"\s+", "", candidate)
 
 
 def normalize_whatsapp_number(raw_phone: str | None) -> str:
@@ -55,6 +80,91 @@ def build_vendor_welcome_message(
     )
 
 
+def get_whatsapp_gateway_status(
+    *,
+    status_url: str | None = None,
+    api_key: str | None = None,
+    timeout: int | None = None,
+) -> dict:
+    """Interroge l'API GET /api/status du micro-service baba-whatsapp (port 3002)."""
+    url = (
+        status_url
+        or ((current_app and current_app.config.get("BABA_WHATSAPP_STATUS_URL")) or os.getenv("BABA_WHATSAPP_STATUS_URL"))
+        or DEFAULT_WHATSAPP_STATUS_URL
+    ).strip()
+    key = (
+        api_key
+        or ((current_app and current_app.config.get("BABA_WHATSAPP_API_KEY")) or os.getenv("BABA_WHATSAPP_API_KEY", ""))
+    ).strip()
+    timeout_sec = timeout or int(
+        ((current_app and current_app.config.get("BABA_WHATSAPP_TIMEOUT")) or os.getenv("BABA_WHATSAPP_TIMEOUT", "4"))
+    )
+
+    headers = {"Accept": "application/json"}
+    if key:
+        headers["Authorization"] = f"Bearer {key}"
+        headers["X-API-Key"] = key
+
+    checked_at = datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S UTC")
+
+    try:
+        resp = requests.get(url, headers=headers, timeout=timeout_sec)
+        if resp.status_code == 200:
+            data = resp.json() if resp.content else {}
+            if not isinstance(data, dict):
+                data = {}
+            raw_status = str(data.get("status") or "").strip().lower()
+            if raw_status not in ("connected", "disconnected", "qr_ready"):
+                raw_status = "disconnected"
+
+            safe_qr = sanitize_whatsapp_qr_data_uri(data.get("qr")) if raw_status == "qr_ready" else None
+
+            return {
+                "status": raw_status,
+                "status_label": STATUS_LABELS.get(raw_status, "Déconnecté"),
+                "qr": safe_qr,
+                "reachable": True,
+                "status_code": resp.status_code,
+                "status_url": url,
+                "checked_at": checked_at,
+                "error": None,
+            }
+
+        if current_app:
+            current_app.logger.warning(
+                "baba_whatsapp.status_http_error: status=%s, body=%s",
+                resp.status_code,
+                resp.text[:200],
+            )
+        return {
+            "status": "disconnected",
+            "status_label": STATUS_LABELS["disconnected"],
+            "qr": None,
+            "reachable": False,
+            "status_code": resp.status_code,
+            "status_url": url,
+            "checked_at": checked_at,
+            "error": f"Le micro-service a répondu avec le code HTTP {resp.status_code}.",
+        }
+    except Exception as exc:
+        if current_app:
+            current_app.logger.warning(
+                "baba_whatsapp.status_unreachable: url=%s, error=%s",
+                url,
+                str(exc),
+            )
+        return {
+            "status": "disconnected",
+            "status_label": STATUS_LABELS["disconnected"],
+            "qr": None,
+            "reachable": False,
+            "status_code": None,
+            "status_url": url,
+            "checked_at": checked_at,
+            "error": "Impossible de joindre le micro-service WhatsApp local (127.0.0.1:3002).",
+        }
+
+
 def send_whatsapp_message(
     phone: str,
     message: str,
@@ -74,7 +184,7 @@ def send_whatsapp_message(
 
     url = gateway_url or (
         (current_app and current_app.config.get("BABA_WHATSAPP_GATEWAY_URL"))
-        or os.getenv("BABA_WHATSAPP_GATEWAY_URL", "http://127.0.0.1:3000/api/send")
+        or os.getenv("BABA_WHATSAPP_GATEWAY_URL", DEFAULT_WHATSAPP_SEND_URL)
     )
     key = (
         api_key
@@ -178,4 +288,5 @@ def send_vendor_welcome_whatsapp(
         }
 
     return send_whatsapp_message(phone, message)
+
 

@@ -72,6 +72,7 @@ from ..services.finance_entries import (
     ENTRY_TYPE_SUBSCRIPTION,
 )
 from ..services.traffic_stats import get_live_traffic_metrics
+from ..services.baba_whatsapp import get_whatsapp_gateway_status
 
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
@@ -99,6 +100,7 @@ MANAGER_BLOCKED_ADMIN_ENDPOINTS = {
     "admin.maintenance_backup_download",
     "admin.maintenance_backup_restore",
     "admin.maintenance_reset_data",
+    "admin.whatsapp_gateway",
 }
 
 
@@ -1965,3 +1967,26 @@ def maintenance_reset_data():
 
     # Toujours redirect après un reset (jamais render_template dans la même requête)
     return redirect(url_for("admin.maintenance", days=days, errors_page=errors_page))
+
+
+# ======================
+# PASSERELLE WHATSAPP (MICRO-SERVICE PORT 3002)
+# ======================
+@bp.route("/whatsapp-gateway", methods=["GET"])
+def whatsapp_gateway():
+    if _current_admin_role() != ADMIN_ROLE:
+        return _sensitive_admin_forbidden_response()
+
+    gateway_state = get_whatsapp_gateway_status()
+
+    if request.args.get("format") == "json" or _is_ajax_request():
+        response = jsonify(gateway_state)
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        return response
+
+    response = current_app.make_response(
+        render_template("admin/whatsapp_gateway.html", gateway=gateway_state)
+    )
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    return response
+

@@ -1,0 +1,480 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Passerelle WhatsApp | BABA MARKET Admin{% endblock %}
+{% block page_title %}Passerelle WhatsApp{% endblock %}
+{% block body_attrs %}data-adm-page="whatsapp-gateway"{% endblock %}
+
+{% block content %}
+<style>
+  .wa-gw-shell {
+    max-width: 880px;
+    margin: 0 auto;
+    display: grid;
+    gap: 1.25rem;
+  }
+
+  .wa-gw-card {
+    background: var(--glass, #ffffff);
+    border: 1px solid var(--line, #e2e8f0);
+    border-radius: 1rem;
+    box-shadow: 0 0.75rem 1.625rem rgba(15, 23, 42, 0.08);
+    overflow: hidden;
+  }
+
+  .wa-gw-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem;
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--line, #e2e8f0);
+    background: rgba(248, 250, 252, 0.65);
+  }
+
+  html[data-admin-theme="noc"] .wa-gw-header {
+    background: rgba(30, 41, 59, 0.65);
+  }
+
+  .wa-gw-title-group {
+    display: flex;
+    align-items: center;
+    gap: 0.875rem;
+  }
+
+  .wa-gw-icon {
+    width: 3rem;
+    height: 3rem;
+    border-radius: 0.85rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #25D366, #128C7E);
+    color: #ffffff;
+    font-size: 1.45rem;
+    box-shadow: 0 0.5rem 1rem rgba(37, 211, 102, 0.25);
+    flex-shrink: 0;
+  }
+
+  .wa-gw-heading {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: var(--dark, #0f172a);
+  }
+
+  .wa-gw-subtitle {
+    margin: 0.15rem 0 0;
+    font-size: 0.82rem;
+    color: #64748b;
+  }
+
+  html[data-admin-theme="noc"] .wa-gw-subtitle {
+    color: #94a3b8;
+  }
+
+  .wa-gw-body {
+    padding: 1.5rem;
+    display: grid;
+    gap: 1.35rem;
+  }
+
+  .wa-status-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem;
+    padding: 1.15rem 1.25rem;
+    border-radius: 0.875rem;
+    border: 1px solid transparent;
+  }
+
+  .wa-status-banner.is-connected {
+    background: #ecfdf5;
+    border-color: #a7f3d0;
+    color: #065f46;
+  }
+
+  .wa-status-banner.is-qr_ready {
+    background: #fffbeb;
+    border-color: #fde68a;
+    color: #92400e;
+  }
+
+  .wa-status-banner.is-disconnected {
+    background: #fef2f2;
+    border-color: #fecaca;
+    color: #991b1b;
+  }
+
+  html[data-admin-theme="noc"] .wa-status-banner.is-connected {
+    background: rgba(16, 185, 129, 0.14);
+    border-color: rgba(16, 185, 129, 0.35);
+    color: #6ee7b7;
+  }
+
+  html[data-admin-theme="noc"] .wa-status-banner.is-qr_ready {
+    background: rgba(245, 158, 11, 0.14);
+    border-color: rgba(245, 158, 11, 0.35);
+    color: #fcd34d;
+  }
+
+  html[data-admin-theme="noc"] .wa-status-banner.is-disconnected {
+    background: rgba(239, 68, 68, 0.14);
+    border-color: rgba(239, 68, 68, 0.35);
+    color: #fca5a5;
+  }
+
+  .wa-status-main {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+  }
+
+  .wa-status-dot {
+    width: 0.85rem;
+    height: 0.85rem;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .wa-status-banner.is-connected .wa-status-dot {
+    background: #10b981;
+    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.2);
+  }
+
+  .wa-status-banner.is-qr_ready .wa-status-dot {
+    background: #f59e0b;
+    box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.2);
+    animation: waPulse 1.6s infinite;
+  }
+
+  .wa-status-banner.is-disconnected .wa-status-dot {
+    background: #ef4444;
+    box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.2);
+  }
+
+  @keyframes waPulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.55; transform: scale(1.12); }
+  }
+
+  .wa-status-label {
+    font-size: 1.05rem;
+    font-weight: 800;
+  }
+
+  .wa-status-desc {
+    font-size: 0.84rem;
+    opacity: 0.9;
+    margin-top: 0.15rem;
+  }
+
+  .wa-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.38rem 0.85rem;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    background: rgba(255, 255, 255, 0.75);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+  }
+
+  html[data-admin-theme="noc"] .wa-status-badge {
+    background: rgba(15, 23, 42, 0.65);
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .wa-qr-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 1.75rem 1.25rem;
+    border-radius: 0.95rem;
+    background: #f8fafc;
+    border: 1px dashed #cbd5e1;
+  }
+
+  html[data-admin-theme="noc"] .wa-qr-section {
+    background: rgba(15, 23, 42, 0.55);
+    border-color: #334155;
+  }
+
+  .wa-qr-frame {
+    background: #ffffff;
+    padding: 1rem;
+    border-radius: 1rem;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 0.75rem 1.5rem rgba(15, 23, 42, 0.08);
+    margin: 0.75rem 0 1rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .wa-qr-frame img {
+    width: 260px;
+    height: 260px;
+    max-width: 100%;
+    object-fit: contain;
+    display: block;
+  }
+
+  .wa-qr-steps {
+    max-width: 480px;
+    text-align: left;
+    font-size: 0.85rem;
+    color: var(--text, #1f2937);
+    background: rgba(255, 255, 255, 0.8);
+    border: 1px solid var(--line, #e2e8f0);
+    border-radius: 0.75rem;
+    padding: 0.9rem 1.15rem;
+    margin-top: 0.5rem;
+  }
+
+  html[data-admin-theme="noc"] .wa-qr-steps {
+    background: rgba(30, 41, 59, 0.7);
+  }
+
+  .wa-qr-steps ol {
+    margin: 0.4rem 0 0;
+    padding-left: 1.2rem;
+  }
+
+  .wa-qr-steps li {
+    margin-bottom: 0.3rem;
+  }
+
+  .wa-meta-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--line, #e2e8f0);
+    font-size: 0.8rem;
+    color: #64748b;
+  }
+
+  html[data-admin-theme="noc"] .wa-meta-row {
+    color: #94a3b8;
+  }
+
+  .wa-btn-refresh {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1.1rem;
+    border-radius: 0.75rem;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #ffffff;
+    background: linear-gradient(135deg, #0f766e, #0d9488);
+    border: none;
+    text-decoration: none;
+    cursor: pointer;
+    box-shadow: 0 0.45rem 1rem rgba(15, 118, 110, 0.22);
+    transition: transform 0.15s ease, opacity 0.15s ease;
+  }
+
+  .wa-btn-refresh:hover {
+    color: #ffffff;
+    transform: translateY(-1px);
+  }
+
+  .wa-btn-refresh.is-loading i {
+    animation: waSpin 0.8s linear infinite;
+  }
+
+  @keyframes waSpin {
+    to { transform: rotate(360deg); }
+  }
+</style>
+
+<div class="wa-gw-shell">
+  <section class="wa-gw-card" aria-labelledby="waGatewayHeading">
+    <div class="wa-gw-header">
+      <div class="wa-gw-title-group">
+        <div class="wa-gw-icon" aria-hidden="true">
+          <i class="bi bi-whatsapp"></i>
+        </div>
+        <div>
+          <h2 class="wa-gw-heading" id="waGatewayHeading">Micro-service WhatsApp Baba Market</h2>
+          <p class="wa-gw-subtitle">Envoi automatisé des accès vendeurs et notifications système (Port 3002)</p>
+        </div>
+      </div>
+
+      <a href="{{ url_for('admin.whatsapp_gateway') }}"
+         id="waRefreshBtn"
+         class="wa-btn-refresh"
+         data-status-url="{{ url_for('admin.whatsapp_gateway', format='json') }}">
+        <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
+        <span>Rafraîchir le statut</span>
+      </a>
+    </div>
+
+    <div class="wa-gw-body">
+      {% set st = gateway.status or 'disconnected' %}
+      <div id="waStatusBanner" class="wa-status-banner is-{{ st }}" role="status" aria-live="polite">
+        <div class="wa-status-main">
+          <span class="wa-status-dot" aria-hidden="true"></span>
+          <div>
+            <div class="wa-status-label" id="waStatusLabel">
+              {% if st == 'connected' %}
+                Connecté
+              {% elif st == 'qr_ready' %}
+                En attente de scan
+              {% else %}
+                Déconnecté
+              {% endif %}
+            </div>
+            <div class="wa-status-desc" id="waStatusDesc">
+              {% if st == 'connected' %}
+                Le téléphone d'entreprise Baba Market est connecté et prêt à envoyer les messages WhatsApp automatiquement.
+              {% elif st == 'qr_ready' %}
+                Un QR Code est disponible ci-dessous. Scannez-le avec le téléphone WhatsApp de l'entreprise pour activer l'envoi automatique.
+              {% else %}
+                {{ gateway.error or "La session WhatsApp n'est pas connectée actuellement." }}
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <span class="wa-status-badge" id="waStatusCodeBadge">
+          <i class="bi bi-{% if st == 'connected' %}check-circle-fill{% elif st == 'qr_ready' %}qr-code-scan{% else %}exclamation-circle-fill{% endif %}" aria-hidden="true"></i>
+          <span id="waStatusRawText">{{ st }}</span>
+        </span>
+      </div>
+
+      <div id="waQrContainer" class="wa-qr-section" {% if st != 'qr_ready' or not gateway.qr %}hidden{% endif %}>
+        <h3 style="font-size: 1rem; font-weight: 800; margin: 0;">Scanner le QR Code WhatsApp</h3>
+        <p style="font-size: 0.84rem; color: #64748b; margin: 0.25rem 0 0;">
+          Utilisez le téléphone officiel de Baba Market pour lier la passerelle.
+        </p>
+
+        <div class="wa-qr-frame">
+          <img id="waQrImage"
+               src="{{ gateway.qr if (st == 'qr_ready' and gateway.qr) else '' }}"
+               alt="QR Code de connexion WhatsApp Baba Market">
+        </div>
+
+        <div class="wa-qr-steps">
+          <strong>Instructions de connexion :</strong>
+          <ol>
+            <li>Ouvrez <strong>WhatsApp</strong> sur le téléphone d'entreprise.</li>
+            <li>Appuyez sur <strong>Menu (⋮)</strong> ou <strong>Réglages</strong> &gt; <strong>Appareils connectés</strong>.</li>
+            <li>Appuyez sur <strong>Connecter un appareil</strong> et pointez l'appareil photo vers ce QR Code.</li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="wa-meta-row">
+        <span>
+          <i class="bi bi-hdd-network" aria-hidden="true"></i>
+          Point de contrôle : <code>{{ gateway.status_url }}</code>
+        </span>
+        <span>
+          <i class="bi bi-clock" aria-hidden="true"></i>
+          Dernière vérification : <strong id="waCheckedAt">{{ gateway.checked_at }}</strong>
+        </span>
+      </div>
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (function () {
+    var refreshBtn = document.getElementById("waRefreshBtn");
+    var banner = document.getElementById("waStatusBanner");
+    var labelEl = document.getElementById("waStatusLabel");
+    var descEl = document.getElementById("waStatusDesc");
+    var rawTextEl = document.getElementById("waStatusRawText");
+    var qrContainer = document.getElementById("waQrContainer");
+    var qrImage = document.getElementById("waQrImage");
+    var checkedAtEl = document.getElementById("waCheckedAt");
+    if (!refreshBtn || !banner) return;
+
+    var statusUrl = refreshBtn.getAttribute("data-status-url");
+    var isFetching = false;
+
+    function applyGatewayState(data) {
+      var st = (data && data.status) || "disconnected";
+      banner.className = "wa-status-banner is-" + st;
+      if (rawTextEl) rawTextEl.textContent = st;
+
+      if (st === "connected") {
+        if (labelEl) labelEl.textContent = "Connecté";
+        if (descEl) {
+          descEl.textContent = "Le téléphone d'entreprise Baba Market est connecté et prêt à envoyer les messages WhatsApp automatiquement.";
+        }
+      } else if (st === "qr_ready") {
+        if (labelEl) labelEl.textContent = "En attente de scan";
+        if (descEl) {
+          descEl.textContent = "Un QR Code est disponible ci-dessous. Scannez-le avec le téléphone WhatsApp de l'entreprise pour activer l'envoi automatique.";
+        }
+      } else {
+        if (labelEl) labelEl.textContent = "Déconnecté";
+        if (descEl) {
+          descEl.textContent = (data && data.error) ? data.error : "La session WhatsApp n'est pas connectée actuellement.";
+        }
+      }
+
+      if (qrContainer && qrImage) {
+        if (st === "qr_ready" && data && data.qr) {
+          qrImage.setAttribute("src", data.qr);
+          qrContainer.hidden = false;
+        } else {
+          qrImage.setAttribute("src", "");
+          qrContainer.hidden = true;
+        }
+      }
+
+      if (checkedAtEl && data && data.checked_at) {
+        checkedAtEl.textContent = data.checked_at;
+      }
+    }
+
+    function refreshGatewayStatus(event) {
+      if (event) event.preventDefault();
+      if (isFetching || !statusUrl) return;
+      isFetching = true;
+      refreshBtn.classList.add("is-loading");
+
+      fetch(statusUrl, {
+        method: "GET",
+        headers: {
+          "Accept": "application/json",
+          "X-Requested-With": "fetch"
+        },
+        cache: "no-store"
+      })
+        .then(function (resp) {
+          if (!resp.ok) throw new Error("HTTP " + resp.status);
+          return resp.json();
+        })
+        .then(function (data) {
+          applyGatewayState(data);
+        })
+        .catch(function () {
+          window.location.reload();
+        })
+        .finally(function () {
+          isFetching = false;
+          refreshBtn.classList.remove("is-loading");
+        });
+    }
+
+    refreshBtn.addEventListener("click", refreshGatewayStatus);
+  })();
+</script>
+{% endblock %}
+

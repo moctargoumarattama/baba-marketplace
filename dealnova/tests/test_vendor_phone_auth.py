@@ -182,3 +182,78 @@ def test_vendor_login_with_phone_on_unified_page(app):
     )
     assert resp_bad.status_code == 200
     assert "incorrect" in resp_bad.get_data(as_text=True).lower()
+
+
+def test_admin_whatsapp_gateway_route_and_qr_rendering(app):
+    from dealnova.app.services.baba_whatsapp import sanitize_whatsapp_qr_data_uri
+
+    # Verify QR sanitizer blocks unsafe URIs and accepts valid PNG base64
+    sample_qr = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+    assert sanitize_whatsapp_qr_data_uri(sample_qr) == sample_qr
+    assert sanitize_whatsapp_qr_data_uri("javascript:alert(1)") is None
+
+    with app.app_context():
+        admin_user = User.query.filter_by(username="wa_test_admin").first()
+        if not admin_user:
+            admin_user = User(
+                username="wa_test_admin",
+                email="wa_test_admin@babamarket.ma",
+                role="admin",
+                is_active=True,
+            )
+            admin_user.set_password("AdminPass123!")
+            db.session.add(admin_user)
+
+        manager_user = User.query.filter_by(username="wa_test_manager").first()
+        if not manager_user:
+            manager_user = User(
+                username="wa_test_manager",
+                email="wa_test_manager@babamarket.ma",
+                role="manager",
+                is_active=True,
+            )
+            manager_user.set_password("ManagerPass123!")
+            db.session.add(manager_user)
+        db.session.commit()
+        admin_id = admin_user.id
+        manager_id = manager_user.id
+
+    # 1. Manager should be blocked from /admin/whatsapp-gateway
+    mgr_client = app.test_client()
+    with mgr_client.session_transaction() as sess:
+        sess["_user_id"] = str(manager_id)
+        sess["_fresh"] = True
+    mgr_resp = mgr_client.get("/admin/whatsapp-gateway", follow_redirects=False)
+    assert mgr_resp.status_code in (302, 403)
+
+    # 2. Admin can access /admin/whatsapp-gateway when qr_ready and sees the QR image
+    adm_client = app.test_client()
+    with adm_client.session_transaction() as sess:
+        sess["_user_id"] = str(admin_id)
+        sess["_fresh"] = True
+
+    with patch("dealnova.app.routes.admin.get_whatsapp_gateway_status") as mock_status:
+        mock_status.return_value = {
+            "status": "qr_ready",
+            "status_label": "En attente de scan",
+            "qr": sample_qr,
+            "reachable": True,
+            "status_code": 200,
+            "status_url": "http://127.0.0.1:3002/api/status",
+            "checked_at": "18/10/2026 21:30:00 UTC",
+            "error": None,
+        }
+        resp_qr = adm_client.get("/admin/whatsapp-gateway")
+        assert resp_qr.status_code == 200
+        html = resp_qr.get_data(as_text=True)
+        assert "En attente de scan" in html
+        assert sample_qr in html
+        assert "Rafraîchir le statut" in html
+
+        # JSON refresh check
+        resp_json = adm_client.get("/admin/whatsapp-gateway?format=json")
+        assert resp_json.status_code == 200
+        payload = resp_json.get_json()
+        assert payload["status"] == "qr_ready"
+        assert payload["qr"] == sample_qr
+
