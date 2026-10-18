@@ -996,6 +996,27 @@
     <script src="{{ url_for('static', filename='js/core/safe_refresh.js', v=app_static_version) }}"></script>
     <script src="{{ url_for('static', filename='js/admin/admin_helpers.js', v=app_static_version) }}"></script>
     <script src="{{ url_for('static', filename='js/admin/admin_push_notifications.js', v=app_static_version) }}" defer></script>
+    <script>
+        (function () {
+            var logoutSubmitEvent = null;
+            document.addEventListener('submit', function (event) {
+                var form = event.target;
+                if (!form || form.tagName !== 'FORM') return;
+                try {
+                    var action = new URL(form.action || window.location.href, window.location.href);
+                    if (action.origin === window.location.origin && /(?:^|\/)logout\/?$/i.test(action.pathname)) {
+                        logoutSubmitEvent = event;
+                    }
+                } catch (_actionError) {}
+            }, true);
+            window.addEventListener('pagehide', function () {
+                if (!logoutSubmitEvent || logoutSubmitEvent.defaultPrevented) return;
+                try {
+                    window.sessionStorage.setItem('__BM_NAV_PENDING__', 'quiet');
+                } catch (_storageError) {}
+            }, { capture: true });
+        })();
+    </script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

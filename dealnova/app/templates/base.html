@@ -74,6 +74,40 @@
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <meta name="theme-color" content="#10B981">
 
+  <script>
+    (function() {
+      var mode = '';
+      var startedAt = 0;
+      try {
+        var pending = window.sessionStorage.getItem('__BM_NAV_PENDING__') || '';
+        window.sessionStorage.removeItem('__BM_NAV_PENDING__');
+        if (pending === 'quiet' || pending === '1') {
+          mode = 'quiet';
+        } else if (pending === 'progress') {
+          mode = 'transition';
+        } else if (pending.indexOf('transition:') === 0) {
+          startedAt = parseInt(pending.slice('transition:'.length), 10) || 0;
+          mode = startedAt && Date.now() - startedAt >= 350 ? 'progress' : 'transition';
+        }
+      } catch (_storageError) {}
+
+      if (!mode) {
+        try {
+          var navigation = window.performance && window.performance.getEntriesByType
+            ? window.performance.getEntriesByType('navigation')[0]
+            : null;
+          if (navigation && navigation.type === 'back_forward') mode = 'quiet';
+        } catch (_navigationError) {}
+      }
+
+      if (mode) {
+        window.__BM_NAV_MODE__ = mode;
+        window.__BM_NAV_STARTED_AT__ = startedAt;
+        document.documentElement.setAttribute('data-bm-nav-mode', mode);
+      }
+    })();
+  </script>
+
   <!-- STYLES POUR LE LOADER 3D SCI-FI (Hub Radar - ultra léger & GPU-accéléré) -->
   <style>
     html, body {
@@ -96,6 +130,51 @@
       transition: opacity 0.16s ease-out;
       pointer-events: none;
       overflow: hidden;
+    }
+    html[data-bm-nav-mode] #bm-loader {
+      display: none !important;
+    }
+    #bm-navigation-progress {
+      position: fixed;
+      inset-block-start: env(safe-area-inset-top, 0px);
+      inset-inline: 0;
+      z-index: 1000000;
+      height: 3px;
+      overflow: hidden;
+      background: rgba(16, 185, 129, 0.12);
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transition: opacity 140ms ease, visibility 140ms ease;
+    }
+    #bm-navigation-progress::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, #10b981, #34d399, #06b6d4);
+      transform: scaleX(0);
+      transform-origin: left center;
+    }
+    #bm-navigation-progress.is-active,
+    html[data-bm-nav-mode="progress"] #bm-navigation-progress {
+      opacity: 1;
+      visibility: visible;
+    }
+    #bm-navigation-progress.is-active::after,
+    html[data-bm-nav-mode="progress"] #bm-navigation-progress::after {
+      animation: bm-navigation-progress 1.25s cubic-bezier(0.22, 0.61, 0.36, 1) infinite;
+    }
+    @keyframes bm-navigation-progress {
+      0% { transform: translateX(-100%) scaleX(0.35); }
+      55% { transform: translateX(90%) scaleX(0.72); }
+      100% { transform: translateX(260%) scaleX(0.35); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #bm-navigation-progress.is-active::after,
+      html[data-bm-nav-mode="progress"] #bm-navigation-progress::after {
+        animation: none;
+        transform: scaleX(0.45);
+      }
     }
     #bm-loader::before {
       content: "";
@@ -561,6 +640,8 @@
   {% endif %}
 {% endif %}
 
+  <div id="bm-navigation-progress" aria-hidden="true"><span></span></div>
+
   <!-- LOADER IMMÉDIAT 3D SCI-FI (Dôme Radar & Réseau Spatial 3D) -->
   <div id="bm-loader">
     <div class="bm-radar-wrapper">
@@ -647,23 +728,26 @@
       var LOADER_CONFIG = Object.assign(
         {
           initialDuration: 1500, // 1.5s d'affichage au premier lancement / refresh
-          navigationThreshold: 200 // Entre deux pages : n'apparaît que si > 200ms
+          navigationThreshold: 350 // Barre discrète seulement si la navigation dure.
         },
         window.BM_LOADER_CONFIG || {}
       );
 
       var bootTimestamp = Date.now();
-      var isNavTransition = false;
-      try {
-        isNavTransition = !!window.sessionStorage.getItem('__BM_NAV_PENDING__');
-        if (isNavTransition) {
-          window.sessionStorage.removeItem('__BM_NAV_PENDING__');
-        }
-      } catch (_navStorageErr) {}
+      var navigationMode = window.__BM_NAV_MODE__ === 'transition' || window.__BM_NAV_MODE__ === 'progress' || window.__BM_NAV_MODE__ === 'quiet'
+        ? window.__BM_NAV_MODE__
+        : '';
+      var isNavTransition = !!navigationMode;
+      var pendingNavigationMode = '';
+      var navigationProgressVisible = navigationMode === 'progress';
+      var navigationIntentVersion = 0;
+      var navigationIntentStartedAt = Number(window.__BM_NAV_STARTED_AT__) || 0;
 
       var perfFlags = window.BM_PERF_FLAGS || {};
       var fastLoaderEnabled = perfFlags.fastLoader !== false;
       var loader = document.getElementById('bm-loader');
+      var navigationProgress = document.getElementById('bm-navigation-progress');
+      if (navigationProgress && navigationProgressVisible) navigationProgress.setAttribute('aria-hidden', 'false');
       var hideTimer = null;
       var navigationFallbackTimer = null;
       var navigationShowTimer = null;
@@ -715,6 +799,35 @@
         navigationShowTimer = null;
       }
 
+      function setPendingNavigationMode(mode, resetClock) {
+        pendingNavigationMode = mode || '';
+        if (pendingNavigationMode === 'progress') {
+          if (resetClock || !navigationIntentStartedAt) navigationIntentStartedAt = Date.now();
+        } else {
+          navigationIntentStartedAt = 0;
+        }
+        var storedMode = pendingNavigationMode === 'progress'
+          ? 'transition:' + navigationIntentStartedAt
+          : pendingNavigationMode;
+        try {
+          if (storedMode) window.sessionStorage.setItem('__BM_NAV_PENDING__', storedMode);
+          else window.sessionStorage.removeItem('__BM_NAV_PENDING__');
+        } catch (_storageError) {}
+      }
+
+      function hideNavigationProgress() {
+        if (navigationProgress) {
+          navigationProgress.classList.remove('is-active');
+          navigationProgress.setAttribute('aria-hidden', 'true');
+        }
+        navigationProgressVisible = false;
+        if (navigationMode) {
+          if (loader) loader.style.display = 'none';
+          document.documentElement.removeAttribute('data-bm-nav-mode');
+          window.__BM_NAV_MODE__ = '';
+        }
+      }
+
       function runAfterPaint(callback) {
         if (typeof window.requestAnimationFrame === 'function') {
           window.requestAnimationFrame(function() {
@@ -732,26 +845,25 @@
         clearNavigationFallbackTimer();
         clearNavigationShowTimer();
         loader.style.opacity = '0';
+        if (isNavTransition) loader.style.display = 'none';
+        hideNavigationProgress();
+        if (isNavTransition && navigationIntentVersion === 0) setPendingNavigationMode('');
         try {
           window.sessionStorage.setItem('__BM_LAST_READY_AT__', String(Date.now()));
         } catch (_storageWriteError) {}
-        setTimeout(() => {
-          loader.style.display = 'none';
-        }, 160);
+        if (!isNavTransition) {
+          setTimeout(() => {
+            loader.style.display = 'none';
+          }, 160);
+        }
       }
 
-      function hideTransientLoader() {
-        if (!loader) return;
-        readiness.loaderHidden = true;
-        clearHideTimer();
+      function hideNavigationProgressNow() {
         clearNavigationFallbackTimer();
         clearNavigationShowTimer();
-        loader.style.opacity = '0';
-        window.setTimeout(function() {
-          if (!loader || loader.style.opacity !== '0') return;
-          loader.style.display = 'none';
-          updateReadyState();
-        }, 160);
+        hideNavigationProgress();
+        setPendingNavigationMode('');
+        updateReadyState();
       }
 
       function normalizeNavigationUrl(input) {
@@ -878,36 +990,41 @@
 
       function showNavigationLoader(url) {
         var normalizedUrl = normalizeNavigationUrl(url);
-        if (!loader || !normalizedUrl) return false;
-        clearHideTimer();
-        clearNavigationFallbackTimer();
+        if (!navigationProgress || !normalizedUrl) return false;
+        navigationIntentVersion += 1;
+        setPendingNavigationMode('progress', true);
+        return showNavigationProgress();
+      }
+
+      function scheduleNavigationProgress(delayMs) {
+        if (!navigationProgress) return false;
         clearNavigationShowTimer();
-        readiness.loaderHidden = false;
-        loader.style.display = 'flex';
-        loader.style.opacity = '1';
-        document.documentElement.setAttribute('data-bm-ready-state', 'navigating');
+        var threshold = typeof delayMs === 'number' ? delayMs : LOADER_CONFIG.navigationThreshold;
+        if (threshold <= 0) return showNavigationProgress();
+        navigationShowTimer = window.setTimeout(showNavigationProgress, threshold);
+        return true;
+      }
+
+      function showNavigationProgress() {
+        if (!navigationProgress) return false;
+        clearNavigationFallbackTimer();
+        setPendingNavigationMode('progress');
+        navigationProgressVisible = true;
+        navigationProgress.classList.add('is-active');
+        navigationProgress.setAttribute('aria-hidden', 'false');
         navigationFallbackTimer = window.setTimeout(function() {
           if (document.visibilityState === 'hidden') return;
-          hideTransientLoader();
-        }, 1800);
+          hideNavigationProgressNow();
+        }, 10000);
         return true;
       }
 
       function scheduleNavigationLoader(url, delayMs) {
         var normalizedUrl = normalizeNavigationUrl(url);
-        if (!loader || !normalizedUrl) return false;
-        try {
-          window.sessionStorage.setItem('__BM_NAV_PENDING__', '1');
-        } catch (_) {}
-        clearNavigationShowTimer();
-        var threshold = typeof delayMs === 'number' ? delayMs : LOADER_CONFIG.navigationThreshold;
-        if (threshold <= 0) {
-          return showNavigationLoader(normalizedUrl);
-        }
-        navigationShowTimer = window.setTimeout(function() {
-          showNavigationLoader(normalizedUrl);
-        }, threshold);
-        return true;
+        if (!navigationProgress || !normalizedUrl) return false;
+        navigationIntentVersion += 1;
+        setPendingNavigationMode('progress', true);
+        return scheduleNavigationProgress(delayMs);
       }
 
       function navigateTo(url) {
@@ -933,6 +1050,11 @@
       window.BMPageNav.show = showNavigationLoader;
       window.BMPageNav.schedule = scheduleNavigationLoader;
       window.BMPageNav.navigate = navigateTo;
+
+      if (navigationMode === 'transition') {
+        setPendingNavigationMode('progress');
+        scheduleNavigationProgress(Math.max(0, LOADER_CONFIG.navigationThreshold - (Date.now() - navigationIntentStartedAt)));
+      }
 
       function scheduleHide(delayMs) {
         if (readiness.loaderHidden) return;
@@ -1047,11 +1169,14 @@
       window.addEventListener('pageshow', function(event) {
         clearNavigationShowTimer();
         if (!event || !event.persisted) return;
+        setPendingNavigationMode('');
         markComplete();
         hideLoader();
+        hideNavigationProgress();
       });
 
       window.addEventListener('pagehide', function() {
+        setPendingNavigationMode(pendingNavigationMode);
         clearNavigationFallbackTimer();
         clearNavigationShowTimer();
       }, { capture: true });
@@ -1079,11 +1204,59 @@
         warmNavigation(targetUrl);
       }, { capture: true, passive: true });
 
+      document.addEventListener('submit', function(event) {
+        var form = event.target;
+        if (!form || form.tagName !== 'FORM') return;
+        if (form.hasAttribute('data-ajax') || form.hasAttribute('data-adm-ajax') || form.hasAttribute('data-ajax-submit') || form.matches('[data-adm-action="post"]')) return;
+        var targetAttr = String(form.getAttribute('target') || '').trim().toLowerCase();
+        if (targetAttr && targetAttr !== '_self') return;
+
+        var action;
+        try {
+          action = new URL(form.getAttribute('action') || window.location.href, window.location.href);
+        } catch (_actionError) {
+          return;
+        }
+        if (action.origin !== window.location.origin) return;
+
+        var isLogout = /(?:^|\/)logout\/?$/i.test(action.pathname);
+        navigationIntentVersion += 1;
+        var intentVersion = navigationIntentVersion;
+        setPendingNavigationMode(isLogout ? 'quiet' : 'progress', !isLogout);
+        clearNavigationShowTimer();
+        clearNavigationFallbackTimer();
+        if (isLogout) {
+          hideNavigationProgress();
+          window.setTimeout(function() {
+            if (!event.defaultPrevented || navigationIntentVersion !== intentVersion) return;
+            if (pendingNavigationMode === 'quiet') setPendingNavigationMode('');
+          }, 0);
+        } else {
+          window.setTimeout(function() {
+            if (event.defaultPrevented && navigationIntentVersion === intentVersion) {
+              if (pendingNavigationMode === 'progress') setPendingNavigationMode('');
+              clearNavigationShowTimer();
+              if (navigationProgressVisible) hideNavigationProgressNow();
+              return;
+            }
+            if (navigationIntentVersion !== intentVersion) return;
+            scheduleNavigationProgress(LOADER_CONFIG.navigationThreshold);
+          }, 0);
+        }
+      }, true);
+
       document.addEventListener('click', function(event) {
         if (!isPlainPrimaryClick(event)) return;
         var targetUrl = resolveNavigationUrlFromTarget(event && event.target);
         if (!targetUrl) return;
-        scheduleNavigationLoader(targetUrl, LOADER_CONFIG.navigationThreshold);
+        if (!scheduleNavigationLoader(targetUrl, LOADER_CONFIG.navigationThreshold)) return;
+        var intentVersion = navigationIntentVersion;
+        window.setTimeout(function() {
+          if (!event.defaultPrevented || navigationIntentVersion !== intentVersion || pendingNavigationMode !== 'progress') return;
+          setPendingNavigationMode('');
+          clearNavigationShowTimer();
+          if (navigationProgressVisible) hideNavigationProgressNow();
+        }, 0);
       }, true);
 
       if (!isI18nReady()) {
