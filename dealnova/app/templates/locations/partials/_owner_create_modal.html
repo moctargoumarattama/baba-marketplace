@@ -1,0 +1,117 @@
+{% set rental_max_images = max_images if max_images is defined else 4 %}
+{% set rental_image_mb = max_image_mb if max_image_mb is defined else 12 %}
+{% set rental_video_mb = max_video_mb if max_video_mb is defined else 30 %}
+{% set rental_rate = admin_rental_rate_bps|default(0, true)|int %}
+{% set values = form_values|default({}) %}
+{% set errors = form_errors|default({}) %}
+{% set editing = listing is defined and listing %}
+{% set images = existing_images|default([]) %}
+{% set video = existing_video|default(none) %}
+<form id="vendorCreateForm" class="vpm-form vpm-location-form" method="post" action="{{ url_for('rentals.owner_location_edit', listing_id=listing.id) if editing else url_for('rentals.owner_location_new') }}" enctype="multipart/form-data">
+  {% include "partials/_csrf.html" %}
+  <div id="vpmFormError" class="vpm-form-error" role="alert"{% if not form_error|default('') %} hidden{% endif %}>{{ form_error|default('') }}</div>
+  <fieldset class="vpm-kind-fieldset">
+    <legend>Type de location</legend>
+    <div class="vpm-kind-options">
+      <label class="vpm-kind-option"><input type="radio" name="listing_type" value="monthly"{% if values.get('listing_type', 'monthly') == 'monthly' %} checked{% endif %}><span>Mensuelle</span></label>
+      <label class="vpm-kind-option"><input type="radio" name="listing_type" value="daily"{% if values.get('listing_type') == 'daily' %} checked{% endif %}><span>Journalière</span></label>
+    </div>
+    <p class="vpm-field-error" data-vpm-field-error="listing_type" {% if not errors.get('listing_type') %} hidden{% endif %}>{{ errors.get('listing_type', '') }}</p>
+    {% if editing %}<p class="vpm-help">Expiration actuelle : {{ format_dt(listing.expires_at) }}.</p>{% endif %}
+    <p class="vpm-help" data-vpm-duration>Annonce diffusée pendant {{ daily_duration_days if values.get('listing_type') == 'daily' else monthly_duration_days }} jours.</p>
+  </fieldset>
+  <div class="vpm-form-grid">
+    <section class="vpm-information" aria-label="Informations sur le bien">
+      <div class="vpm-field">
+        <label for="vpmName">Titre de l’annonce <span class="vpm-required" aria-hidden="true">*</span></label>
+        <input id="vpmName" name="title" value="{{ values.get('title', '') }}" type="text" minlength="6" maxlength="180" required autocomplete="off" aria-describedby="vpmTitleError">
+        <p id="vpmTitleError" class="vpm-field-error" data-vpm-field-error="title" {% if not errors.get('title') %} hidden{% endif %}>{{ errors.get('title', '') }}</p>
+      </div>
+      {% if shops|length == 1 %}
+      <input type="hidden" name="shop_id" value="{{ shops[0].id }}">
+      <p class="vpm-field-error" data-vpm-field-error="shop_id" {% if not errors.get('shop_id') %} hidden{% endif %}>{{ errors.get('shop_id', '') }}</p>
+      {% else %}
+      <div class="vpm-field">
+        <label for="vpmShop">Boutique <span class="vpm-required" aria-hidden="true">*</span></label>
+        <select id="vpmShop" name="shop_id" required aria-describedby="vpmShopError"><option value="">Choisir une boutique</option>{% for shop in shops %}<option value="{{ shop.id }}"{% if values.get('shop_id')|string == shop.id|string %} selected{% endif %}>{{ shop.name }}</option>{% endfor %}</select>
+        <p id="vpmShopError" class="vpm-field-error" data-vpm-field-error="shop_id" {% if not errors.get('shop_id') %} hidden{% endif %}>{{ errors.get('shop_id', '') }}</p>
+      </div>
+      {% endif %}
+      <div class="vpm-field">
+        <label for="vpmPropertyType">Type de bien <span class="vpm-required" aria-hidden="true">*</span></label>
+        <select id="vpmPropertyType" name="property_type" required aria-describedby="vpmPropertyError">{% for key, label in [('room', 'Chambre'), ('apartment', 'Appartement'), ('studio', 'Studio'), ('store', 'Boutique à louer')] %}<option value="{{ key }}"{% if values.get('property_type', 'apartment') == key %} selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+        <p id="vpmPropertyError" class="vpm-field-error" data-vpm-field-error="property_type" {% if not errors.get('property_type') %} hidden{% endif %}>{{ errors.get('property_type', '') }}</p>
+      </div>
+      <div class="vpm-field-pair">
+        <div class="vpm-field">
+          <label for="vpmCity">Ville <span class="vpm-required" aria-hidden="true">*</span></label>
+          <input id="vpmCity" name="city" value="{{ values.get('city', '') }}" type="text" maxlength="120" required autocomplete="address-level2" aria-describedby="vpmCityError">
+          <p id="vpmCityError" class="vpm-field-error" data-vpm-field-error="city" {% if not errors.get('city') %} hidden{% endif %}>{{ errors.get('city', '') }}</p>
+        </div>
+        <div class="vpm-field">
+          <label for="vpmArea">Quartier</label>
+          <input id="vpmArea" name="area" value="{{ values.get('area', '') }}" type="text" maxlength="120" autocomplete="address-level3" aria-describedby="vpmAreaError">
+          <p id="vpmAreaError" class="vpm-field-error" data-vpm-field-error="area" {% if not errors.get('area') %} hidden{% endif %}>{{ errors.get('area', '') }}</p>
+        </div>
+      </div>
+      <div class="vpm-field-pair">
+        <div class="vpm-field">
+          <label for="vpmPrice"><span data-vpm-rent-label>{{ 'Prix par jour (DH)' if values.get('listing_type') == 'daily' else 'Loyer mensuel (DH)' }}</span> <span class="vpm-required" aria-hidden="true">*</span></label>
+          <input id="vpmPrice" name="rent" value="{{ values.get('rent', '') }}" type="number" min="0" step="0.01" inputmode="decimal" required aria-describedby="vpmRentError">
+          <p id="vpmRentError" class="vpm-field-error" data-vpm-field-error="rent" {% if not errors.get('rent') %} hidden{% endif %}>{{ errors.get('rent', '') }}</p>
+        </div>
+        <div class="vpm-field">
+          <label for="vpmDepositRequired">Caution</label>
+          <select id="vpmDepositRequired" name="deposit_required" aria-describedby="vpmDepositRequiredError"><option value="0"{% if values.get('deposit_required') != '1' %} selected{% endif %}>Sans caution</option><option value="1"{% if values.get('deposit_required') == '1' %} selected{% endif %}>Avec caution</option></select>
+          <p id="vpmDepositRequiredError" class="vpm-field-error" data-vpm-field-error="deposit_required" {% if not errors.get('deposit_required') %} hidden{% endif %}>{{ errors.get('deposit_required', '') }}</p>
+        </div>
+      </div>
+      <div class="vpm-field" data-vpm-deposit>
+        <label for="vpmDeposit">Montant de la caution (DH)</label>
+        <input id="vpmDeposit" name="deposit" value="{{ values.get('deposit', '') }}" type="number" min="0" step="0.01" inputmode="decimal" aria-describedby="vpmDepositError">
+        <p id="vpmDepositError" class="vpm-field-error" data-vpm-field-error="deposit" {% if not errors.get('deposit') %} hidden{% endif %}>{{ errors.get('deposit', '') }}</p>
+      </div>
+      <div class="vpm-field">
+        <label for="vpmDescription">Description <span class="vpm-optional">(facultatif)</span></label>
+        <textarea id="vpmDescription" name="description" rows="3" placeholder="Décrivez le bien et les conditions de location." aria-describedby="vpmDescriptionError">{{ values.get('description', '') }}</textarea>
+        <p id="vpmDescriptionError" class="vpm-field-error" data-vpm-field-error="description" {% if not errors.get('description') %} hidden{% endif %}>{{ errors.get('description', '') }}</p>
+      </div>
+      <details class="vpm-rental-fees"{% if errors.get('owner_fee') or errors.get('owner_fee_text') %} open{% endif %}>
+        <summary>Frais et commission <i class="bi bi-chevron-down" aria-hidden="true"></i></summary>
+        <div class="vpm-rental-fees-content">
+          <div class="vpm-field">
+            <label for="vpmOwnerFee">Frais propriétaire (DH)</label>
+            <input id="vpmOwnerFee" name="owner_fee" value="{{ values.get('owner_fee', '') }}" type="number" min="0" step="0.01" inputmode="decimal" aria-describedby="vpmOwnerFeeError">
+            <p id="vpmOwnerFeeError" class="vpm-field-error" data-vpm-field-error="owner_fee" {% if not errors.get('owner_fee') %} hidden{% endif %}>{{ errors.get('owner_fee', '') }}</p>
+          </div>
+          <div class="vpm-field">
+            <label for="vpmOwnerFeeText">Précision sur les frais <span class="vpm-optional">(facultatif)</span></label>
+            <input id="vpmOwnerFeeText" name="owner_fee_text" value="{{ values.get('owner_fee_text', '') }}" type="text" maxlength="255" aria-describedby="vpmOwnerFeeHint vpmOwnerFeeTextError">
+            <p id="vpmOwnerFeeHint" class="vpm-help">Ce texte sera visible par les clients.</p>
+            <p id="vpmOwnerFeeTextError" class="vpm-field-error" data-vpm-field-error="owner_fee_text" {% if not errors.get('owner_fee_text') %} hidden{% endif %}>{{ errors.get('owner_fee_text', '') }}</p>
+          </div>
+          <div class="vpm-rental-commission"><span>Commission BabaMarket <small>{{ bps_to_percent(rental_rate) }} % des frais propriétaire</small></span><strong><output data-vpm-commission aria-live="polite">{{ '%.2f'|format(commission_amount_from_owner_fee(listing.owner_fee_cents, rental_rate) / 100) if editing else '0,00' }}</output> DH</strong></div>
+        </div>
+      </details>
+    </section>
+    <section class="vpm-media" aria-labelledby="vpmMediaTitle">
+      <div class="vpm-section-heading"><h3 id="vpmMediaTitle" class="vpm-section-title">Photos</h3><span id="vpmImageCount" class="vpm-media-count">{{ images|length }} / {{ rental_max_images }}</span></div>
+      {% if images %}<div class="vpm-existing-images">{% for image in images %}<div class="vpm-existing-image" data-vpm-existing-image data-media-id="{{ image.id }}"><img src="{{ image.url }}" alt="Photo {{ loop.index }} du bien"><label><input type="checkbox" name="delete_images" value="{{ image.id }}"{% if image.id|string in deleted_image_ids|default([]) %} checked{% endif %}> Retirer cette photo</label></div>{% endfor %}</div>{% endif %}
+      <input id="vpmImages" class="vpm-file-input" name="images" type="file" accept="image/jpeg,image/png,image/webp" multiple aria-label="Choisir des photos du bien">
+      <div id="vpmImagePreviews" class="vpm-image-previews"><button type="button" class="vpm-image-add" data-vpm-add-images aria-label="Ajouter des photos"><span class="vpm-image-add-icon" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span><span>Ajouter</span></button></div>
+      <p class="vpm-help">{{ rental_max_images }} photos maximum · {{ rental_image_mb }} Mo par photo.</p>
+      <p class="vpm-field-error" data-vpm-field-error="images" {% if not errors.get('images') %} hidden{% endif %}>{{ errors.get('images', '') }}</p>
+    </section>
+    <section class="vpm-video-section" aria-labelledby="vpmVideoTitle">
+      <h3 id="vpmVideoTitle" class="vpm-section-title">Vidéo <span class="vpm-optional">(facultatif)</span></h3>
+      {% if video %}<div class="vpm-existing-video"><video src="{{ video.url }}" controls playsinline preload="metadata" aria-label="Vidéo actuelle du bien"></video><label><input type="checkbox" name="delete_video" value="1"{% if delete_video|default(false) %} checked{% endif %}> Retirer cette vidéo</label></div>{% endif %}
+      <input id="vpmVideo" class="vpm-file-input" name="video" type="file" accept="video/*" aria-label="Choisir une vidéo du bien">
+      <button type="button" class="vpm-video-add" data-vpm-add-video><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="13" height="14" rx="3"/><path d="m16 10 5-3v10l-5-3"/></svg><span>Ajouter une vidéo</span><span class="vpm-plus" aria-hidden="true">+</span></button>
+      <div id="vpmVideoPreview" class="vpm-video-preview" hidden><video controls playsinline preload="metadata" aria-label="Aperçu de la vidéo"></video><button type="button" class="vpm-remove-video" data-vpm-remove-video>Retirer la vidéo</button></div>
+      <p class="vpm-help">{{ rental_video_mb }} Mo maximum.</p>
+      <p class="vpm-field-error" data-vpm-field-error="video" {% if not errors.get('video') %} hidden{% endif %}>{{ errors.get('video', '') }}</p>
+    </section>
+  </div>
+  <p class="vpm-required-note"><span class="vpm-required" aria-hidden="true">*</span> Champs obligatoires</p>
+</form>
+<script type="application/json" id="vpmFormConfig">{{ {'mode': 'edit' if editing else 'create', 'formType': 'location', 'existingImages': images, 'existingVideo': video, 'maxImages': rental_max_images, 'maxImageBytes': rental_image_mb * 1024 * 1024, 'maxVideoBytes': rental_video_mb * 1024 * 1024, 'maxVideoMB': rental_video_mb, 'commissionRateBps': rental_rate, 'monthlyDurationDays': monthly_duration_days|default(0)|int, 'dailyDurationDays': daily_duration_days|default(0)|int, 'maxRequestBytes': config.get('MAX_CONTENT_LENGTH')}|tojson }}</script>

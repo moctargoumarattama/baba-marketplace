@@ -26,7 +26,6 @@
 <meta name="twitter:title" content="{{ product_share_title }}">
 <meta name="twitter:description" content="{{ product_share_description[:200] }}">
 <meta name="twitter:image" content="{{ product_share_image_url }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/product_detail_page.css', v=app_static_version) }}">
 {% endblock %}
 {% block content %}
 {% set is_vendor_view = current_user.is_authenticated and current_user.role == 'vendor' %}
@@ -422,78 +421,11 @@
       </div>
     </div>
   </div>
-
-  <!-- Produits Similaires -->
-  {% if related_products and not is_vendor_view %}
-  <div class="mt-4 mt-lg-5 related-wrap animate-in" style="--delay: .2s">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-      <h5 class="fw-bold mb-0">
-        <i class="bi bi-grid-3x3-gap text-primary me-2"></i>{{ 'Services similaires' if product.kind == 'service' else 'Produits similaires' }}
-      </h5>
-      <a href="{{ url_for('shop.home', cat=product.category.id if product.category else None, kind='service' if product.kind == 'service' else 'physical') }}" class="btn btn-link btn-sm">
-        Voir tout <i class="bi bi-arrow-right"></i>
-      </a>
-    </div>
-    
-    <div class="row g-3 related-grid">
-      {% for related in related_products[:4] %}
-      {% set related_promo = related_promos.get(related.id) if related_promos is defined else None %}
-      {% set related_final = calculate_promo_price(related, related_promo) if calculate_promo_price is defined and related_promo else (related.price or 0) %}
-      <div class="col-6 col-md-4 col-lg-3 related-item-col">
-        <a href="{{ url_for('shop.product_detail', pid=related.id) }}" class="text-decoration-none text-dark related-link">
-          <div class="card border-0 shadow-sm h-100 hover-lift related-card">
-            {% set related_imgs = (related.image_file.split('|') if related.image_file else []) %}
-            {% set related_main = (related_imgs[0] if related_imgs and related_imgs[0] else None) %}
-            <div class="related-media-wrap">
-              <div class="related-media-frame">
-                {% if related_main %}
-                <img src="{{ url_for('static', filename='uploads/' + image_variant(related_main, 'thumb')) }}"
-                     class="related-media-img"
-                     alt="{{ related.name }}"
-                     loading="lazy"
-                     decoding="async"
-                     width="300"
-                     height="300">
-                {% else %}
-                <div class="related-media-placeholder">
-                  <i class="bi bi-image"></i>
-                </div>
-                {% endif %}
-              </div>
-            </div>
-            <div class="card-body related-card-body">
-              <h6 class="card-title mb-2">{{ related.name|truncate(40) }}</h6>
-              <p class="card-text fw-bold text-primary mb-1">{{ related_final }} MAD</p>
-              {% if related_promo and (related.price or 0) > related_final %}
-              <small class="text-muted text-decoration-line-through d-block mb-1">{{ related.price }} MAD</small>
-              <span class="badge bg-danger">Promo</span>
-              {% endif %}
-              {% if related.kind == 'service' %}
-                <small class="text-primary">
-                  <i class="bi bi-calendar-check"></i> Service
-                </small>
-              {% elif related.stock <= 5 and related.stock > 0 %}
-                <small class="text-warning">
-                  <i class="bi bi-exclamation-triangle"></i> {{ related.stock }} en stock
-                </small>
-              {% endif %}
-            </div>
-          </div>
-        </a>
-      </div>
-      {% endfor %}
-    </div>
-  </div>
-  {% endif %}
-
 </div>
-
-
 {% endblock %}
 {% block scripts %}
 {{ super() }}
 <script src="{{ url_for('static', filename='js/core/core_live.js', v=app_static_version) }}" defer></script>
-<script src="{{ url_for('static', filename='js/pages/product_detail_page.js', v=app_static_version) }}" defer></script>
 {% endblock %}
 
 

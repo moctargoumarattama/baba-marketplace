@@ -1,19 +1,13 @@
-﻿# app/services/pricing.py
+# app/services/pricing.py
 from datetime import datetime
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 from ..extensions import db
 from ..models.promo import Promo
+from .db_session import safe_session_rollback as _safe_session_rollback
 
 _PROMO_UNSET = object()
 _MONEY_QUANTUM = Decimal("0.01")
-
-
-def _safe_session_rollback() -> None:
-    try:
-        db.session.rollback()
-    except Exception:
-        pass
 
 
 def _promo_is_active(promo) -> bool:
@@ -146,10 +140,6 @@ def base_price_decimal(product) -> Decimal:
     return money_decimal(Decimal(product_base_cents(product)) / Decimal("100"))
 
 
-def base_price_cents(product) -> int:
-    return product_base_cents(product)
-
-
 def calculate_promo_price_decimal(product, promo=_PROMO_UNSET) -> Decimal:
     if promo is _PROMO_UNSET:
         promo = get_active_promo(product.id)
@@ -184,12 +174,6 @@ def final_price_cents(product, promo=None) -> int:
     return money_to_cents(final_price_decimal(product, promo=promo))
 
 
-def compute_commission(_total):
-    """Deprecated: seller commission is disabled for product/service orders."""
-    return 0
 
 
-def compute_shipping(_total):
-    """Deprecated: use city-based delivery pricing."""
-    return 2000
 

@@ -181,6 +181,11 @@ def save_image(file_storage) -> str | None:
     original_uuid = uuid.uuid4().hex
     original_name = f"{original_uuid}.{ext}"
     original_path = os.path.join(upload_dir, original_name)
+    main_name = _main_webp_name(original_name)
+    main_path = os.path.join(upload_dir, main_name)
+    thumb_path = os.path.join(upload_dir, _variant_name(main_name, THUMB_SIZE))
+    large_path = os.path.join(upload_dir, _variant_name(main_name, LARGE_SIZE))
+    completed = False
 
     try:
         # Revenir au debut du flux si possible
@@ -202,13 +207,10 @@ def save_image(file_storage) -> str | None:
                     pass
 
                 file_storage.save(original_path)
+                completed = True
                 return original_name
 
             img = _normalize_image(img)
-
-            # Nom principal stocke = .webp
-            main_name = _main_webp_name(original_name)
-            main_path = os.path.join(upload_dir, main_name)
 
             # Image principale compressee en WebP
             try:
@@ -225,14 +227,13 @@ def save_image(file_storage) -> str | None:
                 except Exception:
                     pass
                 file_storage.save(original_path)
+                completed = True
                 return original_name
 
             # Variantes derivees depuis l'image normalisee
-            thumb_path = os.path.join(upload_dir, _variant_name(main_name, THUMB_SIZE))
-            large_path = os.path.join(upload_dir, _variant_name(main_name, LARGE_SIZE))
             _save_variant(img, thumb_path, THUMB_SIZE, crop_square=True)
             _save_variant(img, large_path, LARGE_SIZE, crop_square=False)
-
+            completed = True
             return main_name
 
     except UnidentifiedImageError:
@@ -253,6 +254,19 @@ def save_image(file_storage) -> str | None:
             },
         )
         return None
+    finally:
+        if not completed:
+            # A partial thumbnail failure must not leave an unreferenced main image.
+            # All candidates use this call's UUID, within this upload directory.
+            root = os.path.abspath(upload_dir)
+            for candidate in {original_path, main_path, thumb_path, large_path}:
+                if os.path.dirname(os.path.abspath(candidate)) != root:
+                    continue
+                try:
+                    if os.path.isfile(candidate):
+                        os.remove(candidate)
+                except OSError:
+                    current_app.logger.warning("image.save_image.cleanup_failed", exc_info=True)
 
 
 def image_variant(filename: str, size: str = "thumb") -> str:
@@ -289,8 +303,10 @@ def save_product_video(file_storage) -> str:
     ext = filename.rsplit(".", 1)[-1].lower()
     upload_dir = _product_video_upload_dir()
     base_name = uuid.uuid4().hex
-    source_name = f"{base_name}.{ext}"
+    source_name = f"{base_name}_source.{ext}"
     source_path = os.path.join(upload_dir, source_name)
+    compressed_name = f"{base_name}.mp4"
+    compressed_path = os.path.join(upload_dir, compressed_name)
 
     try:
         stream = getattr(file_storage, "stream", None)
@@ -308,9 +324,6 @@ def save_product_video(file_storage) -> str:
             except Exception:
                 pass
             raise ValueError("Validation video indisponible.")
-
-        compressed_name = f"{base_name}.mp4"
-        compressed_path = os.path.join(upload_dir, compressed_name)
 
         result = subprocess.run(
             [
@@ -360,11 +373,12 @@ def save_product_video(file_storage) -> str:
                 pass
         raise ValueError("Video invalide, illisible ou trop lourde.")
     except Exception as exc:
-        if os.path.exists(source_path):
-            try:
-                os.remove(source_path)
-            except Exception:
-                pass
+        for temporary_path in (source_path, compressed_path):
+            if os.path.exists(temporary_path):
+                try:
+                    os.remove(temporary_path)
+                except Exception:
+                    pass
         raise ValueError("Video invalide ou non lisible.") from exc
 
 

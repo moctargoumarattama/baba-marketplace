@@ -104,20 +104,21 @@ def test_client_welcome_heads_up_notification_is_loaded_for_public_shell():
 def test_vendor_product_form_has_mobile_sticky_save_button_and_polished_labels():
     template = _read("app/templates/vendor/product_form.html")
 
-    assert 'id="productForm"' in template
-    assert 'class="mobile-save-bar"' in template
-    assert 'form="productForm"' in template
-    assert "Créer le" in template
-    assert "Creez le" not in template
-    assert "Apercu" not in template
+    partial = _read("app/templates/vendor/partials/_product_create_modal.html")
+    shell = _read("app/templates/vendor/partials/_form_page.html")
+    assert 'extends "vendor/partials/_form_page.html"' in template
+    assert 'id="vendorCreateForm"' in partial
+    assert 'form="vendorCreateForm"' in shell
+    assert 'class="vpm-footer"' in shell
+    assert "product_form_upload.js" not in template
 
 
 def test_public_templates_do_not_keep_visible_typos():
-    shop_home = _read("app/templates/shop/home.html")
+    shop_routes = _read("app/routes/shop.py")
     earnings = _read("app/templates/vendor/earnings.html")
 
-    assert "choississez" not in shop_home
-    assert "url_for('landing', open='products')" in shop_home
+    assert "choississez" not in shop_routes
+    assert 'url_for("landing", open=universe' in shop_routes
     assert "Caisse vendeur" in earnings
     assert "Paiements recus" not in earnings
     assert "A verifier" not in earnings

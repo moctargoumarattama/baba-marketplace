@@ -38,18 +38,6 @@ def featured_window_filters(now: datetime | None = None) -> list:
     ]
 
 
-def shop_featured_exists_expr(shop_id_column, now: datetime | None = None):
-    return (
-        db.session.query(FeaturedItem.id)
-        .filter(*featured_window_filters(now))
-        .filter(
-            FeaturedItem.target_type == FeaturedItem.TARGET_SHOP,
-            FeaturedItem.shop_id == shop_id_column,
-        )
-        .exists()
-    )
-
-
 def product_featured_exists_expr(product_id_column, shop_id_column, now: datetime | None = None):
     return (
         db.session.query(FeaturedItem.id)

@@ -6,27 +6,6 @@ from typing import Dict
 SUPPORTED_LANGS = {"fr", "en", "ary"}
 DELIVERY_STATUS_FALLBACK = {"fr": "En cours", "en": "In progress", "ary": "F ttriq"}
 
-DELIVERY_STATUS_LABELS: Dict[str, Dict[str, str]] = {
-    "fr": {
-        "new": "Nouvelle livraison",
-        "delivered": "Livrée",
-        "canceled": "Annulée",
-        "cancelled": "Annulée",
-    },
-    "en": {
-        "new": "New delivery",
-        "delivered": "Delivered",
-        "canceled": "Canceled",
-        "cancelled": "Canceled",
-    },
-    "ary": {
-        "new": "Twssila jdida",
-        "delivered": "Tssalmat",
-        "canceled": "Tlat",
-        "cancelled": "Tlat",
-    },
-}
-
 ORDER_STATUS_LABELS: Dict[str, Dict[str, str]] = {
     "fr": {
         "new": "Nouveau",
@@ -138,13 +117,6 @@ def normalize_status(value: str | None) -> str:
     return (value or "").strip().lower().replace("-", "_")
 
 
-def label_delivery_status(status: str | None, lang: str | None = None) -> str:
-    current_lang = normalize_lang(lang)
-    key = normalize_status(status)
-    labels = DELIVERY_STATUS_LABELS[current_lang]
-    return labels.get(key) or DELIVERY_STATUS_FALLBACK[current_lang]
-
-
 def label_order_status(status: str | None, lang: str | None = None) -> str:
     current_lang = normalize_lang(lang)
     key = normalize_status(status)
@@ -171,9 +143,3 @@ def label_location_status(status: str | None, lang: str | None = None) -> str:
     labels = LOCATION_STATUS_LABELS[current_lang]
     return labels.get(key) or LOCATION_STATUS_FALLBACK[current_lang]
 
-
-def delivery_status_labels_for_lang(lang: str | None = None) -> Dict[str, str]:
-    current_lang = normalize_lang(lang)
-    labels = dict(DELIVERY_STATUS_LABELS[current_lang])
-    labels["_fallback"] = DELIVERY_STATUS_FALLBACK[current_lang]
-    return labels

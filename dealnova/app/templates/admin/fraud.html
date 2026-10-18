@@ -1,4 +1,4 @@
-﻿{% extends 'admin/base.html' %}
+{% extends 'admin/base.html' %}
 
 {% block title %}Fraude | Admin DealNova{% endblock %}
 {% block page_title %}Détection de fraude{% endblock %}
@@ -564,12 +564,12 @@
                             {% set blocked = blocked_map.get(('phone', phone)) %}
                             {% if blocked %}
                                 <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_unblock', block_id=blocked.id) }}">
-                                    {% include "admin/partials/_csrf.html" %}
+                                    {% include "partials/_csrf.html" %}
                                     <button class="btn btn-outline-success btn-sm" type="submit">Débloquer</button>
                                 </form>
                             {% else %}
                                 <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_block') }}" class="d-flex gap-2 align-items-center">
-                                    {% include "admin/partials/_csrf.html" %}
+                                    {% include "partials/_csrf.html" %}
                                     <input type="hidden" name="kind" value="phone">
                                     <input type="hidden" name="value" value="{{ phone }}">
                                     <input class="form-control form-control-sm" name="reason" placeholder="Raison" style="max-width:160px;">
@@ -623,12 +623,12 @@
                             {% set blocked = blocked_map.get(('ip', ip)) %}
                             {% if blocked %}
                                 <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_unblock', block_id=blocked.id) }}">
-                                    {% include "admin/partials/_csrf.html" %}
+                                    {% include "partials/_csrf.html" %}
                                     <button class="btn btn-outline-success btn-sm" type="submit">Débloquer</button>
                                 </form>
                             {% else %}
                                 <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_block') }}" class="d-flex gap-2 align-items-center">
-                                    {% include "admin/partials/_csrf.html" %}
+                                    {% include "partials/_csrf.html" %}
                                     <input type="hidden" name="kind" value="ip">
                                     <input type="hidden" name="value" value="{{ ip }}">
                                     <input class="form-control form-control-sm" name="reason" placeholder="Raison" style="max-width:160px;">
@@ -682,12 +682,12 @@
                             {% set blocked = blocked_map.get(('phone', phone)) %}
                             {% if blocked %}
                                 <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_unblock', block_id=blocked.id) }}">
-                                    {% include "admin/partials/_csrf.html" %}
+                                    {% include "partials/_csrf.html" %}
                                     <button class="btn btn-outline-success btn-sm" type="submit">Débloquer</button>
                                 </form>
                             {% else %}
                                 <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_block') }}" class="d-flex gap-2 align-items-center">
-                                    {% include "admin/partials/_csrf.html" %}
+                                    {% include "partials/_csrf.html" %}
                                     <input type="hidden" name="kind" value="phone">
                                     <input type="hidden" name="value" value="{{ phone }}">
                                     <input class="form-control form-control-sm" name="reason" placeholder="Raison" style="max-width:160px;">
@@ -741,12 +741,12 @@
                             {% set blocked = blocked_map.get(('ip', ip)) %}
                             {% if blocked %}
                                 <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_unblock', block_id=blocked.id) }}">
-                                    {% include "admin/partials/_csrf.html" %}
+                                    {% include "partials/_csrf.html" %}
                                     <button class="btn btn-outline-success btn-sm" type="submit">Débloquer</button>
                                 </form>
                             {% else %}
                                 <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_block') }}" class="d-flex gap-2 align-items-center">
-                                    {% include "admin/partials/_csrf.html" %}
+                                    {% include "partials/_csrf.html" %}
                                     <input type="hidden" name="kind" value="ip">
                                     <input type="hidden" name="value" value="{{ ip }}">
                                     <input class="form-control form-control-sm" name="reason" placeholder="Raison" style="max-width:160px;">
@@ -802,12 +802,12 @@
                             {% set blocked = blocked_map.get(('phone', phone)) %}
                             {% if blocked %}
                                 <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_unblock', block_id=blocked.id) }}">
-                                    {% include "admin/partials/_csrf.html" %}
+                                    {% include "partials/_csrf.html" %}
                                     <button class="btn btn-outline-success btn-sm" type="submit">Débloquer</button>
                                 </form>
                             {% else %}
                                 <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_block') }}" class="d-flex gap-2 align-items-center">
-                                    {% include "admin/partials/_csrf.html" %}
+                                    {% include "partials/_csrf.html" %}
                                     <input type="hidden" name="kind" value="phone">
                                     <input type="hidden" name="value" value="{{ phone }}">
                                     <input class="form-control form-control-sm" name="reason" placeholder="Raison" style="max-width:160px;">
@@ -827,12 +827,12 @@
                             {% set blocked = blocked_map.get(('ip', ip)) %}
                             {% if blocked %}
                                 <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_unblock', block_id=blocked.id) }}">
-                                    {% include "admin/partials/_csrf.html" %}
+                                    {% include "partials/_csrf.html" %}
                                     <button class="btn btn-outline-success btn-sm" type="submit">Débloquer</button>
                                 </form>
                             {% else %}
                                 <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_block') }}" class="d-flex gap-2 align-items-center">
-                                    {% include "admin/partials/_csrf.html" %}
+                                    {% include "partials/_csrf.html" %}
                                     <input type="hidden" name="kind" value="ip">
                                     <input type="hidden" name="value" value="{{ ip }}">
                                     <input class="form-control form-control-sm" name="reason" placeholder="Raison" style="max-width:160px;">
@@ -889,12 +889,12 @@
                             {% set blocked = blocked_map.get(('ip', ip)) %}
                             {% if blocked %}
                                 <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_unblock', block_id=blocked.id) }}">
-                                    {% include "admin/partials/_csrf.html" %}
+                                    {% include "partials/_csrf.html" %}
                                     <button class="btn btn-outline-success btn-sm" type="submit">Débloquer</button>
                                 </form>
                             {% else %}
                                 <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_block') }}" class="d-flex gap-2 align-items-center">
-                                    {% include "admin/partials/_csrf.html" %}
+                                    {% include "partials/_csrf.html" %}
                                     <input type="hidden" name="kind" value="ip">
                                     <input type="hidden" name="value" value="{{ ip }}">
                                     <input class="form-control form-control-sm" name="reason" placeholder="Raison" style="max-width:160px;">
@@ -958,12 +958,12 @@
                                     {% set blocked = blocked_map.get(('phone', order.phone_digits)) %}
                                     {% if blocked %}
                                         <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_unblock', block_id=blocked.id) }}">
-                                            {% include "admin/partials/_csrf.html" %}
+                                            {% include "partials/_csrf.html" %}
                                             <button class="btn btn-outline-success btn-sm" type="submit">Débloq Tél.</button>
                                         </form>
                                     {% else %}
                                         <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_block') }}" class="d-flex gap-2 align-items-center">
-                                            {% include "admin/partials/_csrf.html" %}
+                                            {% include "partials/_csrf.html" %}
                                             <input type="hidden" name="kind" value="phone">
                                             <input type="hidden" name="value" value="{{ order.phone_digits }}">
                                             <input class="form-control form-control-sm" name="reason" placeholder="Raison" style="max-width:120px;">
@@ -975,12 +975,12 @@
                                     {% set blocked_ip = blocked_map.get(('ip', order.order_ip)) %}
                                     {% if blocked_ip %}
                                         <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_unblock', block_id=blocked_ip.id) }}">
-                                            {% include "admin/partials/_csrf.html" %}
+                                            {% include "partials/_csrf.html" %}
                                             <button class="btn btn-outline-success btn-sm" type="submit">Débloq IP</button>
                                         </form>
                                     {% else %}
                                         <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_block') }}" class="d-flex gap-2 align-items-center">
-                                            {% include "admin/partials/_csrf.html" %}
+                                            {% include "partials/_csrf.html" %}
                                             <input type="hidden" name="kind" value="ip">
                                             <input type="hidden" name="value" value="{{ order.order_ip }}">
                                             <input class="form-control form-control-sm" name="reason" placeholder="Raison" style="max-width:120px;">
@@ -1038,12 +1038,12 @@
                             {% set blocked = blocked_map.get(('phone', phone)) %}
                             {% if blocked %}
                                 <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_unblock', block_id=blocked.id) }}">
-                                    {% include "admin/partials/_csrf.html" %}
+                                    {% include "partials/_csrf.html" %}
                                     <button class="btn btn-outline-success btn-sm" type="submit">Débloquer</button>
                                 </form>
                             {% else %}
                                 <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_block') }}" class="d-flex gap-2 align-items-center">
-                                    {% include "admin/partials/_csrf.html" %}
+                                    {% include "partials/_csrf.html" %}
                                     <input type="hidden" name="kind" value="phone">
                                     <input type="hidden" name="value" value="{{ phone }}">
                                     <input class="form-control form-control-sm" name="reason" placeholder="Raison" style="max-width:160px;">
@@ -1063,12 +1063,12 @@
                             {% set blocked = blocked_map.get(('ip', ip)) %}
                             {% if blocked %}
                                 <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_unblock', block_id=blocked.id) }}">
-                                    {% include "admin/partials/_csrf.html" %}
+                                    {% include "partials/_csrf.html" %}
                                     <button class="btn btn-outline-success btn-sm" type="submit">Débloquer</button>
                                 </form>
                             {% else %}
                                 <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_block') }}" class="d-flex gap-2 align-items-center">
-                                    {% include "admin/partials/_csrf.html" %}
+                                    {% include "partials/_csrf.html" %}
                                     <input type="hidden" name="kind" value="ip">
                                     <input type="hidden" name="value" value="{{ ip }}">
                                     <input class="form-control form-control-sm" name="reason" placeholder="Raison" style="max-width:160px;">

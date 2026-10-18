@@ -1,0 +1,149 @@
+{% set modal_kinds = available_kinds if available_kinds is defined and available_kinds else ['physical', 'service'] %}
+{% set values = form_values|default({}) %}
+{% set errors = form_errors|default({}) %}
+{% set modal_kind = values.get('kind', default_kind|default(modal_kinds[0])) %}
+{% set modal_video_mb = max_video_mb|default(30) %}
+{% set editing = product is defined and product %}
+{% set current_images = existing_images|default([]) %}
+{% set current_video = existing_video|default(none) %}
+{% macro field_error(field, id='') -%}
+<p {% if id %}id="{{ id }}"{% endif %} class="vpm-field-error" data-vpm-field-error="{{ field }}" {% if not errors.get(field) %}hidden{% endif %}>{{ errors.get(field, '') }}</p>
+{%- endmacro %}
+<form id="vendorCreateForm" class="vpm-form" method="post" action="{{ form_action|default(url_for('vendor.product_new', standalone=1)) }}" enctype="multipart/form-data">
+  {% include "partials/_csrf.html" %}
+  <div id="vpmFormError" class="vpm-form-error" role="alert" {% if not form_error|default('') %}hidden{% endif %}>{{ form_error|default('') or '' }}</div>
+  {% if editing and not product.is_active and catalog_block_reasons %}
+  <div class="vpm-catalog-warning" role="status">
+    <strong>Cette offre est masquée.</strong>
+    <p>Pour la réactiver : {{ catalog_block_reasons|join(', ') }}.</p>
+  </div>
+  {% endif %}
+  {% if modal_kinds|length > 1 %}
+  <fieldset class="vpm-kind-fieldset">
+    <legend>Type d’offre</legend>
+    <div class="vpm-kind-options">
+      {% for kind in modal_kinds %}
+      <label class="vpm-kind-option">
+        <input type="radio" name="kind" value="{{ kind }}" {% if kind == modal_kind %}checked{% endif %}>
+        <span>{{ 'Produit' if kind == 'physical' else 'Service' }}</span>
+      </label>
+      {% endfor %}
+    </div>
+    {{ field_error('kind') }}
+  </fieldset>
+  {% else %}
+  <input type="hidden" name="kind" value="{{ modal_kind }}">
+  {% endif %}
+  <div class="vpm-form-grid">
+    <section class="vpm-information" aria-label="Informations de l’offre">
+      <div class="vpm-field">
+        <label for="vpmName"><span data-vpm-name-label>{{ 'Nom du service' if modal_kind == 'service' else 'Nom du produit' }}</span> <span class="vpm-required" aria-hidden="true">*</span></label>
+        <input id="vpmName" name="name" type="text" value="{{ values.get('name', '') }}" maxlength="150" required autocomplete="off" aria-describedby="vpmNameError">
+        {{ field_error('name', 'vpmNameError') }}
+      </div>
+      <div class="vpm-field">
+        <label for="vpmCategory">Catégorie <span class="vpm-required" aria-hidden="true">*</span></label>
+        <select id="vpmCategory" name="category_id" required aria-describedby="vpmCategoryError">
+          <option value="">Choisir une catégorie</option>
+          {% for kind in modal_kinds %}
+          <optgroup label="{{ 'Produits' if kind == 'physical' else 'Services' }}">
+            {% for category in categories_by_kind.get(kind, []) %}
+            <option value="{{ category.id }}" {% if values.get('category_id', '')|string == category.id|string %}selected{% endif %}>{{ category.name }}</option>
+            {% endfor %}
+          </optgroup>
+          {% endfor %}
+        </select>
+        {{ field_error('category_id', 'vpmCategoryError') }}
+      </div>
+      <div class="vpm-field-pair">
+        <div class="vpm-field">
+          <label for="vpmPrice">Prix <span class="vpm-required" aria-hidden="true">*</span></label>
+          <div class="vpm-input-unit">
+            <input id="vpmPrice" name="price" type="number" value="{{ values.get('price', '') }}" min="0.01" max="21474836.47" step="0.01" inputmode="decimal" required aria-describedby="vpmPriceError">
+            <span aria-hidden="true">DH</span>
+          </div>
+          {{ field_error('price', 'vpmPriceError') }}
+        </div>
+        <div class="vpm-field" data-vpm-stock>
+          <label for="vpmStock">Stock <span class="vpm-required" aria-hidden="true">*</span></label>
+          <input id="vpmStock" name="stock" type="number" value="{{ values.get('stock', 0) }}" min="0" max="2147483647" step="1" inputmode="numeric" {% if modal_kind != 'service' %}required{% endif %} aria-describedby="vpmStockError">
+          {{ field_error('stock', 'vpmStockError') }}
+        </div>
+      </div>
+      <div class="vpm-field">
+        <label for="vpmDescription">Description <span class="vpm-optional">(facultatif)</span></label>
+        <textarea id="vpmDescription" name="description" rows="4" aria-describedby="vpmDescriptionError" placeholder="Décrivez ce que vous proposez.">{{ values.get('description', '') }}</textarea>
+        {{ field_error('description', 'vpmDescriptionError') }}
+      </div>
+    </section>
+    <section class="vpm-media" aria-labelledby="vpmMediaTitle">
+      <div class="vpm-section-heading">
+        <h3 id="vpmMediaTitle" class="vpm-section-title">Photos</h3>
+        <span id="vpmImageCount" class="vpm-media-count">{{ current_images|length }} / 4</span>
+      </div>
+      {% if current_images %}
+      <div class="vpm-existing-images">
+        {% for media in current_images %}
+        <div class="vpm-existing-image" data-vpm-existing-image="{{ media.id }}">
+          <img src="{{ media.url }}" alt="Photo actuelle {{ loop.index }}" loading="lazy">
+          <label><input type="checkbox" name="delete_images" value="{{ media.id }}" {% if media.id in removed_images|default([]) %}checked{% endif %}> Retirer</label>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+      <input id="vpmImages" class="vpm-file-input" name="images" type="file" accept="image/jpeg,image/png,image/webp" multiple aria-label="Choisir des photos">
+      <div id="vpmImagePreviews" class="vpm-image-previews">
+        <button type="button" class="vpm-image-add" data-vpm-add-images aria-label="Ajouter des photos">
+          <span class="vpm-image-add-icon" aria-hidden="true">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          </span>
+          <span>Ajouter</span>
+        </button>
+      </div>
+      <p class="vpm-help">Jusqu’à 4 photos, 15 Mo au total pour les nouvelles photos.</p>
+      {{ field_error('images') }}
+    </section>
+    <section class="vpm-video-section" aria-labelledby="vpmVideoTitle">
+      <h3 id="vpmVideoTitle" class="vpm-section-title">Vidéo <span class="vpm-optional">(facultatif)</span></h3>
+      {% if current_video %}
+      <div class="vpm-existing-video">
+        <video src="{{ current_video.url }}" controls playsinline preload="metadata" aria-label="Vidéo actuelle"></video>
+        <label><input type="checkbox" name="delete_video" value="1" {% if removed_video|default(false) %}checked{% endif %}> Retirer la vidéo actuelle</label>
+        <p class="vpm-help">Une nouvelle vidéo remplacera la vidéo actuelle.</p>
+      </div>
+      {% endif %}
+      <input id="vpmVideo" class="vpm-file-input" name="video" type="file" accept="video/*" aria-label="Choisir une vidéo">
+      <button type="button" class="vpm-video-add" data-vpm-add-video>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="13" height="14" rx="3"/><path d="m16 10 5-3v10l-5-3"/></svg>
+        <span>{{ 'Remplacer la vidéo' if current_video else 'Ajouter une vidéo' }}</span>
+        <span class="vpm-plus" aria-hidden="true">+</span>
+      </button>
+      <div id="vpmVideoPreview" class="vpm-video-preview" hidden>
+        <video controls playsinline preload="metadata" aria-label="Aperçu de la vidéo"></video>
+        <button type="button" class="vpm-remove-video" data-vpm-remove-video>Retirer la nouvelle vidéo</button>
+      </div>
+      <p class="vpm-help">{{ modal_video_mb }} Mo maximum.</p>
+      {{ field_error('video') }}
+    </section>
+  </div>
+  <p class="vpm-required-note"><span class="vpm-required" aria-hidden="true">*</span> Champs obligatoires</p>
+</form>
+<script type="application/json" id="vpmFormConfig">
+{
+  "mode": {{ ('edit' if editing else 'create')|tojson }},
+  "formType": "product",
+  "existingImages": {{ current_images|tojson }},
+  "existingVideo": {{ current_video|tojson }},
+  "categoriesByKind": {
+    {% for kind in modal_kinds %}
+    {{ kind|tojson }}: [{% for category in categories_by_kind.get(kind, []) %}{{ {'id': category.id, 'name': category.name}|tojson }}{% if not loop.last %},{% endif %}{% endfor %}]{% if not loop.last %},{% endif %}
+    {% endfor %}
+  },
+  "maxImages": 4,
+  "maxTotalBytes": 15728640,
+  "maxVideoBytes": {{ (modal_video_mb * 1024 * 1024)|tojson }},
+  "maxVideoMB": {{ modal_video_mb|tojson }},
+  "availableKinds": {{ modal_kinds|tojson }},
+  "defaultKind": {{ modal_kind|tojson }}
+}
+</script>

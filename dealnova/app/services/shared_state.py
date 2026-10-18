@@ -9,16 +9,10 @@ from sqlalchemy.exc import IntegrityError
 
 from ..extensions import db
 from ..models.runtime_state import RuntimeState
+from .db_session import safe_session_rollback as _safe_session_rollback
 
 
 JsonFactory = Callable[[], Any]
-
-
-def _safe_session_rollback() -> None:
-    try:
-        db.session.rollback()
-    except Exception:
-        pass
 
 
 def _coerce_int(value: Any, default: int = 0) -> int:

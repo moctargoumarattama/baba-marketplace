@@ -4,6 +4,7 @@
 
 {% block head %}
 {{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/vendor_product_modal.css', v=app_static_version ~ '-forms-v4') }}">
 <style>
   .vendor-catalog-page{--bg:radial-gradient(circle at top left,rgba(16,185,129,.14),transparent 32%),radial-gradient(circle at top right,rgba(37,99,235,.13),transparent 28%),linear-gradient(180deg,#f6fffb 0%,#eef8ff 48%,#f9fbff 100%);--card:rgba(255,255,255,.88);--line:rgba(15,23,42,.08);--text:#0f172a;--muted:#64748b;--shadow:0 18px 44px rgba(15,23,42,.08);background:var(--bg);min-height:calc(100vh - 90px);min-height:calc(100dvh - 90px);overflow-x:clip}
   .catalog-shell{width:min(100%,1360px);max-width:1360px;margin:0 auto}
@@ -154,6 +155,8 @@
 
 {% block scripts %}
 {{ super() }}
+{% include "vendor/partials/_product_create_dialog.html" %}
+<script src="{{ url_for('static', filename='js/vendor/vendor_product_modal.js', v=app_static_version ~ '-forms-v4') }}" defer></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
   const form = document.getElementById('catalogFilterForm');
@@ -173,6 +176,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
   let submitTimer = null;
   let activeRequest = 0;
+  let requestController = null;
+  let refreshPending = false;
+  const modalActive = () => !!document.querySelector('#vendorProductDialog[open]') || !!history.state?.bmVendorProductCreate;
   const normalize = (value) => String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
   const filters = () => ({q: normalize(searchInput.value), status: statusSelect ? statusSelect.value : 'all', kind: kindSelect ? kindSelect.value : 'all', categoryId: categorySelect ? categorySelect.value : '', stock: stockSelect ? stockSelect.value : 'all', sort: sortSelect ? sortSelect.value : 'recent', perPage: perPageSelect ? perPageSelect.value : '24'});
   const getVisibleCountEl = () => document.getElementById('catalogVisibleCount');
@@ -241,11 +247,14 @@ document.addEventListener('DOMContentLoaded', function () {
   };
 
   const fetchCatalog = async (pageValue = 1, {pushHistory = true} = {}) => {
+    if (modalActive()) { refreshPending = true; return; }
     if (!resultsRegion) {
       form.submit();
       return;
     }
     const requestId = ++activeRequest;
+    if (requestController) requestController.abort();
+    requestController = new AbortController();
     const query = buildQueryString(pageValue);
     const targetUrl = query ? `${fetchUrl}?${query}` : fetchUrl;
     setLoading(true);
@@ -256,19 +265,30 @@ document.addEventListener('DOMContentLoaded', function () {
           'X-Catalog-Partial': '1',
           'Accept': 'application/json'
         },
-        credentials: 'same-origin'
+        credentials: 'same-origin',
+        signal: requestController.signal
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const payload = await response.json();
       if (!payload.success || requestId !== activeRequest) return;
+      if (modalActive()) { refreshPending = true; return; }
       resultsRegion.innerHTML = payload.html || '';
       if (pushHistory) {
-        window.history.replaceState({catalog: true}, '', targetUrl);
+        window.history.replaceState(Object.assign({}, history.state, {catalog: true}), '', targetUrl);
       }
       applyRealtimeFilter();
     } catch (error) {
-      form.submit();
-      return;
+      if (requestId !== activeRequest || error.name === 'AbortError') return;
+      const status = getLiveStatusEl();
+      if (status) {
+        status.replaceChildren(document.createTextNode('Impossible d’actualiser le catalogue. '));
+        const retry = document.createElement('button');
+        retry.type = 'button';
+        retry.className = 'catalog-action';
+        retry.textContent = 'Réessayer';
+        retry.addEventListener('click', () => fetchCatalog(pageValue));
+        status.append(retry);
+      }
     } finally {
       if (requestId === activeRequest) setLoading(false);
     }
@@ -278,6 +298,24 @@ document.addEventListener('DOMContentLoaded', function () {
     window.clearTimeout(submitTimer);
     submitTimer = window.setTimeout(() => fetchCatalog(1), delay);
   };
+
+  document.addEventListener('vendor:form-opened', () => {
+    if (submitTimer || resultsRegion?.classList.contains('is-loading')) refreshPending = true;
+    window.clearTimeout(submitTimer);
+    submitTimer = null;
+    ++activeRequest;
+    requestController?.abort();
+    setLoading(false);
+  });
+  function resumeCatalog() {
+    if (!refreshPending || modalActive()) return;
+    refreshPending = false;
+    fetchCatalog(new URL(location.href).searchParams.get('page') || 1);
+  }
+  document.addEventListener('vendor:product-updated', () => { refreshPending = true; });
+  document.addEventListener('vendor:product-created', () => { refreshPending = true; });
+  document.addEventListener('vendor:form-closed', resumeCatalog);
+  window.addEventListener('popstate', resumeCatalog);
 
   searchInput.addEventListener('input', () => { applyRealtimeFilter(); scheduleSubmit(520); });
   [statusSelect, kindSelect, categorySelect, stockSelect].forEach((field) => field && field.addEventListener('change', () => { applyRealtimeFilter(); scheduleSubmit(260); }));

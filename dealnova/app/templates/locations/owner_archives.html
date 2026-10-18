@@ -5,7 +5,7 @@
 
 {% block head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/locations/owner_pages.css', v=app_static_version) }}">
-<script src="{{ url_for('static', filename='js/pages/owner_locations_page.js', v=app_static_version) }}" defer></script>
+<script src="{{ url_for('static', filename='js/pages/owner_locations_page.js', v=app_static_version ~ '-location-v3') }}" defer></script>
 {% endblock %}
 
 {% block content %}

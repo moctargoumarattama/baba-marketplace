@@ -43,7 +43,7 @@
                 <div style="display:flex;gap:.28rem;">
                   <a class="btn btn-sm btn-outline-primary" href="{{ url_for('rentals.location_detail', slug=listing.slug) }}" target="_blank"><i class="bi bi-eye"></i></a>
                   <form method="post" action="{{ url_for('rentals.admin_location_delete', listing_id=listing.id) }}" data-confirm-submit="Supprimer ">
-                    {% include "admin/partials/_csrf.html" %}
+                    {% include "partials/_csrf.html" %}
                     <button class="btn btn-sm btn-outline-danger" type="submit"><i class="bi bi-trash"></i></button>
                   </form>
                 </div>

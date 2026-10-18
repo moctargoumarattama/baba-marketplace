@@ -14,7 +14,7 @@ from ..models.vendor_change_request import VendorChangeRequest
 from ..models.vendor_push_subscription import VendorPushSubscription
 from ..models.rental import RentalListing
 from ..models.platform_settings import PlatformSettings
-from ..services.image import MAX_PRODUCT_VIDEO_BYTES, delete_product_video, save_image, save_product_video
+from ..services.image import MAX_PRODUCT_VIDEO_BYTES, allowed_video_file, save_image, save_product_video
 from ..services.cache import bump_catalog_version
 from ..services.db_session import safe_session_rollback
 from ..services.featured_items import active_featured_shop_notice
@@ -22,7 +22,13 @@ from ..services.pricing import calculate_promo_price, cents_to_money, get_active
 from sqlalchemy.orm import load_only, selectinload
 from sqlalchemy import or_, and_, case
 from ..services.audit import log_access
-from ..services.shop_access import ensure_shop_allows, ensure_vendor_allows, resolve_vendor_shop, shop_allows_any
+from ..services.shop_access import (
+    ensure_shop_allows,
+    ensure_vendor_allows,
+    resolve_vendor_shop,
+    shop_allows_any,
+    shop_is_currently_open,
+)
 from ..services.pagination import page_from_args, paginate_with_clamped_page
 from ..services.support_whatsapp import (
     append_support_request,
@@ -42,6 +48,8 @@ from ..services.vendor_push import (
 )
 from ..middleware.security import order_access_required
 from datetime import datetime, timedelta
+from decimal import Decimal, InvalidOperation
+from pathlib import Path
 from time import perf_counter
 from sqlalchemy.exc import SQLAlchemyError
 import re
@@ -150,6 +158,44 @@ def _public_shop_url(shop_slug: str) -> str:
         return _public_base_url()
     return f"{_public_base_url()}/{normalized_slug}"
 
+
+def _is_product_form_modal_request() -> bool:
+    modes = {"vendor.product_new": "product-create", "vendor.product_edit": "product-edit"}
+    return request.headers.get("X-Vendor-Modal") == modes.get(request.endpoint, "")
+
+
+def _product_form_json(payload: dict, status: int = 200):
+    response = jsonify(payload)
+    response.status_code = status
+    response.headers["Cache-Control"] = "private, no-store, max-age=0"
+    response.headers["Vary"] = "Cookie, X-Vendor-Modal"
+    return response
+
+
+@bp.before_request
+def guard_product_form_modal():
+    # Keep expired sessions and forbidden access readable inside the modal.
+    if not _is_product_form_modal_request():
+        return None
+    if not current_user.is_authenticated:
+        return _product_form_json(
+            {
+                "success": False,
+                "message": "Votre session a expiré. Connectez-vous pour continuer.",
+                "redirect_url": url_for("auth.login", next=url_for("vendor.dashboard", **(
+                    {"edit_product": request.view_args["pid"]}
+                    if request.endpoint == "vendor.product_edit" else {"new": "product"}
+                ))),
+            },
+            401,
+        )
+    if getattr(current_user, "role", None) != "vendor":
+        return _product_form_json(
+            {"success": False, "message": "Accès réservé aux vendeurs."},
+            403,
+        )
+
+
 @bp.before_request
 @login_required
 def restrict_vendor():
@@ -246,7 +292,11 @@ def _save_uploaded_product_images(files, *, vendor_id: int | None = None, remain
             skipped_overflow.append(original_name)
             continue
 
-        saved = save_image(file_storage)
+        try:
+            saved = save_image(file_storage)
+        except Exception:
+            _cleanup_product_media(saved_filenames, None)
+            raise
         current_app.logger.info(
             "[vendor] product.image_save_result vendor_id=%s filename=%s saved=%s",
             vendor_id,
@@ -259,35 +309,6 @@ def _save_uploaded_product_images(files, *, vendor_id: int | None = None, remain
             skipped_invalid.append(original_name)
 
     return saved_filenames, skipped_invalid, skipped_overflow
-
-
-def _flash_product_image_notice(*, mode: str, skipped_invalid: list[str], skipped_overflow: list[str]):
-    notes: list[str] = []
-    if skipped_invalid:
-        notes.append(
-            f"{len(skipped_invalid)} photo(s) ignoree(s) car non prises en charge ou illisibles"
-        )
-    if skipped_overflow:
-        notes.append(
-            f"{len(skipped_overflow)} photo(s) ignoree(s) car la limite est de {MAX_PRODUCT_IMAGES}"
-        )
-    if not notes:
-        return
-
-    prefix = "Creation des photos partielle" if mode == "create" else "Mise a jour des photos partielle"
-    flash(prefix + " : " + ". ".join(notes) + ".", "warning")
-
-
-def _shop_is_currently_open(shop: Shop | None) -> bool:
-    if not shop:
-        return True
-    if getattr(shop, "is_active", True) is False:
-        return False
-    now = datetime.utcnow()
-    closed_until = getattr(shop, "closed_until", None)
-    if closed_until and closed_until > now:
-        return False
-    return getattr(shop, "is_open", True) is True
 
 
 def _vendor_type_flags(shop: Shop | None) -> dict:
@@ -872,7 +893,7 @@ def dashboard():
         today_bookings_pagination = _empty_dashboard_bookings_page(DASHBOARD_BOOKINGS_PER_PAGE_DEFAULT)
         today_locations_count = 0
 
-    shop_is_open = _shop_is_currently_open(shop)
+    shop_is_open = shop_is_currently_open(shop, default_if_missing=True)
     return render_template(
         "vendor/dashboard.html",
         products=products,
@@ -1357,431 +1378,269 @@ def change_password():
     return redirect(url_for("vendor.dashboard"))
 
 
+def _cleanup_product_media(filenames: list[str], video_file: str | None) -> None:
+    """Remove named media only within the configured upload directories."""
+    upload_root = Path(
+        current_app.config.get("UPLOAD_FOLDER")
+        or Path(current_app.static_folder) / "uploads"
+    ).resolve()
+    candidates: list[tuple[Path, Path]] = []
+    for filename in filenames:
+        if not filename or Path(filename).name != filename:
+            continue
+        candidates.append((upload_root / filename, upload_root))
+        for size in (300, 900):
+            candidates.append((upload_root / f"{Path(filename).stem}_{size}.webp", upload_root))
+    if video_file:
+        video_root = upload_root / "product_videos"
+        candidates.append((video_root / Path(video_file).name, video_root))
+    for candidate, expected_parent in candidates:
+        try:
+            if candidate.resolve().parent == expected_parent.resolve() and candidate.is_file():
+                candidate.unlink()
+        except OSError:
+            current_app.logger.exception("vendor.create_product.media_cleanup_failed")
+
+
+def _product_form_context(product, shop, *, errors=None, message=None):
+    """One set of values and fields for creation, editing and standalone display."""
+    flags = _vendor_type_flags(shop)
+    categories_by_kind = _load_categories_by_kind()
+    available_kinds = [kind for kind, allowed in (
+        ("physical", flags["allows_products"]), ("service", flags["allows_services"])
+    ) if allowed]
+    current_kind = product.kind if product else ("service" if available_kinds == ["service"] else "physical")
+    values = {
+        "name": product.name if product else "",
+        "description": (product.description or "") if product else "",
+        "kind": current_kind,
+        "category_id": str(product.category_id or "") if product else "",
+        "price": format(Decimal(product.price_cents) / 100, ".2f") if product else "",
+        "stock": product.stock if product else 0,
+    }
+    if request.method == "POST":
+        for key in values:
+            values[key] = request.form.get(key, values[key])
+    images = _parse_product_images(product.image_file) if product else []
+    video = product.video_file if product else None
+    return dict(
+        product=product, shop=shop, categories_by_kind=categories_by_kind,
+        categories=categories_by_kind.get(current_kind, []),
+        available_kinds=available_kinds, default_kind=values["kind"],
+        allows_products=flags["allows_products"], allows_services=flags["allows_services"],
+        form_values=values, form_errors=errors or {}, form_error=message,
+        form_partial="vendor/partials/_product_create_modal.html",
+        form_title="Modifier le service" if product and product.kind == "service" else (
+            "Modifier le produit" if product else "Nouvelle offre"),
+        form_submit_label="Enregistrer les modifications" if product else "Publier l’offre",
+        form_back_url=url_for("vendor.dashboard"),
+        form_action=url_for("vendor.product_edit", pid=product.id, standalone=1) if product else url_for("vendor.product_new", standalone=1),
+        catalog_block_reasons=_catalog_block_reasons(product),
+        existing_images=[{"id": name, "url": url_for("static", filename="uploads/" + name)} for name in images],
+        existing_video={"id": video, "url": url_for("static", filename=video)} if video else None,
+        removed_images=request.form.getlist("delete_images") if request.method == "POST" else [],
+        removed_video=request.form.get("delete_video") == "1" if request.method == "POST" else False,
+        max_video_mb=int(MAX_PRODUCT_VIDEO_BYTES / 1024 / 1024),
+    )
+
+
+def _product_form(product=None):
+    """Validate and save both offer modes before removing any replaced media."""
+    modal_request = _is_product_form_modal_request()
+    editing = product is not None
+    vendor_id = current_user.id
+    shop = (product.shop or Shop.query.filter_by(vendor_id=vendor_id).first()) if editing else Shop.query.filter_by(vendor_id=vendor_id).first()
+
+    def reject(message, *, field=None, status=422, endpoint=None):
+        errors = {field: message} if field else {}
+        if modal_request:
+            payload = {"success": False, "message": message, "errors": errors}
+            if endpoint:
+                payload["redirect_url"] = url_for(endpoint)
+            return _product_form_json(payload, status)
+        if endpoint:
+            flash(message, "warning")
+            return redirect(url_for(endpoint))
+        return render_template("vendor/product_form.html", **_product_form_context(
+            product, shop, errors=errors, message=message,
+        )), status
+
+    if not shop:
+        return reject("Votre boutique doit être créée par l’administration.", status=403, endpoint="vendor.manage_shop")
+    if not shop_allows_any(shop, "products", "services"):
+        return reject("Cette boutique ne permet pas de gérer des produits ou services.", status=403, endpoint="vendor.manage_shop")
+    if editing and not shop_allows_any(shop, shop_type_from_product_kind(product.kind)):
+        return reject("Ce type d’offre n’est pas autorisé pour votre boutique.", status=403, endpoint="vendor.manage_shop")
+    if not _shop_has_required_contact_details(shop):
+        return reject("Ajoutez le téléphone et l’adresse de votre boutique avant de gérer une offre.", status=409, endpoint="vendor.edit_shop")
+
+    if request.method == "GET":
+        if modal_request:
+            return _product_form_json({"success": True, "html": render_template(
+                "vendor/partials/_product_create_modal.html", **_product_form_context(product, shop),
+            )})
+        if request.args.get("standalone") == "1":
+            return render_template("vendor/product_form.html", **_product_form_context(product, shop))
+        response = redirect(url_for("vendor.dashboard", **(
+            {"edit_product": product.id} if editing else {"new": "product"}
+        )), code=303)
+        response.headers["Cache-Control"] = "private, no-store, max-age=0"
+        response.headers["Vary"] = "Cookie, X-Vendor-Modal"
+        return response
+
+    name = (request.form.get("name") or "").strip()
+    description = (request.form.get("description") or "").strip()
+    kind = (request.form.get("kind") or (product.kind if editing else "physical")).strip().lower()
+    if not name or len(name) > 150:
+        return reject("Saisissez un nom entre 1 et 150 caractères.", field="name")
+    if kind not in ("physical", "service"):
+        return reject("Choisissez un produit ou un service.", field="kind")
+    if not shop_allows_any(shop, shop_type_from_product_kind(kind)):
+        return reject("Ce type d’offre n’est pas autorisé pour votre boutique.", field="kind", status=403)
+    price = (request.form.get("price") or "").strip().replace(",", ".")
+    try:
+        amount = Decimal(price)
+        if not amount.is_finite() or amount <= 0 or amount > Decimal("21474836.47"):
+            raise ValueError("price_invalid")
+        if amount != amount.quantize(Decimal("0.01")):
+            raise ValueError("price_precision_invalid")
+    except (InvalidOperation, TypeError, ValueError, OverflowError):
+        return reject("Saisissez un prix supérieur à zéro avec au maximum 2 décimales.", field="price")
+    stock = 0
+    if kind != "service":
+        try:
+            stock = int(request.form.get("stock", 0))
+            if not 0 <= stock <= 2147483647:
+                raise ValueError("stock_invalid")
+        except (TypeError, ValueError, OverflowError):
+            return reject("Saisissez une quantité entière positive ou nulle.", field="stock")
+    try:
+        category_id = int(request.form.get("category_id") or "")
+        category = _validate_category_for_kind(category_id, kind) if 0 < category_id <= 2147483647 else None
+    except (TypeError, ValueError, OverflowError):
+        category = None
+    if not category:
+        return reject("Choisissez une catégorie correspondant au type d’offre.", field="category_id")
+
+    existing_images = _parse_product_images(product.image_file) if editing else []
+    old_video = product.video_file if editing else None
+    # Keep old field names readable during rolling deployments and for open forms.
+    removed_images = set(request.form.getlist("delete_images"))
+    removed_images.update(part.strip() for part in (request.form.get("remove_images") or "").split(",") if part.strip())
+    if removed_images.difference(existing_images):
+        return reject("Une photo sélectionnée ne correspond plus à cette offre. Rouvrez le formulaire.", field="images")
+    kept_images = [name for name in existing_images if name not in removed_images]
+    remove_video = request.form.get("delete_video") == "1" or request.form.get("remove_video") == "1"
+    files = [f for f in request.files.getlist("images") if f and (f.filename or "").strip()]
+    video_files = [f for f in request.files.getlist("video") if f and (f.filename or "").strip()]
+    if len(kept_images) + len(files) > MAX_PRODUCT_IMAGES:
+        return reject("Conservez au maximum 4 photos au total.", field="images")
+    if any(not allowed_file(f.filename) for f in files):
+        return reject("Choisissez des photos au format JPG, PNG ou WebP.", field="images")
+    if _uploaded_files_total_bytes(files) > MAX_PRODUCT_IMAGES_TOTAL_BYTES:
+        return reject("La taille totale des nouvelles photos doit rester inférieure à 15 Mo.", field="images")
+    if len(video_files) > MAX_PRODUCT_VIDEOS:
+        return reject("Ajoutez une seule vidéo.", field="video")
+    if video_files:
+        if not allowed_video_file(video_files[0].filename):
+            return reject("Choisissez une vidéo dans un format pris en charge, comme MP4, MOV ou WebM.", field="video")
+        if _uploaded_files_total_bytes(video_files) > MAX_PRODUCT_VIDEO_BYTES:
+            return reject("La vidéo doit rester inférieure à 30 Mo.", field="video")
+
+    filenames = []
+    new_video = None
+    before = {key: getattr(product, key) for key in (
+        "kind", "name", "description", "price", "stock", "category_id", "is_active", "image_file", "video_file"
+    )} if editing else {}
+    try:
+        filenames, invalid_images, excess_images = _save_uploaded_product_images(
+            files, vendor_id=vendor_id, remaining_slots=MAX_PRODUCT_IMAGES - len(kept_images),
+        )
+        if invalid_images or excess_images:
+            _cleanup_product_media(filenames, None)
+            return reject("Une photo est illisible. Retirez-la ou choisissez une autre photo.", field="images")
+        if video_files:
+            try:
+                new_video = save_product_video(video_files[0])
+            except ValueError as exc:
+                _cleanup_product_media(filenames, None)
+                return reject(str(exc), field="video")
+        if not editing:
+            product = Product(vendor_id=vendor_id, shop_id=shop.id, price=0)
+        product.kind = kind
+        product.name = name
+        product.description = description
+        set_product_price(product, price)
+        product.stock = stock
+        product.category_id = category.id
+        product.image_file = "|".join(kept_images + filenames) or None
+        product.video_file = new_video or (None if remove_video else old_video)
+        auto_reactivated = bool(editing and not product.is_active and not _catalog_block_reasons(product) and shop.is_active)
+        if auto_reactivated:
+            product.is_active = True
+        db.session.add(product)
+        db.session.flush()
+        product_payload = {"id": product.id, "kind": product.kind, "name": product.name}
+        audit_changes = {
+            "fields": [key for key, value in before.items() if getattr(product, key) != value],
+            "price": product.price, "stock": product.stock, "shop_id": product.shop_id,
+            "image_count": len(kept_images + filenames), "has_video": bool(product.video_file),
+        }
+        catalog_total = Product.query.filter_by(vendor_id=vendor_id).count()
+        db.session.commit()
+    except Exception:
+        safe_session_rollback()
+        _cleanup_product_media(filenames, new_video)
+        current_app.logger.exception("[vendor] save_product.failed vendor_id=%s editing=%s", vendor_id, editing)
+        # A failed new instance must not be rendered as an existing, editable offer.
+        if not editing:
+            product = None
+        return reject("L’enregistrement a échoué. Votre saisie est conservée, réessayez dans quelques instants.", status=500)
+
+    # Commit succeeded. Secondary cleanup/cache/audit errors must never ask for another POST.
+    try:
+        obsolete_images = [
+            filename for filename in existing_images if filename not in kept_images
+            and not Product.query.filter(Product.id != product.id, Product.image_file.contains(filename)).first()
+        ]
+        obsolete_video = old_video if old_video and old_video != product.video_file else None
+        if obsolete_video and Product.query.filter(Product.id != product.id, Product.video_file == obsolete_video).first():
+            obsolete_video = None
+        _cleanup_product_media(obsolete_images, obsolete_video)
+    except Exception:
+        current_app.logger.exception("[vendor] save_product.media_cleanup_failed product_id=%s", product_payload["id"])
+    try:
+        bump_catalog_version()
+        log_access("update_product" if editing else "create_product", "product", product_payload["id"], success=True, changes=audit_changes)
+    except Exception:
+        current_app.logger.exception("[vendor] save_product.post_commit_failed product_id=%s", product_payload["id"])
+    message = ("Offre mise à jour avec succès et réactivée automatiquement." if auto_reactivated else
+               "Offre mise à jour avec succès.") if editing else "Offre créée avec succès."
+    if modal_request:
+        return _product_form_json({
+            "success": True, "product": product_payload, "message": message,
+            "notices": [], "catalog_total": catalog_total,
+        }, 200 if editing else 201)
+    flash(message, "success")
+    return redirect(url_for("vendor.dashboard"))
+
+
 @bp.route("/product/new", methods=["GET", "POST"])
 @login_required
 def product_new():
-    if current_user.role != "vendor":
-        flash("Accès réservé aux vendeurs.", "warning")
-        return redirect(url_for("shop.home"))
+    return _product_form()
 
-    # Vrifier que le vendeur a une boutique
-    shop = Shop.query.filter_by(vendor_id=current_user.id).first()
-    if not shop:
-        return _redirect_vendor_shop_admin_only()
-
-    if not shop_allows_any(shop, "products", "services"):
-        flash("Cette boutique ne permet pas d’ajouter des produits ou services.", "warning")
-        return redirect(url_for("vendor.manage_shop"))
-
-    contact_guard = _require_shop_contact_details(shop)
-    if contact_guard:
-        return contact_guard
-
-    categories_by_kind = _load_categories_by_kind()
-    type_flags = _vendor_type_flags(shop)
-    allows_products = type_flags["allows_products"]
-    allows_services = type_flags["allows_services"]
-
-    if request.method == "POST":
-        current_app.logger.info(
-            "[vendor] create_product.start vendor_id=%s",
-            current_user.id,
-        )
-        try:
-            name = request.form["name"].strip()
-            description = request.form.get("description", "").strip()
-            kind = (request.form.get("kind") or "physical").strip().lower()
-            current_app.logger.info(
-                "[vendor] create_product.payload vendor_id=%s name=%s shop_id=%s category_id=%s kind=%s",
-                current_user.id,
-                request.form.get("name"),
-                request.form.get("shop_id"),
-                request.form.get("category_id"),
-                request.form.get("kind"),
-            )
-            if not name:
-                current_app.logger.warning(
-                    "[vendor] create_product.validation_failed vendor_id=%s reason=%s",
-                    current_user.id,
-                    "name_empty",
-                )
-                flash("Offre non créée : le nom est obligatoire.", "warning")
-                return redirect(url_for("vendor.product_new"))
-            if kind not in ("physical", "service"):
-                current_app.logger.warning(
-                    "[vendor] create_product.validation_failed vendor_id=%s reason=%s",
-                    current_user.id,
-                    "kind_invalid",
-                )
-                kind = "physical"
-            access_guard = ensure_shop_allows(
-                shop,
-                shop_type_from_product_kind(kind),
-                fallback_endpoint="vendor.manage_shop",
-            )
-            if access_guard:
-                current_app.logger.warning(
-                    "[vendor] create_product.validation_failed vendor_id=%s reason=%s",
-                    current_user.id,
-                    "shop_invalid",
-                )
-                return access_guard
-            price = request.form["price"]
-            if kind == "service":
-                stock = 0
-            else:
-                stock = int(request.form.get("stock", 0))
-
-            try:
-                category_id = int(request.form["category_id"])
-            except (TypeError, ValueError):
-                current_app.logger.warning(
-                    "[vendor] create_product.validation_failed vendor_id=%s reason=%s",
-                    current_user.id,
-                    "category_missing",
-                )
-                flash("Offre non créée : catégorie invalide.", "danger")
-                return redirect(url_for("vendor.product_new"))
-
-            category = _validate_category_for_kind(category_id, kind)
-            if not category:
-                current_app.logger.warning(
-                    "[vendor] create_product.validation_failed vendor_id=%s reason=%s",
-                    current_user.id,
-                    "category_invalid",
-                )
-                expected_label = "Services" if kind == "service" else "Produits"
-                flash(f"Offre non créée : choisissez une catégorie valide ({expected_label}).", "warning")
-                return redirect(url_for("vendor.product_new"))
-
-            files = [f for f in request.files.getlist("images") if f and (f.filename or "").strip()]
-
-            uploaded_total_bytes = _uploaded_files_total_bytes(files)
-            if uploaded_total_bytes > MAX_PRODUCT_IMAGES_TOTAL_BYTES:
-                current_app.logger.warning(
-                    "[vendor] create_product.validation_failed vendor_id=%s reason=%s",
-                    current_user.id,
-                    "image_total_bytes_exceeded",
-                )
-                flash("Offre non créée : la taille totale des photos dépasse 15 MB.", "warning")
-                return redirect(url_for("vendor.product_new"))
-
-            filenames, skipped_invalid_images, skipped_overflow_images = _save_uploaded_product_images(
-                files,
-                vendor_id=current_user.id,
-                remaining_slots=MAX_PRODUCT_IMAGES,
-            )
-            image_file = "|".join(filenames) if filenames else None
-            if not image_file:
-                current_app.logger.warning(
-                    "[vendor] create_product.validation_failed vendor_id=%s reason=%s",
-                    current_user.id,
-                    "image_missing",
-                )
-            video_files = [f for f in request.files.getlist("video") if f and (f.filename or "").strip()]
-            if len(video_files) > MAX_PRODUCT_VIDEOS:
-                current_app.logger.warning(
-                    "[vendor] create_product.validation_failed vendor_id=%s reason=%s",
-                    current_user.id,
-                    "video_limit_exceeded",
-                )
-                flash("Offre non créée : une seule vidéo est autorisée.", "warning")
-                return redirect(url_for("vendor.product_new"))
-
-            video_file = None
-            if video_files:
-                try:
-                    video_file = save_product_video(video_files[0])
-                except ValueError as exc:
-                    current_app.logger.warning(
-                        "[vendor] create_product.validation_failed vendor_id=%s reason=%s",
-                        current_user.id,
-                        "video_invalid",
-                    )
-                    flash(f"Offre non créée : {exc}", "warning")
-                    return redirect(url_for("vendor.product_new"))
-
-            product = Product(
-                kind=kind,
-                name=name,
-                description=description,
-                price=0,
-                stock=stock,
-                category_id=category.id,
-                image_file=image_file,
-                video_file=video_file,
-                vendor_id=current_user.id,
-                shop_id=shop.id
-            )
-            try:
-                set_product_price(product, price)
-            except ValueError:
-                flash("Offre non créée : prix invalide.", "warning")
-                return redirect(url_for("vendor.product_new"))
-            db.session.add(product)
-            current_app.logger.info(
-                "[vendor] create_product.before_commit vendor_id=%s product_name=%s",
-                current_user.id,
-                product.name,
-            )
-            db.session.commit()
-            current_app.logger.info(
-                "[vendor] create_product.success vendor_id=%s product_id=%s",
-                current_user.id,
-                product.id,
-            )
-            bump_catalog_version()
-
-            log_access(
-                "create_product",
-                "product",
-                product.id,
-                success=True,
-                changes={"price": product.price, "stock": product.stock, "shop_id": product.shop_id}
-            )
-
-            flash("Offre créée avec succès.", "success")
-            _flash_product_image_notice(
-                mode="create",
-                skipped_invalid=skipped_invalid_images,
-                skipped_overflow=skipped_overflow_images,
-            )
-            return redirect(url_for("vendor.dashboard"))
-        except Exception:
-            db.session.rollback()
-            current_app.logger.exception(
-                "[vendor] create_product.failed vendor_id=%s",
-                current_user.id,
-            )
-            raise
-
-    if allows_services and not allows_products:
-        default_kind = "service"
-    else:
-        default_kind = "physical"
-
-    available_kinds = []
-    if allows_products:
-        available_kinds.append("physical")
-    if allows_services:
-        available_kinds.append("service")
-
-    categories = categories_by_kind["service"] if default_kind == "service" else categories_by_kind["physical"]
-
-    return render_template(
-        "vendor/product_form.html",
-        categories=categories,
-        categories_by_kind=categories_by_kind,
-        shop=shop,
-        default_kind=default_kind,
-        available_kinds=available_kinds,
-        allows_products=allows_products,
-        allows_services=allows_services,
-        form_mode_label="service" if (allows_services and not allows_products) else "produit",
-        max_video_mb=int(MAX_PRODUCT_VIDEO_BYTES / 1024 / 1024),
-    )
 
 @bp.route("/product/<int:pid>/edit", methods=["GET", "POST"])
 @login_required
 def product_edit(pid):
-    product = Product.query.get_or_404(pid)
-
-    before = {
-        "kind": getattr(product, "kind", "physical"),
-        "name": product.name,
-        "price": product.price,
-        "stock": product.stock,
-        "category_id": product.category_id,
-        "is_active": product.is_active,
-        "image_file": product.image_file,
-        "video_file": getattr(product, "video_file", None),
-    }
-
-    if current_user.role != "admin" and product.vendor_id != current_user.id:
-        flash("Interdit", "danger")
+    product = db.session.get(Product, pid)
+    if product is None or product.vendor_id != current_user.id:
+        if _is_product_form_modal_request():
+            return _product_form_json({"success": False, "message": "Offre introuvable ou inaccessible."}, 404)
+        flash("Offre introuvable ou inaccessible.", "warning")
         return redirect(url_for("vendor.dashboard"))
-
-    shop = product.shop or Shop.query.filter_by(vendor_id=product.vendor_id).first()
-    if current_user.role == "vendor":
-        existing_guard = ensure_shop_allows(
-            shop,
-            shop_type_from_product_kind(getattr(product, "kind", "physical")),
-            fallback_endpoint="vendor.manage_shop",
-        )
-        if existing_guard:
-            return existing_guard
-        contact_guard = _require_shop_contact_details(shop)
-        if contact_guard:
-            return contact_guard
-
-    categories_by_kind = _load_categories_by_kind()
-    allows_products = True
-    allows_services = True
-    available_kinds = ["physical", "service"]
-    if current_user.role == "vendor":
-        type_flags = _vendor_type_flags(shop)
-        allows_products = type_flags["allows_products"]
-        allows_services = type_flags["allows_services"]
-        available_kinds = []
-        if allows_products:
-            available_kinds.append("physical")
-        if allows_services:
-            available_kinds.append("service")
-
-    if request.method == "POST":
-        kind = (request.form.get("kind") or getattr(product, "kind", "physical") or "physical").strip().lower()
-        if kind not in ("physical", "service"):
-            kind = "physical"
-        if current_user.role == "vendor":
-            access_guard = ensure_shop_allows(
-                shop,
-                shop_type_from_product_kind(kind),
-                fallback_endpoint="vendor.manage_shop",
-            )
-            if access_guard:
-                return access_guard
-
-        product.kind = kind
-        product.name = request.form["name"].strip()
-        product.description = request.form.get("description", "").strip()
-        try:
-            set_product_price(product, request.form["price"])
-        except ValueError:
-            flash("Mise à jour échouée : prix invalide.", "warning")
-            return redirect(url_for("vendor.product_edit", pid=product.id))
-
-        try:
-            category_id = int(request.form["category_id"])
-        except (TypeError, ValueError):
-            flash("Mise à jour échouée : catégorie invalide.", "danger")
-            return redirect(url_for("vendor.product_edit", pid=product.id))
-
-        category = _validate_category_for_kind(category_id, kind)
-        if not category:
-            expected_label = "Services" if kind == "service" else "Produits"
-            flash(f"Mise à jour échouée : choisissez une catégorie valide ({expected_label}).", "warning")
-            return redirect(url_for("vendor.product_edit", pid=product.id))
-        product.category_id = category.id
-
-        if kind == "service":
-            product.stock = 0
-        else:
-            try:
-                product.stock = int(request.form.get("stock", product.stock or 0))
-            except (TypeError, ValueError):
-                product.stock = product.stock or 0
-
-        existing_images = _parse_product_images(product.image_file)
-        remove_images_raw = (request.form.get("remove_images") or "").strip()
-        remove_images = {part.strip() for part in remove_images_raw.split(",") if part and part.strip()}
-        kept_existing_images = [img for img in existing_images if img not in remove_images]
-        files = [f for f in request.files.getlist("images") if f and (f.filename or "").strip()]
-
-        uploaded_total_bytes = _uploaded_files_total_bytes(files)
-        if uploaded_total_bytes > MAX_PRODUCT_IMAGES_TOTAL_BYTES:
-            flash("Mise à jour échouée : la taille totale des nouvelles photos dépasse 15 MB.", "warning")
-            return redirect(url_for("vendor.product_edit", pid=product.id))
-
-        remaining_slots = max(0, MAX_PRODUCT_IMAGES - len(kept_existing_images))
-        new_filenames, skipped_invalid_images, skipped_overflow_images = _save_uploaded_product_images(
-            files,
-            vendor_id=current_user.id,
-            remaining_slots=remaining_slots,
-        )
-        all_images = (kept_existing_images + new_filenames)[:MAX_PRODUCT_IMAGES]
-        product.image_file = "|".join(all_images) if all_images else None
-
-        remove_video = (request.form.get("remove_video") or "").strip() == "1"
-        existing_video = (getattr(product, "video_file", None) or "").strip() or None
-        video_files = [f for f in request.files.getlist("video") if f and (f.filename or "").strip()]
-        if len(video_files) > MAX_PRODUCT_VIDEOS:
-            flash("Mise à jour échouée : une seule vidéo est autorisée.", "warning")
-            return redirect(url_for("vendor.product_edit", pid=product.id))
-
-        replacement_video = existing_video
-        if remove_video:
-            replacement_video = None
-        if video_files:
-            try:
-                replacement_video = save_product_video(video_files[0])
-            except ValueError as exc:
-                flash(f"Mise à jour échouée : {exc}", "warning")
-                return redirect(url_for("vendor.product_edit", pid=product.id))
-
-        old_video_file = existing_video
-        product.video_file = replacement_video
-
-        auto_reactivated = False
-        catalog_block_reasons = _catalog_block_reasons(product)
-        if (
-            current_user.role == "vendor"
-            and not bool(product.is_active)
-            and not catalog_block_reasons
-            and shop
-            and bool(getattr(shop, "is_active", True))
-        ):
-            product.is_active = True
-            auto_reactivated = True
-
-        db.session.commit()
-        video_cleanup_failed = False
-        if old_video_file and old_video_file != product.video_file and (remove_video or video_files):
-            try:
-                delete_product_video(old_video_file)
-            except Exception:
-                video_cleanup_failed = True
-                current_app.logger.exception(
-                    "[vendor] product_edit.video_cleanup_failed vendor_id=%s product_id=%s old_video_file=%s",
-                    current_user.id,
-                    product.id,
-                    old_video_file,
-                )
-        bump_catalog_version()
-
-        changed_fields = [k for k, v in before.items() if getattr(product, k) != v]
-        if changed_fields:
-            log_access(
-                "update_product",
-                "product",
-                product.id,
-                success=True,
-                changes={
-                    "fields": changed_fields,
-                    "price": product.price,
-                    "stock": product.stock,
-                    "image_count": len(all_images),
-                    "has_video": bool(product.video_file),
-                },
-            )
-        if auto_reactivated:
-            flash("Offre mise à jour avec succès et réactivée automatiquement.", "success")
-        else:
-            flash("Offre mise à jour avec succès.", "success")
-        if video_cleanup_failed:
-            flash("L'offre a bien ete mise a jour, mais l'ancienne video n'a pas pu etre nettoyee tout de suite.", "warning")
-        _flash_product_image_notice(
-            mode="edit",
-            skipped_invalid=skipped_invalid_images,
-            skipped_overflow=skipped_overflow_images,
-        )
-        return redirect(url_for("vendor.dashboard"))
-
-    current_kind = getattr(product, "kind", "physical") or "physical"
-    categories = categories_by_kind["service"] if current_kind == "service" else categories_by_kind["physical"]
-
-    return render_template(
-        "vendor/product_form.html",
-        product=product,
-        categories=categories,
-        categories_by_kind=categories_by_kind,
-        available_kinds=available_kinds,
-        allows_products=allows_products,
-        allows_services=allows_services,
-        default_kind=current_kind,
-        form_mode_label="service" if (allows_services and not allows_products) else "produit",
-        catalog_block_reasons=_catalog_block_reasons(product),
-        max_video_mb=int(MAX_PRODUCT_VIDEO_BYTES / 1024 / 1024),
-    )
+    return _product_form(product)
 
 
 @bp.route("/product/<int:pid>/promotion", methods=["GET", "POST"])
@@ -2581,62 +2440,6 @@ def confirm_receipt(oid):
     return redirect(request.referrer or url_for("vendor.earnings"))
 
 
-
-@bp.route("/orders/notifications")
-@login_required
-def orders_notifications():
-    if current_user.role not in ("vendor", "admin"):
-        return jsonify(latest_id=0, pending_count=0, to_confirm_count=0)
-
-    vendor_shop = resolve_vendor_shop(current_user)
-    vendor_allows_products = shop_allows_any(vendor_shop, "products")
-
-    query = Order.query.join(OrderItem).join(Product)
-    if current_user.role == "vendor":
-        query = query.filter(Product.vendor_id == current_user.id)
-
-    latest_order = query.order_by(Order.created_at.desc()).distinct().first()
-    latest_order_id = latest_order.id if latest_order else 0
-    pending_count = query.filter(Order.status == "pending").with_entities(Order.id).distinct().count()
-
-    to_confirm_count = 0
-    if current_user.role != "vendor" or vendor_allows_products:
-        to_confirm_query = query.filter(Order.status.in_(["shipped", "delivered"]))
-        if current_user.role == "vendor":
-            to_confirm_query = to_confirm_query.filter(Product.kind != "service")
-            to_confirm_query = to_confirm_query.outerjoin(
-                VendorReceipt,
-                and_(VendorReceipt.order_id == Order.id, VendorReceipt.vendor_id == current_user.id),
-            ).filter(VendorReceipt.id.is_(None))
-        to_confirm_count = to_confirm_query.with_entities(Order.id).distinct().count()
-
-    items = []
-    message = ""
-    if latest_order:
-        items_query = OrderItem.query.join(Product).filter(OrderItem.order_id == latest_order.id)
-        if current_user.role == "vendor":
-            items_query = items_query.filter(Product.vendor_id == current_user.id)
-        for item in items_query.all():
-            name = item.product.name if item.product and item.product.name else f"Produit #{item.product_id}"
-            items.append({
-                "name": name,
-                "qty": item.quantity or 0
-            })
-        if items:
-            parts = [f"{i['name']} x{i['qty']}" for i in items[:3]]
-            if len(items) > 3:
-                parts.append(f"+{len(items) - 3} autres")
-            message = "Nouvelle commande: " + ", ".join(parts)
-
-    return jsonify(
-        latest_id=latest_order_id,
-        pending_count=pending_count,
-        to_confirm_count=to_confirm_count,
-        items=items,
-        message=message
-    )
-
-
 @bp.route("/notifications/push/config")
 @login_required
 def vendor_push_config():
@@ -2905,10 +2708,6 @@ def security():
     return redirect(url_for("vendor.earnings"), code=302)
 
 
-@bp.route("/security/pin", methods=["POST"])
-@login_required
-def set_security_pin():
-    return redirect(url_for("vendor.earnings"), code=302)
 
 
 # ==================== REVENUS ====================
@@ -3067,159 +2866,19 @@ def earnings():
     )
 
 
-@bp.route("/earnings/history")
-@login_required
-def earnings_history():
-    access_guard = _require_physical_vendor_access(strict_forbidden=True)
-    if access_guard:
-        return access_guard
-
-    return redirect(url_for("vendor.earnings"), code=302)
 
 
-@bp.route("/earnings/history/export.csv")
-@login_required
-def earnings_history_export_csv():
-    access_guard = _require_physical_vendor_access(strict_forbidden=True)
-    if access_guard:
-        return access_guard
-
-    return redirect(url_for("vendor.earnings"), code=302)
 
 
-@bp.route("/earnings/history/export.pdf")
-@login_required
-def earnings_history_export_pdf():
-    access_guard = _require_physical_vendor_access(strict_forbidden=True)
-    if access_guard:
-        return access_guard
-
-    return redirect(url_for("vendor.earnings"), code=302)
 
 
 # ==================== ROUTES AJAX/API POUR VENDEURS ====================
 
-@bp.route("/api/shop/stats")
-@login_required
-def shop_stats_api():
-    """API pour les statistiques de la boutique"""
-    started_at = perf_counter()
-    if current_user.role != "vendor":
-        return jsonify({"error": "Accs interdit"}), 403
-
-    try:
-        shop = Shop.query.filter_by(vendor_id=current_user.id).first()
-        if not shop:
-            return jsonify({"error": "Boutique non trouve"}), 404
-
-        product_count = Product.query.filter_by(shop_id=shop.id).count()
-        start_of_month = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        month_stats_row = (
-            db.session.query(
-                db.func.count(db.func.distinct(Order.id)).label("orders_count"),
-                db.func.coalesce(db.func.sum(OrderItem.price * OrderItem.quantity), 0).label("revenue_cents"),
-            )
-            .join(OrderItem, OrderItem.order_id == Order.id)
-            .join(Product, Product.id == OrderItem.product_id)
-            .filter(
-                Product.shop_id == shop.id,
-                Order.created_at >= start_of_month,
-                Order.status == "delivered",
-            )
-            .first()
-        )
-        orders_this_month = int((month_stats_row.orders_count if month_stats_row else 0) or 0)
-        revenue_this_month_cents = int((month_stats_row.revenue_cents if month_stats_row else 0) or 0)
-    except SQLAlchemyError:
-        current_app.logger.exception(
-            "vendor.shop_stats_api.db_error",
-            extra={"vendor_id": getattr(current_user, "id", None)},
-        )
-        _log_perf(
-            "vendor.shop_stats_api",
-            started_at,
-            vendor_id=getattr(current_user, "id", None),
-            error="database_error",
-        )
-        return jsonify({"error": "database_error"}), 500
-
-    response = jsonify({
-        "shop": {
-            "name": shop.name,
-            "product_count": product_count,
-            "orders_this_month": orders_this_month,
-            "revenue_this_month": revenue_this_month_cents / 100,
-            "is_active": shop.is_active,
-            "rating": shop.rating or 0,
-        }
-    })
-    response.headers["Cache-Control"] = f"private, max-age={int(LIVE_ENDPOINT_MICROCACHE_TTL_SECONDS)}"
-    _log_perf(
-        "vendor.shop_stats_api",
-        started_at,
-        vendor_id=getattr(current_user, "id", None),
-        product_count=product_count,
-        orders_this_month=orders_this_month,
-    )
-    return response
 
 
-@bp.route("/api/products/stock")
-@login_required
-def products_stock_api():
-    """API pour la gestion des stocks"""
-    if current_user.role != "vendor":
-        return jsonify({"error": "Accs interdit"}), 403
-
-    page = _normalize_positive_int(
-        _safe_int(request.args.get("page"), 1),
-        default=1,
-        minimum=1,
-    )
-    per_page = _normalize_positive_int(
-        _safe_int(request.args.get("per_page"), 50),
-        default=50,
-        minimum=1,
-        maximum=100,
-    )
-
-    stock_query = (
-        Product.query
-        .filter_by(vendor_id=current_user.id)
-        .order_by(Product.created_at.desc(), Product.id.desc())
-    )
-    pagination = (
-        paginate_with_clamped_page(stock_query, page=page, per_page=per_page, error_out=False)
-    )
-    products = pagination.items
-
-    stock_data = []
-    for product in products:
-        stock_data.append({
-            "id": product.id,
-            "name": product.name,
-            "stock": product.stock,
-            "price": product.price,
-            "is_active": product.is_active,
-            "image": product.image_file.split('|')[0] if product.image_file else None
-        })
-
-    return jsonify({
-        "products": stock_data,  # legacy key for compatibility
-        "items": stock_data,
-        "page": pagination.page,
-        "pages": pagination.pages,
-        "total": pagination.total,
-        "per_page": pagination.per_page,
-    })
 
 # ==================== REDIRECTIONS POUR COMPATIBILIT ====================
 
-@bp.route("/shop/setup")
-@login_required
-def setup_shop_redirect():
-    """Redirection pour compatibilit (ancienne route)"""
-    return redirect(url_for("vendor.manage_shop"))
 
 
 

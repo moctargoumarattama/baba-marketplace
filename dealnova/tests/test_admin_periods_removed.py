@@ -52,8 +52,6 @@ def test_admin_templates_use_date_filters_not_periods():
     template_paths = [
         "app/templates/admin/base.html",
         "app/templates/admin/dashboard.html",
-        "app/templates/admin/deliveries.html",
-        "app/templates/admin/deliveries_archives.html",
         "app/templates/admin/finance.html",
         "app/templates/admin/locations.html",
         "app/templates/admin/pricing.html",
@@ -105,7 +103,7 @@ def test_finance_dashboard_contacts_subscriptions_locations_delivery_use_date_ra
     admin_users_source = _read("app/routes/admin_users.py")
     rentals_source = _read("app/routes/rentals.py")
 
-    for function_name in ["product_contacts", "deliveries", "deliveries_live", "deliveries_archives", "finance"]:
+    for function_name in ["product_contacts", "finance"]:
         body = _function_body(admin_source, function_name)
         assert "resolve_date_filter" in body
         assert "date_filter.start_at" in body

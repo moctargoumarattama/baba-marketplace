@@ -72,24 +72,17 @@
 <link rel="preload" as="image" href="{{ url_for('static', filename='images/home-refresh/hero.webp', v=app_static_version) }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/ui_home_single_hub.css', v=(app_static_version ~ '-catalog-v3')) }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/assistant/widget.css', v=(app_static_version ~ '-assistant-kb-v2')) }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/home_refresh.css', v=(app_static_version ~ '-catalog-v3-header-v2-hero-v1-services-v3-discovery-v1-footer-v2-fluid-v1-cleanup-v1-share-v1')) }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/home_refresh.css', v=(app_static_version ~ '-catalog-v3-header-v2-hero-v1-services-v3-discovery-v1-footer-v2-fluid-v1-cleanup-v1-share-v1-wa-compact-v1')) }}">
 <script src="{{ url_for('static', filename='js/public_live_search.js', v=app_static_version ~ '-header-v3') }}" defer></script>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/catalog_panel.css', v=(app_static_version ~ '-catalog-v3-discovery-v1-delivery-v2-modals-v2')) }}">
 {% endblock %}
 
 {% block content %}
-{% set hub_items = namespace(products=[], services=[], locations=[], promotions=[]) %}
+{% set hub_items = namespace(promotions=[]) %}
 {% for item in data %}
   {% set product = item[0] %}
-  {% if product.kind == 'service' %}
-    {% set hub_items.services = hub_items.services + [item] %}
-  {% elif product.kind == 'location' %}
-    {% set hub_items.locations = hub_items.locations + [item] %}
-  {% else %}
-    {% set hub_items.products = hub_items.products + [item] %}
-    {% if product.promo_active and product.price|float > item[1]|float %}
-      {% set hub_items.promotions = hub_items.promotions + [item] %}
-    {% endif %}
+  {% if product.kind not in ['service', 'location'] and product.promo_active and product.price|float > item[1]|float %}
+    {% set hub_items.promotions = hub_items.promotions + [item] %}
   {% endif %}
 {% endfor %}
 {% include 'partials/_home_storefront.html' %}

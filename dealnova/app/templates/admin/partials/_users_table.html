@@ -1,4 +1,4 @@
-﻿<section class="users-card adm-listing" data-adm-listing="users">
+<section class="users-card adm-listing" data-adm-listing="users">
   <div class="users-card-header">
     <h5>Utilisateurs ({{ pagination.total }})</h5>
     <span class="text-muted">Page {{ pagination.page }} sur {{ pagination.pages }}</span>
@@ -68,7 +68,7 @@
                     data-ajax="true"
                     data-action="toggle-user"
                     data-confirm="Voulez-vous activer/desactiver cet utilisateur ?">
-                {% include "admin/partials/_csrf.html" %}
+                {% include "partials/_csrf.html" %}
                 <button type="submit"
                         class="btn btn-outline-{{ 'danger' if user.is_active else 'success' }}"
                         data-active-text="Desactiver"
@@ -88,7 +88,7 @@
                     data-action="delete-user"
                     data-confirm="Confirmation suppression definitive :&#10;- Le nom sera garde dans l'historique suppression&#10;- Cette action est irreversible&#10;&#10;Supprimer cet utilisateur ?"
                     data-remove-target="tr">
-                {% include "admin/partials/_csrf.html" %}
+                {% include "partials/_csrf.html" %}
                 <button type="submit"
                         class="btn btn-outline-danger"
                         data-loading-text="<span class='spinner-border spinner-border-sm' role='status' aria-hidden='true'></span>"

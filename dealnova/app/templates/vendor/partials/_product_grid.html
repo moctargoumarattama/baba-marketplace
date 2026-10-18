@@ -98,8 +98,8 @@
                     <i class="bi bi-eye"></i>
                     <span>Voir</span>
                 </a>
-                <a href="{{ url_for('vendor.product_edit', pid=p.id) }}" 
-                   class="btn-product edit">
+                <a href="{{ url_for('vendor.product_edit', pid=p.id, standalone=1) }}"
+                   class="btn-product edit" data-vendor-product-edit data-stop-nav aria-haspopup="dialog" aria-controls="vendorProductDialog">
                     <i class="bi bi-pencil-square"></i>
                     <span>Modifier</span>
                 </a>

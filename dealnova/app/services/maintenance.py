@@ -26,12 +26,12 @@ from ..extensions import db
 from ..models.maintenance import ErrorLog, MaintenanceRun
 from ..models.platform_settings import PlatformSettings
 from ..models.product import Product
-from ..models.rental import RentalArchive, RentalListing, RentalMedia
+from ..models.rental import RentalListing, RentalMedia
 from ..models.runtime_state import RuntimeState
 from ..models.shop import Shop
 from ..models.user import User
 from .image import LARGE_SIZE, THUMB_SIZE
-from .rentals import ARCHIVE_RETENTION_DAYS, archive_and_remove_listing
+from .rentals import archive_and_remove_listing
 
 # Définition du blueprint pour les commandes CLI
 try:

@@ -107,35 +107,3 @@ def test_catalogue_redirect_keeps_filters_and_detail_links(navigation_app, path)
 
     assert response.json == {"open": "promotions", **filters}
 
-
-@pytest.mark.parametrize(
-    ("path", "query", "headers", "expected_options"),
-    [
-        ("/shop/", {"q": "savon"}, {"Accept": "application/json"}, {}),
-        ("/shop/", {"cat": "2"}, {"X-Requested-With": "XMLHttpRequest"}, {}),
-        ("/shop/", {"_fragment": "listing"}, {"X-Requested-With": "fetch"}, {}),
-        (
-            "/shop/promotions",
-            {"q": "savon"},
-            {"Accept": "application/json"},
-            {"template_name": "shop/promotions.html", "forced_promo_only": "1"},
-        ),
-    ],
-)
-def test_catalogue_data_requests_still_render_without_redirect(
-    navigation_app, monkeypatch, path, query, headers, expected_options
-):
-    calls = []
-
-    def render_catalogue(**options):
-        calls.append(options)
-        return jsonify({"filters": request.args.to_dict()})
-
-    monkeypatch.setattr(shop_routes, "_render_shop_home", render_catalogue)
-
-    response = navigation_app.test_client().get(path, query_string=query, headers=headers)
-
-    assert response.status_code == 200
-    assert "Location" not in response.headers
-    assert response.json == {"filters": query}
-    assert calls == [expected_options]

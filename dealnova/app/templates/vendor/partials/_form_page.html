@@ -1,0 +1,18 @@
+{% extends "vendor/base.html" %}
+{% block title %}{{ form_title }} | {{ config.SITE_NAME|trim }}{% endblock %}
+{% block head %}
+{{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/vendor_product_modal.css', v=app_static_version ~ '-forms-v4') }}">
+{% endblock %}
+{% block content %}
+<section id="vendorFormPage" class="vpm-dialog vpm-page" data-default-type="{{ 'location' if 'locations/' in form_partial else 'product' }}" data-back-url="{{ form_back_url }}">
+  <header class="vpm-header"><div class="vpm-heading"><h1 id="vendorProductTitle">{{ form_title }}</h1></div><a class="vpm-button vpm-button-secondary" href="{{ form_back_url }}">Retour</a></header>
+  <div id="vendorProductContent">{% include form_partial %}</div>
+  <div class="vpm-feedback"><p id="vpmStatus" class="vpm-status" role="status" aria-live="polite"></p><div id="vpmProgress" class="vpm-progress" hidden><progress max="100" aria-label="Envoi en cours"></progress></div></div>
+  <footer class="vpm-footer"><a class="vpm-button vpm-button-secondary" href="{{ form_back_url }}">Annuler</a><button type="submit" form="vendorCreateForm" class="vpm-button vpm-button-primary" data-vpm-submit><span data-vpm-submit-label>{{ form_submit_label }}</span></button></footer>
+</section>
+{% endblock %}
+{% block scripts %}
+{{ super() }}
+<script src="{{ url_for('static', filename='js/vendor/vendor_product_modal.js', v=app_static_version ~ '-forms-v4') }}" defer></script>
+{% endblock %}

@@ -27,22 +27,6 @@ _ensure_namespace("dealnova.app.models", PACKAGE_ROOT / "app" / "models")
 _ensure_namespace("dealnova.app.routes", PACKAGE_ROOT / "app" / "routes")
 _ensure_namespace("dealnova.app.services", PACKAGE_ROOT / "app" / "services")
 
-if "dealnova.app.services.image" not in sys.modules:
-    image_module = types.ModuleType("dealnova.app.services.image")
-    image_module.LARGE_SIZE = 1200
-    image_module.THUMB_SIZE = 400
-    sys.modules["dealnova.app.services.image"] = image_module
-
-if "dealnova.app.services.rentals" not in sys.modules:
-    rentals_module = types.ModuleType("dealnova.app.services.rentals")
-    rentals_module.ARCHIVE_RETENTION_DAYS = 30
-
-    def _archive_and_remove_listing(*args, **kwargs):
-        return None
-
-    rentals_module.archive_and_remove_listing = _archive_and_remove_listing
-    sys.modules["dealnova.app.services.rentals"] = rentals_module
-
 from dealnova.app.extensions import db, login_manager
 from dealnova.app.models.user import User
 from dealnova.app.routes.admin import MAINTENANCE_PANEL_SESSION_KEY, bp as admin_bp

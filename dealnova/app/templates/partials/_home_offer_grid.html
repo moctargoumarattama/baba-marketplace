@@ -1,6 +1,0 @@
-{% from 'partials/_home_offer_card.html' import offer_card with context %}
-{% for item in offer_items[:4] %}{{ offer_card(item) }}{% else %}
-  {% if offer_kind == 'products' %}
-  <div class="hub-empty"><i class="bi bi-basket2" aria-hidden="true"></i><h3>{{ t('Aucun produit disponible') }}</h3><p>{{ t('Consultez les boutiques pour connaître leurs offres.') }}</p><button type="button" class="hub-text-link" data-open-universe="shops">{{ t('Voir les boutiques') }}<i class="bi bi-arrow-right" aria-hidden="true"></i></button></div>
-  {% endif %}
-{% endfor %}

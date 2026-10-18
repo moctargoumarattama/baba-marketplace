@@ -22,7 +22,7 @@
   <form method="post"
         action="{{ url_for('admin.featured_items_cleanup_duplicates') }}"
         data-highlights-form>
-    {% include "admin/partials/_csrf.html" %}
+    {% include "partials/_csrf.html" %}
     <input type="hidden" name="view" value="{{ featured_view }}">
     <input type="hidden" name="status" value="{{ status_filter }}">
     <input type="hidden" name="history_page" value="{{ history_page }}">
@@ -101,7 +101,7 @@
           <form method="post"
                 action="{{ url_for('admin.featured_items_delete', item_id=item.id) }}"
                 data-highlights-form>
-            {% include "admin/partials/_csrf.html" %}
+            {% include "partials/_csrf.html" %}
             <input type="hidden" name="view" value="history">
             <input type="hidden" name="status" value="{{ status_filter }}">
             <input type="hidden" name="history_page" value="{{ history_page }}">
@@ -208,7 +208,7 @@
           </div>
           <div class="hi-active-actions">
             <form method="post" action="{{ url_for('admin.featured_items_extend', item_id=item.id) }}" data-highlights-form>
-              {% include "admin/partials/_csrf.html" %}
+              {% include "partials/_csrf.html" %}
               <input type="hidden" name="view" value="{{ featured_view }}">
               <input type="hidden" name="duration_days" value="7">
               <input type="hidden" name="status" value="{{ status_filter }}">
@@ -218,7 +218,7 @@
               <button type="submit" class="btn btn-outline-success hi-mini-btn">+ 7 jours</button>
             </form>
             <form method="post" action="{{ url_for('admin.featured_items_disable', item_id=item.id) }}" data-highlights-form>
-              {% include "admin/partials/_csrf.html" %}
+              {% include "partials/_csrf.html" %}
               <input type="hidden" name="view" value="{{ featured_view }}">
               <input type="hidden" name="status" value="{{ status_filter }}">
               <input type="hidden" name="shop_q" value="{{ shop_q }}">
@@ -271,7 +271,7 @@
                   <span class="hi-state-badge">Deja active</span>
                   {% else %}
                   <form method="post" action="{{ url_for('admin.featured_items_activate') }}" class="d-flex gap-2 justify-content-end" data-highlights-form>
-                    {% include "admin/partials/_csrf.html" %}
+                    {% include "partials/_csrf.html" %}
                     <input type="hidden" name="view" value="{{ featured_view }}">
                     <input type="hidden" name="target_type" value="shop">
                     <input type="hidden" name="target_id" value="{{ shop.id }}">
@@ -333,7 +333,7 @@
                   <span class="hi-state-badge">Deja active</span>
                   {% else %}
                   <form method="post" action="{{ url_for('admin.featured_items_activate') }}" class="d-flex gap-2 justify-content-end" data-highlights-form>
-                    {% include "admin/partials/_csrf.html" %}
+                    {% include "partials/_csrf.html" %}
                     <input type="hidden" name="view" value="{{ featured_view }}">
                     <input type="hidden" name="target_type" value="product">
                     <input type="hidden" name="target_id" value="{{ product.id }}">
@@ -395,7 +395,7 @@
                   <span class="hi-state-badge">Deja active</span>
                   {% else %}
                   <form method="post" action="{{ url_for('admin.featured_items_activate') }}" class="d-flex gap-2 justify-content-end" data-highlights-form>
-                    {% include "admin/partials/_csrf.html" %}
+                    {% include "partials/_csrf.html" %}
                     <input type="hidden" name="view" value="{{ featured_view }}">
                     <input type="hidden" name="target_type" value="location">
                     <input type="hidden" name="target_id" value="{{ location.id }}">
@@ -480,7 +480,7 @@
                 </div>
                 <div class="hi-active-actions">
                   <form method="post" action="{{ url_for('admin.featured_items_extend', item_id=item.id) }}" data-highlights-form>
-                    {% include "admin/partials/_csrf.html" %}
+                    {% include "partials/_csrf.html" %}
                     <input type="hidden" name="view" value="{{ featured_view }}">
                     <input type="hidden" name="duration_days" value="7">
                     <input type="hidden" name="status" value="{{ status_filter }}">
@@ -490,7 +490,7 @@
                     <button type="submit" class="btn btn-outline-success hi-mini-btn">+ 7 jours</button>
                   </form>
                   <form method="post" action="{{ url_for('admin.featured_items_extend', item_id=item.id) }}" data-highlights-form>
-                    {% include "admin/partials/_csrf.html" %}
+                    {% include "partials/_csrf.html" %}
                     <input type="hidden" name="view" value="{{ featured_view }}">
                     <input type="hidden" name="duration_days" value="30">
                     <input type="hidden" name="status" value="{{ status_filter }}">
@@ -500,7 +500,7 @@
                     <button type="submit" class="btn btn-outline-primary hi-mini-btn">+ 30 jours</button>
                   </form>
                   <form method="post" action="{{ url_for('admin.featured_items_disable', item_id=item.id) }}" data-highlights-form>
-                    {% include "admin/partials/_csrf.html" %}
+                    {% include "partials/_csrf.html" %}
                     <input type="hidden" name="view" value="{{ featured_view }}">
                     <input type="hidden" name="status" value="{{ status_filter }}">
                     <input type="hidden" name="shop_q" value="{{ shop_q }}">

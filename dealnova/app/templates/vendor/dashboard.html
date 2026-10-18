@@ -5,6 +5,7 @@
 {% block head %}
 {{ super() }}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/vendor_dashboard.css', v=app_static_version) }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/vendor_product_modal.css', v=app_static_version ~ '-create-v3') }}">
 {% endblock %}
 
 {% block content %}
@@ -401,7 +402,7 @@
         <!-- Actions -->
         <div class="action-buttons daily-actions-grid">
             {% if allows_catalog %}
-            <a href="{{ url_for('vendor.product_new') }}" class="btn-action primary dashboard-chevron-action">
+            <a href="{{ url_for('vendor.product_new') }}" class="btn-action primary dashboard-chevron-action" data-vendor-product-create data-stop-nav aria-haspopup="dialog" aria-controls="vendorProductDialog">
                 <i class="bi bi-plus-circle"></i>
                 <span>{{ catalog_create_label }}</span>
             </a>
@@ -417,7 +418,7 @@
                 <i class="bi bi-house-door"></i>
                 <span>Mes locations</span>
             </a>
-            <a href="{{ url_for('rentals.owner_location_new') }}" class="btn-action dashboard-chevron-action">
+            <a href="{{ url_for('rentals.owner_location_new') }}" class="btn-action dashboard-chevron-action" data-vendor-location-create data-stop-nav aria-haspopup="dialog" aria-controls="vendorProductDialog">
                 <i class="bi bi-building"></i>
                 <span>Nouvelle location</span>
             </a>
@@ -432,14 +433,14 @@
                     <i class="bi bi-layers"></i>
                     Catalogue complet
                 </div>
-                <div class="alert-meta">{{ total_products }} {{ 'elements' if allows_products and allows_services else ('services' if allows_services and not allows_products else 'produits') }}</div>
+                <div class="alert-meta"><span data-vendor-catalog-count>{{ total_products }}</span> {{ 'éléments' if allows_products and allows_services else ('services' if allows_services and not allows_products else 'produits') }}</div>
             </div>
             <div class="catalog-summary-actions">
                 <a href="{{ url_for('vendor.catalog') }}" class="btn-action">
                     <i class="bi bi-eye"></i>
                     <span>Voir le catalogue</span>
                 </a>
-                <a href="{{ url_for('vendor.product_new') }}" class="btn-action catalog-add">
+                <a href="{{ url_for('vendor.product_new') }}" class="btn-action catalog-add" data-vendor-product-create data-stop-nav aria-haspopup="dialog" aria-controls="vendorProductDialog">
                     <i class="bi bi-plus"></i>
                     <span>Ajouter</span>
                 </a>
@@ -448,6 +449,11 @@
         {% endif %}
     </div>
 </div>
+
+{% if allows_catalog or allows_location %}
+{% include "vendor/partials/_product_create_dialog.html" %}
+<noscript><p><a href="{{ url_for('vendor.product_new', standalone=1) }}">Ouvrir le formulaire d’ajout</a></p></noscript>
+{% endif %}
 
 <!-- Loading -->
 <div class="loading-overlay" id="loadingOverlay">
@@ -484,6 +490,9 @@
 {% block scripts %}
 {{ super() }}
 <script src="{{ url_for('static', filename='js/pages/vendor/dashboard_page.js', v=app_static_version) }}" defer></script>
+{% if allows_catalog or allows_location %}
+<script src="{{ url_for('static', filename='js/vendor/vendor_product_modal.js', v=app_static_version ~ '-create-v3') }}" defer></script>
+{% endif %}
 {% endblock %}
 
 

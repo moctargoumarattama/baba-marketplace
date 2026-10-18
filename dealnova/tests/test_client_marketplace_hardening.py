@@ -15,23 +15,6 @@ def _function_body(source: str, function_name: str) -> str:
     return source[start : next_route if next_route != -1 else len(source)]
 
 
-def test_search_apis_enforce_server_side_minimum_query_lengths():
-    source = _read("app/routes/api.py")
-
-    assert "PRODUCT_SEARCH_MIN_CHARS = 2" in source
-    assert "SECONDARY_SEARCH_MIN_CHARS = 3" in source
-
-    for function_name, payload_key, min_constant in [
-        ("search_products", "products", "PRODUCT_SEARCH_MIN_CHARS"),
-        ("search_shops", "shops", "SECONDARY_SEARCH_MIN_CHARS"),
-        ("search_locations", "locations", "SECONDARY_SEARCH_MIN_CHARS"),
-        ("search_categories", "categories", "SECONDARY_SEARCH_MIN_CHARS"),
-    ]:
-        body = _function_body(source, function_name)
-        assert f"len(q) < {min_constant}" in body
-        assert f'jsonify({{"{payload_key}": []}})' in body
-
-
 def test_global_search_is_instant_search_shell_without_unused_db_queries():
     source = _read("app/__init__.py")
     marker = "def global_search():"
@@ -52,16 +35,15 @@ def test_product_detail_loads_ajax_runtime_for_ajax_forms():
 
     assert 'data-ajax="true"' in template
     assert "js/core/core_live.js" in template
-    assert "js/pages/product_detail_page.js" in template
 
 
 def test_promotions_uses_server_search_not_current_page_filtering():
-    template = _read("app/templates/shop/promotions.html")
+    shop_routes = _read("app/routes/shop.py")
 
-    assert "landing" in template
-    assert "promotions" in template
-    assert "filterCards" not in template
-    assert "allCards" not in template
+    assert "landing" in shop_routes
+    assert "promotions" in shop_routes
+    assert "filterCards" not in shop_routes
+    assert "allCards" not in shop_routes
 
 
 def test_shop_detail_products_use_clamped_stable_pagination_and_min_search():

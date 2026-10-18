@@ -1,221 +1,68 @@
-﻿{% extends "base.html" %}
-
+{% extends "base.html" %}
 {% block title %}Mes locations | {{ config.SITE_NAME }}{% endblock %}
-
 {% block head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/locations/owner_pages.css', v=app_static_version) }}">
-<script src="{{ url_for('static', filename='js/pages/owner_locations_page.js', v=app_static_version) }}" defer></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/locations/owner_refresh.css', v=app_static_version ~ '-location-v3') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/vendor_product_modal.css', v=app_static_version ~ '-create-v3') }}">
+<script src="{{ url_for('static', filename='js/pages/owner_locations_page.js', v=app_static_version ~ '-location-v3') }}" defer></script>
 {% endblock %}
-
 {% block content %}
-<div class="owner-shell owner-shell-premium">
-  {% set status_labels = {'active': 'Active', 'reserved': 'Reservee', 'taken': 'Prise', 'expired': 'Expiree'} %}
-  {% set list_url = url_for('rentals.owner_locations', page=pagination.page, q=q, status=status, shop=selected_shop_id) %}
-  {% set archive_url = url_for('rentals.owner_locations_archives', q=q, shop=selected_shop_id) %}
-  <section class="owner-hero">
-    <div>
-      <h1>Espace location</h1>
-      <p>Pilotez vos annonces en un coup d'oeil. Historique sur {{ owner_history_days }} jours.</p>
+{% set status_labels = {'active': 'Active', 'reserved': 'Réservée', 'taken': 'Louée', 'expired': 'Expirée'} %}
+{% set list_url = url_for('rentals.owner_locations', page=pagination.page, q=q, status=status, shop=selected_shop_id) %}
+{% set archive_url = url_for('rentals.owner_locations_archives', q=q, shop=selected_shop_id) %}
+<div class="owner-shell owner-refresh">
+  <header class="owner-refresh-header">
+    <h1>Mes locations</h1>
+    <div class="owner-refresh-header-actions">
+      <a class="owner-action owner-action-history" href="{{ archive_url }}"><i class="bi bi-clock-history" aria-hidden="true"></i><span>Historique</span></a>
+      <a class="owner-action owner-action-primary" href="{{ url_for('rentals.owner_location_new') }}" data-vendor-location-create data-stop-nav aria-haspopup="dialog" aria-controls="vendorProductDialog"><i class="bi bi-plus-lg" aria-hidden="true"></i><span>Nouvelle location</span></a>
     </div>
-    <div class="owner-hero-actions">
-      <a class="btn btn-light" href="{{ url_for('rentals.owner_location_new') }}">
-        <i class="bi bi-plus-circle me-1"></i> Nouvelle annonce
-      </a>
-      <a class="btn btn-outline-light" href="{{ archive_url }}">
-        <i class="bi bi-clock-history me-1"></i> Historique location
-      </a>
-    </div>
+  </header>
+  <section class="owner-refresh-stats" data-owner-stats aria-label="Résumé de vos locations">
+    <article class="owner-refresh-stat"><span class="owner-refresh-stat-icon" aria-hidden="true"><i class="bi bi-houses"></i></span><div><span>Annonces</span><strong>{{ pagination.total }}</strong></div></article>
+    <article class="owner-refresh-stat"><span class="owner-refresh-stat-icon is-active" aria-hidden="true"><i class="bi bi-check-circle"></i></span><div><span>Actives</span><strong>{{ active_count }}</strong></div></article>
+    <article class="owner-refresh-stat"><span class="owner-refresh-stat-icon is-expired" aria-hidden="true"><i class="bi bi-clock"></i></span><div><span>Expirées</span><strong>{{ expired_count }}</strong></div></article>
+    <article class="owner-refresh-stat"><span class="owner-refresh-stat-icon" aria-hidden="true"><i class="bi bi-eye"></i></span><div><span>Consultations</span><strong>{{ total_views }}</strong></div></article>
   </section>
-
-  <section class="owner-stats">
-    <article class="owner-stat"><div class="label">Annonces</div><div class="value">{{ pagination.total }}</div></article>
-    <article class="owner-stat"><div class="label">Consultations</div><div class="value">{{ total_views }}</div></article>
-    <article class="owner-stat"><div class="label">Actives</div><div class="value">{{ active_count }}</div></article>
-    <article class="owner-stat"><div class="label">Expirees</div><div class="value">{{ expired_count }}</div></article>
-  </section>
-
-  <section class="owner-layout">
-    <div class="owner-main">
-      <article class="owner-card owner-filters-card">
-        <div class="owner-card-head">
-          <strong>Filtres annonces</strong>
+  <section class="owner-refresh-content" aria-labelledby="ownerListingsTitle">
+    <div class="owner-refresh-toolbar">
+      <h2 id="ownerListingsTitle">Vos annonces <span data-owner-list-count>{{ pagination.total }}</span></h2>
+      <form method="get" action="{{ url_for('rentals.owner_locations') }}" class="owner-filter-form">
+        <div class="owner-search-field">
+          <label for="ownerLocationSearch" class="owner-sr-only">Rechercher par titre, ville ou quartier</label>
+          <i class="bi bi-search" aria-hidden="true"></i>
+          <input id="ownerLocationSearch" type="search" name="q" value="{{ q }}" placeholder="Rechercher une location" autocomplete="off">
         </div>
-        <div class="owner-card-body">
-          <form method="get" class="owner-filter-form">
-            <input class="form-control form-control-sm" type="text" name="q" value="{{ q }}" placeholder="Titre, ville, zone...">
-            {% if shops|length > 1 %}
-            <select class="form-select form-select-sm" name="shop">
-              <option value="">Toutes boutiques</option>
-              {% for shop in shops %}
-                <option value="{{ shop.id }}" {{ 'selected' if selected_shop_id == shop.id else '' }}>{{ shop.name }}</option>
-              {% endfor %}
-            </select>
-            {% else %}
-            <input type="hidden" name="shop" value="{{ selected_shop_id or (shops[0].id if shops else '') }}">
-            {% endif %}
-            <select class="form-select form-select-sm" name="status">
-              <option value="">Tous statuts</option>
-              {% for st in ['active', 'reserved', 'taken', 'expired'] %}
-                <option value="{{ st }}" {{ 'selected' if status == st else '' }}>{{ status_labels.get(st, st) }}</option>
-              {% endfor %}
-            </select>
-            <button type="submit" class="btn btn-success btn-sm">
-              <i class="bi bi-funnel me-1"></i> Filtrer
-            </button>
-            <a href="{{ url_for('rentals.owner_locations') }}" class="btn btn-outline-secondary btn-sm">Reset</a>
-          </form>
-        </div>
-      </article>
-
-      <article class="owner-card owner-listings-card">
-        <div class="owner-card-head">
-          <strong>Annonces en cours</strong>
-          <span class="text-muted small fw-semibold">{{ pagination.total }} resultat(s)</span>
-        </div>
-        <div class="owner-card-body">
-          {% if listings %}
-            <div class="listing-list">
-              {% for listing in listings %}
-                {% set listing_commission = commission_amount_from_owner_fee(listing.owner_fee_cents, settings.rental_success_commission_bps) %}
-                <article class="listing-item">
-                  <div class="listing-top">
-                    <h3 class="listing-title">{{ listing.title }}</h3>
-                    {% set listing_status = listing.status if listing.status in ['active','reserved','taken','expired'] else 'active' %}
-                    <span class="status-pill {{ listing_status }}">{{ status_labels.get(listing_status, listing_status) }}</span>
-                  </div>
-                  <div class="listing-meta">
-                    <span>{{ listing.city }}{% if listing.area %}, {{ listing.area }}{% endif %}</span>
-                    <span>{{ 'Mensuel' if listing.listing_type == 'monthly' else 'Journalier' }} · {{ listing.property_type }}</span>
-                    <span>{{ cents_to_dh(listing.rent_cents) }}</span>
-                  </div>
-                  <div class="listing-meta">
-                    <span><i class="bi bi-eye me-1"></i>{{ listing.view_count }} consultations</span>
-                    <span>Expire: {{ listing.expires_at.strftime('%d/%m/%Y %H:%M') if listing.expires_at else '-' }}</span>
-                    <span>Commission interne: {{ bps_to_percent(settings.rental_success_commission_bps) }}% · {{ cents_to_dh(listing_commission) }}</span>
-                  </div>
-                  <div class="listing-actions">
-                    <a class="btn btn-outline-primary btn-sm listing-action-edit" href="{{ url_for('rentals.owner_location_edit', listing_id=listing.id) }}">
-                      <i class="bi bi-pencil-square me-1"></i> Modifier
-                    </a>
-                    <a class="btn btn-outline-secondary btn-sm listing-action-view" href="{{ url_for('rentals.location_detail', slug=listing.slug) }}" target="_blank">
-                      <i class="bi bi-box-arrow-up-right me-1"></i> Vue client
-                    </a>
-                    {% if listing.status == 'active' %}
-                      <form class="listing-action-reserve" method="post" action="{{ url_for('rentals.owner_location_close', listing_id=listing.id) }}">
-                        {% include "partials/_csrf.html" %}
-                        <input type="hidden" name="status" value="reserved">
-                        <input type="hidden" name="next" value="{{ list_url }}">
-                        <button class="btn btn-outline-warning btn-sm" type="submit">
-                          <i class="bi bi-bookmark-check me-1"></i> Marquer reservee
-                        </button>
-                      </form>
-                    {% endif %}
-                    {% if listing.status != 'taken' %}
-                      <form class="listing-action-taken" method="post" action="{{ url_for('rentals.owner_location_close', listing_id=listing.id) }}">
-                        {% include "partials/_csrf.html" %}
-                        <input type="hidden" name="status" value="taken">
-                        <input type="hidden" name="next" value="{{ list_url }}">
-                        <button class="btn btn-warning btn-sm" type="submit">
-                          <i class="bi bi-check2-circle me-1"></i> Marquer prise
-                        </button>
-                      </form>
-                    {% endif %}
-                    <form class="listing-action-delete" method="post"
-                          action="{{ url_for('rentals.owner_location_delete', listing_id=listing.id) }}"
-                          data-confirm-submit="Supprimer cette annonce ?">
-                      {% include "partials/_csrf.html" %}
-                      <input type="hidden" name="next" value="{{ list_url }}">
-                      <button class="btn btn-outline-danger btn-sm" type="submit">
-                        <i class="bi bi-trash me-1"></i> Supprimer
-                      </button>
-                    </form>
-                  </div>
-                </article>
-              {% endfor %}
-            </div>
-          {% else %}
-            <div class="empty-box">Aucune annonce pour ces filtres.</div>
-          {% endif %}
-          {% if pagination.pages > 1 %}
-            <div class="pagination-wrap">
-              <ul class="pagination pagination-sm mb-0">
-                {% if pagination.has_prev %}
-                  <li class="page-item">
-                    <a class="page-link" href="{{ url_for('rentals.owner_locations', page=pagination.prev_num, q=q, status=status, shop=selected_shop_id) }}">Prec.</a>
-                  </li>
-                {% endif %}
-                {% for p in pagination.iter_pages(left_edge=1, left_current=2, right_current=2, right_edge=1) %}
-                  {% if p %}
-                    <li class="page-item {{ 'active' if p == pagination.page else '' }}">
-                      <a class="page-link" href="{{ url_for('rentals.owner_locations', page=p, q=q, status=status, shop=selected_shop_id) }}">{{ p }}</a>
-                    </li>
-                  {% else %}
-                    <li class="page-item disabled"><span class="page-link">...</span></li>
-                  {% endif %}
-                {% endfor %}
-                {% if pagination.has_next %}
-                  <li class="page-item">
-                    <a class="page-link" href="{{ url_for('rentals.owner_locations', page=pagination.next_num, q=q, status=status, shop=selected_shop_id) }}">Suiv.</a>
-                  </li>
-                {% endif %}
-              </ul>
-            </div>
-          {% endif %}
-        </div>
-      </article>
+        {% if shops|length > 1 %}
+        <label class="owner-sr-only" for="ownerLocationShop">Boutique</label>
+        <select id="ownerLocationShop" name="shop">
+          <option value="">Toutes les boutiques</option>
+          {% for shop in shops %}<option value="{{ shop.id }}"{% if selected_shop_id == shop.id %} selected{% endif %}>{{ shop.name }}</option>{% endfor %}
+        </select>
+        {% else %}<input type="hidden" name="shop" value="{{ selected_shop_id or (shops[0].id if shops else '') }}">{% endif %}
+        <input type="hidden" name="status" value="{{ status }}">
+        <button type="submit" class="owner-action owner-search-submit">Rechercher</button>
+      </form>
     </div>
-
-    <aside class="owner-side">
-      <article class="owner-card owner-side-card owner-shops-card">
-        <div class="owner-card-head">
-          <strong>{{ 'Boutique location' if shops|length <= 1 else 'Boutiques location' }}</strong>
-        </div>
-        <div class="owner-card-body">
-          <div class="shop-list">
-            {% for shop in shops %}
-              {% set stats = shop_stats.get(shop.id, {'count': 0, 'views': 0}) %}
-              <div class="shop-item {{ 'is-primary' if loop.first else '' }}">
-                <div class="name">{{ shop.name }}</div>
-                <div class="meta">{{ stats.count }} annonce(s)</div>
-                <div class="meta"><i class="bi bi-eye me-1"></i>{{ stats.views }} consultations</div>
-              </div>
-            {% endfor %}
-          </div>
-          {% if top_viewed %}
-            <div class="mini-list">
-              {% for item in top_viewed %}
-                <div class="mini-row">
-                  <span>{{ item.title|truncate(34) }}</span>
-                  <span><i class="bi bi-eye me-1"></i>{{ item.view_count }}</span>
-                </div>
-              {% endfor %}
-            </div>
-          {% endif %}
-        </div>
-      </article>
-
-      <article class="owner-card owner-side-card owner-history-card">
-        <div class="owner-card-head">
-          <strong>Historique location</strong>
-        </div>
-        <div class="owner-card-body">
-          <div class="archive-teaser">
-            <div class="value">{{ owner_history_count }}</div>
-            <div class="hint">{{ owner_history_days }} derniers jours</div>
-            <div class="hint">Derniere trace:
-              {% if latest_archive_at %}
-                {{ latest_archive_at.strftime('%d/%m/%Y %H:%M') }}
-              {% else %}
-                -
-              {% endif %}
-            </div>
-            <a class="btn btn-primary btn-sm archive-open-btn" href="{{ archive_url }}">
-              <i class="bi bi-clock-history me-1"></i> Ouvrir l'historique
-            </a>
-          </div>
-        </div>
-      </article>
-    </aside>
+    <nav class="owner-status-filters" data-owner-status-filters aria-label="Filtrer les annonces par statut">
+      <a href="{{ url_for('rentals.owner_locations', q=q, shop=selected_shop_id) }}" class="owner-status-filter{% if not status %} is-selected{% endif %}"{% if not status %} aria-current="page"{% endif %}>Toutes</a>
+      {% for st in ['active', 'reserved', 'taken', 'expired'] %}
+      <a href="{{ url_for('rentals.owner_locations', q=q, status=st, shop=selected_shop_id) }}" class="owner-status-filter{% if status == st %} is-selected{% endif %}"{% if status == st %} aria-current="page"{% endif %}>{{ {'active': 'Actives', 'reserved': 'Réservées', 'taken': 'Louées', 'expired': 'Expirées'}[st] }}</a>
+      {% endfor %}
+    </nav>
+    <p class="owner-refresh-status" data-owner-status role="status" aria-live="polite" aria-atomic="true"></p>
+    <div data-owner-results>
+    {% include "locations/partials/_owner_listing_cards.html" %}
+    {% if pagination.pages > 1 %}
+    <nav class="owner-refresh-pagination" aria-label="Pages des annonces">
+      {% if pagination.has_prev %}<a href="{{ url_for('rentals.owner_locations', page=pagination.prev_num, q=q, status=status, shop=selected_shop_id) }}" aria-label="Page précédente"><i class="bi bi-chevron-left" aria-hidden="true"></i></a>{% endif %}
+      {% for p in pagination.iter_pages(left_edge=1, left_current=1, right_current=1, right_edge=1) %}
+      {% if p %}<a href="{{ url_for('rentals.owner_locations', page=p, q=q, status=status, shop=selected_shop_id) }}"{% if p == pagination.page %} aria-current="page"{% endif %}>{{ p }}</a>{% else %}<span aria-hidden="true">…</span>{% endif %}
+      {% endfor %}
+      {% if pagination.has_next %}<a href="{{ url_for('rentals.owner_locations', page=pagination.next_num, q=q, status=status, shop=selected_shop_id) }}" aria-label="Page suivante"><i class="bi bi-chevron-right" aria-hidden="true"></i></a>{% endif %}
+    </nav>
+    {% endif %}
+    </div>
   </section>
 </div>
 {% set report_issue_endpoint = 'rentals.owner_support_whatsapp' %}
@@ -223,5 +70,13 @@
 {% set report_issue_scope_label = 'Support location' %}
 {% set report_issue_scope_key = 'location' %}
 {% include "partials/_support_issue_fab.html" %}
+{% endblock %}
+{% block scripts %}
+{{ super() }}
+{% set vendor_dialog_type = 'location' %}
+{% set vendor_dialog_title = 'Nouvelle location' %}
+{% include "vendor/partials/_product_create_dialog.html" %}
+<script src="{{ url_for('static', filename='js/vendor/vendor_product_modal.js', v=app_static_version ~ '-create-v3') }}" defer></script>
+<noscript><p><a href="{{ url_for('rentals.owner_location_new', standalone=1) }}">Ouvrir le formulaire de location</a></p></noscript>
 {% endblock %}
 

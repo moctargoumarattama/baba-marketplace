@@ -1,3 +1,4 @@
+from datetime import datetime
 import re
 
 from flask import abort, flash, redirect, request, url_for
@@ -5,6 +6,33 @@ from flask import abort, flash, redirect, request, url_for
 from ..models.shop import Shop, normalize_shop_type
 
 PUBLIC_SHOP_SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,99}$")
+
+RESERVED_ROOT_SHOP_SLUGS = {
+    "admin",
+    "admin-access",
+    "apple-touch-icon.png",
+    "api",
+    "booking",
+    "cart",
+    "delivery",
+    "health",
+    "lang",
+    "location",
+    "locations",
+    "login",
+    "logout",
+    "manifest.json",
+    "maintenance",
+    "register",
+    "search",
+    "shop",
+    "shops",
+    "signin",
+    "signup",
+    "sitemap.xml",
+    "sw.js",
+    "vendor",
+}
 
 
 def normalize_public_shop_slug(value: str | None) -> str:
@@ -18,6 +46,20 @@ def is_safe_public_shop_slug(value: str | None, *, reserved: set[str] | None = N
     if reserved and slug in reserved:
         return False
     return bool(PUBLIC_SHOP_SLUG_RE.fullmatch(slug))
+
+
+def shop_is_currently_open(shop: Shop | None, *, default_if_missing: bool = False) -> bool:
+    if not shop:
+        return default_if_missing
+    if getattr(shop, "is_active", True) is False:
+        return False
+    now = datetime.utcnow()
+    closed_until = getattr(shop, "closed_until", None)
+    if closed_until and closed_until > now:
+        return False
+    if hasattr(shop, "is_open_now") and callable(getattr(shop, "is_open_now")):
+        return bool(shop.is_open_now())
+    return bool(getattr(shop, "is_open", True))
 
 
 def _wants_json_response() -> bool:

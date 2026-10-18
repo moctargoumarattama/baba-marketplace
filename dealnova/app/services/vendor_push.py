@@ -174,18 +174,6 @@ def send_vendor_push_notification(vendor_id: int, payload: dict) -> int:
     return sent
 
 
-def notify_vendor_new_order(vendor_id: int, *, order_id: int, amount_cents: int = 0, items_count: int = 0) -> int:
-    amount_mad = max(0, int(amount_cents or 0)) / 100
-    return send_vendor_push_notification(
-        vendor_id,
-        {
-            "type": "vendor_order",
-            "title": "Nouvelle commande",
-            "body": f"Commande #{order_id} - {items_count} article(s), {amount_mad:.2f} MAD",
-            "url": url_for("vendor.dashboard", _external=False),
-            "tag": f"vendor-order-{order_id}",
-        },
-    )
 
 
 def notify_product_contact_leads(checkout_data: dict) -> int:

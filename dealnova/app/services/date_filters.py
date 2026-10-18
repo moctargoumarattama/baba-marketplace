@@ -100,6 +100,3 @@ def resolve_date_filter(
         label=label,
     )
 
-
-def apply_date_filter(query, column, date_filter: DateFilter):
-    return query.filter(column >= date_filter.start_at, column < date_filter.end_at)

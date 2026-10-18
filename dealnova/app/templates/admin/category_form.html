@@ -1,4 +1,4 @@
-﻿{% extends "admin/base.html" %}
+{% extends "admin/base.html" %}
 {% block title %}{{ category.name if category else 'Nouvelle catégorie' }} | Admin DealNova{% endblock %}
 {% block page_title %}{{ category.name if category else 'Nouvelle catégorie' }}{% endblock %}
 
@@ -121,7 +121,7 @@
   </section>
 
   <form method="POST" class="category-card">
-    {% include "admin/partials/_csrf.html" %}
+    {% include "partials/_csrf.html" %}
 
     {% set selected_type = category.normalized_type if category else 'products' %}
     <div class="field-grid">

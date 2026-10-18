@@ -1,4 +1,4 @@
-﻿<section class="shops-card adm-listing" data-adm-listing="shops">
+<section class="shops-card adm-listing" data-adm-listing="shops">
   <div class="shops-card-header">
     <h5>Boutiques ({{ pagination.total }})</h5>
     <span class="text-muted">{{ 'Page' if current_user.role == 'manager' else 'Page' }} {{ pagination.page }} {{ 'sur' if current_user.role == 'manager' else 'sur' }} {{ pagination.pages }}</span>
@@ -87,7 +87,7 @@
                     data-ajax="true"
                     data-action="toggle-shop"
                     data-confirm="{{ 'Voulez-vous changer le statut de cette boutique ?' if current_user.role == 'manager' else 'Voulez-vous activer/desactiver cette boutique ?' }}">
-                {% include "admin/partials/_csrf.html" %}
+                {% include "partials/_csrf.html" %}
                 <button type="submit"
                         class="btn btn-outline-{{ 'danger' if shop.is_active else 'success' }}"
                         data-active-text="Desactiver"
@@ -107,7 +107,7 @@
                     data-action="delete-shop"
                     data-confirm="Confirmation suppression definitive :&#10;- Le nom sera garde dans l'historique suppression&#10;- Cette action est irreversible&#10;&#10;Supprimer cette boutique ?"
                     data-remove-target="tr">
-                {% include "admin/partials/_csrf.html" %}
+                {% include "partials/_csrf.html" %}
                 <button type="submit"
                         class="btn btn-outline-danger"
                         data-loading-text="<span class='spinner-border spinner-border-sm' role='status' aria-hidden='true'></span>"

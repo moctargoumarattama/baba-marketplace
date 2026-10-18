@@ -181,7 +181,7 @@
               <td>
                 {% if req.status == 'pending' %}
                 <form method="post" class="d-grid gap-2">
-                  {% include "admin/partials/_csrf.html" %}
+                  {% include "partials/_csrf.html" %}
                   <input type="text" name="note" class="form-control form-control-sm" maxlength="500" placeholder="Note interne ou motif si vous refusez">
                   <div class="d-flex flex-wrap gap-2">
                     <button type="submit" formaction="{{ url_for('admin_users.vendor_change_request_approve', request_id=req.id) }}" class="btn btn-sm btn-success">

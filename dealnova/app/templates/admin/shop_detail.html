@@ -1,4 +1,4 @@
-﻿{% extends "admin/base.html" %}
+{% extends "admin/base.html" %}
 
 {% block title %}Boutique: {{ shop.name }} | DealNova Admin{% endblock %}
 
@@ -59,7 +59,7 @@
                                         data-ajax="true"
                                         data-action="toggle-shop"
                                         data-confirm="Voulez-vous changer l'etat de cette boutique ?">
-                                    {% include "admin/partials/_csrf.html" %}
+                                    {% include "partials/_csrf.html" %}
                                     <button type="submit"
                                             class="btn btn-outline-{{ 'danger' if shop.is_active else 'success' }}"
                                             data-active-text="Fermer"
@@ -79,7 +79,7 @@
                                       data-action="delete-shop"
                                       data-confirm="Confirmation suppression definitive :&#10;- Le nom sera garde dans l'historique suppression&#10;- Cette action est irreversible&#10;&#10;Supprimer cette boutique ?"
                                       data-redirect="true">
-                                    {% include "admin/partials/_csrf.html" %}
+                                    {% include "partials/_csrf.html" %}
                                     <button type="submit"
                                             class="btn btn-outline-danger"
                                             data-loading-text="<span class='spinner-border spinner-border-sm me-1' role='status' aria-hidden='true'></span>Suppression..."
@@ -209,7 +209,7 @@
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <form method="post" action="{{ url_for('admin_users.update_shop', shop_id=shop.id) }}">
-              {% include "admin/partials/_csrf.html" %}
+              {% include "partials/_csrf.html" %}
                 <div class="modal-header">
                     <h5 class="modal-title">Modifier la boutique</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>

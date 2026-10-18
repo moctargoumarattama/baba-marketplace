@@ -1,4 +1,4 @@
-﻿(function () {
+(function () {
   "use strict";
 
   if (window.__BM_PAGE_LOADER_INIT__) return;
@@ -11,7 +11,6 @@
   }
 
   var SHARED = {
-    coreCart: "js/core/core_cart.js",
     coreLive: "js/core/core_live.js",
     liveShim: "js/live.js",
     ajaxPagination: "js/ajax_pagination.js",
@@ -32,63 +31,7 @@
     SHARED.adminForms,
   ];
 
-  var VENDOR_STACK = [
-    SHARED.coreLive,
-    SHARED.liveShim,
-    SHARED.ajaxPagination,
-    SHARED.featurePagination,
-    SHARED.featureForms,
-    SHARED.featurePolling,
-  ];
-
   var PAGE_SCRIPT_MAP = {
-    "shop.home": [
-      SHARED.coreCart,
-      SHARED.coreLive,
-      SHARED.liveShim,
-      SHARED.ajaxPagination,
-      SHARED.featurePagination,
-      SHARED.featureForms,
-      SHARED.featurePolling,
-    ],
-    global_search: [
-      SHARED.coreCart,
-      SHARED.coreLive,
-      SHARED.liveShim,
-      SHARED.ajaxPagination,
-      SHARED.featurePagination,
-      SHARED.featureForms,
-    ],
-    "shops.list_shops": [
-      SHARED.coreCart,
-      SHARED.coreLive,
-      SHARED.liveShim,
-      SHARED.ajaxPagination,
-      SHARED.featurePagination,
-      SHARED.featureForms,
-    ],
-    "shops.shop_detail": [
-      SHARED.coreCart,
-      SHARED.coreLive,
-      SHARED.liveShim,
-      SHARED.ajaxPagination,
-      SHARED.featurePagination,
-      SHARED.featureForms,
-      SHARED.featurePolling,
-    ],
-    "shop.product_detail": [
-      SHARED.coreCart,
-      SHARED.coreLive,
-      SHARED.liveShim,
-      SHARED.featureForms,
-    ],
-    "cart.view": [SHARED.coreCart, SHARED.coreLive, SHARED.liveShim, SHARED.featureForms],
-    "cart.checkout": [SHARED.coreCart, SHARED.coreLive, SHARED.liveShim, SHARED.featureForms],
-    "vendor.dashboard": VENDOR_STACK,
-    "vendor.earnings": VENDOR_STACK,
-    "vendor.manage_shop": [SHARED.coreLive, SHARED.liveShim, SHARED.featureForms],
-    "vendor.product_new": [SHARED.coreLive, SHARED.liveShim, SHARED.featureForms],
-    "vendor.product_edit": [SHARED.coreLive, SHARED.liveShim, SHARED.featureForms],
     "admin.product_contacts": ADMIN_STACK,
     "admin_users.fraud_monitor": ADMIN_STACK,
     "admin_users.catalog_quality": ADMIN_STACK,
@@ -130,11 +73,7 @@
     var hasAjaxForms = !!document.querySelector('form[data-ajax="true"], form[data-adm-ajax="1"], [data-adm-action="post"]');
     var hasAjaxPagination = !!document.querySelector('[data-ajax-pagination], [data-ajax-listing], [data-adm-pager], [data-adm-listing]');
     var hasPollingHint = !!document.querySelector('[data-live], [data-orders-live-url], [data-notify-url], [data-track-poll]');
-    var hasCartHint = !!document.querySelector('[data-nav-badges], [data-cart-badge], [data-drawer-cart-badge], [data-track-badge], [data-track-icon]');
 
-    if (!ctx.isAdmin && !ctx.isVendor && hasCartHint) {
-      pushAssets(list, [SHARED.coreCart]);
-    }
     if (hasAjaxForms || hasPollingHint) {
       pushAssets(list, [SHARED.coreLive, SHARED.liveShim, SHARED.featureForms]);
     }
@@ -152,7 +91,6 @@
     var admPageId = normalize(body && body.dataset ? body.dataset.admPage : "");
     var path = normalize(window.location && window.location.pathname ? window.location.pathname : "");
     var isAdmin = !!(body && body.dataset && body.dataset.admin === "1");
-    var isVendor = pageId.indexOf("vendor.") === 0 || path.indexOf("/vendor") === 0;
 
     return {
       body: body,
@@ -160,7 +98,6 @@
       admPageId: admPageId,
       path: path,
       isAdmin: isAdmin,
-      isVendor: isVendor,
     };
   }
 
@@ -169,10 +106,6 @@
 
     pushAssets(list, PAGE_SCRIPT_MAP[ctx.pageId]);
     pushAssets(list, ADM_PAGE_SCRIPT_MAP[ctx.admPageId]);
-
-    if (!list.length && ctx.isVendor) {
-      pushAssets(list, VENDOR_STACK);
-    }
 
     collectHintAssets(ctx, list);
     return list;

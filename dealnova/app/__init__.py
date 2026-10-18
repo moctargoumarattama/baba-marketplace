@@ -3,25 +3,21 @@ import re
 import secrets
 import sqlite3
 import click
-from datetime import datetime
 from flask import Flask, render_template, session, request, redirect, url_for, flash, jsonify, current_app, g, Response, make_response
 from flask_compress import Compress
 from urllib.parse import urlparse, urljoin
 from werkzeug.middleware.proxy_fix import ProxyFix
 from flask_wtf.csrf import generate_csrf, validate_csrf
 from wtforms.validators import ValidationError
-from sqlalchemy import event, or_, case
+from sqlalchemy import event
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import NoSuchColumnError, OperationalError, ResourceClosedError
-from sqlalchemy.orm import load_only
 from .config import Config
 from .extensions import db, login_manager, migrate
 from .models.user import User
 from .models.product import Product
 from .models.shop import Shop
-from .models.rental import RentalListing, RentalMedia
-from .models.featured_item import FeaturedItem
-from .models.product_contact_lead import ProductContactLead
+from .models.rental import RentalListing
 from .routes import auth, shop, vendor, cart, booking, admin, admin_categories, admin_users, rentals
 from .assistant import bp as assistant_bp
 from .services.logging_service import logging_service
@@ -802,30 +798,8 @@ def create_app(config_class=Config):
             safe_session_rollback()
         discard_db_session()
 
-    #  IMPORTATION DES BLUEPRINTS EXISTANTS
-    fail_fast_critical_blueprints = bool(app.config.get("FAIL_FAST_CRITICAL_BLUEPRINTS", False))
-    try:
-        from .routes.shops import bp as shops_bp
-        has_shops = True
-    except ImportError as exc:
-        if fail_fast_critical_blueprints:
-            raise RuntimeError("Critical blueprint missing: app.routes.shops") from exc
-        app.logger.warning("Module shops non trouve, mode degrade active")
-        from flask import Blueprint
-        shops_bp = Blueprint("shops", __name__)
-        has_shops = False
-
-    try:
-        from .routes.api import bp as api_bp
-        has_api = True
-    except ImportError as exc:
-        if fail_fast_critical_blueprints:
-            raise RuntimeError("Critical blueprint missing: app.routes.api") from exc
-        app.logger.warning("Module API non trouve, mode degrade active")
-        from flask import Blueprint
-        api_bp = Blueprint("api", __name__)
-        has_api = False
-
+    from .routes.api import bp as api_bp
+    from .routes.shops import bp as shops_bp
 
     # Blueprints
     app.register_blueprint(auth.bp, url_prefix="/")
@@ -838,21 +812,8 @@ def create_app(config_class=Config):
     app.register_blueprint(admin_categories.bp)
     app.register_blueprint(admin_users.bp)  # Blueprint deja prefixe /admin
     app.register_blueprint(assistant_bp)
-
-    #  ENREGISTRER LES AUTRES BLUEPRINTS
-    if has_shops:
-        app.register_blueprint(shops_bp, url_prefix="/")
-    else:
-        # Crer une route par dfaut pour shops
-        @app.route("/shops")
-        def list_shops_fallback():
-            from .models.shop import Shop
-            shops = Shop.query.filter_by(is_active=True).all()
-            return render_template("shop/shops.html", shops=shops)
-
-    if has_api:
-        app.register_blueprint(api_bp)  # Blueprint deja prefixe /api
-
+    app.register_blueprint(shops_bp, url_prefix="/")
+    app.register_blueprint(api_bp)  # Blueprint deja prefixe /api
 
     # Compat: anciens liens /admin/admin/* -> /admin/*
     @app.route("/admin/admin/<path:subpath>")
@@ -940,11 +901,7 @@ def create_app(config_class=Config):
             f"archives_purged={result.get('purged_archives', 0)}"
         )
 
-    @app.cli.command("cleanup")
-    @click.option("--mode", type=click.Choice(["quick", "full"]), default="quick", show_default=True)
-    @click.option("--days", type=int, default=6, show_default=True)
-    def cleanup_command(mode: str, days: int):
-        """Commande de nettoyage hors runtime web (a lancer via CLI)."""
+    def _run_cli_maintenance_cleanup(mode: str, days: int, label: str) -> None:
         from .services.maintenance import run_and_store_maintenance_report
 
         safe_days = max(1, min(365, int(days)))
@@ -952,7 +909,7 @@ def create_app(config_class=Config):
         cleanup = report.get("cleanup", {})
         health = report.get("health", {})
         click.echo(
-            "cleanup => "
+            f"{label} => "
             f"mode={report.get('mode')}, "
             f"days={safe_days}, "
             f"files_deleted={cleanup.get('files_deleted', 0)}, "
@@ -973,40 +930,20 @@ def create_app(config_class=Config):
             click.echo("Errors:")
             for err in errors[:20]:
                 click.echo(f"- {err}")
+
+    @app.cli.command("cleanup")
+    @click.option("--mode", type=click.Choice(["quick", "full"]), default="quick", show_default=True)
+    @click.option("--days", type=int, default=6, show_default=True)
+    def cleanup_command(mode: str, days: int):
+        """Commande de nettoyage hors runtime web (a lancer via CLI)."""
+        _run_cli_maintenance_cleanup(mode=mode, days=days, label="cleanup")
 
     @app.cli.command("maintenance_cleanup")
     @click.option("--mode", type=click.Choice(["quick", "full"]), default="quick", show_default=True)
     @click.option("--days", type=int, default=6, show_default=True)
     def maintenance_cleanup_command(mode: str, days: int):
         """Nettoyage maintenance: quick/full."""
-        from .services.maintenance import run_and_store_maintenance_report
-
-        safe_days = max(1, min(365, int(days)))
-        report = run_and_store_maintenance_report(mode=mode, expired_days=safe_days)
-        cleanup = report.get("cleanup", {})
-        health = report.get("health", {})
-        click.echo(
-            "maintenance_cleanup => "
-            f"mode={report.get('mode')}, "
-            f"days={safe_days}, "
-            f"files_deleted={cleanup.get('files_deleted', 0)}, "
-            f"orphans_removed={cleanup.get('orphan_media_removed', 0)}, "
-            f"locations_purged={cleanup.get('locations_purged', 0)}, "
-            f"cache_cleared={cleanup.get('cache_cleared', False)}, "
-            f"sessions_deleted={cleanup.get('sessions_deleted', 0)}, "
-            f"error_logs_purged={cleanup.get('error_logs_purged', 0)}, "
-            f"uploads_size={health.get('uploads_size', 'N/A')}, "
-            f"expired_locations={health.get('expired_locations_gt_days', 'N/A')}, "
-            f"db_engine={health.get('db_engine', 'N/A')}, "
-            f"persisted={report.get('persisted', False)}"
-        )
-        errors = (cleanup.get("errors") or []) + (health.get("errors") or [])
-        if not report.get("persisted", False):
-            click.echo(f"Persist warning: {report.get('persist_error', 'unknown')}")
-        if errors:
-            click.echo("Errors:")
-            for err in errors[:20]:
-                click.echo(f"- {err}")
+        _run_cli_maintenance_cleanup(mode=mode, days=days, label="maintenance_cleanup")
 
     @app.cli.group("maintenance")
     def maintenance_mode_group():

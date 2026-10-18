@@ -1,12 +1,12 @@
 from datetime import datetime, timedelta
+from decimal import Decimal, InvalidOperation
 from urllib.parse import quote
 
-from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, url_for
+from flask import Blueprint, abort, current_app, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from slugify import slugify
 from sqlalchemy import func, or_
 from sqlalchemy.orm import load_only, selectinload
-from sqlalchemy.exc import SQLAlchemyError
 from ..extensions import db
 from ..models.audit import AuditLog
 from ..models.platform_settings import PlatformSettings
@@ -14,6 +14,7 @@ from ..models.rental import RentalArchive, RentalListing, RentalMedia, rental_du
 from ..models.shop import Shop
 from ..models.user import User
 from ..services.audit import log_access
+from ..services.db_session import safe_session_rollback
 from ..services.pagination import paginate_with_clamped_page, page_from_args
 from ..services.date_filters import resolve_date_filter
 from ..services.shop_access import ensure_shop_allows, ensure_vendor_allows
@@ -27,6 +28,8 @@ from ..services.rentals import (
     MAX_IMAGE_BYTES,
     MAX_IMAGE_COUNT,
     MAX_VIDEO_BYTES,
+    IMAGE_EXTENSIONS,
+    VIDEO_EXTENSIONS,
     archive_and_remove_listing,
     cents_to_dh,
     commission_amount_from_owner_fee,
@@ -40,6 +43,71 @@ from ..services.vendor_push import notify_location_inquiry
 
 bp = Blueprint("rentals", __name__)
 OWNER_LOCATION_HISTORY_DAYS = 7
+
+
+def _is_location_form_modal_request() -> bool:
+    modes = {"rentals.owner_location_new": "location-create", "rentals.owner_location_edit": "location-edit"}
+    return request.endpoint in modes and request.headers.get("X-Vendor-Modal") == modes[request.endpoint]
+
+
+def _location_form_json(payload: dict, status: int = 200):
+    response = jsonify(payload)
+    response.status_code = status
+    response.headers["Cache-Control"] = "private, no-store, max-age=0"
+    response.headers["Vary"] = "Cookie, X-Vendor-Modal"
+    return response
+
+
+@bp.before_request
+def guard_location_form_modal():
+    if not _is_location_form_modal_request():
+        return None
+    if not current_user.is_authenticated:
+        listing_id = (request.view_args or {}).get("listing_id")
+        target = url_for("rentals.owner_locations", edit_location=listing_id) if listing_id else url_for("rentals.owner_locations", new="location")
+        return _location_form_json({
+            "success": False,
+            "message": "Votre session a expiré. Connectez-vous pour continuer.",
+            "redirect_url": url_for("auth.login", next=target),
+        }, 401)
+    if getattr(current_user, "role", None) != "vendor":
+        return _location_form_json({"success": False, "message": "Accès réservé aux propriétaires."}, 403)
+
+
+def _location_form_cents(value: str | None, *, required: bool = True) -> int | None:
+    raw = (value or "").strip().replace(",", ".")
+    if not raw:
+        if required:
+            raise ValueError("Saisissez un montant.")
+        return None
+    try:
+        amount = Decimal(raw)
+        if not amount.is_finite() or amount < 0 or amount > Decimal("21474836.47"):
+            raise ValueError("amount_invalid")
+        if amount != amount.quantize(Decimal("0.01")):
+            raise ValueError("amount_precision_invalid")
+        return int(amount * 100)
+    except (InvalidOperation, TypeError, ValueError, OverflowError) as exc:
+        raise ValueError("Saisissez un montant positif ou nul avec au maximum 2 décimales.") from exc
+
+
+def _location_upload_size(file_obj) -> int:
+    try:
+        position = file_obj.stream.tell()
+        file_obj.stream.seek(0, 2)
+        size = int(file_obj.stream.tell())
+        file_obj.stream.seek(position)
+        return size
+    except (OSError, ValueError, AttributeError) as exc:
+        raise ValueError("Impossible de lire ce fichier. Sélectionnez-le à nouveau.") from exc
+
+
+def _cleanup_location_files(saved_files: list[str]) -> None:
+    for relative_path in saved_files:
+        try:
+            delete_static_file(relative_path)
+        except Exception:
+            current_app.logger.exception("rental.form.media_cleanup_failed")
 
 
 def _is_ajax_request() -> bool:
@@ -203,116 +271,6 @@ def _owner_shops(owner_id: int, location_only: bool = False):
     return query.order_by(Shop.name.asc()).all()
 
 
-def _media_name_sample(names: list[str], limit: int = 2) -> str:
-    cleaned = [str(name or "").strip() for name in names if str(name or "").strip()]
-    if not cleaned:
-        return ""
-    sample = cleaned[:limit]
-    suffix = ""
-    if len(cleaned) > limit:
-        suffix = f" +{len(cleaned) - limit}"
-    return ", ".join(sample) + suffix
-
-
-def _save_uploaded_rental_images(
-    files,
-    *,
-    remaining_slots: int,
-    saved_files: list[str],
-):
-    saved_rel_paths: list[str] = []
-    skipped_invalid: list[str] = []
-    skipped_overflow: list[str] = []
-    slots_left = max(0, int(remaining_slots))
-
-    for file_obj in files or []:
-        if not file_obj or not (getattr(file_obj, "filename", "") or "").strip():
-            continue
-        original_name = str(getattr(file_obj, "filename", "") or "").strip()
-
-        if len(saved_rel_paths) >= slots_left:
-            skipped_overflow.append(original_name)
-            continue
-
-        try:
-            image_rel = save_rental_image(file_obj)
-            saved_rel_paths.append(image_rel)
-            saved_files.append(image_rel)
-        except ValueError as exc:
-            current_app.logger.warning(
-                "rental.image_rejected owner_id=%s filename=%s reason=%s",
-                getattr(current_user, "id", None),
-                original_name,
-                exc,
-            )
-            skipped_invalid.append(original_name)
-
-    return saved_rel_paths, skipped_invalid, skipped_overflow
-
-
-def _save_uploaded_rental_video(
-    file_obj,
-    *,
-    has_existing_video: bool,
-    saved_files: list[str],
-):
-    if not file_obj or not (getattr(file_obj, "filename", "") or "").strip():
-        return None, None
-
-    original_name = str(getattr(file_obj, "filename", "") or "").strip()
-    if has_existing_video:
-        return None, f"video ignoree ({original_name}) : supprimez la video actuelle avant d'en ajouter une nouvelle"
-
-    try:
-        video_rel = save_rental_video(file_obj)
-        saved_files.append(video_rel)
-        return video_rel, None
-    except ValueError as exc:
-        current_app.logger.warning(
-            "rental.video_rejected owner_id=%s filename=%s reason=%s",
-            getattr(current_user, "id", None),
-            original_name,
-            exc,
-        )
-        return None, f"video ignoree ({original_name}) : {exc}"
-
-
-def _flash_rental_media_notice(
-    *,
-    skipped_invalid_images: list[str],
-    skipped_overflow_images: list[str],
-    video_notice: str | None,
-):
-    notes: list[str] = []
-    if skipped_invalid_images:
-        sample = _media_name_sample(skipped_invalid_images)
-        detail = f" ({sample})" if sample else ""
-        notes.append(
-            f"{len(skipped_invalid_images)} photo(s) rejetee(s) car invalides, trop lourdes ou illisibles{detail}"
-        )
-    if skipped_overflow_images:
-        sample = _media_name_sample(skipped_overflow_images)
-        detail = f" ({sample})" if sample else ""
-        notes.append(
-            f"{len(skipped_overflow_images)} photo(s) ignoree(s) car la limite est de {MAX_IMAGE_COUNT}{detail}"
-        )
-    if video_notice:
-        notes.append(video_notice)
-    if notes:
-        flash("Medias partiellement acceptes : " + " ; ".join(notes) + ".", "warning")
-
-
-def _listing_owner_view(listing: RentalListing):
-    media = listing.media or []
-    images = [m for m in media if m.kind == "image"]
-    videos = [m for m in media if m.kind == "video"]
-    return {
-        "listing": listing,
-        "images": images,
-        "videos": videos,
-    }
-
-
 @bp.route("/locations")
 def locations_home():
     if not (request.headers.get("X-Requested-With") in ("fetch", "XMLHttpRequest") or "application/json" in (request.headers.get("Accept") or "")):
@@ -388,9 +346,8 @@ def locations_home():
     listings = pagination.items
     has_active_filters = bool(q or listing_type or property_type or city_area or price_min or price_max)
 
-    template_name = "partials/_locations_listing.html" if _is_ajax_request() else "locations/index.html"
     return render_template(
-        template_name,
+        "partials/_locations_listing.html",
         listings=listings,
         pagination=pagination,
         q=q,
@@ -709,320 +666,268 @@ def owner_locations_archives():
 @bp.route("/owner/location/new", methods=["GET", "POST"])
 @login_required
 def owner_location_new():
-    guard = _owner_required()
-    if guard:
-        return guard
-    access_guard = ensure_vendor_allows(
-        current_user,
-        "location",
-        fallback_endpoint="vendor.manage_shop",
-        strict_forbidden=True,
-    )
-    if access_guard:
-        return access_guard
-
-    shops = _owner_shops(current_user.id, location_only=True)
-    if not shops:
-        flash("Aucune boutique autorisée pour Location.", "warning")
-        return redirect(url_for("vendor.manage_shop"))
-
-    settings = PlatformSettings.get()
-
-    if request.method == "POST":
-        saved_files: list[str] = []
-        try:
-            title = (request.form.get("title") or "").strip()
-            description = (request.form.get("description") or "").strip()
-            listing_type = (request.form.get("listing_type") or "").strip().lower()
-            property_type = (request.form.get("property_type") or "").strip().lower()
-            city = (request.form.get("city") or "").strip()
-            area = (request.form.get("area") or "").strip()
-            shop_id = request.form.get("shop_id", type=int)
-
-            if not title or len(title) < 6:
-                raise ValueError("Titre trop court.")
-            if listing_type not in ("monthly", "daily"):
-                raise ValueError("Type d'annonce invalide.")
-            if property_type not in ("room", "apartment", "studio", "store"):
-                raise ValueError("Type de bien invalide.")
-            if not city:
-                raise ValueError("Ville obligatoire.")
-
-            owner_shop_ids = {s.id for s in shops}
-            if not shop_id or shop_id not in owner_shop_ids:
-                raise ValueError("Boutique invalide.")
-
-            rent_cents = _to_cents(request.form.get("rent"), "Loyer")
-
-            deposit_required = (request.form.get("deposit_required") or "0") == "1"
-            deposit_cents = None
-            if deposit_required:
-                deposit_cents = _to_cents(request.form.get("deposit"), "Caution")
-
-            owner_fee_cents = _to_cents(request.form.get("owner_fee"), "Frais propriétaire", required=False)
-            owner_fee_text = (request.form.get("owner_fee_text") or "").strip()
-            if len(owner_fee_text) > 255:
-                raise ValueError("Texte frais propriétaire trop long (max 255 caractères).")
-
-            created_at = datetime.utcnow()
-            duration_days = rental_duration_days_for_type(listing_type, settings=settings)
-            listing = RentalListing(
-                owner_id=current_user.id,
-                shop_id=shop_id,
-                title=title,
-                slug=_build_listing_slug(title),
-                description=description,
-                listing_type=listing_type,
-                property_type=property_type,
-                city=city,
-                area=area or None,
-                rent_cents=rent_cents or 0,
-                currency="MAD",
-                deposit_required=deposit_required,
-                deposit_cents=deposit_cents,
-                owner_fee_cents=owner_fee_cents,
-                owner_fee_text=owner_fee_text or None,
-                owner_fee_negotiable=False,
-                platform_commission_mode="success_commission",
-                platform_commission_rate_bps=int(settings.rental_success_commission_bps or 0),
-                platform_commission_fixed_cents=0,
-                status="active",
-                is_active=True,
-                created_at=created_at,
-                expires_at=created_at + timedelta(days=duration_days),
-            )
-            db.session.add(listing)
-            db.session.flush()
-
-            image_files = [f for f in request.files.getlist("images") if f and f.filename]
-            new_images, skipped_invalid_images, skipped_overflow_images = _save_uploaded_rental_images(
-                image_files,
-                remaining_slots=MAX_IMAGE_COUNT,
-                saved_files=saved_files,
-            )
-            for image_rel in new_images:
-                db.session.add(RentalMedia(listing_id=listing.id, kind="image", file_path=image_rel))
-
-            video_file = request.files.get("video")
-            video_rel, video_notice = _save_uploaded_rental_video(
-                video_file,
-                has_existing_video=False,
-                saved_files=saved_files,
-            )
-            if video_rel:
-                db.session.add(RentalMedia(listing_id=listing.id, kind="video", file_path=video_rel))
-
-            db.session.commit()
-            log_access(
-                "create_rental_listing",
-                "rental_listing",
-                listing.id,
-                success=True,
-                changes={"shop_id": listing.shop_id, "listing_type": listing.listing_type},
-            )
-            flash("Annonce location créée.", "success")
-            _flash_rental_media_notice(
-                skipped_invalid_images=skipped_invalid_images,
-                skipped_overflow_images=skipped_overflow_images,
-                video_notice=video_notice,
-            )
-            return redirect(url_for("rentals.owner_locations"))
-        except ValueError as exc:
-            db.session.rollback()
-            for rel_path in saved_files:
-                delete_static_file(rel_path)
-            current_app.logger.warning(f"Validation error creating listing: {exc}")
-            flash(str(exc), "warning")
-        except SQLAlchemyError as e:
-            db.session.rollback()
-            for rel_path in saved_files:
-                delete_static_file(rel_path)
-            current_app.logger.error(f"Database error creating listing: {e}")
-            flash("Erreur base de données lors de la création.", "danger")
-        except Exception as e:
-            db.session.rollback()
-            for rel_path in saved_files:
-                delete_static_file(rel_path)
-            current_app.logger.exception(f"Unexpected error creating listing: {e}")
-            flash("Erreur inattendue lors de la création.", "danger")
-
-    return render_template(
-        "locations/owner_form.html",
-        listing=None,
-        shops=shops,
-        max_images=MAX_IMAGE_COUNT,
-        max_image_mb=int(MAX_IMAGE_BYTES / 1024 / 1024),
-        max_video_mb=int(MAX_VIDEO_BYTES / 1024 / 1024),
-        cents_to_dh=cents_to_dh,
-        owner_view=None,
-        format_dt=_format_dt,
-        admin_rental_rate_bps=int(settings.rental_success_commission_bps or 0),
-        bps_to_percent=_bps_to_percent,
-        commission_amount_from_owner_fee=commission_amount_from_owner_fee,
-    )
+    return _owner_location_form()
 
 
 @bp.route("/owner/location/<int:listing_id>/edit", methods=["GET", "POST"])
 @login_required
 def owner_location_edit(listing_id: int):
-    guard = _owner_required()
-    if guard:
-        return guard
-    access_guard = ensure_vendor_allows(
-        current_user,
-        "location",
-        fallback_endpoint="vendor.manage_shop",
-        strict_forbidden=True,
-    )
-    if access_guard:
-        return access_guard
+    return _owner_location_form(listing_id)
 
-    listing = (
-        RentalListing.query
-        .options(selectinload(RentalListing.media), selectinload(RentalListing.shop))
-        .filter_by(id=listing_id, owner_id=current_user.id)
-        .first_or_404()
-    )
-    shops = _owner_shops(current_user.id, location_only=True)
-    owner_shop_ids = {s.id for s in shops}
+
+def _owner_location_form(listing_id: int | None = None):
+    """One validation and persistence path for the modal and the ordinary form."""
+    editing = listing_id is not None
+    modal_request = _is_location_form_modal_request()
+    if not modal_request:
+        guard = _owner_required()
+        if guard:
+            return guard
+        access_guard = ensure_vendor_allows(
+            current_user, "location", fallback_endpoint="vendor.manage_shop", strict_forbidden=True,
+        )
+        if access_guard:
+            return access_guard
+
+    owner_id = current_user.id
+    shops = _owner_shops(owner_id, location_only=True)
+    if not shops:
+        if modal_request:
+            return _location_form_json({
+                "success": False,
+                "message": "Votre boutique n'est pas autorisée à publier des locations.",
+                "redirect_url": url_for("vendor.manage_shop"),
+            }, 403)
+        flash("Aucune boutique autorisée pour Location.", "warning")
+        return redirect(url_for("vendor.manage_shop"))
+
+    listing = None
+    if editing:
+        listing = (RentalListing.query.options(selectinload(RentalListing.media), selectinload(RentalListing.shop))
+                   .filter_by(id=listing_id, owner_id=owner_id).first())
+        if not listing:
+            if modal_request:
+                return _location_form_json({"success": False, "message": "Cette annonce est introuvable."}, 404)
+            abort(404)
+        if listing.shop_id not in {shop.id for shop in shops}:
+            if modal_request:
+                return _location_form_json({"success": False, "message": "Cette boutique n'autorise pas les locations."}, 403)
+            abort(403)
+
     settings = PlatformSettings.get()
-    listing_guard = ensure_shop_allows(
-        listing.shop,
-        "location",
-        fallback_endpoint="vendor.manage_shop",
-    )
-    if listing_guard:
-        return listing_guard
-
+    media = list(listing.media) if listing else []
+    images = [item for item in media if item.kind == "image"]
+    videos = [item for item in media if item.kind == "video"]
+    existing_images = [{"id": item.id, "url": url_for("static", filename=item.file_path)} for item in images]
+    existing_video = {"id": videos[0].id, "url": url_for("static", filename=videos[0].file_path)} if videos else None
+    values = {
+        "title": listing.title if listing else "", "description": listing.description if listing else "",
+        "listing_type": listing.listing_type if listing else "monthly",
+        "property_type": listing.property_type if listing else "apartment",
+        "shop_id": str(listing.shop_id) if listing else str(shops[0].id) if len(shops) == 1 else "",
+        "city": listing.city if listing else "", "area": (listing.area or "") if listing else "",
+        "rent": f"{listing.rent_cents / 100:.2f}" if listing else "",
+        "deposit_required": "1" if listing and listing.deposit_required else "0",
+        "deposit": f"{listing.deposit_cents / 100:.2f}" if listing and listing.deposit_cents is not None else "",
+        "owner_fee": f"{listing.owner_fee_cents / 100:.2f}" if listing and listing.owner_fee_cents is not None else "",
+        "owner_fee_text": (listing.owner_fee_text or "") if listing else "",
+    }
     if request.method == "POST":
-        saved_files: list[str] = []
-        try:
-            previous_listing_type = (listing.listing_type or "").strip().lower()
-            listing.title = (request.form.get("title") or "").strip()
-            listing.description = (request.form.get("description") or "").strip()
-            listing.listing_type = (request.form.get("listing_type") or "").strip().lower()
-            listing.property_type = (request.form.get("property_type") or "").strip().lower()
-            listing.city = (request.form.get("city") or "").strip()
-            listing.area = (request.form.get("area") or "").strip() or None
-            listing.shop_id = request.form.get("shop_id", type=int)
-
-            if not listing.title or len(listing.title) < 6:
-                raise ValueError("Titre trop court.")
-            if listing.listing_type not in ("monthly", "daily"):
-                raise ValueError("Type d'annonce invalide.")
-            if listing.property_type not in ("room", "apartment", "studio", "store"):
-                raise ValueError("Type de bien invalide.")
-            if not listing.shop_id or listing.shop_id not in owner_shop_ids:
-                raise ValueError("Boutique invalide.")
-
-            listing.slug = _build_listing_slug(listing.title, exclude_id=listing.id)
-            listing.rent_cents = _to_cents(request.form.get("rent"), "Loyer") or 0
-
-            listing.deposit_required = (request.form.get("deposit_required") or "0") == "1"
-            if listing.deposit_required:
-                listing.deposit_cents = _to_cents(request.form.get("deposit"), "Caution")
-            else:
-                listing.deposit_cents = None
-
-            listing.owner_fee_cents = _to_cents(request.form.get("owner_fee"), "Frais propriétaire", required=False)
-            owner_fee_text = (request.form.get("owner_fee_text") or "").strip()
-            if len(owner_fee_text) > 255:
-                raise ValueError("Texte frais propriétaire trop long (max 255 caractères).")
-            listing.owner_fee_text = owner_fee_text or None
-            listing.owner_fee_negotiable = False
-
-            # Commission interne Baba Market: uniquement admin
-            listing.platform_commission_mode = "success_commission"
-            listing.platform_commission_rate_bps = int(settings.rental_success_commission_bps or 0)
-            listing.platform_commission_fixed_cents = 0
-
-            if listing.listing_type != previous_listing_type:
-                duration_days = rental_duration_days_for_type(listing.listing_type, settings=settings)
-                base_created_at = listing.created_at or datetime.utcnow()
-                listing.expires_at = base_created_at + timedelta(days=duration_days)
-
-            remove_media_ids = {
-                int(mid)
-                for mid in request.form.getlist("remove_media_ids")
-                if str(mid).isdigit()
-            }
-            existing_images = [m for m in listing.media if m.kind == "image" and m.id not in remove_media_ids]
-            existing_videos = [m for m in listing.media if m.kind == "video" and m.id not in remove_media_ids]
-
-            image_files = [f for f in request.files.getlist("images") if f and f.filename]
-            remaining_slots = max(0, MAX_IMAGE_COUNT - len(existing_images))
-            new_video = request.files.get("video")
-
-            for media_row in list(listing.media):
-                if media_row.id in remove_media_ids:
-                    delete_static_file(media_row.file_path)
-                    db.session.delete(media_row)
-
-            new_images, skipped_invalid_images, skipped_overflow_images = _save_uploaded_rental_images(
-                image_files,
-                remaining_slots=remaining_slots,
-                saved_files=saved_files,
-            )
-            for image_rel in new_images:
-                db.session.add(RentalMedia(listing_id=listing.id, kind="image", file_path=image_rel))
-
-            video_rel, video_notice = _save_uploaded_rental_video(
-                new_video,
-                has_existing_video=bool(existing_videos),
-                saved_files=saved_files,
-            )
-            if video_rel:
-                db.session.add(RentalMedia(listing_id=listing.id, kind="video", file_path=video_rel))
-
-            db.session.commit()
-            log_access(
-                "update_rental_listing",
-                "rental_listing",
-                listing.id,
-                success=True,
-                changes={"shop_id": listing.shop_id, "status": listing.status},
-            )
-            flash("Annonce location mise à jour.", "success")
-            _flash_rental_media_notice(
-                skipped_invalid_images=skipped_invalid_images,
-                skipped_overflow_images=skipped_overflow_images,
-                video_notice=video_notice,
-            )
-            return redirect(url_for("rentals.owner_location_edit", listing_id=listing.id))
-        except ValueError as exc:
-            db.session.rollback()
-            for rel_path in saved_files:
-                delete_static_file(rel_path)
-            current_app.logger.warning(f"Validation error editing listing {listing_id}: {exc}")
-            flash(str(exc), "warning")
-        except SQLAlchemyError as e:
-            db.session.rollback()
-            for rel_path in saved_files:
-                delete_static_file(rel_path)
-            current_app.logger.error(f"Database error editing listing {listing_id}: {e}")
-            flash("Erreur base de données lors de la mise à jour.", "danger")
-        except Exception as e:
-            db.session.rollback()
-            for rel_path in saved_files:
-                delete_static_file(rel_path)
-            current_app.logger.exception(f"Unexpected error editing listing {listing_id}: {e}")
-            flash("Erreur inattendue lors de la mise à jour.", "danger")
-
-    owner_view = _listing_owner_view(listing)
-    return render_template(
-        "locations/owner_form.html",
+        values.update({key: request.form.get(key, "") for key in values})
+    context = dict(
         listing=listing,
+        form_values=values,
+        form_errors={},
+        form_error="",
+        existing_images=existing_images,
+        existing_video=existing_video,
+        deleted_image_ids=set(request.form.getlist("delete_images")) if request.method == "POST" else set(),
+        delete_video=request.form.get("delete_video") == "1" if request.method == "POST" else False,
         shops=shops,
+        settings=settings,
         max_images=MAX_IMAGE_COUNT,
         max_image_mb=int(MAX_IMAGE_BYTES / 1024 / 1024),
         max_video_mb=int(MAX_VIDEO_BYTES / 1024 / 1024),
+        monthly_duration_days=rental_duration_days_for_type("monthly", settings=settings),
+        daily_duration_days=rental_duration_days_for_type("daily", settings=settings),
         cents_to_dh=cents_to_dh,
-        owner_view=owner_view,
         format_dt=_format_dt,
         admin_rental_rate_bps=int(settings.rental_success_commission_bps or 0),
         bps_to_percent=_bps_to_percent,
         commission_amount_from_owner_fee=commission_amount_from_owner_fee,
     )
+
+    def reject(message: str, *, field: str | None = None, status: int = 422):
+        if modal_request:
+            return _location_form_json({
+                "success": False, "message": message, "errors": {field: message} if field else {},
+            }, status)
+        flash(message, "warning" if status < 500 else "danger")
+        context["form_errors"] = {field: message} if field else {}
+        context["form_error"] = message
+        return render_template("locations/owner_form.html", **context), status
+
+    if request.method == "POST":
+        title = (request.form.get("title") or "").strip()
+        description = (request.form.get("description") or "").strip()
+        listing_type = (request.form.get("listing_type") or "").strip().lower()
+        property_type = (request.form.get("property_type") or "").strip().lower()
+        city = (request.form.get("city") or "").strip()
+        area = (request.form.get("area") or "").strip()
+        shop_id = request.form.get("shop_id", type=int)
+        owner_fee_text = (request.form.get("owner_fee_text") or "").strip()
+
+        if not 6 <= len(title) <= 180:
+            return reject("Saisissez un titre entre 6 et 180 caractères.", field="title")
+        if listing_type not in ("monthly", "daily"):
+            return reject("Choisissez une location au mois ou à la nuit.", field="listing_type")
+        if property_type not in ("room", "apartment", "studio", "store"):
+            return reject("Choisissez un type de bien valide.", field="property_type")
+        if not city or len(city) > 120:
+            return reject("Saisissez une ville entre 1 et 120 caractères.", field="city")
+        if len(area) > 120:
+            return reject("Le quartier doit contenir au maximum 120 caractères.", field="area")
+        if not shop_id or shop_id not in {shop.id for shop in shops}:
+            return reject("Choisissez une boutique de location qui vous appartient.", field="shop_id")
+        if len(owner_fee_text) > 255:
+            return reject("Le texte des frais doit contenir au maximum 255 caractères.", field="owner_fee_text")
+
+        deposit_value = (request.form.get("deposit_required") or "0").strip()
+        if deposit_value not in ("0", "1"):
+            return reject("Indiquez si une caution est demandée.", field="deposit_required")
+        deposit_required = deposit_value == "1"
+        money_values = {}
+        for field, required in (("rent", True), ("owner_fee", False), ("deposit", deposit_required)):
+            if field == "deposit" and not deposit_required:
+                money_values[field] = None
+                continue
+            try:
+                money_values[field] = _location_form_cents(request.form.get(field), required=required)
+            except ValueError as exc:
+                return reject(str(exc), field=field)
+
+        image_files = [f for f in request.files.getlist("images") if f and (f.filename or "").strip()]
+        video_files = [f for f in request.files.getlist("video") if f and (f.filename or "").strip()]
+        removed_ids = {int(value) for value in request.form.getlist("delete_images") + request.form.getlist("remove_media_ids") if str(value).isascii() and str(value).isdigit()}
+        if request.form.get("delete_video") == "1":
+            removed_ids.update(item.id for item in videos)
+        removed_media = [item for item in media if item.id in removed_ids]
+        removed_files = [item.file_path for item in removed_media]
+        retained_images = [item for item in images if item.id not in removed_ids]
+        retained_videos = [item for item in videos if item.id not in removed_ids]
+        if len(image_files) + len(retained_images) > MAX_IMAGE_COUNT:
+            return reject("Conservez au maximum 4 photos. Retirez une photo pour en ajouter une autre.", field="images")
+        if len(video_files) + len(retained_videos) > 1:
+            return reject("Conservez une seule vidéo. Retirez la vidéo actuelle pour la remplacer.", field="video")
+        for file_obj in image_files:
+            if "." not in file_obj.filename or file_obj.filename.rsplit(".", 1)[-1].lower() not in IMAGE_EXTENSIONS:
+                return reject("Choisissez des photos au format JPG, PNG ou WebP.", field="images")
+            try:
+                if _location_upload_size(file_obj) > MAX_IMAGE_BYTES:
+                    return reject("Chaque photo doit rester inférieure à 12 Mo.", field="images")
+            except ValueError as exc:
+                return reject(str(exc), field="images")
+        if video_files:
+            video_name = video_files[0].filename
+            if "." not in video_name or video_name.rsplit(".", 1)[-1].lower() not in VIDEO_EXTENSIONS:
+                return reject("Choisissez une vidéo dans un format pris en charge, comme MP4, MOV ou WebM.", field="video")
+            try:
+                if _location_upload_size(video_files[0]) > MAX_VIDEO_BYTES:
+                    return reject("La vidéo doit rester inférieure à 30 Mo.", field="video")
+            except ValueError as exc:
+                return reject(str(exc), field="video")
+
+        saved_files: list[str] = []
+        media_field = "images"
+        try:
+            new_images = []
+            for file_obj in image_files:
+                image_rel = save_rental_image(file_obj)
+                saved_files.append(image_rel)
+                new_images.append(image_rel)
+            video_rel = None
+            if video_files:
+                media_field = "video"
+                video_rel = save_rental_video(video_files[0], strict=True)
+                saved_files.append(video_rel)
+
+            media_field = None
+            previous_type = listing.listing_type if editing else None
+            listing_slug = _build_listing_slug(title, exclude_id=listing.id if editing else None)
+            if not editing:
+                listing = RentalListing(owner_id=owner_id, currency="MAD", status="active", is_active=True, created_at=datetime.utcnow())
+            # Do not renew an existing announcement merely because it was edited.
+            if not editing or listing_type != previous_type:
+                listing.expires_at = (listing.created_at or datetime.utcnow()) + timedelta(days=rental_duration_days_for_type(listing_type, settings=settings))
+            listing.shop_id = shop_id
+            listing.title = title
+            listing.slug = listing_slug
+            listing.description = description
+            listing.listing_type = listing_type
+            listing.property_type = property_type
+            listing.city = city
+            listing.area = area or None
+            listing.rent_cents = money_values["rent"] or 0
+            listing.deposit_required = deposit_required
+            listing.deposit_cents = money_values["deposit"]
+            listing.owner_fee_cents = money_values["owner_fee"]
+            listing.owner_fee_text = owner_fee_text or None
+            listing.owner_fee_negotiable = False
+            listing.platform_commission_mode = "success_commission"
+            listing.platform_commission_rate_bps = int(settings.rental_success_commission_bps or 0)
+            listing.platform_commission_fixed_cents = 0
+            if not editing:
+                db.session.add(listing)
+            for item in removed_media:
+                db.session.delete(item)
+            db.session.flush()
+            for image_rel in new_images:
+                db.session.add(RentalMedia(listing_id=listing.id, kind="image", file_path=image_rel))
+            if video_rel:
+                db.session.add(RentalMedia(listing_id=listing.id, kind="video", file_path=video_rel))
+            listing_payload = {
+                "id": listing.id, "title": listing.title, "slug": listing.slug,
+                "listing_type": listing.listing_type, "property_type": listing.property_type,
+                "city": listing.city, "area": listing.area or "", "rent_cents": listing.rent_cents,
+                "status": listing.status, "shop_id": listing.shop_id,
+                "expires_at": listing.expires_at.isoformat() + "Z",
+            }
+            db.session.commit()
+        except ValueError as exc:
+            safe_session_rollback()
+            _cleanup_location_files(saved_files)
+            current_app.logger.warning("Validation error saving listing: %s", exc)
+            return reject(str(exc) if media_field else "Les informations de l'annonce sont invalides.", field=media_field)
+        except Exception:
+            safe_session_rollback()
+            _cleanup_location_files(saved_files)
+            current_app.logger.exception("Unexpected error saving listing owner_id=%s", owner_id)
+            return reject("L'enregistrement a échoué. Votre saisie est conservée, réessayez dans quelques instants.", status=500)
+
+        # Existing files remain usable if validation, uploads or the transaction fail.
+        _cleanup_location_files(removed_files)
+        try:
+            log_access(
+                "update_rental_listing" if editing else "create_rental_listing", "rental_listing", listing_payload["id"], success=True,
+                changes={"shop_id": listing_payload["shop_id"], "listing_type": listing_payload["listing_type"]},
+            )
+        except Exception:
+            current_app.logger.exception("rental.form.post_commit_failed listing_id=%s", listing_payload["id"])
+        message = "Annonce de location mise à jour." if editing else "Annonce de location créée."
+        if modal_request:
+            return _location_form_json({"success": True, "listing": listing_payload, "message": message, "notices": []}, 200 if editing else 201)
+        flash(message, "success")
+        return redirect(url_for("rentals.owner_locations"))
+
+    if modal_request:
+        return _location_form_json({"success": True, "html": render_template("locations/partials/_owner_create_modal.html", **context)})
+    if request.args.get("standalone") != "1":
+        target = url_for("rentals.owner_locations", edit_location=listing.id) if editing else url_for("rentals.owner_locations", new="location")
+        response = redirect(target, code=303)
+        response.headers["Cache-Control"] = "private, no-store, max-age=0"
+        response.headers["Vary"] = "Cookie, X-Vendor-Modal"
+        return response
+    return render_template("locations/owner_form.html", **context)
 
 
 @bp.route("/owner/location/<int:listing_id>/close", methods=["POST"])
@@ -1381,26 +1286,3 @@ def admin_location_delete(listing_id: int):
     )
     flash("Annonce supprimée par admin et archivée.", "success")
     return redirect(request.referrer or url_for("rentals.admin_locations"))
-
-
-@bp.route("/admin/locations/cleanup", methods=["POST"])
-@login_required
-def admin_locations_cleanup():
-    guard = _admin_required()
-    if guard:
-        return guard
-
-    cli_hint = "flask cleanup --mode full --days 21"
-    message = f"Cleanup des locations déplacé vers CLI: {cli_hint}"
-    log_access(
-        "cleanup_rental_listings_blocked_http",
-        "rental_listing",
-        0,
-        success=False,
-        changes={"cli": cli_hint},
-    )
-    if _is_ajax_request():
-        return jsonify({"success": False, "message": message}), 409
-
-    flash(message, "info")
-    return redirect(url_for("rentals.admin_locations"))

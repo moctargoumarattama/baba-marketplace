@@ -112,13 +112,6 @@ def _safe_int(value: Any, default: int = 0) -> int:
         return default
 
 
-def _safe_float(value: Any, default: float = 0.0) -> float:
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return default
-
-
 def _safe_label(value: Any, default: str = "") -> str:
     text = str(value or "").strip()
     if not text:
@@ -273,8 +266,6 @@ def _redis_daily_key(now: datetime | None = None) -> str:
     return f"{_REDIS_DAILY_PREFIX}{_day_stamp(now)}"
 
 
-def _redis_daily_bucket_key(now: datetime | None, bucket_name: str) -> str:
-    return f"{_redis_daily_key(now)}:{bucket_name}"
 
 
 def _redis_snapshot_active_visitors(client) -> dict[str, Any]:
@@ -695,13 +686,6 @@ def _hash_ip(raw_ip: str) -> str:
     return hashlib.sha256(payload).hexdigest()[:40]
 
 
-def _hash_value(raw_value: str) -> str:
-    value = (raw_value or "").strip()
-    if not value:
-        return ""
-    secret = str(current_app.config.get("SECRET_KEY") or "dealnova")
-    payload = f"{secret}|{value}".encode("utf-8")
-    return hashlib.sha256(payload).hexdigest()[:40]
 
 
 def _trim_counter_buckets(bucket: dict[str, Any], max_entries: int) -> dict[str, int]:

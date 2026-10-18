@@ -1,4 +1,4 @@
-﻿(function () {
+(function () {
   "use strict";
 
   if (typeof window === "undefined" || typeof document === "undefined") return;
@@ -27,20 +27,12 @@
     featurePagination: "js/ajax/features/pagination.js",
     featureForms: "js/ajax/features/forms.js",
     featurePolling: "js/ajax/features/polling.js",
-    shopHomePage: "js/pages/shop_home_page.js",
-    shopsPage: "js/shops_page.js",
-    locationsIndexPage: "js/pages/locations_index_page.js"
+    shopsPage: "js/shops_page.js"
   };
 
   var CLIENT_MAP = {
-    shop_home: [ASSETS.coreCart, ASSETS.ajaxPagination, ASSETS.shopHomePage],
     shops: [ASSETS.coreCart, ASSETS.ajaxPagination, ASSETS.shopsPage],
-    locations_index: [ASSETS.coreCart, ASSETS.ajaxPagination, ASSETS.locationsIndexPage],
-
-    // Compatibility aliases if templates still expose endpoint-like page ids.
-    "shop.home": [ASSETS.coreCart, ASSETS.ajaxPagination, ASSETS.shopHomePage],
-    "shops.list_shops": [ASSETS.coreCart, ASSETS.ajaxPagination, ASSETS.shopsPage],
-    "rentals.locations_home": [ASSETS.coreCart, ASSETS.ajaxPagination, ASSETS.locationsIndexPage]
+    "shops.list_shops": [ASSETS.coreCart, ASSETS.ajaxPagination, ASSETS.shopsPage]
   };
 
   var VENDOR_RUNTIME = [
@@ -61,12 +53,8 @@
   };
 
   var LOAD_PLANS = {
-    shop_home: [[ASSETS.shopHomePage, ASSETS.coreCart, ASSETS.ajaxPagination]],
-    "shop.home": [[ASSETS.shopHomePage, ASSETS.coreCart, ASSETS.ajaxPagination]],
     shops: [[ASSETS.shopsPage, ASSETS.coreCart, ASSETS.ajaxPagination]],
     "shops.list_shops": [[ASSETS.shopsPage, ASSETS.coreCart, ASSETS.ajaxPagination]],
-    locations_index: [[ASSETS.locationsIndexPage, ASSETS.coreCart, ASSETS.ajaxPagination]],
-    "rentals.locations_home": [[ASSETS.locationsIndexPage, ASSETS.coreCart, ASSETS.ajaxPagination]],
     "vendor.dashboard": [[ASSETS.coreLive], [ASSETS.liveShim, ASSETS.ajaxPagination, ASSETS.featurePagination, ASSETS.featureForms, ASSETS.featurePolling]],
     "vendor.earnings": [[ASSETS.coreLive], [ASSETS.liveShim, ASSETS.ajaxPagination, ASSETS.featurePagination, ASSETS.featureForms, ASSETS.featurePolling]],
     "vendor.manage_shop": [[ASSETS.coreLive], [ASSETS.liveShim, ASSETS.featureForms]],

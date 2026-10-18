@@ -1,4 +1,3 @@
-import re
 from datetime import datetime, timedelta
 from urllib.parse import quote
 
@@ -14,8 +13,15 @@ from ..models.booking import Booking
 from ..models.product import Product
 from ..models.shop import Shop
 from ..services.pricing import prix_final
+from ..services.shop_access import shop_is_currently_open as _shop_is_currently_open
 from ..services.traffic_stats import track_custom_event
 from ..services.vendor_push import notify_service_booking
+from .cart import (
+    _client_ip,
+    _digits_only,
+    normalize_phone,
+    normalize_whatsapp_number,
+)
 
 
 bp = Blueprint("booking", __name__, url_prefix="/booking")
@@ -72,37 +78,6 @@ def _booking_track_query():
     )
 
 
-def _digits_only(value: str) -> str:
-    return re.sub(r"\D", "", value or "")
-
-
-def normalize_phone(value: str) -> str:
-    raw = (value or "").strip()
-    digits = _digits_only(raw)
-    if not digits:
-        return ""
-    if raw.startswith("+"):
-        return f"+{digits}"
-    return digits
-
-
-def _client_ip() -> str:
-    xff = request.headers.get("X-Forwarded-For", "")
-    if xff:
-        return xff.split(",")[0].strip()
-    return request.remote_addr or ""
-
-
-def _shop_is_currently_open(shop) -> bool:
-    """Vérifie si la boutique est ouverte (version robuste)."""
-    if not shop or not shop.is_active:
-        return False
-    if shop.closed_until and shop.closed_until > datetime.utcnow():
-        return False
-    if hasattr(shop, 'is_open_now') and callable(shop.is_open_now):
-        return shop.is_open_now()
-    return bool(shop.is_open)
-
 
 def _recent_booking_url(pid: int, max_age_seconds: int = 120) -> str | None:
     """Retourne une URL WhatsApp récente pour éviter les doubles soumissions."""
@@ -120,27 +95,6 @@ def _recent_booking_url(pid: int, max_age_seconds: int = 120) -> str | None:
     if datetime.utcnow() - last <= timedelta(seconds=max_age_seconds):
         return url
     return None
-
-
-def normalize_whatsapp_number(raw: str) -> str:
-    """Normalise un numéro pour wa.me (format international sans '+').
-
-    Règles (Maroc):
-    - 06XXXXXXXX -> 2126XXXXXXXX
-    - 07XXXXXXXX -> 2127XXXXXXXX
-    - 6XXXXXXXX / 7XXXXXXXX -> 2126... / 2127...
-    - 00CC... -> CC...
-    """
-    digits = _digits_only(raw)
-    if not digits:
-        return ""
-    if digits.startswith("00"):
-        digits = digits[2:]
-    if digits.startswith("0") and len(digits) == 10 and digits[1] in ("6", "7"):
-        return "212" + digits[1:]
-    if len(digits) == 9 and digits[0] in ("6", "7"):
-        return "212" + digits
-    return digits
 
 
 def _whatsapp_number_from_shop(product: Product) -> str:

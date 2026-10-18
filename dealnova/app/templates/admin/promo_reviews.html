@@ -346,25 +346,25 @@
               <div class="promo-actions">
                 {% if promo.status == 'pending' %}
                 <form method="post" action="{{ url_for('admin.promo_approve', promo_id=promo.id) }}">
-                  {% include "admin/partials/_csrf.html" %}
+                  {% include "partials/_csrf.html" %}
                   <button type="submit" class="btn btn-success btn-sm">Accepter la promotion</button>
                 </form>
                 {% if shop and not shop.promo_trusted %}
                 <form method="post" action="{{ url_for('admin.promo_approve', promo_id=promo.id) }}">
-                  {% include "admin/partials/_csrf.html" %}
+                  {% include "partials/_csrf.html" %}
                   <input type="hidden" name="trust_shop" value="1">
                   <button type="submit" class="btn btn-outline-success btn-sm">Accepter + faire confiance</button>
                 </form>
                 {% endif %}
                 <form method="post" action="{{ url_for('admin.promo_reject', promo_id=promo.id) }}">
-                  {% include "admin/partials/_csrf.html" %}
+                  {% include "partials/_csrf.html" %}
                   <input type="hidden" name="review_note" value="Promo non retenue pour la vitrine.">
                   <button type="submit" class="btn btn-outline-danger btn-sm">Refuser la promotion</button>
                 </form>
                 {% endif %}
                 {% if shop %}
                 <form method="post" action="{{ url_for('admin.shop_promo_trusted_toggle', shop_id=shop.id) }}">
-                  {% include "admin/partials/_csrf.html" %}
+                  {% include "partials/_csrf.html" %}
                   <button type="submit" class="btn btn-outline-primary btn-sm">
                     {{ 'Ne plus faire confiance' if shop.promo_trusted else 'Faire confiance a cette boutique' }}
                   </button>

@@ -1,4 +1,4 @@
-﻿{% extends 'admin/base.html' %}
+{% extends 'admin/base.html' %}
 
 {% block title %}{{ 'Paiements abonnements' if current_user.role == 'manager' else 'Abonnements vendeurs' }} | DealNova{% endblock %}
 {% block page_title %}{{ 'Paiements abonnements' if current_user.role == 'manager' else 'Abonnements vendeurs' }}{% endblock %}
@@ -493,7 +493,7 @@
         </div>
         <div class="p-3">
             <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.subscription_settings') }}" class="row g-3 align-items-end">
-                {% include "admin/partials/_csrf.html" %}
+                {% include "partials/_csrf.html" %}
                 <div class="col-md-4">
                     <label class="form-label">Prix abonnement par mois (MAD)</label>
                     <input type="number" step="0.01" min="0" class="form-control" name="monthly_amount"
@@ -646,7 +646,7 @@
                                 <!-- Paiement -->
                                 <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.mark_subscription_paid', user_id=vendor.id) }}" 
                                       class="d-flex gap-2 align-items-center flex-wrap">
-                                    {% include "admin/partials/_csrf.html" %}
+                                    {% include "partials/_csrf.html" %}
                                     <div class="action-field">
                                         <p class="action-label">Mois</p>
                                         <input class="form-control form-control-sm months-input" type="number" name="months" 
@@ -665,7 +665,7 @@
                                 <!-- Mode free -->
                                 <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.subscription_free_vendor', user_id=vendor.id) }}" 
                                       class="d-flex gap-2 align-items-center flex-wrap">
-                                    {% include "admin/partials/_csrf.html" %}
+                                    {% include "partials/_csrf.html" %}
                                     <div class="action-field">
                                         <p class="action-label">Jours gratuits</p>
                                         <input class="form-control form-control-sm months-input" type="number" name="days" 
@@ -679,14 +679,14 @@
                                 <!-- Bloquer/Débloquer -->
                                 {% if vendor.is_active %}
                                 <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.subscription_block_vendor', user_id=vendor.id) }}">
-                                    {% include "admin/partials/_csrf.html" %}
+                                    {% include "partials/_csrf.html" %}
                                     <button class="btn btn-outline-danger btn-sm" type="submit">
                                         <i class="bi bi-lock"></i> Bloquer l'accès
                                     </button>
                                 </form>
                                 {% else %}
                                 <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.subscription_unblock_vendor', user_id=vendor.id) }}">
-                                    {% include "admin/partials/_csrf.html" %}
+                                    {% include "partials/_csrf.html" %}
                                     <button class="btn btn-outline-success btn-sm" type="submit">
                                         <i class="bi bi-unlock"></i> Reouvrir l'accès
                                     </button>

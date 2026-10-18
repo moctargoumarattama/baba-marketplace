@@ -6,7 +6,7 @@ import hashlib
 from collections import defaultdict
 
 from sqlalchemy import and_, case, or_
-from sqlalchemy.orm import selectinload, load_only
+from sqlalchemy.orm import selectinload
 
 from ..extensions import db
 from ..models.featured_item import FeaturedItem
@@ -14,12 +14,12 @@ from ..models.product import Product
 from ..models.promo import Promo
 from ..models.rental import RentalListing, RentalMedia
 from ..models.shop import Shop
+from .db_session import safe_session_rollback as _safe_session_rollback
 from .featured_items import featured_rank_expr, location_featured_exists_expr, product_featured_exists_expr
 from .pricing import cents_to_money, dh_to_cents, final_price_cents, get_active_promos_for_products
 from .rentals import rental_existing_video_poster_rel_path
 
 
-CURATED_PAGE_LIMIT = 5
 DEFAULT_CANDIDATE_MULTIPLIER = 4
 DEFAULT_MAX_FETCH = 240
 ANTI_MONOPOLY_WINDOW = 20
@@ -45,15 +45,6 @@ class FeedCard:
 
     def as_legacy_tuple(self):
         return (self.payload, self.final_price, self.discount)
-
-
-def should_use_curated_marketplace_feed(
-    *,
-    page: int,
-    sort: str,
-    shop_id: int | None,
-) -> bool:
-    return (not shop_id) and page <= CURATED_PAGE_LIMIT and sort in ("", "new")
 
 
 def build_marketplace_feed(
@@ -152,137 +143,6 @@ def build_marketplace_feed(
     }
 
 
-def build_location_feed(
-    *,
-    page: int,
-    per_page: int,
-    search_q: str = "",
-    listing_type: str = "",
-    property_type: str = "",
-    city_area: str = "",
-    min_price: float | None = None,
-    max_price: float | None = None,
-    candidate_multiplier: int = DEFAULT_CANDIDATE_MULTIPLIER,
-    max_fetch: int = DEFAULT_MAX_FETCH,
-) -> dict:
-    total = _count_locations(
-        search_q=search_q,
-        listing_type=listing_type,
-        property_type=property_type,
-        city_area=city_area,
-        min_price=min_price,
-        max_price=max_price,
-        shop_id=None,
-    )
-    if total <= 0:
-        return {"items": [], "total": 0, "per_page": per_page}
-
-    end_index = page * per_page
-    limit = min(max_fetch, max(per_page * candidate_multiplier, end_index * candidate_multiplier))
-    rotation_seed = _rotation_seed(
-        page=page,
-        search_q=search_q,
-        kind="location",
-        category_id=None,
-        shop_id=None,
-    )
-    cards = _fetch_location_cards(
-        limit=limit,
-        rotation_seed=rotation_seed,
-        search_q=search_q,
-        listing_type=listing_type,
-        property_type=property_type,
-        city_area=city_area,
-        min_price=min_price,
-        max_price=max_price,
-        shop_id=None,
-        include_media=True,
-    )
-    ordered_cards = _interleave_cards(cards)
-    start_index = max(0, (page - 1) * per_page)
-    page_cards = ordered_cards[start_index:start_index + per_page]
-    return {
-        "items": [card.source for card in page_cards if card.source is not None],
-        "total": total,
-        "per_page": per_page,
-    }
-
-
-def build_standard_marketplace_page(
-    *,
-    page: int,
-    per_page: int,
-    category_id: int | None = None,
-    search_q: str = "",
-    sort: str = "",
-    kind: str = "",
-    min_price: float | None = None,
-    max_price: float | None = None,
-    promo_only: str = "0",
-    in_stock: str = "0",
-    shop_id: int | None = None,
-) -> dict:
-    query, _, final_price_expr, featured_expr, search_rank_expr = _base_product_query(
-        search_q=search_q,
-        category_id=category_id,
-        kind=kind,
-        min_price=min_price,
-        max_price=max_price,
-        promo_only=promo_only,
-        in_stock=in_stock,
-        shop_id=shop_id,
-    )
-    ordered_query = _apply_product_sort(
-        query,
-        sort=sort,
-        featured_expr=featured_expr,
-        final_price_expr=final_price_expr,
-        search_rank_expr=search_rank_expr,
-    )
-    try:
-        pagination = ordered_query.paginate(page=page, per_page=per_page, error_out=False)
-    except Exception:
-        _safe_session_rollback()
-        return {"data": [], "total": 0, "per_page": per_page}
-
-    products = pagination.items
-    product_ids = [product.id for product in products]
-    promo_map = _promo_map_for_products(product_ids)
-    data = [_serialize_product_legacy_tuple(product, promo_map.get(product.id)) for product in products]
-
-    if not kind and page == 1:
-        rotation_seed = _rotation_seed(
-            page=page,
-            search_q=search_q,
-            kind=kind,
-            category_id=category_id,
-            shop_id=shop_id,
-        )
-        location_cards = _fetch_location_cards(
-            limit=max(6, per_page // 3),
-            rotation_seed=rotation_seed,
-            search_q=search_q,
-            min_price=min_price,
-            max_price=max_price,
-            shop_id=shop_id,
-            sort=sort,
-        )
-        location_entries = [card.as_legacy_tuple() for card in location_cards]
-        if location_entries:
-            data = _mix_legacy_entries(data, location_entries)[:per_page]
-
-    if sort == "low":
-        data.sort(key=lambda item: item[1])
-    elif sort == "high":
-        data.sort(key=lambda item: item[1], reverse=True)
-
-    return {
-        "data": data,
-        "total": pagination.total,
-        "per_page": per_page,
-    }
-
-
 def search_public_products(*, search_q: str, limit: int) -> list[dict]:
     search_filter, search_rank_expr = _product_search_filter(search_q, include_description=True)
     if search_filter is None:
@@ -357,26 +217,8 @@ def _safe_float(value, default: float = 0.0) -> float:
         return default
 
 
-def _safe_session_rollback() -> None:
-    try:
-        db.session.rollback()
-    except Exception:
-        pass
-
-
 def _promo_map_for_products(product_ids: list[int]) -> dict[int, Promo]:
     return get_active_promos_for_products(product_ids)
-
-
-def _mix_legacy_entries(product_entries: list[tuple], location_entries: list[tuple]) -> list[tuple]:
-    mixed: list[tuple] = []
-    max_len = max(len(product_entries), len(location_entries))
-    for idx in range(max_len):
-        if idx < len(product_entries):
-            mixed.append(product_entries[idx])
-        if idx < len(location_entries):
-            mixed.append(location_entries[idx])
-    return mixed
 
 
 def _normalize_search_variants(term: str) -> list[str]:

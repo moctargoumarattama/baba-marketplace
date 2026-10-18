@@ -1,4 +1,4 @@
-﻿{% extends "admin/base.html" %}
+{% extends "admin/base.html" %}
 
 {% block title %}Locations | Admin{% endblock %}
 {% block page_title %}Locations{% endblock %}
@@ -299,7 +299,7 @@
         <div class="lc-hd"><h6><i class="bi bi-hourglass-split"></i> Duree de disparition</h6></div>
         <div class="lc-body">
           <form method="post" action="{{ url_for('rentals.admin_locations_duration_settings') }}">
-            {% include "admin/partials/_csrf.html" %}
+            {% include "partials/_csrf.html" %}
             <div class="fbar">
               <div class="fg">
                 <label>Location journaliere (jours)</label>

@@ -1,0 +1,41 @@
+<dialog id="vendorProductDialog" class="vpm-dialog" aria-labelledby="vendorProductTitle" data-create-url="{{ url_for('vendor.product_new') }}" data-location-create-url="{{ url_for('rentals.owner_location_new') }}" data-product-edit-url="{{ url_for('vendor.product_edit', pid=0) }}" data-location-edit-url="{{ url_for('rentals.owner_location_edit', listing_id=0) }}" data-default-type="{{ vendor_dialog_type|default('product') }}">
+  <div class="vpm-panel">
+    <header class="vpm-header">
+      <div class="vpm-heading">
+        <span class="vpm-heading-icon" aria-hidden="true">
+          <svg data-vpm-icon="product" {% if vendor_dialog_type|default('product') == 'location' %}hidden{% endif %} width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="M3 8v9l9 5 9-5V8M12 13v9M7.5 5.5l9 5"/></svg>
+          <svg data-vpm-icon="location" {% if vendor_dialog_type|default('product') != 'location' %}hidden{% endif %} width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-8H9v8H4a1 1 0 0 1-1-1Z"/></svg>
+        </span>
+        <h2 id="vendorProductTitle">{{ vendor_dialog_title|default('Ajouter un produit') }}</h2>
+      </div>
+      <button type="button" class="vpm-close" data-vpm-close aria-label="Fermer le formulaire">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+      </button>
+    </header>
+    <div class="vpm-scroll" id="vendorProductContent"></div>
+    <div class="vpm-feedback">
+      <p id="vpmStatus" class="vpm-status" role="status" aria-live="polite" aria-atomic="true"></p>
+      <div id="vpmProgress" class="vpm-progress" hidden>
+        <progress max="100" aria-label="Envoi en cours"></progress>
+      </div>
+    </div>
+    <footer class="vpm-footer">
+      <button type="button" class="vpm-button vpm-button-secondary" data-vpm-close>Annuler</button>
+      <button type="submit" form="vendorCreateForm" class="vpm-button vpm-button-primary" data-vpm-submit disabled>
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>
+        <span data-vpm-submit-label>Enregistrer</span>
+      </button>
+    </footer>
+    <div id="vpmDiscardConfirm" class="vpm-confirm" hidden>
+      <div class="vpm-confirm-card" role="alertdialog" aria-labelledby="vpmDiscardTitle" aria-describedby="vpmDiscardDescription" aria-modal="true">
+        <span class="vpm-confirm-icon" aria-hidden="true">!</span>
+        <h3 id="vpmDiscardTitle">Abandonner la saisie ?</h3>
+        <p id="vpmDiscardDescription">Les informations saisies ne seront pas enregistrées.</p>
+        <div class="vpm-confirm-actions">
+          <button type="button" class="vpm-button vpm-button-primary" data-vpm-keep>Continuer la saisie</button>
+          <button type="button" class="vpm-button vpm-button-secondary" data-vpm-discard>Abandonner</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</dialog>

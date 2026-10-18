@@ -39,16 +39,6 @@ def page_from_args(args: Mapping[str, object], key: str = "page", default: int =
     return normalize_page(raw, default=default)
 
 
-def limit_from_args(
-    args: Mapping[str, object],
-    key: str = "limit",
-    default: int = 10,
-    max_limit: int | None = None,
-) -> int:
-    raw = args.get(key, default)
-    return normalize_limit(raw, default=default, max_limit=max_limit)
-
-
 def paginate_with_clamped_page(query, *, page: int, per_page: int, error_out: bool = False, **kwargs):
     requested_page = normalize_page(page)
     pagination = query.paginate(

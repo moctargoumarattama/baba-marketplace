@@ -1578,6 +1578,24 @@
     bindProductImagePreview();
     bindShopStatusOptimistic();
     setupDashboardPrefetch();
+    document.addEventListener('vendor:product-created', function(event) {
+        const data = event.detail || {};
+        const count = document.querySelector('[data-vendor-catalog-count]');
+        if (count) {
+            count.textContent = String(Number.isFinite(data.catalog_total)
+                ? data.catalog_total
+                : (Number(count.textContent) || 0) + 1);
+        }
+        refreshStats();
+        loadCategories();
+        if (productsContainer && !productsContainer.classList.contains('catalog-summary-card')) performSearch();
+    });
+    document.addEventListener('vendor:product-updated', function() {
+        refreshStats();
+        loadCategories();
+        checkLowStock();
+        if (productsContainer && !productsContainer.classList.contains('catalog-summary-card')) performSearch();
+    });
     initVendorPushNotifications();
     checkLowStock();
     loadCategories();
@@ -1586,6 +1604,7 @@
     function isDashboardPageReady() {
         const bodyPage = String((document.body && document.body.dataset && document.body.dataset.page) || '');
         return !!document.getElementById('vendorDashboardConfig') &&
+            !document.querySelector('#vendorProductDialog[open]') &&
             (!!productsContainer || !!categoriesFilter || !!recentOrdersList || !!todayPrepareList || !!todayBookingsList) &&
             (bodyPage === 'vendor.dashboard' || window.location.pathname.indexOf('/vendor/dashboard') === 0);
     }

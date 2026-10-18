@@ -1,4 +1,4 @@
-﻿{% extends 'admin/base.html' %}
+{% extends 'admin/base.html' %}
 
 {% block title %}Catalogue | DealNova{% endblock %}
 {% block page_title %}{{ 'Catalogue' if current_user.role == 'manager' else 'Performance catalogue' }}{% endblock %}
@@ -433,7 +433,7 @@
                 </form>
                 <form method="post" action="{{ url_for('admin_users.catalog_hide_out_of_stock') }}" 
                       class="d-inline" data-adm-disable-submit data-adm-confirm-submit="{{ 'Masquer tous les produits avec stock 0 ?' if current_user.role == 'manager' else 'Masquer tous les produits en stock 0 ' }}">
-                    {% include "admin/partials/_csrf.html" %}
+                    {% include "partials/_csrf.html" %}
                     <button class="btn btn-outline-danger" type="submit">
                         <i class="bi bi-eye-slash"></i> {{ 'Masquer stock 0' if current_user.role == 'manager' else 'Masquer stock 0' }}
                     </button>
@@ -524,7 +524,7 @@
                                   data-adm-disable-submit
                                   data-adm-ajax="1"
                                   data-adm-action="post">
-                                {% include "admin/partials/_csrf.html" %}
+                                {% include "partials/_csrf.html" %}
                                 <button class="btn btn-sm btn-outline-primary" type="submit">
                                     <i class="bi bi-arrow-repeat"></i> Basculer
                                 </button>

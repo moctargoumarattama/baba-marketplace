@@ -1,4 +1,4 @@
-﻿{% extends "admin/base.html" %}
+{% extends "admin/base.html" %}
 
 {% block title %}Maintenance systeme | Admin{% endblock %}
 {% block page_title %}Maintenance systeme{% endblock %}
@@ -595,7 +595,7 @@
       {% endif %}
     </div>
     <form method="post" action="{{ url_for('admin.maintenance_unlock') }}" class="row g-3 align-items-end">
-      {% include "admin/partials/_csrf.html" %}
+      {% include "partials/_csrf.html" %}
       <input type="hidden" name="days" value="{{ days }}">
       <input type="hidden" name="errors_page" value="{{ errors_block.page or 1 }}">
       <div class="col-md-8">
@@ -845,7 +845,7 @@
         <h6>Sauvegarder la base</h6>
         <p>Declenche la sauvegarde base existante, ajoute le checksum SHA-256 et applique la retention DB.</p>
         <form method="post" action="{{ url_for('admin.maintenance_backup_create') }}">
-          {% include "admin/partials/_csrf.html" %}
+          {% include "partials/_csrf.html" %}
           <input type="hidden" name="days" value="{{ days }}">
           <input type="hidden" name="backup_type" value="database">
           <input type="hidden" name="backup_dir" value="{{ backup_panel.backup_dir }}">
@@ -860,7 +860,7 @@
         <h6>Sauvegarder les uploads</h6>
         <p>Archive physiquement <code>static/uploads/</code> dans un <code>.tar.gz</code> securise avec manifeste et checksum.</p>
         <form method="post" action="{{ url_for('admin.maintenance_backup_create') }}">
-          {% include "admin/partials/_csrf.html" %}
+          {% include "partials/_csrf.html" %}
           <input type="hidden" name="days" value="{{ days }}">
           <input type="hidden" name="backup_type" value="uploads">
           <input type="hidden" name="backup_dir" value="{{ backup_panel.backup_dir }}">
@@ -875,7 +875,7 @@
         <h6>Sauvegarde complete</h6>
         <p>Cree le pack DB + uploads + manifeste global avec le meme timestamp serveur pour relier tous les fichiers.</p>
         <form method="post" action="{{ url_for('admin.maintenance_backup_create') }}">
-          {% include "admin/partials/_csrf.html" %}
+          {% include "partials/_csrf.html" %}
           <input type="hidden" name="days" value="{{ days }}">
           <input type="hidden" name="backup_type" value="full">
           <input type="hidden" name="backup_dir" value="{{ backup_panel.backup_dir }}">
@@ -892,7 +892,7 @@
         <h6>Importer une sauvegarde</h6>
         <p>Ajoute un fichier de sauvegarde MySQL dans la liste. La restauration reste une action separee.</p>
         <form method="post" action="{{ url_for('admin.maintenance_backup_import') }}" enctype="multipart/form-data">
-          {% include "admin/partials/_csrf.html" %}
+          {% include "partials/_csrf.html" %}
           <input type="hidden" name="days" value="{{ days }}">
           <input type="hidden" name="backup_dir" value="{{ backup_panel.backup_dir }}">
           <input type="file" name="backup_file" class="form-control form-control-sm" accept=".sql.gz" required>
@@ -981,7 +981,7 @@
                       </a>
                     {% endfor %}
                     <form method="post" action="{{ url_for('admin.maintenance_backup_verify') }}" class="d-inline">
-                      {% include "admin/partials/_csrf.html" %}
+                      {% include "partials/_csrf.html" %}
                       <input type="hidden" name="days" value="{{ days }}">
                       <input type="hidden" name="backup_file" value="{{ backup.name }}">
                       <button type="submit" class="btn btn-sm btn-outline-primary">
@@ -993,7 +993,7 @@
                     <details class="restore-details mt-2">
                       <summary class="btn btn-sm btn-outline-danger">{{ backup.restore_button_label }}</summary>
                       <form method="post" action="{{ url_for('admin.maintenance_backup_restore') }}" class="restore-box mt-2">
-                        {% include "admin/partials/_csrf.html" %}
+                        {% include "partials/_csrf.html" %}
                         <input type="hidden" name="days" value="{{ days }}">
                         <input type="hidden" name="backup_type" value="{{ backup.kind }}">
                         <input type="hidden" name="backup_file" value="{{ backup.name }}">
@@ -1080,14 +1080,14 @@
       <article class="action-box">
         <h6>Activer / desactiver</h6>
         <form method="post" action="{{ url_for('admin.maintenance_mode_enable') }}" class="mb-2">
-          {% include "admin/partials/_csrf.html" %}
+          {% include "partials/_csrf.html" %}
           <input type="hidden" name="days" value="{{ days }}">
           <label class="form-label small mb-1">Message maintenance</label>
           <textarea name="message" class="form-control form-control-sm" rows="2" placeholder="Maintenance technique en cours">{{ maintenance_mode.message or '' }}</textarea>
           <button type="submit" class="btn btn-sm btn-warning mt-2">Activer maintenant</button>
         </form>
         <form method="post" action="{{ url_for('admin.maintenance_mode_disable') }}">
-          {% include "admin/partials/_csrf.html" %}
+          {% include "partials/_csrf.html" %}
           <input type="hidden" name="days" value="{{ days }}">
           <button type="submit" class="btn btn-sm btn-outline-success">Desactiver</button>
         </form>
@@ -1096,7 +1096,7 @@
       <article class="action-box">
         <h6>Programmer</h6>
         <form method="post" action="{{ url_for('admin.maintenance_mode_schedule') }}">
-          {% include "admin/partials/_csrf.html" %}
+          {% include "partials/_csrf.html" %}
           <input type="hidden" name="days" value="{{ days }}">
           <div class="mb-2">
             <label class="form-label small mb-1">Debut</label>
@@ -1178,7 +1178,7 @@
         <p>Execution hors HTTP uniquement. Cette commande enregistre aussi un rapport persistant.</p>
         <div class="report-item"><strong>Commande</strong><span><code>flask cleanup --mode quick --days {{ days }}</code></span></div>
         <form method="post" action="{{ url_for('admin.run_maintenance', mode='quick') }}" class="mt-2">
-          {% include "admin/partials/_csrf.html" %}
+          {% include "partials/_csrf.html" %}
           <input type="hidden" name="days" value="{{ days }}">
           <button type="submit" class="btn btn-sm btn-outline-primary">Afficher la commande</button>
         </form>
@@ -1188,7 +1188,7 @@
         <p>Rapide + purge des locations obsoletes + purge des archives + nettoyage des sessions sur disque + purge des erreurs 500 de plus de 7 jours.</p>
         <div class="report-item"><strong>Commande</strong><span><code>flask cleanup --mode full --days {{ days }}</code></span></div>
         <form method="post" action="{{ url_for('admin.run_maintenance', mode='full') }}" class="mt-2">
-          {% include "admin/partials/_csrf.html" %}
+          {% include "partials/_csrf.html" %}
           <input type="hidden" name="days" value="{{ days }}">
           <button type="submit" class="btn btn-sm btn-outline-primary">Afficher la commande</button>
         </form>
@@ -1204,7 +1204,7 @@
       </div>
       {% if errors_block.available and errors_block.get('items') %}
       <form method="post" action="{{ url_for('admin.maintenance_errors_purge') }}" data-confirm-submit="Supprimer toutes les erreurs 500 des {{ errors_block.window_days }} jours ?" class="d-inline-flex align-items-center gap-2">
-        {% include "admin/partials/_csrf.html" %}
+        {% include "partials/_csrf.html" %}
         <input type="hidden" name="days" value="{{ days }}">
         <input type="hidden" name="errors_page" value="{{ errors_block.page or 1 }}">
         <button type="submit" class="btn btn-sm btn-outline-danger">
@@ -1243,7 +1243,7 @@
                   <td data-label="Message">{{ err.display_short_message or err.short_message or 'Non disponible' }}</td>
                   <td data-label="Action" class="text-end">
                     <form method="post" action="{{ url_for('admin.maintenance_error_delete', error_id=err.id) }}" data-confirm-submit="Supprimer cette erreur ?" class="d-inline">
-                      {% include "admin/partials/_csrf.html" %}
+                      {% include "partials/_csrf.html" %}
                       <input type="hidden" name="days" value="{{ days }}">
                       <input type="hidden" name="errors_page" value="{{ errors_block.page or 1 }}">
                       <button type="submit" class="btn btn-sm btn-outline-danger">
@@ -1292,7 +1292,7 @@
     <h5 class="mb-2">Reinitialisation de la base (admin uniquement)</h5>
     <p class="danger-note mb-2">Supprime toutes les donnees applicatives et conserve uniquement les comptes admin.</p>
     <form method="post" action="{{ url_for('admin.maintenance_reset_data') }}" data-confirm-submit="Cette action est irreversible. Continuer ?" class="row g-2">
-      {% include "admin/partials/_csrf.html" %}
+      {% include "partials/_csrf.html" %}
       <input type="hidden" name="days" value="{{ days }}">
       <div class="col-12">
         <label class="form-label">Dossier backup (optionnel)</label>

@@ -1,4 +1,4 @@
-﻿# app/routes/admin_users.py
+# app/routes/admin_users.py
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, current_app
 from flask_login import login_required, current_user
 from ..extensions import db
@@ -11,7 +11,7 @@ from ..models.shop import (
     normalize_shop_type,
 )
 from ..models.product import Product
-from ..models.order import Order, OrderItem
+from ..models.order import Order
 from ..models.audit import AuditLog
 from ..models.booking import Booking
 from ..models.review import Review
@@ -36,6 +36,7 @@ from ..services.date_filters import resolve_date_filter
 from ..services.email_service import build_public_url, send_account_created_email
 from ..services.finance_entries import record_subscription_entry
 from ..services.pagination import normalize_limit, page_from_args
+from ..services.shop_access import RESERVED_ROOT_SHOP_SLUGS
 from ..services.traffic_stats import get_live_traffic_metrics
 from datetime import datetime, timedelta
 from sqlalchemy.orm import selectinload, load_only
@@ -48,17 +49,6 @@ from slugify import slugify
 
 bp = Blueprint("admin_users", __name__, url_prefix="/admin")
 
-_MEMORABLE_PASSWORD_WORDS = [
-    "atlas", "cacao", "cafe", "citron", "dune", "epice", "figue", "fleur",
-    "hiver", "kiwi", "lune", "mango", "miel", "moka", "nacre", "ninja",
-    "olive", "panda", "perle", "pomme", "sable", "safran", "salon", "soleil",
-    "tacos", "tango", "the", "tomate", "turbo", "vague", "vanille", "zeste",
-    "azur", "basil", "beige", "bento", "boute", "carte", "cedre", "coton",
-    "dakar", "delta", "dinar", "droid", "gala", "givre", "glace", "goutte",
-    "honey", "jade", "karma", "lilas", "lotus", "lucky", "marron", "mystic",
-    "nebula", "nova", "onze", "pique", "pixel", "pulse", "qamar", "rabat",
-    "sakura", "satin", "smile", "sonic", "spray", "sucre", "tapis", "tempo",
-]
 _PHONE_DIGIT_RE = re.compile(r"\d")
 _EMAIL_BASIC_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 _USERNAME_SAFE_RE = re.compile(r"[^a-z0-9_]+")
@@ -80,32 +70,6 @@ FRAUD_MAX_ROWS_CAP = 200
 ADMIN_METRICS_CACHE_TTL_SHORT = 20
 ADMIN_METRICS_CACHE_TTL_MEDIUM = 30
 PASSWORD_CHANGE_WINDOW_MINUTES = 20
-RESERVED_ROOT_SHOP_SLUGS = {
-    "admin",
-    "admin-access",
-    "apple-touch-icon.png",
-    "api",
-    "booking",
-    "cart",
-    "delivery",
-    "health",
-    "lang",
-    "location",
-    "locations",
-    "login",
-    "logout",
-    "manifest.json",
-    "maintenance",
-    "register",
-    "search",
-    "shop",
-    "shops",
-    "signin",
-    "signup",
-    "sitemap.xml",
-    "sw.js",
-    "vendor",
-}
 VENDOR_CHANGE_TYPE_LABELS = {
     VendorChangeRequest.TYPE_ACCOUNT_EMAIL: "Email compte/boutique",
     VendorChangeRequest.TYPE_SHOP_NAME: "Nom de boutique",
@@ -286,15 +250,6 @@ def _create_shop_for_vendor(
     return shop
 
 
-def _generate_memorable_password() -> str:
-    word1 = secrets.choice(_MEMORABLE_PASSWORD_WORDS)
-    word2 = secrets.choice(_MEMORABLE_PASSWORD_WORDS)
-    while word2 == word1:
-        word2 = secrets.choice(_MEMORABLE_PASSWORD_WORDS)
-    digits = f"{secrets.randbelow(10000):04d}"
-    return f"{word1}-{word2}-{digits}"
-
-
 def _normalize_phone_digits(value: str | None) -> str:
     return "".join(_PHONE_DIGIT_RE.findall(str(value or "")))[:32]
 
@@ -326,31 +281,6 @@ def _unique_vendor_username(base: str | None) -> str:
             if not User.query.filter_by(username=candidate).first():
                 break
     return candidate
-
-
-def _unique_vendor_email(phone_digits: str, vendor_application_id: int) -> str:
-    fallback_domain = (
-        str(current_app.config.get("VENDOR_FALLBACK_EMAIL_DOMAIN") or "").strip().lower()
-        or "vendors.babamarket.ma"
-    )
-    fallback_domain = re.sub(r"[^a-z0-9.-]+", "", fallback_domain).strip(".")
-    if "." not in fallback_domain:
-        fallback_domain = "vendors.babamarket.ma"
-
-    local_seed = (phone_digits or "").strip() or f"request{vendor_application_id}"
-    local_seed = re.sub(r"[^a-zA-Z0-9]+", "", local_seed)[:32] or f"request{vendor_application_id}"
-    candidate = f"vendor{local_seed}@{fallback_domain}"
-    if not User.query.filter(func.lower(User.email) == candidate.lower()).first():
-        return candidate
-
-    counter = 1
-    while True:
-        attempt = f"vendor{local_seed}{counter}@{fallback_domain}"
-        if not User.query.filter(func.lower(User.email) == attempt.lower()).first():
-            return attempt
-        counter += 1
-        if counter > 2000:
-            return f"vendor{vendor_application_id}{int(datetime.utcnow().timestamp())}@{fallback_domain}"
 
 
 def _shop_types_from_vendor_application(shop_type_text: str | None):
@@ -1588,191 +1518,6 @@ def vendor_requests():
     )
 
 
-def _vendor_requests_redirect():
-    return redirect(request.referrer or url_for("admin_users.vendor_requests"))
-
-
-@bp.route("/vendor-requests/<int:request_id>/approve", methods=["POST"])
-def vendor_request_approve(request_id: int):
-    application = VendorApplication.query.get_or_404(request_id)
-    if application.status != VendorApplication.STATUS_PENDING:
-        flash("Cette demande a deja ete traitee.", "warning")
-        return _vendor_requests_redirect()
-
-    phone_digits = application.phone_digits or _normalize_phone_digits(application.phone)
-    email_normalized = _normalize_optional_email(application.email)
-    username = _unique_vendor_username(application.shop_name or application.full_name)
-
-    email = email_normalized
-    email_was_replaced = False
-    if email and User.query.filter(func.lower(User.email) == email.lower()).first():
-        email = ""
-        email_was_replaced = True
-    if not email:
-        email = _unique_vendor_email(phone_digits, application.id)
-        if email_normalized:
-            email_was_replaced = True
-
-    generated_password = None
-    primary_type, allowed_types = _shop_types_from_vendor_application(application.shop_type)
-    review_note = (request.form.get("note") or "").strip()[:500] or None
-
-    try:
-        user = User(
-            username=username,
-            email=email,
-            role="vendor",
-            full_name=None,
-            phone=None,
-            address=None,
-            created_at=datetime.utcnow(),
-        )
-        if application.password_hash:
-            user.password_hash = application.password_hash
-        else:
-            generated_password = _generate_memorable_password()
-            user.set_password(generated_password)
-        db.session.add(user)
-        db.session.flush()
-
-        shop = _create_shop_for_vendor(
-            user,
-            name=(application.shop_name or "").strip() or f"Boutique de {username}",
-            description=(application.short_description or "").strip(),
-            contact_email=application.email or user.email,
-            contact_phone=application.phone,
-            address=application.city,
-            primary_type=primary_type,
-            allowed_types=allowed_types,
-        )
-
-        application.status = VendorApplication.STATUS_APPROVED
-        application.review_note = review_note
-        application.reviewed_at = datetime.utcnow()
-        application.reviewed_by_id = current_user.id if current_user.is_authenticated else None
-        application.phone_digits = phone_digits
-        application.email_normalized = email_normalized or None
-        application.created_user_id = user.id
-        application.created_shop_id = shop.id
-
-        db.session.commit()
-    except Exception:
-        db.session.rollback()
-        current_app.logger.exception("vendor_request_approve.failed request_id=%s", request_id)
-        flash("Impossible de valider la demande pour le moment.", "danger")
-        return _vendor_requests_redirect()
-
-    try:
-        log_access(
-            "vendor_request_approved",
-            "vendor_application",
-            application.id,
-            success=True,
-            changes={
-                "created_user_id": application.created_user_id,
-                "created_shop_id": application.created_shop_id,
-                "shop_type": application.shop_type,
-            },
-        )
-    except Exception:
-        current_app.logger.warning(
-            "vendor_request_approve.audit_log_failed request_id=%s", application.id
-        )
-
-    if generated_password:
-        flash(
-            (
-                f"Demande validee. Compte vendeur cree: {username} | "
-                f"email: {email} | mot de passe temporaire: {generated_password}"
-            ),
-            "success",
-        )
-    elif email_was_replaced:
-        flash(
-            (
-                f"Demande validee. Compte vendeur cree: {username} | "
-                f"email de connexion: {email} (email initial deja utilise)."
-            ),
-            "warning",
-        )
-    else:
-        flash(f"Demande validee. Compte vendeur cree: {username} | email: {email}.", "success")
-    return _vendor_requests_redirect()
-
-
-@bp.route("/vendor-requests/<int:request_id>/reject", methods=["POST"])
-def vendor_request_reject(request_id: int):
-    application = VendorApplication.query.get_or_404(request_id)
-    if application.status != VendorApplication.STATUS_PENDING:
-        flash("Cette demande a deja ete traitee.", "warning")
-        return _vendor_requests_redirect()
-
-    review_note = (request.form.get("note") or "").strip()
-    if not review_note:
-        flash("Un motif est obligatoire pour refuser.", "warning")
-        return _vendor_requests_redirect()
-
-    application.status = VendorApplication.STATUS_REJECTED
-    application.review_note = review_note[:500]
-    application.reviewed_at = datetime.utcnow()
-    application.reviewed_by_id = current_user.id if current_user.is_authenticated else None
-    db.session.commit()
-
-    try:
-        log_access(
-            "vendor_request_rejected",
-            "vendor_application",
-            application.id,
-            success=True,
-            changes={"reason": application.review_note},
-        )
-    except Exception:
-        current_app.logger.warning(
-            "vendor_request_reject.audit_log_failed request_id=%s", application.id
-        )
-
-    flash("Demande refusee.", "success")
-    return _vendor_requests_redirect()
-
-
-@bp.route("/vendor-requests/<int:request_id>/block", methods=["POST"])
-def vendor_request_block(request_id: int):
-    application = VendorApplication.query.get_or_404(request_id)
-    if application.status != VendorApplication.STATUS_PENDING:
-        flash("Cette demande a deja ete traitee.", "warning")
-        return _vendor_requests_redirect()
-
-    review_note = (request.form.get("note") or "").strip()
-    if not review_note:
-        flash("Un motif est obligatoire pour bloquer.", "warning")
-        return _vendor_requests_redirect()
-
-    application.status = VendorApplication.STATUS_BLOCKED
-    application.review_note = review_note[:500]
-    application.reviewed_at = datetime.utcnow()
-    application.reviewed_by_id = current_user.id if current_user.is_authenticated else None
-    application.phone_digits = application.phone_digits or _normalize_phone_digits(application.phone)
-    normalized_email = _normalize_optional_email(application.email)
-    application.email_normalized = normalized_email or None
-    db.session.commit()
-
-    try:
-        log_access(
-            "vendor_request_blocked",
-            "vendor_application",
-            application.id,
-            success=True,
-            changes={"reason": application.review_note},
-        )
-    except Exception:
-        current_app.logger.warning(
-            "vendor_request_block.audit_log_failed request_id=%s", application.id
-        )
-
-    flash("Contact bloque pour les prochaines demandes.", "success")
-    return _vendor_requests_redirect()
-
-
 # ==================== DEMANDES MODIFICATIONS VENDEUR ====================
 @bp.route("/vendor-change-requests")
 def vendor_change_requests():
@@ -2145,17 +1890,7 @@ def view_logs():
         audit_logs_7d=audit_logs_7d
     )
 
-@bp.route("/audit")
-def audit_logs():
-    """Voir les logs d'audit"""
-    flash("La page audit a été retirée.", "info")
-    return redirect(url_for("admin_users.admin_dashboard"))
 
-@bp.route("/activity")
-def activity_log():
-    """Vue activité marketplace (ops)."""
-    flash("L'activité marketplace est maintenant sur le dashboard.", "info")
-    return redirect(url_for("admin_users.admin_dashboard"))
 
 
 @bp.route("/reconciliation")
@@ -2747,52 +2482,4 @@ def catalog_hide_out_of_stock():
 
 
 # ==================== API POUR ADMIN ====================
-@bp.route("/api/stats")
-def api_stats():
-    """API pour les statistiques admin"""
-    total_users = User.query.count()
-    total_vendors = User.query.filter_by(role='vendor').count()
-    total_shops = Shop.query.count()
-    total_products = Product.query.count()
-    total_product_contacts = ProductContactLead.query.filter_by(source="product_whatsapp").count()
 
-    today = datetime.utcnow().date()
-    product_contacts_today = ProductContactLead.query.filter(
-        db.func.date(ProductContactLead.created_at) == today,
-        ProductContactLead.source == "product_whatsapp",
-    ).count()
-    express_delivery_revenue_today = 0
-
-    return jsonify({
-        'total_users': total_users,
-        'total_vendors': total_vendors,
-        'total_shops': total_shops,
-        'total_products': total_products,
-        'total_product_contacts': total_product_contacts,
-        'product_contacts_today': product_contacts_today,
-        'express_delivery_revenue_today': express_delivery_revenue_today / 100,
-    })
-
-@bp.route("/api/user/<int:user_id>/quick-info")
-def api_user_quick_info(user_id):
-    """Info rapide sur un utilisateur"""
-    user = User.query.get_or_404(user_id)
-
-    info = {
-        'id': user.id,
-        'username': user.username,
-        'email': user.email,
-        'role': user.role,
-        'created_at': user.created_at.isoformat() if user.created_at else None
-    }
-
-    if user.role == 'vendor':
-        shop = Shop.query.filter_by(vendor_id=user.id).first()
-        if shop:
-            info['shop'] = {
-                'id': shop.id,
-                'name': shop.name,
-                'is_active': shop.is_active
-            }
-
-    return jsonify(info)

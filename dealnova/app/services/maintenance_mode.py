@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import time
 from datetime import datetime, timezone
@@ -9,7 +9,6 @@ from flask import current_app
 
 from ..extensions import db
 from ..models.platform_settings import PlatformSettings
-from ..services.audit import log_access
 
 DEFAULT_MAINTENANCE_MESSAGE = "Maintenance technique en cours. Nous revenons bientot."
 MAINTENANCE_CACHE_TTL_SECONDS = 5
@@ -208,17 +207,4 @@ def schedule_maintenance_mode(
     except:
         pass
     
-    return get_maintenance_state(force_refresh=True)
-
-
-def cleanup_expired_schedules() -> int:
-    """Nettoie les plannings de maintenance expirés."""
-    now = datetime.utcnow()
-    settings = PlatformSettings.get()
-    if settings.maintenance_ends_at and settings.maintenance_ends_at < now:
-        settings.maintenance_starts_at = None
-        settings.maintenance_ends_at = None
-        db.session.commit()
-        _invalidate_maintenance_cache()
-        return 1
-    return 0
+    return get_maintenance_state(force_refresh=True)

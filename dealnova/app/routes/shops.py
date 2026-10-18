@@ -13,57 +13,17 @@ from ..services.pricing import calculate_promo_price, get_active_promos_for_prod
 from ..models.category import Category
 from ..models.rental import RentalListing
 from ..services.cache import get_catalog_cache
+from ..services.db_session import safe_session_rollback as _safe_session_rollback
 from ..services.pagination import SimplePagination, page_from_args, paginate_with_clamped_page
 from ..services.rentals import cents_to_dh, rental_existing_video_poster_rel_path
-from ..services.shop_access import is_safe_public_shop_slug, normalize_public_shop_slug
+from ..services.shop_access import (
+    RESERVED_ROOT_SHOP_SLUGS,
+    is_safe_public_shop_slug,
+    normalize_public_shop_slug,
+    shop_is_currently_open as _shop_is_currently_open,
+)
 
 bp = Blueprint("shops", __name__)
-
-RESERVED_ROOT_SHOP_SLUGS = {
-    "admin",
-    "admin-access",
-    "apple-touch-icon.png",
-    "api",
-    "booking",
-    "cart",
-    "delivery",
-    "health",
-    "lang",
-    "locations",
-    "location",
-    "login",
-    "logout",
-    "manifest.json",
-    "maintenance",
-    "register",
-    "search",
-    "shop",
-    "shops",
-    "signin",
-    "signup",
-    "sitemap.xml",
-    "sw.js",
-    "vendor",
-}
-
-
-def _shop_is_currently_open(shop: Shop | None) -> bool:
-    """Vérifie si une boutique est actuellement ouverte."""
-    if not shop:
-        return False  # Plus sûr que True
-    
-    if not shop.is_active:
-        return False
-    
-    now = datetime.utcnow()
-    if shop.closed_until and shop.closed_until > now:
-        return False
-    
-    # Utiliser la méthode métier si elle existe
-    if hasattr(shop, 'is_open_now') and callable(getattr(shop, 'is_open_now')):
-        return shop.is_open_now()
-    
-    return bool(getattr(shop, "is_open", False))
 
 
 def _is_ajax_request() -> bool:
@@ -97,13 +57,6 @@ def _safe_float(value, default: float = 0.0) -> float:
         return float(value or 0)
     except (TypeError, ValueError):
         return default
-
-
-def _safe_session_rollback() -> None:
-    try:
-        db.session.rollback()
-    except Exception:
-        pass
 
 
 @bp.route("/shops")
@@ -517,7 +470,6 @@ def shop_detail(shop_slug):
     shop_total_items = shop_physical_total + shop_service_total
 
     # OPTIMISATION : Catégories et compteurs en une seule requête
-    from sqlalchemy import and_
     
     # Déterminer les kinds à inclure
     kinds_to_include = []

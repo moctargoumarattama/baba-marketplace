@@ -40,7 +40,7 @@
       {% if not p.is_active and product_block_reasons %}<div class="catalog-note">À compléter : {{ product_block_reasons|join(', ') }}.</div>{% endif %}
       <div class="catalog-card-actions">
         <a href="{{ url_for('shop.product_detail', pid=p.id) }}" class="catalog-action primary"><i class="bi bi-eye"></i>Voir</a>
-        <a href="{{ url_for('vendor.product_edit', pid=p.id) }}" class="catalog-action success"><i class="bi bi-pencil-square"></i>Modifier</a>
+        <a href="{{ url_for('vendor.product_edit', pid=p.id, standalone=1) }}" class="catalog-action success" data-vendor-product-edit data-stop-nav aria-haspopup="dialog" aria-controls="vendorProductDialog"><i class="bi bi-pencil-square"></i>Modifier</a>
         <a href="{{ url_for('vendor.product_promotion', pid=p.id) }}" class="catalog-action warm"><i class="bi bi-stars"></i>{{ 'Promo' if promo else 'Ajouter promo' }}</a>
         <form method="POST" action="{{ url_for('vendor.product_delete', pid=p.id) }}" data-ajax="true" data-action="delete-product" data-remove-target=".catalog-card" data-confirm="Supprimer ce produit " data-confirm-submit="Supprimer ce produit ?">
           {% include "partials/_csrf.html" %}

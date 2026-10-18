@@ -1,4 +1,4 @@
-﻿{% extends "admin/base.html" %}
+{% extends "admin/base.html" %}
 
 {% block title %}Utilisateur: {{ user.username }} | DealNova Admin{% endblock %}
 
@@ -100,7 +100,7 @@
                                       data-ajax="true"
                                       data-action="toggle-user"
                                       data-confirm="Voulez-vous activer/désactiver cet utilisateur ">
-                                    {% include "admin/partials/_csrf.html" %}
+                                    {% include "partials/_csrf.html" %}
                                     <button type="submit"
                                             class="btn btn-outline-{{ 'danger' if user.is_active else 'success' }}"
                                             data-active-text="Désactiver"
@@ -177,7 +177,7 @@
                                   action="{{ url_for('admin_users.reset_user_password', user_id=user.id) }}"
                                   class="d-inline"
                                   id="resetPasswordForm">
-                                {% include "admin/partials/_csrf.html" %}
+                                {% include "partials/_csrf.html" %}
                                 <button type="submit" class="btn btn-warning btn-sm" id="resetPasswordBtn">
                                     <i class="bi bi-key"></i> Réinitialiser mot de passe
                                 </button>
@@ -187,7 +187,7 @@
                             <form method="post"
                                   action="{{ url_for('admin_users.set_user_password_change_window', user_id=user.id) }}"
                                   class="d-inline">
-                                {% include "admin/partials/_csrf.html" %}
+                                {% include "partials/_csrf.html" %}
                                 {% if password_change_window_active %}
                                     <input type="hidden" name="enable" value="0">
                                     <button type="submit" class="btn btn-outline-secondary btn-sm">
@@ -220,7 +220,7 @@
                                   action="{{ url_for('admin_users.delete_user', user_id=user.id) }}"
                                   class="d-inline"
                                   data-confirm-submit="Confirmation suppression definitive :&#10;- Le nom sera garde dans l'historique suppression&#10;- Cette action est irreversible&#10;&#10;Supprimer cet utilisateur ?">
-                                {% include "admin/partials/_csrf.html" %}
+                                {% include "partials/_csrf.html" %}
                                 <button type="submit"
                                         class="btn btn-danger btn-sm"
                                         title="Supprimer definitivement">
@@ -341,7 +341,7 @@
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <form method="post" action="{{ url_for('admin_users.update_user', user_id=user.id) }}">
-                {% include "admin/partials/_csrf.html" %}
+                {% include "partials/_csrf.html" %}
                 <div class="modal-header">
                     <h5 class="modal-title">Modifier l'utilisateur</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>

@@ -48,15 +48,13 @@ def test_admin_has_read_only_product_contacts_page():
     assert "delete(" not in body
 
 
-def test_admin_menu_keeps_product_contacts_and_dedicated_deliveries_entry():
+def test_admin_menu_keeps_product_contacts_without_legacy_orders():
     template = _read("app/templates/admin/base.html")
 
     assert "url_for('admin.product_contacts')" in template
     assert "<span>Contacts produits</span>" in template
     assert "url_for('admin.all_orders')" not in template
     assert "<span>Commandes</span>" not in template
-    assert "url_for('admin.deliveries')" in template
-    assert "<span>Livraisons</span>" in template
 
 
 def test_product_contacts_template_has_no_operational_actions():
@@ -81,3 +79,4 @@ def test_legacy_product_order_pages_are_removed_instead_of_hidden():
     assert "def orders_live(" not in admin_source
     assert "def orders_notifications(" not in admin_source
     assert 'url_for("admin.orders_notifications"' not in _read("app/templates/admin/base.html")
+

@@ -1,4 +1,4 @@
-﻿{% extends "admin/base.html" %}
+{% extends "admin/base.html" %}
 {% block title %}Catégories | Admin{% endblock %}
 {% block page_title %}Catégories{% endblock %}
 {% block body_attrs %}data-adm-page="categories" data-ajax-owner="admin"{% endblock %}
@@ -200,7 +200,7 @@
                       <i class="bi bi-pencil-square"></i>
                     </a>
                     <form action="{{ url_for('admin_categories.delete_category', cid=cat.id) }}" method="POST" style="margin:0">
-                      {% include "admin/partials/_csrf.html" %}
+                      {% include "partials/_csrf.html" %}
                       <button class="btn-del" type="submit" data-confirm-click="Supprimer {{ cat.name }} " title="Supprimer">
                         <i class="bi bi-trash"></i>
                       </button>

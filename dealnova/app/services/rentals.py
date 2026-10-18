@@ -2,7 +2,7 @@ import os
 import shutil
 import subprocess
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Iterable
 
 from flask import current_app
@@ -200,7 +200,7 @@ def save_rental_image(file_obj: FileStorage) -> str:
     return _relative_rental_path(filename)
 
 
-def save_rental_video(file_obj: FileStorage) -> str:
+def save_rental_video(file_obj: FileStorage, *, strict: bool = False) -> str:
     ext = _extension(file_obj.filename or "")
     if ext not in VIDEO_EXTENSIONS:
         raise ValueError("Format video non supporte (mp4, mov, webm, m4v, avi).")
@@ -211,20 +211,35 @@ def save_rental_video(file_obj: FileStorage) -> str:
 
     abs_dir = _rental_abs_dir()
     base_name = f"{uuid.uuid4().hex}"
-    source_filename = f"{base_name}.{ext}"
+    source_filename = f"{base_name}_source.{ext}"
     source_abs = os.path.join(abs_dir, source_filename)
 
-    file_obj.stream.seek(0)
-    file_obj.save(source_abs)
+    try:
+        file_obj.stream.seek(0)
+        file_obj.save(source_abs)
+    except Exception as exc:
+        if os.path.isfile(source_abs):
+            try:
+                os.remove(source_abs)
+            except OSError:
+                pass
+        raise ValueError("Video invalide ou non lisible.") from exc
 
     ffmpeg_bin = shutil.which("ffmpeg")
     if not ffmpeg_bin:
+        if strict:
+            try:
+                os.remove(source_abs)
+            except OSError:
+                pass
+            raise ValueError("La vidéo ne peut pas être vérifiée pour le moment. Retirez-la ou réessayez plus tard.")
         return _relative_rental_path(source_filename)
 
     compressed_filename = f"{base_name}.mp4"
     compressed_abs = os.path.join(abs_dir, compressed_filename)
     final_abs = source_abs
     final_rel = _relative_rental_path(source_filename)
+    poster_abs = None
 
     try:
         result = subprocess.run(
@@ -250,10 +265,16 @@ def save_rental_video(file_obj: FileStorage) -> str:
             check=False,
         )
         if result.returncode != 0 or not os.path.exists(compressed_abs):
+            if strict:
+                raise ValueError("Vidéo illisible. Choisissez une autre vidéo.")
+            if os.path.isfile(compressed_abs):
+                os.remove(compressed_abs)
             final_abs = source_abs
             final_rel = _relative_rental_path(source_filename)
         elif os.path.getsize(compressed_abs) > MAX_VIDEO_BYTES:
             os.remove(compressed_abs)
+            if strict:
+                raise ValueError("La vidéo dépasse 30 Mo après traitement. Choisissez une vidéo plus courte.")
             final_abs = source_abs
             final_rel = _relative_rental_path(source_filename)
         else:
@@ -264,10 +285,29 @@ def save_rental_video(file_obj: FileStorage) -> str:
         poster_rel = rental_video_poster_rel_path(final_rel)
         if poster_rel:
             poster_abs = static_abs_path(poster_rel)
-            _generate_video_poster(final_abs, poster_abs, ffmpeg_bin)
+            if not _generate_video_poster(final_abs, poster_abs, ffmpeg_bin) and os.path.isfile(poster_abs):
+                try:
+                    os.remove(poster_abs)
+                except OSError:
+                    pass
         return final_rel
-    except Exception:
-        return _relative_rental_path(source_filename)
+    except Exception as exc:
+        if strict:
+            for temporary_path in (source_abs, compressed_abs, poster_abs):
+                if temporary_path and os.path.isfile(temporary_path):
+                    try:
+                        os.remove(temporary_path)
+                    except OSError:
+                        pass
+            if isinstance(exc, ValueError):
+                raise
+            raise ValueError("La vidéo n'a pas pu être vérifiée. Choisissez une autre vidéo ou réessayez plus tard.") from exc
+        if final_abs == source_abs and os.path.isfile(compressed_abs):
+            try:
+                os.remove(compressed_abs)
+            except OSError:
+                pass
+        return final_rel
 
 
 def static_abs_path(relative_path: str) -> str:
