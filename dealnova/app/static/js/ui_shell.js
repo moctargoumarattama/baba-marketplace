@@ -396,6 +396,18 @@
       if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || langLink.target === "_blank") return;
       e.preventDefault();
 
+      langLink.style.opacity = "0.65";
+      langLink.style.pointerEvents = "none";
+      const openDetails = langLink.closest("details[open]");
+      if (openDetails) openDetails.removeAttribute("open");
+
+      try {
+        window.sessionStorage.setItem("__BM_NAV_PENDING__", "quiet");
+      } catch (_err) {}
+      if (window.BMPageNav && typeof window.BMPageNav.show === "function") {
+        window.BMPageNav.show(langLink.href);
+      }
+
       const langForm = document.getElementById("langSwitchForm");
       if (!langForm) {
         window.location.href = langLink.href;

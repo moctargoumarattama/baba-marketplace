@@ -1165,6 +1165,13 @@
     // ========================================================
     var activeGalleryItems = [];
     var currentProductHasPromo = false;
+    var currentProductKind = 'product';
+
+    function detailPlaceholderUrl() {
+      return currentProductKind === 'service'
+        ? '/static/img/placeholders/service.svg'
+        : '/static/img/placeholders/product.svg';
+    }
 
     function updateGalleryMedia(index) {
       if (!activeGalleryItems.length) return;
@@ -1199,7 +1206,7 @@
           pDetailMainVideo.style.display = 'none';
         }
         if (pDetailVideoBadge) pDetailVideoBadge.style.display = 'none';
-        var fullImg = currentItem.src ? ('/static/uploads/' + currentItem.src) : '/static/images/produit.jpeg';
+        var fullImg = currentItem.src ? ('/static/uploads/' + currentItem.src) : detailPlaceholderUrl();
         if (pDetailMainImg) {
           pDetailMainImg.style.display = 'block';
           pDetailMainImg.src = fullImg;
@@ -1208,7 +1215,7 @@
           pDetailMainImgBlur.style.display = 'block';
           pDetailMainImgBlur.src = fullImg;
         }
-        if (pDetailZoomChip) pDetailZoomChip.style.display = 'inline-flex';
+        if (pDetailZoomChip) pDetailZoomChip.style.display = currentItem.src ? 'inline-flex' : 'none';
         if (pDetailPromoBadge && currentProductHasPromo) pDetailPromoBadge.style.display = 'inline-block';
       }
 
@@ -1269,6 +1276,7 @@
             throw new Error('Données indisponibles');
           }
           var product = data.product;
+          currentProductKind = product.kind === 'service' ? 'service' : 'product';
 
           // Catégorie
           if (pDetailCatBadge) pDetailCatBadge.textContent = product.category || 'Détails du produit';
@@ -1348,7 +1356,7 @@
                 } else {
                   thumb = document.createElement('img');
                   thumb.className = 'u-pdetail-thumb' + (idx === 0 ? ' is-active' : '');
-                  thumb.src = item.src ? ('/static/uploads/' + item.src) : '/static/images/produit.jpeg';
+                  thumb.src = item.src ? ('/static/uploads/' + item.src) : detailPlaceholderUrl();
                   thumb.alt = product.name;
                 }
                 thumb.addEventListener('click', function () {

@@ -101,10 +101,16 @@
     return changed ? output : rawValue;
   };
 
+  const ATTR_SELECTOR =
+    "[placeholder],[title],[aria-label],input[type='button'],input[type='submit'],input[type='reset']";
+
   const translateAttributes = (scope) => {
     if (!scope || scope.nodeType !== 1) return;
     const attrTargets = ["placeholder", "title", "aria-label"];
-    scope.querySelectorAll("*").forEach((element) => {
+    const elements = scope.matches && scope.matches(ATTR_SELECTOR)
+      ? [scope, ...scope.querySelectorAll(ATTR_SELECTOR)]
+      : scope.querySelectorAll(ATTR_SELECTOR);
+    elements.forEach((element) => {
       if (element.closest("[data-no-i18n]")) return;
 
       attrTargets.forEach((attr) => {

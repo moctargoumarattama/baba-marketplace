@@ -1,15 +1,80 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 480" role="img" aria-label="Location placeholder">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 480" role="img" aria-label="Aucune photo de logement">
   <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#fff7ed"/>
-      <stop offset="100%" stop-color="#ffedd5"/>
+    <linearGradient id="bgTop" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#e7f4fb"/>
+      <stop offset="100%" stop-color="#dbf0f9"/>
     </linearGradient>
+    <linearGradient id="bgFloor" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#cde3e0"/>
+      <stop offset="100%" stop-color="#bfd8d4"/>
+    </linearGradient>
+    <radialGradient id="houseShadow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#476c6a" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#476c6a" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="houseBaseTop" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#bde2d0"/>
+      <stop offset="100%" stop-color="#96ccb4"/>
+    </linearGradient>
+    <linearGradient id="houseBaseSide" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#82bca3"/>
+      <stop offset="100%" stop-color="#6ba88e"/>
+    </linearGradient>
+    <linearGradient id="houseWallLeft" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fff5e4"/>
+      <stop offset="100%" stop-color="#f2dfc1"/>
+    </linearGradient>
+    <linearGradient id="houseWallRight" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#e7cfa8"/>
+      <stop offset="100%" stop-color="#d8ba8c"/>
+    </linearGradient>
+    <linearGradient id="houseRoofLeft" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#b8c7f4"/>
+      <stop offset="100%" stop-color="#95aae8"/>
+    </linearGradient>
+    <linearGradient id="houseRoofRight" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#8b9fe0"/>
+      <stop offset="100%" stop-color="#7489d1"/>
+    </linearGradient>
+    <style>
+      .float-3d {
+        transform-origin: 320px 230px;
+        translate: 0px 0px;
+        rotate: 0deg;
+        scale: 1;
+        animation: svgFloat3d 3.6s ease-in-out infinite;
+      }
+      @keyframes svgFloat3d {
+        0%, 100% { translate: 0px 0px; rotate: -1deg; }
+        50% { translate: 0px -10px; rotate: 1deg; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .float-3d { animation: none; }
+      }
+    </style>
   </defs>
-  <rect width="640" height="480" fill="url(#g)"/>
-  <g fill="none" stroke="#f59e0b" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" opacity="0.92">
-    <path d="M170 294l150-124 150 124"/>
-    <path d="M210 280v118h220V280"/>
-    <path d="M284 398v-74h72v74"/>
+  <rect width="640" height="290" fill="url(#bgTop)"/>
+  <rect y="290" width="640" height="190" fill="url(#bgFloor)"/>
+  <ellipse cx="320" cy="340" rx="150" ry="34" fill="url(#houseShadow)"/>
+  <g class="float-3d" transform="translate(100, 18) scale(2)">
+    <path d="M46 122 L110 146 L174 122 L174 130 Q174 134 169 136 L114 156 Q110 158 106 156 L51 136 Q46 134 46 130 Z" fill="url(#houseBaseSide)"/>
+    <path d="M106 98 Q110 96 114 98 L170 119 Q175 121 170 123 L114 145 Q110 147 106 145 L50 123 Q45 121 50 119 Z" fill="url(#houseBaseTop)"/>
+    <path d="M68 78 L106 94 L106 131 L68 116 Z" fill="url(#houseWallLeft)"/>
+    <path d="M106 94 L142 78 L142 116 L106 131 Z" fill="url(#houseWallRight)"/>
+    <path d="M68 78 L87 52 L106 94 Z" fill="#faebd4"/>
+    <path d="M61 81 L87 46 L112 56 L87 92 Z" fill="url(#houseRoofLeft)"/>
+    <path d="M87 46 L148 70 L124 102 L106 94 Z" fill="url(#houseRoofRight)"/>
+    <rect x="116" y="47" width="12" height="16" rx="3" fill="#e9d5b7"/>
+    <rect x="114" y="44" width="16" height="5" rx="2.5" fill="#f7ead5"/>
+    <path d="M88 102 Q93 100 97 102 L97 127 L88 123 Z" fill="#a7d7c2"/>
+    <circle cx="95" cy="115" r="1.6" fill="#eab308"/>
+    <rect x="73" y="88" width="11" height="11" rx="2.5" transform="skewY(21)" fill="#b8ccf5" stroke="#ffffff" stroke-width="1.8"/>
+    <g>
+      <rect x="148" y="102" width="5" height="14" rx="2" fill="#9c6b43"/>
+      <ellipse cx="150.5" cy="95" rx="10" ry="13" fill="#7eb89c"/>
+      <ellipse cx="148.5" cy="92" rx="6" ry="8" fill="#9ad0b5"/>
+    </g>
   </g>
-  <text x="320" y="422" text-anchor="middle" font-size="28" font-family="Arial, sans-serif" fill="#b45309">Location</text>
+  <rect x="220" y="396" width="200" height="44" rx="22" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="320" y="424" text-anchor="middle" font-size="22" font-weight="600" font-family="system-ui, -apple-system, sans-serif" fill="#64748b">Aucune photo</text>
 </svg>

@@ -247,10 +247,15 @@ def _serialize(source, model, price):
                     city=_shop_city(model.shop.address) if model.shop else "",
                     available=_shop_is_open(model.shop) and (service or model.stock > 0))
     elif source == "location":
-        cover = next((media.file_path for media in sorted(model.media, key=lambda media: media.id)
+        sorted_media = sorted(model.media, key=lambda media: media.id)
+        cover = next((media.file_path for media in sorted_media
                       if media.kind == "image" and media.file_path), "")
+        video = next((media.file_path for media in sorted_media
+                      if media.kind == "video" and media.file_path), "")
         item.update(name=model.title, slug=model.slug, price=cents_to_money(price), final_price=cents_to_money(price),
-                    image_url=_image_url(cover, rental=True), url=url_for("rentals.location_detail", slug=model.slug),
+                    image_url=_image_url(cover, rental=True) if cover else "",
+                    video_url=_image_url(video, rental=True) if video else "",
+                    url=url_for("rentals.location_detail", slug=model.slug),
                     shop_id=model.shop_id, shop_name=model.shop.name, city=model.city, area=model.area or "",
                     listing_type=model.listing_type, property_type=model.property_type, status=model.status,
                     available=model.status == "active")

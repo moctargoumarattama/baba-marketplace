@@ -65,6 +65,7 @@ _ANALYTICS_LOCK = Lock()
 _LIVE_METRICS_CACHE_VALUE: dict[str, Any] | None = None
 _LIVE_METRICS_CACHE_UNTIL = 0.0
 _REDIS_CLIENT_CACHE: dict[str, Any] = {}
+_REDIS_CLIENT_FAILURE_UNTIL: dict[str, float] = {}
 _REDIS_CLIENT_CACHE_LOCK = Lock()
 _ANALYTICS_FLUSH_LOCK_KEY = "stats:analytics_flush_lock"
 _ANALYTICS_LAST_FLUSH_KEY = "stats:analytics_last_flush_ts"
@@ -148,18 +149,24 @@ def _redis_client():
         if cached is not None:
             return cached
 
+        now_mono = time.monotonic()
+        if now_mono < _REDIS_CLIENT_FAILURE_UNTIL.get(redis_url, 0.0):
+            return None
+
         try:
             client = redis_lib.Redis.from_url(
                 redis_url,
                 decode_responses=True,
-                socket_timeout=0.5,
-                socket_connect_timeout=0.5,
+                socket_timeout=0.35,
+                socket_connect_timeout=0.35,
                 health_check_interval=30,
             )
             client.ping()
         except Exception:
+            _REDIS_CLIENT_FAILURE_UNTIL[redis_url] = now_mono + 30.0
             return None
 
+        _REDIS_CLIENT_FAILURE_UNTIL.pop(redis_url, None)
         _REDIS_CLIENT_CACHE[redis_url] = client
         return client
 
@@ -655,9 +662,9 @@ def _redis_live_metrics_snapshot(client, now: datetime | None = None) -> dict[st
 def _is_static_like(path: str, endpoint: str | None) -> bool:
     if endpoint and endpoint.endswith(".static"):
         return True
-    if path.startswith("/static/"):
+    if path.startswith("/static/") or path.startswith("/lang/"):
         return True
-    return path in {"/health", "/favicon.ico", "/sw.js"}
+    return path in {"/health", "/favicon.ico", "/sw.js", "/manifest.json", "/apple-touch-icon.png"}
 
 
 def _is_background_request() -> bool:
@@ -1173,12 +1180,6 @@ def track_request_hit(path: str | None = None, endpoint: str | None = None) -> N
             return
 
         now = datetime.utcnow()
-        client = _redis_client()
-        if client is not None:
-            if _redis_record_page_view(now):
-                _live_metrics_cache_invalidate()
-            return
-
         if _redis_record_page_view(now):
             _live_metrics_cache_invalidate()
             return
@@ -1197,12 +1198,6 @@ def track_request_hit(path: str | None = None, endpoint: str | None = None) -> N
 def track_delivery_request_created(now: datetime | None = None) -> None:
     try:
         current_dt = now or datetime.utcnow()
-        client = _redis_client()
-        if client is not None:
-            if _redis_record_delivery_request_created(current_dt):
-                _live_metrics_cache_invalidate()
-            return
-
         if _redis_record_delivery_request_created(current_dt):
             _live_metrics_cache_invalidate()
             return
@@ -1223,12 +1218,6 @@ def track_custom_event(event_name: str, now: datetime | None = None) -> None:
         return
 
     current_dt = now or datetime.utcnow()
-    client = _redis_client()
-    if client is not None:
-        if _redis_record_custom_event(safe_event, current_dt):
-            _live_metrics_cache_invalidate()
-        return
-
     if _redis_record_custom_event(safe_event, current_dt):
         _live_metrics_cache_invalidate()
         return

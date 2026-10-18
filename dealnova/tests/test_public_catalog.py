@@ -180,7 +180,9 @@ def test_nearest_promotion_and_cent_rounding_match_checkout(catalogue):
 def test_rental_filters_aliases_media_and_visibility_use_real_listings(catalogue):
     wanted = rental(catalogue, "Studio Rabat", property_type="studio", rent_cents=250000)
     db.session.add(RentalMedia(listing_id=wanted.id, kind="image", file_path="uploads/rentals/studio.webp"))
-    rental(catalogue, "Autre ville", city="Salé", shop_id=catalogue.other_shop.id)
+    video_only = rental(catalogue, "Villa Vidéo", city="Salé", property_type="villa", shop_id=catalogue.other_shop.id)
+    db.session.add(RentalMedia(listing_id=video_only.id, kind="video", file_path="uploads/rentals/villa.mp4"))
+    no_media = rental(catalogue, "Appartement Sans Média", city="Fès", property_type="apartment", shop_id=catalogue.other_shop.id)
     rental(catalogue, "Expirée", expires_at=datetime.utcnow() - timedelta(days=1))
     rental(catalogue, "Inactive", is_active=False)
     rental(catalogue, "Fermée", status="taken")
@@ -194,10 +196,23 @@ def test_rental_filters_aliases_media_and_visibility_use_real_listings(catalogue
     assert item["id"] == wanted.id
     assert item["item_type"] == item["kind"] == "location"
     assert item["image_url"] == "/static/uploads/rentals/studio.webp"
+    assert item["video_url"] == ""
     assert item["url"] == "/location/studio-rabat"
     assert item["stock"] is None
     assert result["filters"]["listing_type"] == "monthly"
     assert result["filters"]["min_price"] == 2000
+
+    sale_items = get(catalogue, universe="locations", city="Salé")["items"]
+    assert len(sale_items) == 1
+    assert sale_items[0]["id"] == video_only.id
+    assert sale_items[0]["image_url"] == ""
+    assert sale_items[0]["video_url"] == "/static/uploads/rentals/villa.mp4"
+
+    fes_items = get(catalogue, universe="locations", city="Fès")["items"]
+    assert len(fes_items) == 1
+    assert fes_items[0]["id"] == no_media.id
+    assert fes_items[0]["image_url"] == ""
+    assert fes_items[0]["video_url"] == ""
 
 
 def test_search_unifies_sources_with_exact_total_and_price_order(catalogue):

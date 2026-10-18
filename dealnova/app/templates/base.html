@@ -93,10 +93,14 @@
 
       if (!mode) {
         try {
-          var navigation = window.performance && window.performance.getEntriesByType
-            ? window.performance.getEntriesByType('navigation')[0]
-            : null;
-          if (navigation && navigation.type === 'back_forward') mode = 'quiet';
+          if (window.sessionStorage.getItem('__BM_SESSION_BOOTED__') === '1') {
+            mode = 'quiet';
+          } else {
+            var navigation = window.performance && window.performance.getEntriesByType
+              ? window.performance.getEntriesByType('navigation')[0]
+              : null;
+            if (navigation && navigation.type === 'back_forward') mode = 'quiet';
+          }
         } catch (_navigationError) {}
       }
 
@@ -345,6 +349,7 @@
       text-transform: uppercase;
       background: linear-gradient(90deg, #ffffff 10%, #6ee7b7 55%, #38bdf8 100%);
       -webkit-background-clip: text;
+      background-clip: text;
       -webkit-text-fill-color: transparent;
     }
     .bm-loader-brand-sub {
@@ -727,8 +732,8 @@
 
       var LOADER_CONFIG = Object.assign(
         {
-          initialDuration: 1500, // 1.5s d'affichage au premier lancement / refresh
-          navigationThreshold: 350 // Barre discrète seulement si la navigation dure.
+          initialDuration: 1500, // 1.5s d'affichage à la première ouverture de l'application
+          navigationThreshold: 150 // Barre discrète réactive pendant la navigation
         },
         window.BM_LOADER_CONFIG || {}
       );
@@ -758,11 +763,13 @@
         navType = navEntry && navEntry.type ? String(navEntry.type) : '';
       } catch (_navError) {}
       var lastReadyAt = 0;
+      var hasBootedSession = false;
       try {
         lastReadyAt = Number(window.sessionStorage.getItem('__BM_LAST_READY_AT__') || 0);
+        hasBootedSession = window.sessionStorage.getItem('__BM_SESSION_BOOTED__') === '1';
       } catch (_storageReadError) {}
       var warmReturn = !!(lastReadyAt && (Date.now() - lastReadyAt) < 12000);
-      var instantExit = navType === 'back_forward' || (warmReturn && isNavTransition);
+      var instantExit = navType === 'back_forward' || hasBootedSession || (warmReturn && isNavTransition);
       var readiness = window.__BM_PAGE_READINESS__ || {
         domReady: false,
         interactive: false,
@@ -850,6 +857,7 @@
         if (isNavTransition && navigationIntentVersion === 0) setPendingNavigationMode('');
         try {
           window.sessionStorage.setItem('__BM_LAST_READY_AT__', String(Date.now()));
+          window.sessionStorage.setItem('__BM_SESSION_BOOTED__', '1');
         } catch (_storageWriteError) {}
         if (!isNavTransition) {
           setTimeout(() => {
@@ -1260,13 +1268,13 @@
       }, true);
 
       if (!isI18nReady()) {
-        window.setTimeout(onI18nReady, instantExit ? 450 : 700);
+        window.setTimeout(onI18nReady, instantExit ? 60 : 120);
       }
 
       // Fallback sécurité: ne jamais rester bloqué à cause des médias lents.
       window.setTimeout(function() {
         hideLoader();
-      }, (!isNavTransition && !instantExit) ? 3500 : 2200);
+      }, (!isNavTransition && !instantExit) ? 3500 : 600);
     })();
   </script>
 
@@ -1800,6 +1808,7 @@
               padding: 0 !important;
               outline: none !important;
               -webkit-appearance: none !important;
+              appearance: none !important;
             }
             .bm-toast-progress {
               position: absolute !important;

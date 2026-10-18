@@ -38,7 +38,7 @@
           {% endif %}
           <a href="{{ url_for('auth.vendor_access') }}">{{ t('Devenir vendeur') }} <i class="bi bi-arrow-up-right" aria-hidden="true"></i></a>
           <div class="hub-language-links" aria-label="{{ t('Langue') }}">
-            {% for language, label in [('fr', 'FR'), ('en', 'EN'), ('ary', 'دارجة')] %}<a href="{{ url_for('set_language_route', lang_code=language, next=url_for('landing')) }}" lang="{{ language }}" {% if current_lang == language %}aria-current="true"{% endif %}>{{ label }}</a>{% endfor %}
+            {% for language, label in [('fr', 'FR'), ('en', 'EN'), ('ary', 'دارجة')] %}<a href="{{ url_for('set_language_route', lang_code=language, next=url_for('landing')) }}" lang="{{ language }}" data-lang-switch="{{ language }}" {% if current_lang == language %}aria-current="true"{% endif %}>{{ label }}</a>{% endfor %}
           </div>
         </div>
       </details>
