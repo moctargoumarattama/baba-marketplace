@@ -49,9 +49,18 @@ from slugify import slugify
 
 bp = Blueprint("admin_users", __name__, url_prefix="/admin")
 
-_PHONE_DIGIT_RE = re.compile(r"\d")
+_MEMORABLE_PASSWORD_WORDS = [
+    "atlas", "cacao", "cafe", "citron", "dune", "epice", "figue", "fleur",
+    "hiver", "kiwi", "lune", "mango", "miel", "moka", "nacre", "ninja",
+    "olive", "panda", "perle", "pomme", "sable", "safran", "salon", "soleil",
+    "tacos", "tango", "the", "tomate", "turbo", "vague", "vanille", "zeste",
+    "azur", "basil", "beige", "bento", "boute", "carte", "cedre", "coton",
+    "dakar", "delta", "dinar", "droid", "gala", "givre", "glace", "goutte",
+    "honey", "jade", "karma", "lilas", "lotus", "lucky", "marron", "mystic",
+    "nebula", "nova", "onze", "pique", "pixel", "pulse", "qamar", "rabat",
+    "sakura", "satin", "smile", "sonic", "spray", "sucre", "tapis", "tempo",
+]
 _EMAIL_BASIC_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
-_USERNAME_SAFE_RE = re.compile(r"[^a-z0-9_]+")
 
 ADMIN_ROLE = "admin"
 MANAGER_ROLE = "manager"
@@ -60,7 +69,6 @@ ALLOWED_USER_ROLES = (ADMIN_ROLE, MANAGER_ROLE, "vendor")
 ADMIN_CREATABLE_USER_ROLES = (ADMIN_ROLE, MANAGER_ROLE)
 MANAGER_BLOCKED_ENDPOINTS = {
     "admin_users.view_logs",
-    "admin_users.audit_logs",
     "admin_users.fraud_monitor",
     "admin_users.fraud_block",
     "admin_users.fraud_unblock",
@@ -211,47 +219,13 @@ def _build_unique_shop_slug(name: str, *, exclude_shop_id: int | None = None) ->
             slug = f"{base_slug}-{int(datetime.utcnow().timestamp())}"
 
 
-def _create_shop_for_vendor(
-    vendor: User,
-    *,
-    name: str,
-    description: str = "",
-    contact_email: str = "",
-    contact_phone: str = "",
-    address: str = "",
-    primary_type: str = "products",
-    allowed_types: list[str] | None = None,
-) -> Shop:
-    normalized_primary = normalize_shop_type(primary_type) or "products"
-    normalized_allowed = normalize_allowed_shop_types(allowed_types, primary_type=normalized_primary)
-
-    shop = Shop(
-        vendor_id=vendor.id,
-        name=name.strip(),
-        slug=_build_unique_shop_slug(name),
-        description=(description or "").strip() or None,
-        contact_email=(contact_email or "").strip() or vendor.email or None,
-        contact_phone=(contact_phone or "").strip() or vendor.phone or None,
-        address=(address or "").strip() or vendor.address or None,
-        primary_type=normalized_primary,
-        is_active=True,
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
-    )
-    shop.set_allowed_types(normalized_allowed)
-
-    db.session.add(shop)
-    db.session.flush()
-
-    Product.query.filter_by(vendor_id=vendor.id).update(
-        {"shop_id": shop.id},
-        synchronize_session=False,
-    )
-    return shop
-
-
-def _normalize_phone_digits(value: str | None) -> str:
-    return "".join(_PHONE_DIGIT_RE.findall(str(value or "")))[:32]
+def _generate_memorable_password() -> str:
+    word1 = secrets.choice(_MEMORABLE_PASSWORD_WORDS)
+    word2 = secrets.choice(_MEMORABLE_PASSWORD_WORDS)
+    while word2 == word1:
+        word2 = secrets.choice(_MEMORABLE_PASSWORD_WORDS)
+    digits = f"{secrets.randbelow(10000):04d}"
+    return f"{word1}-{word2}-{digits}"
 
 
 def _normalize_optional_email(value: str | None) -> str:
@@ -259,50 +233,6 @@ def _normalize_optional_email(value: str | None) -> str:
     if not candidate:
         return ""
     return candidate if _EMAIL_BASIC_RE.match(candidate) else ""
-
-
-def _unique_vendor_username(base: str | None) -> str:
-    seed = _USERNAME_SAFE_RE.sub("_", slugify((base or "").strip() or "vendeur", separator="_").lower())
-    seed = re.sub(r"_+", "_", seed).strip("_")
-    if not seed:
-        seed = "vendeur"
-    if len(seed) < 3:
-        seed = f"{seed}_user"
-    seed = seed[:40]
-
-    candidate = seed
-    counter = 1
-    while User.query.filter_by(username=candidate).first():
-        suffix = f"_{counter}"
-        candidate = f"{seed[: max(1, 50 - len(suffix))]}{suffix}"
-        counter += 1
-        if counter > 2000:
-            candidate = f"vendor_{int(datetime.utcnow().timestamp())}"
-            if not User.query.filter_by(username=candidate).first():
-                break
-    return candidate
-
-
-def _shop_types_from_vendor_application(shop_type_text: str | None):
-    raw = (shop_type_text or "").strip().lower()
-    if not raw:
-        return "products", ["products"]
-
-    allowed: list[str] = []
-    has_mix = any(token in raw for token in ("mix", "multi", "tous", "all"))
-    if has_mix:
-        return "products", list(SHOP_TYPE_ORDER)
-
-    if any(token in raw for token in ("produit", "product", "marchandise", "article")):
-        allowed.append("products")
-    if any(token in raw for token in ("service", "prestation")):
-        allowed.append("services")
-    if any(token in raw for token in ("location", "rental", "locatif", "louer", "louage")):
-        allowed.append("location")
-
-    normalized_allowed = normalize_allowed_shop_types(allowed, primary_type=allowed[0] if allowed else "products")
-    primary_type = normalized_allowed[0] if normalized_allowed else "products"
-    return primary_type, normalized_allowed or ["products"]
 
 
 def _is_ajax_request() -> bool:
