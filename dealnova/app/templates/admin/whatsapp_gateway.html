@@ -73,6 +73,90 @@
     color: #94a3b8;
   }
 
+  .wa-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    flex-wrap: wrap;
+  }
+
+  .wa-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.6rem 1rem;
+    border-radius: 0.75rem;
+    font-size: 0.85rem;
+    font-weight: 700;
+    border: none;
+    text-decoration: none;
+    cursor: pointer;
+    transition: transform 0.15s ease, opacity 0.15s ease;
+  }
+
+  .wa-btn:hover {
+    transform: translateY(-1px);
+  }
+
+  .wa-btn:disabled,
+  .wa-btn.is-loading {
+    opacity: 0.65;
+    pointer-events: none;
+    cursor: wait;
+  }
+
+  .wa-btn-refresh {
+    color: #ffffff;
+    background: linear-gradient(135deg, #0f766e, #0d9488);
+    box-shadow: 0 0.45rem 1rem rgba(15, 118, 110, 0.22);
+  }
+
+  .wa-btn-refresh:hover {
+    color: #ffffff;
+  }
+
+  .wa-btn-disconnect {
+    color: #991b1b;
+    background: #fee2e2;
+    border: 1px solid #fecaca;
+  }
+
+  html[data-admin-theme="noc"] .wa-btn-disconnect {
+    color: #fca5a5;
+    background: rgba(239, 68, 68, 0.2);
+    border-color: rgba(239, 68, 68, 0.35);
+  }
+
+  .wa-btn-disconnect:hover {
+    background: #fecaca;
+    color: #7f1d1d;
+  }
+
+  .wa-btn-reconnect {
+    color: #065f46;
+    background: #d1fae5;
+    border: 1px solid #a7f3d0;
+  }
+
+  html[data-admin-theme="noc"] .wa-btn-reconnect {
+    color: #6ee7b7;
+    background: rgba(16, 185, 129, 0.2);
+    border-color: rgba(16, 185, 129, 0.35);
+  }
+
+  .wa-btn-reconnect:hover {
+    background: #a7f3d0;
+    color: #064e3b;
+  }
+
+  .wa-btn.is-loading i {
+    animation: waSpin 0.8s linear infinite;
+  }
+
+  @keyframes waSpin {
+    to { transform: rotate(360deg); }
+  }
+
   .wa-gw-body {
     padding: 1.5rem;
     display: grid;
@@ -190,6 +274,24 @@
     border-color: rgba(255, 255, 255, 0.12);
   }
 
+  .wa-phone-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1rem;
+    border-radius: 0.75rem;
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    color: #166534;
+    font-size: 0.88rem;
+  }
+
+  html[data-admin-theme="noc"] .wa-phone-pill {
+    background: rgba(16, 185, 129, 0.15);
+    border-color: rgba(16, 185, 129, 0.3);
+    color: #86efac;
+  }
+
   .wa-qr-section {
     display: flex;
     flex-direction: column;
@@ -199,6 +301,7 @@
     border-radius: 0.95rem;
     background: #f8fafc;
     border: 1px dashed #cbd5e1;
+    position: relative;
   }
 
   html[data-admin-theme="noc"] .wa-qr-section {
@@ -216,6 +319,8 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    min-width: 280px;
+    min-height: 280px;
   }
 
   .wa-qr-frame img {
@@ -224,6 +329,23 @@
     max-width: 100%;
     object-fit: contain;
     display: block;
+  }
+
+  .wa-qr-poll-indicator {
+    font-size: 0.78rem;
+    color: #64748b;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-top: 0.5rem;
+  }
+
+  .wa-qr-poll-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #f59e0b;
+    animation: waPulse 1.2s infinite;
   }
 
   .wa-qr-steps {
@@ -235,7 +357,7 @@
     border: 1px solid var(--line, #e2e8f0);
     border-radius: 0.75rem;
     padding: 0.9rem 1.15rem;
-    margin-top: 0.5rem;
+    margin-top: 0.75rem;
   }
 
   html[data-admin-theme="noc"] .wa-qr-steps {
@@ -267,34 +389,41 @@
     color: #94a3b8;
   }
 
-  .wa-btn-refresh {
-    display: inline-flex;
+  .wa-help-details {
+    border: 1px solid var(--line, #e2e8f0);
+    border-radius: 0.75rem;
+    padding: 0.75rem 1rem;
+    background: rgba(248, 250, 252, 0.8);
+    font-size: 0.84rem;
+  }
+
+  html[data-admin-theme="noc"] .wa-help-details {
+    background: rgba(15, 23, 42, 0.4);
+    border-color: #334155;
+  }
+
+  .wa-help-details summary {
+    cursor: pointer;
+    font-weight: 700;
+    color: var(--dark, #0f172a);
+    display: flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.6rem 1.1rem;
-    border-radius: 0.75rem;
-    font-size: 0.85rem;
-    font-weight: 700;
-    color: #ffffff;
-    background: linear-gradient(135deg, #0f766e, #0d9488);
-    border: none;
-    text-decoration: none;
-    cursor: pointer;
-    box-shadow: 0 0.45rem 1rem rgba(15, 118, 110, 0.22);
-    transition: transform 0.15s ease, opacity 0.15s ease;
   }
 
-  .wa-btn-refresh:hover {
-    color: #ffffff;
-    transform: translateY(-1px);
+  .wa-help-content {
+    margin-top: 0.75rem;
+    line-height: 1.5;
   }
 
-  .wa-btn-refresh.is-loading i {
-    animation: waSpin 0.8s linear infinite;
-  }
-
-  @keyframes waSpin {
-    to { transform: rotate(360deg); }
+  .wa-help-content pre {
+    background: #0f172a;
+    color: #38bdf8;
+    padding: 0.75rem;
+    border-radius: 0.5rem;
+    font-size: 0.8rem;
+    overflow-x: auto;
+    margin: 0.5rem 0;
   }
 </style>
 
@@ -311,13 +440,33 @@
         </div>
       </div>
 
-      <a href="{{ url_for('admin.whatsapp_gateway') }}"
-         id="waRefreshBtn"
-         class="wa-btn-refresh"
-         data-status-url="{{ url_for('admin.whatsapp_gateway', format='json') }}">
-        <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
-        <span>Rafraîchir le statut</span>
-      </a>
+      <div class="wa-header-actions">
+        <button type="button"
+                id="waDisconnectBtn"
+                class="wa-btn wa-btn-disconnect"
+                data-disconnect-url="{{ url_for('admin.whatsapp_gateway_disconnect') }}"
+                title="Déconnecter la session et libérer le numéro actuel">
+          <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
+          <span>Déconnecter / Changer</span>
+        </button>
+
+        <button type="button"
+                id="waReconnectBtn"
+                class="wa-btn wa-btn-reconnect"
+                data-reconnect-url="{{ url_for('admin.whatsapp_gateway_reconnect') }}"
+                title="Générer immédiatement un nouveau QR Code frais">
+          <i class="bi bi-qr-code" aria-hidden="true"></i>
+          <span>Nouveau QR Code</span>
+        </button>
+
+        <a href="{{ url_for('admin.whatsapp_gateway') }}"
+           id="waRefreshBtn"
+           class="wa-btn wa-btn-refresh"
+           data-status-url="{{ url_for('admin.whatsapp_gateway', format='json') }}">
+          <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
+          <span>Rafraîchir</span>
+        </a>
+      </div>
     </div>
 
     <div class="wa-gw-body">
@@ -339,9 +488,9 @@
               {% if st == 'connected' %}
                 Le téléphone d'entreprise Baba Market est connecté et prêt à envoyer les messages WhatsApp automatiquement.
               {% elif st == 'qr_ready' %}
-                Un QR Code est disponible ci-dessous. Scannez-le avec le téléphone WhatsApp de l'entreprise pour activer l'envoi automatique.
+                Un QR Code frais est prêt ci-dessous. Scannez-le avec votre téléphone pour lier le compte.
               {% else %}
-                {{ gateway.error or "La session WhatsApp n'est pas connectée actuellement." }}
+                {{ gateway.error or "La session WhatsApp n'est pas connectée actuellement. Cliquez sur 'Nouveau QR Code' pour en générer un." }}
               {% endif %}
             </div>
           </div>
@@ -353,10 +502,15 @@
         </span>
       </div>
 
+      <div id="waPhonePill" class="wa-phone-pill" {% if not gateway.phone %}style="display:none;"{% endif %}>
+        <i class="bi bi-telephone-check-fill" aria-hidden="true"></i>
+        <span>Numéro WhatsApp actuellement lié : <strong id="waPhoneNumber">+{{ gateway.phone }}</strong></span>
+      </div>
+
       <div id="waQrContainer" class="wa-qr-section" {% if st != 'qr_ready' or not gateway.qr %}hidden{% endif %}>
         <h3 style="font-size: 1rem; font-weight: 800; margin: 0;">Scanner le QR Code WhatsApp</h3>
         <p style="font-size: 0.84rem; color: #64748b; margin: 0.25rem 0 0;">
-          Utilisez le téléphone officiel de Baba Market pour lier la passerelle.
+          Pointez l'appareil photo WhatsApp officiel de l'entreprise sur ce QR Code.
         </p>
 
         <div class="wa-qr-frame">
@@ -365,12 +519,17 @@
                alt="QR Code de connexion WhatsApp Baba Market">
         </div>
 
+        <div class="wa-qr-poll-indicator" id="waQrPollIndicator">
+          <span class="wa-qr-poll-dot" aria-hidden="true"></span>
+          <span>Détection automatique du scan en cours...</span>
+        </div>
+
         <div class="wa-qr-steps">
           <strong>Instructions de connexion :</strong>
           <ol>
             <li>Ouvrez <strong>WhatsApp</strong> sur le téléphone d'entreprise.</li>
-            <li>Appuyez sur <strong>Menu (⋮)</strong> ou <strong>Réglages</strong> &gt; <strong>Appareils connectés</strong>.</li>
-            <li>Appuyez sur <strong>Connecter un appareil</strong> et pointez l'appareil photo vers ce QR Code.</li>
+            <li>Allez dans <strong>Menu (⋮)</strong> ou <strong>Réglages</strong> &gt; <strong>Appareils connectés</strong>.</li>
+            <li>Appuyez sur <strong>Connecter un appareil</strong> et scannez le code affiché.</li>
           </ol>
         </div>
       </div>
@@ -385,6 +544,21 @@
           Dernière vérification : <strong id="waCheckedAt">{{ gateway.checked_at }}</strong>
         </span>
       </div>
+
+      <details class="wa-help-details">
+        <summary><i class="bi bi-tools"></i> En cas de blocage sur l'ancien numéro sur le serveur</summary>
+        <div class="wa-help-content">
+          <p>Si vous vous êtes déconnecté sur votre téléphone mais que le micro-service reste figé sur l'ancienne session en mémoire :</p>
+          <ol>
+            <li>Cliquez sur le bouton rouge <strong>« Déconnecter / Changer »</strong> ci-dessus pour envoyer la commande de purge au micro-service.</li>
+            <li>Si le micro-service ne répond pas, connectez-vous sur votre serveur et supprimez le dossier de session pour forcer un démarrage propre :
+              <pre>rm -rf /home/moctar/baba-whatsapp/auth_info_baileys
+pm2 restart baba-whatsapp</pre>
+            </li>
+            <li>Un QR Code tout neuf apparaîtra alors instantanément sur cette page.</li>
+          </ol>
+        </div>
+      </details>
     </div>
   </section>
 </div>
@@ -394,6 +568,8 @@
 <script>
   (function () {
     var refreshBtn = document.getElementById("waRefreshBtn");
+    var disconnectBtn = document.getElementById("waDisconnectBtn");
+    var reconnectBtn = document.getElementById("waReconnectBtn");
     var banner = document.getElementById("waStatusBanner");
     var labelEl = document.getElementById("waStatusLabel");
     var descEl = document.getElementById("waStatusDesc");
@@ -401,10 +577,24 @@
     var qrContainer = document.getElementById("waQrContainer");
     var qrImage = document.getElementById("waQrImage");
     var checkedAtEl = document.getElementById("waCheckedAt");
+    var phonePill = document.getElementById("waPhonePill");
+    var phoneNumber = document.getElementById("waPhoneNumber");
+
     if (!refreshBtn || !banner) return;
 
     var statusUrl = refreshBtn.getAttribute("data-status-url");
+    var disconnectUrl = disconnectBtn ? disconnectBtn.getAttribute("data-disconnect-url") : "";
+    var reconnectUrl = reconnectBtn ? reconnectBtn.getAttribute("data-reconnect-url") : "";
     var isFetching = false;
+    var pollTimer = null;
+    var csrfToken = window.csrfToken || (document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').getAttribute("content") : "");
+
+    function setBtnLoading(btn, active) {
+      if (!btn) return;
+      btn.disabled = !!active;
+      if (active) btn.classList.add("is-loading");
+      else btn.classList.remove("is-loading");
+    }
 
     function applyGatewayState(data) {
       var st = (data && data.status) || "disconnected";
@@ -416,16 +606,29 @@
         if (descEl) {
           descEl.textContent = "Le téléphone d'entreprise Baba Market est connecté et prêt à envoyer les messages WhatsApp automatiquement.";
         }
+        if (phonePill && phoneNumber) {
+          if (data.phone) {
+            phoneNumber.textContent = "+" + String(data.phone).replace(/^\+/, "");
+            phonePill.style.display = "inline-flex";
+          } else {
+            phonePill.style.display = "none";
+          }
+        }
+        stopPolling();
       } else if (st === "qr_ready") {
         if (labelEl) labelEl.textContent = "En attente de scan";
         if (descEl) {
-          descEl.textContent = "Un QR Code est disponible ci-dessous. Scannez-le avec le téléphone WhatsApp de l'entreprise pour activer l'envoi automatique.";
+          descEl.textContent = "Un QR Code frais est prêt ci-dessous. Scannez-le avec votre téléphone WhatsApp pour activer l'envoi.";
         }
+        if (phonePill) phonePill.style.display = "none";
+        startPolling();
       } else {
         if (labelEl) labelEl.textContent = "Déconnecté";
         if (descEl) {
-          descEl.textContent = (data && data.error) ? data.error : "La session WhatsApp n'est pas connectée actuellement.";
+          descEl.textContent = (data && data.error) ? data.error : "La session WhatsApp n'est pas connectée. Cliquez sur 'Nouveau QR Code' pour en générer un.";
         }
+        if (phonePill) phonePill.style.display = "none";
+        stopPolling();
       }
 
       if (qrContainer && qrImage) {
@@ -443,11 +646,11 @@
       }
     }
 
-    function refreshGatewayStatus(event) {
-      if (event) event.preventDefault();
+    function refreshGatewayStatus(callback) {
       if (isFetching || !statusUrl) return;
+      if (document.hidden && !callback) return;
       isFetching = true;
-      refreshBtn.classList.add("is-loading");
+      setBtnLoading(refreshBtn, true);
 
       fetch(statusUrl, {
         method: "GET",
@@ -463,18 +666,101 @@
         })
         .then(function (data) {
           applyGatewayState(data);
+          if (typeof callback === "function") callback(null, data);
         })
-        .catch(function () {
-          window.location.reload();
+        .catch(function (err) {
+          if (typeof callback === "function") callback(err);
         })
         .finally(function () {
           isFetching = false;
-          refreshBtn.classList.remove("is-loading");
+          setBtnLoading(refreshBtn, false);
         });
     }
 
-    refreshBtn.addEventListener("click", refreshGatewayStatus);
+    function startPolling() {
+      if (pollTimer) return;
+      pollTimer = window.setInterval(function () {
+        refreshGatewayStatus();
+      }, 4000);
+    }
+
+    function stopPolling() {
+      if (pollTimer) {
+        window.clearInterval(pollTimer);
+        pollTimer = null;
+      }
+    }
+
+    refreshBtn.addEventListener("click", function (e) {
+      e.preventDefault();
+      refreshGatewayStatus();
+    });
+
+    if (disconnectBtn && disconnectUrl) {
+      disconnectBtn.addEventListener("click", function (e) {
+        e.preventDefault();
+        if (!window.confirm("Voulez-vous déconnecter la session WhatsApp actuelle et générer un nouveau QR Code pour changer de numéro ?")) {
+          return;
+        }
+        setBtnLoading(disconnectBtn, true);
+        if (typeof window.BMTriggerHaptic === "function") window.BMTriggerHaptic("heavy");
+
+        fetch(disconnectUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "X-Requested-With": "fetch",
+            "X-CSRFToken": csrfToken
+          },
+          body: JSON.stringify({ action: "disconnect" })
+        })
+          .then(function (resp) { return resp.json(); })
+          .then(function (data) {
+            refreshGatewayStatus();
+          })
+          .catch(function () {
+            window.location.reload();
+          })
+          .finally(function () {
+            setBtnLoading(disconnectBtn, false);
+          });
+      });
+    }
+
+    if (reconnectBtn && reconnectUrl) {
+      reconnectBtn.addEventListener("click", function (e) {
+        e.preventDefault();
+        setBtnLoading(reconnectBtn, true);
+        if (typeof window.BMTriggerHaptic === "function") window.BMTriggerHaptic("success");
+
+        fetch(reconnectUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "X-Requested-With": "fetch",
+            "X-CSRFToken": csrfToken
+          },
+          body: JSON.stringify({ action: "reconnect" })
+        })
+          .then(function (resp) { return resp.json(); })
+          .then(function () {
+            refreshGatewayStatus();
+          })
+          .catch(function () {
+            refreshGatewayStatus();
+          })
+          .finally(function () {
+            setBtnLoading(reconnectBtn, false);
+          });
+      });
+    }
+
+    // Si on arrive et que c'est en attente de scan, lancer l'auto-polling
+    if (banner.classList.contains("is-qr_ready")) {
+      startPolling();
+    }
   })();
 </script>
 {% endblock %}
-

@@ -10,6 +10,8 @@ from .logging_service import logging_service
 
 DEFAULT_WHATSAPP_SEND_URL = "http://127.0.0.1:3002/api/send"
 DEFAULT_WHATSAPP_STATUS_URL = "http://127.0.0.1:3002/api/status"
+DEFAULT_WHATSAPP_LOGOUT_URL = "http://127.0.0.1:3002/api/logout"
+DEFAULT_WHATSAPP_RECONNECT_URL = "http://127.0.0.1:3002/api/reconnect"
 
 _SAFE_QR_DATA_URI_RE = re.compile(
     r"^data:image/(?:png|jpeg|jpg|webp|gif|svg\+xml);base64,[A-Za-z0-9+/=\s]+$",
@@ -117,12 +119,25 @@ def get_whatsapp_gateway_status(
             if raw_status not in ("connected", "disconnected", "qr_ready"):
                 raw_status = "disconnected"
 
+            raw_phone = str(
+                data.get("phone")
+                or data.get("number")
+                or (data.get("user") or {}).get("id")
+                or data.get("connected_number")
+                or ""
+            ).strip()
+            if raw_phone and "@" in raw_phone:
+                raw_phone = raw_phone.split("@")[0]
+            if ":" in raw_phone:
+                raw_phone = raw_phone.split(":")[0]
+
             safe_qr = sanitize_whatsapp_qr_data_uri(data.get("qr")) if raw_status == "qr_ready" else None
 
             return {
                 "status": raw_status,
                 "status_label": STATUS_LABELS.get(raw_status, "Déconnecté"),
                 "qr": safe_qr,
+                "phone": raw_phone or None,
                 "reachable": True,
                 "status_code": resp.status_code,
                 "status_url": url,
@@ -140,6 +155,7 @@ def get_whatsapp_gateway_status(
             "status": "disconnected",
             "status_label": STATUS_LABELS["disconnected"],
             "qr": None,
+            "phone": None,
             "reachable": False,
             "status_code": resp.status_code,
             "status_url": url,
@@ -157,12 +173,133 @@ def get_whatsapp_gateway_status(
             "status": "disconnected",
             "status_label": STATUS_LABELS["disconnected"],
             "qr": None,
+            "phone": None,
             "reachable": False,
             "status_code": None,
             "status_url": url,
             "checked_at": checked_at,
             "error": "Impossible de joindre le micro-service WhatsApp local (127.0.0.1:3002).",
         }
+
+
+def disconnect_whatsapp_gateway(
+    *,
+    logout_url: str | None = None,
+    api_key: str | None = None,
+    timeout: int | None = None,
+) -> dict:
+    """Demande la déconnexion et réinitialisation de la session au micro-service WhatsApp (port 3002)."""
+    base_url = (
+        logout_url
+        or ((current_app and current_app.config.get("BABA_WHATSAPP_LOGOUT_URL")) or os.getenv("BABA_WHATSAPP_LOGOUT_URL"))
+        or DEFAULT_WHATSAPP_LOGOUT_URL
+    ).strip()
+    key = (
+        api_key
+        or ((current_app and current_app.config.get("BABA_WHATSAPP_API_KEY")) or os.getenv("BABA_WHATSAPP_API_KEY", ""))
+    ).strip()
+    timeout_sec = timeout or int(
+        ((current_app and current_app.config.get("BABA_WHATSAPP_TIMEOUT")) or os.getenv("BABA_WHATSAPP_TIMEOUT", "6"))
+    )
+
+    headers = {"Content-Type": "application/json", "Accept": "application/json"}
+    if key:
+        headers["Authorization"] = f"Bearer {key}"
+        headers["X-API-Key"] = key
+
+    candidate_urls = [base_url]
+    if base_url.endswith("/logout"):
+        candidate_urls.append(base_url.replace("/logout", "/disconnect"))
+        candidate_urls.append(base_url.replace("/logout", "/reset"))
+    elif base_url.endswith("/status"):
+        candidate_urls.append(base_url.replace("/status", "/logout"))
+        candidate_urls.append(base_url.replace("/status", "/disconnect"))
+        candidate_urls.append(base_url.replace("/status", "/reset"))
+
+    last_error = None
+    for target_url in candidate_urls:
+        try:
+            resp = requests.post(target_url, headers=headers, json={"action": "logout"}, timeout=timeout_sec)
+            if resp.status_code in (200, 201, 202, 204):
+                data = resp.json() if resp.content and "application/json" in resp.headers.get("Content-Type", "") else {}
+                safe_qr = sanitize_whatsapp_qr_data_uri(data.get("qr")) if isinstance(data, dict) else None
+                return {
+                    "success": True,
+                    "message": "Session WhatsApp déconnectée et réinitialisée avec succès.",
+                    "status": data.get("status") if isinstance(data, dict) else "qr_ready",
+                    "qr": safe_qr,
+                    "target_url": target_url,
+                }
+            elif resp.status_code == 404:
+                continue
+            else:
+                last_error = f"Le serveur a répondu avec le statut {resp.status_code} sur {target_url}."
+        except Exception as exc:
+            last_error = str(exc)
+
+    return {
+        "success": False,
+        "message": f"Impossible de contacter l'endpoint de déconnexion du micro-service ({last_error or 'inaccessible'}).",
+        "error": last_error,
+    }
+
+
+def reconnect_whatsapp_gateway(
+    *,
+    reconnect_url: str | None = None,
+    api_key: str | None = None,
+    timeout: int | None = None,
+) -> dict:
+    """Demande la génération d'un nouveau QR Code ou la reconnexion au micro-service."""
+    base_url = (
+        reconnect_url
+        or ((current_app and current_app.config.get("BABA_WHATSAPP_RECONNECT_URL")) or os.getenv("BABA_WHATSAPP_RECONNECT_URL"))
+        or DEFAULT_WHATSAPP_RECONNECT_URL
+    ).strip()
+    key = (
+        api_key
+        or ((current_app and current_app.config.get("BABA_WHATSAPP_API_KEY")) or os.getenv("BABA_WHATSAPP_API_KEY", ""))
+    ).strip()
+    timeout_sec = timeout or int(
+        ((current_app and current_app.config.get("BABA_WHATSAPP_TIMEOUT")) or os.getenv("BABA_WHATSAPP_TIMEOUT", "6"))
+    )
+
+    headers = {"Content-Type": "application/json", "Accept": "application/json"}
+    if key:
+        headers["Authorization"] = f"Bearer {key}"
+        headers["X-API-Key"] = key
+
+    candidate_urls = [base_url]
+    if base_url.endswith("/reconnect"):
+        candidate_urls.append(base_url.replace("/reconnect", "/restart"))
+        candidate_urls.append(base_url.replace("/reconnect", "/reset"))
+        candidate_urls.append(base_url.replace("/reconnect", "/logout"))
+
+    last_error = None
+    for target_url in candidate_urls:
+        try:
+            resp = requests.post(target_url, headers=headers, json={"action": "reconnect"}, timeout=timeout_sec)
+            if resp.status_code in (200, 201, 202, 204):
+                data = resp.json() if resp.content and "application/json" in resp.headers.get("Content-Type", "") else {}
+                safe_qr = sanitize_whatsapp_qr_data_uri(data.get("qr")) if isinstance(data, dict) else None
+                return {
+                    "success": True,
+                    "message": "Demande de nouveau QR Code transmise avec succès.",
+                    "status": data.get("status") if isinstance(data, dict) else "qr_ready",
+                    "qr": safe_qr,
+                }
+            elif resp.status_code == 404:
+                continue
+            else:
+                last_error = f"Le serveur a répondu {resp.status_code}."
+        except Exception as exc:
+            last_error = str(exc)
+
+    return {
+        "success": False,
+        "message": f"Échec de la demande de nouveau QR Code ({last_error or 'inaccessible'}).",
+        "error": last_error,
+    }
 
 
 def send_whatsapp_message(

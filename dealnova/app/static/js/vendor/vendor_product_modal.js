@@ -615,6 +615,7 @@
         document.dispatchEvent(new CustomEvent("vendor:" + createType + (formMode === "edit" ? "-updated" : "-created"), { detail: data }));
         closeDialog(true);
         const message = [data.message || (formMode === "edit" ? "Modifications enregistrées." : "Offre créée."), ...(data.notices || [])].join(" ");
+        if (typeof window.BMTriggerHaptic === "function") window.BMTriggerHaptic("heavy");
         if (window.VendorUI?.toast) window.VendorUI.toast(message, "success");
         else window.BMCoreUI?.showToast?.(message, "success");
         return;

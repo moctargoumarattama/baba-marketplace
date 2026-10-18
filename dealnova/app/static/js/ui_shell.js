@@ -421,6 +421,72 @@
     true
   );
 
+  function triggerHaptic(type) {
+    try {
+      if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
+        if (type === "heavy") {
+          navigator.vibrate([25, 45, 25]);
+        } else if (type === "success") {
+          navigator.vibrate([15, 30, 15]);
+        } else {
+          navigator.vibrate(15);
+        }
+      }
+    } catch (_err) {}
+  }
+  window.BMTriggerHaptic = triggerHaptic;
+
+  // PROTECTION ANTI-DOUBLE-CLIC ET VERROUILLAGE DES FORMULAIRES
+  document.addEventListener(
+    "submit",
+    function (e) {
+      const form = e.target;
+      if (!form || form.nodeType !== 1) return;
+      if (form.matches && form.matches("[data-no-double-click-prevent]")) return;
+
+      triggerHaptic("success");
+
+      const submitBtn = form.querySelector(
+        'button[type="submit"]:not([disabled]), input[type="submit"]:not([disabled]), button:not([type]):not([disabled])'
+      );
+      if (submitBtn) {
+        if (submitBtn.hasAttribute("data-submitting")) {
+          e.preventDefault();
+          return;
+        }
+        submitBtn.setAttribute("data-submitting", "true");
+        submitBtn.classList.add("is-submitting");
+        submitBtn.setAttribute("aria-busy", "true");
+
+        window.setTimeout(function () {
+          if (submitBtn.isConnected) {
+            submitBtn.removeAttribute("data-submitting");
+            submitBtn.classList.remove("is-submitting");
+            submitBtn.removeAttribute("aria-busy");
+          }
+        }, 8000);
+      }
+    },
+    false
+  );
+
+  // VIBRATION HAPTIQUE SUR ACTIONS IMPORTANTES
+  document.addEventListener(
+    "click",
+    function (e) {
+      const target = e.target;
+      if (!target || !target.closest) return;
+      if (
+        target.closest(
+          '[data-action="set-shop-open"], [data-wa-issue], [data-support-open], .vd-add-button, [data-vendor-product-create], [data-vendor-location-create], .status-btn'
+        )
+      ) {
+        triggerHaptic("success");
+      }
+    },
+    true
+  );
+
   if (localStorage.getItem("clickDebug") === "1") {
     document.addEventListener(
       "click",

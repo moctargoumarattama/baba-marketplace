@@ -72,7 +72,11 @@ from ..services.finance_entries import (
     ENTRY_TYPE_SUBSCRIPTION,
 )
 from ..services.traffic_stats import get_live_traffic_metrics
-from ..services.baba_whatsapp import get_whatsapp_gateway_status
+from ..services.baba_whatsapp import (
+    disconnect_whatsapp_gateway,
+    get_whatsapp_gateway_status,
+    reconnect_whatsapp_gateway,
+)
 
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
@@ -1989,4 +1993,40 @@ def whatsapp_gateway():
     )
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     return response
+
+
+@bp.route("/whatsapp-gateway/disconnect", methods=["POST"])
+def whatsapp_gateway_disconnect():
+    if _current_admin_role() != ADMIN_ROLE:
+        return _sensitive_admin_forbidden_response()
+
+    result = disconnect_whatsapp_gateway()
+    if _is_ajax_request() or request.is_json or request.args.get("format") == "json":
+        response = jsonify(result)
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        return response
+
+    if result.get("success"):
+        flash("La session WhatsApp a été déconnectée et réinitialisée. Un nouveau QR Code est prêt.", "success")
+    else:
+        flash(result.get("message") or "Impossible de déconnecter la session.", "danger")
+    return redirect(url_for("admin.whatsapp_gateway"))
+
+
+@bp.route("/whatsapp-gateway/reconnect", methods=["POST"])
+def whatsapp_gateway_reconnect():
+    if _current_admin_role() != ADMIN_ROLE:
+        return _sensitive_admin_forbidden_response()
+
+    result = reconnect_whatsapp_gateway()
+    if _is_ajax_request() or request.is_json or request.args.get("format") == "json":
+        response = jsonify(result)
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        return response
+
+    if result.get("success"):
+        flash("Demande de nouveau QR Code transmise avec succès.", "info")
+    else:
+        flash(result.get("message") or "Impossible de regénérer le QR Code.", "warning")
+    return redirect(url_for("admin.whatsapp_gateway"))
 

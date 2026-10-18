@@ -2361,3 +2361,37 @@
     transform: scaleX(0);
   }
 }
+
+
+/* PROTECTION ANTI-DOUBLE-CLIC & MICRO-SPINNER DE CONFIRMATION */
+button[data-submitting],
+input[type="submit"][data-submitting],
+a[data-submitting],
+.btn.is-submitting,
+.vd-add-button[data-submitting] {
+  pointer-events: none !important;
+  opacity: 0.76 !important;
+  cursor: wait !important;
+  position: relative !important;
+}
+
+button[data-submitting]::after,
+.btn.is-submitting::after,
+.vd-add-button[data-submitting]::after {
+  content: "" !important;
+  display: inline-block !important;
+  width: 14px !important;
+  height: 14px !important;
+  margin-left: 8px !important;
+  vertical-align: -2px !important;
+  border: 2px solid currentColor !important;
+  border-right-color: transparent !important;
+  border-radius: 50% !important;
+  animation: bmButtonSpin 0.55s linear infinite !important;
+}
+
+@keyframes bmButtonSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}

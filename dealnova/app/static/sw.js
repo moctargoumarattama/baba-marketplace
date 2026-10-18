@@ -49,6 +49,9 @@ const PRECACHE_ASSETS = [
   "/static/images/home-refresh/hero.webp",
   "/static/images/home-refresh/categories.webp",
   "/static/images/home-refresh/services-multimetiers-v2.webp",
+  "/static/img/placeholders/location.svg",
+  "/static/img/placeholders/product.svg",
+  "/static/img/placeholders/service.svg",
 ];
 
 const CRITICAL_STATIC_ASSETS = new Set([
@@ -71,6 +74,9 @@ const CRITICAL_STATIC_ASSETS = new Set([
   "/static/js/i18n.js",
   "/static/js/offline_page.js",
   "/static/css/offline.css",
+  "/static/img/placeholders/location.svg",
+  "/static/img/placeholders/product.svg",
+  "/static/img/placeholders/service.svg",
 ]);
 
 const NETWORK_ONLY_PREFIXES = [
@@ -820,16 +826,30 @@ async function handleCriticalStaticAsset(req) {
 async function handleUploadImage(req) {
   const cache = await caches.open(IMAGES_CACHE);
   const cached = await cache.match(req);
+
+  // Background fetch to ensure real photos are updated when edited/uploaded
+  const fetchPromise = fetch(req, { cache: "no-store" })
+    .then(async (response) => {
+      if (isCacheableStaticResponse(response)) {
+        await cache.put(req, response.clone());
+        await trimImageCache(cache, IMAGE_CACHE_MAX_ENTRIES);
+      }
+      return response;
+    })
+    .catch((error) => {
+      debugWarn("Image fetch background failed", { url: req.url, error: String(error && error.message || error) });
+      return null;
+    });
+
   if (cached) {
     return cached;
   }
 
   try {
-    const response = await fetch(req, { cache: "no-store" });
-    if (isCacheableStaticResponse(response)) {
-      await cache.put(req, response.clone());
-      await trimImageCache(cache, IMAGE_CACHE_MAX_ENTRIES);
-    }
+    const response = await fetchPromise;
+    if (response) return response;
+    const fallbackCached = await cache.match(req, { ignoreSearch: true });
+    if (fallbackCached) return fallbackCached;
     return response;
   } catch (err) {
     const fallbackCached = await cache.match(req, { ignoreSearch: true });
