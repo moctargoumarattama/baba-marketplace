@@ -641,7 +641,7 @@
     saveHubHistory(false);
 
     var titles = {
-      products: { title: 'Produits et repas', icon: '🛍️', placeholder: 'Rechercher un produit ou un repas…' },
+      products: { title: 'Produits', icon: '🛍️', placeholder: 'Rechercher un produit…' },
       services: { title: 'Services', icon: '💈', placeholder: 'Rechercher un service…' },
       locations: { title: 'Locations', icon: '🏡', placeholder: 'Ville, quartier ou annonce…' },
       shops: { title: 'Boutiques', icon: '🏪', placeholder: 'Rechercher une boutique…' },

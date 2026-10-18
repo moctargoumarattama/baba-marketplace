@@ -21,6 +21,6 @@
     </div>
   </div>
   <nav class="hub-desktop-nav" aria-label="{{ t('Catégories') }}">
-    {% for key, label, icon in [('products','Produits et repas','bi-basket2'),('services','Services','bi-tools'),('locations','Locations','bi-house-door'),('shops','Boutiques','bi-shop'),('delivery','Livraison de colis','bi-truck'),('promotions','Promotions','bi-tag')] %}<a href="{{ url_for('landing', open=key) }}"><i class="bi {{ icon }}" aria-hidden="true"></i>{{ t(label) }}</a>{% endfor %}
+    {% for key, label, icon in [('products','Produits','bi-basket2'),('services','Services','bi-tools'),('locations','Locations','bi-house-door'),('shops','Boutiques','bi-shop'),('delivery','Livraison de colis','bi-truck'),('promotions','Promotions','bi-tag')] %}<a href="{{ url_for('landing', open=key) }}"><i class="bi {{ icon }}" aria-hidden="true"></i>{{ t(label) }}</a>{% endfor %}
   </nav>
 </header>
