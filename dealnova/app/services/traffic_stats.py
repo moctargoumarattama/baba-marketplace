@@ -59,7 +59,8 @@ ALLOWED_EVENTS = {
 INTERNAL_ROLES = {"admin", "manager", "vendor"}
 
 _BOT_USER_AGENT_RE = re.compile(
-    r"(bot|crawler|spider|crawling|slurp|ahrefs|semrush|petalbot|yandex|baidu|"
+    r"(google-inspectiontool|mediapartners-google|"
+    r"bot|crawler|spider|crawling|slurp|ahrefs|semrush|petalbot|yandex|baidu|"
     r"curl|python-requests|aiohttp|httpx|wget|go-http-client|postman|headless|"
     r"puppeteer|selenium|phantomjs|playwright|uptimerobot|pingdom|betterstack|"
     r"facebookexternalhit|whatsapp|telegrambot|twitterbot|discordbot|screaming frog|"
@@ -69,7 +70,7 @@ _BOT_USER_AGENT_RE = re.compile(
 
 
 def is_bot_or_crawler(user_agent: str | None = None) -> bool:
-    """Detect automated bots, crawlers, and scrapers to prevent inflating audience metrics."""
+    """Classify automation for audience metrics, without granting or denying access."""
     if user_agent is not None:
         ua = user_agent.strip()
     else:

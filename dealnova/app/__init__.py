@@ -612,7 +612,7 @@ def create_app(config_class=Config):
 
     @app.before_request
     def csrf_protect():
-        if not app.config.get("WTF_CSRF_ENABLED", True) or app.config.get("TESTING"):
+        if not app.config.get("WTF_CSRF_ENABLED", True):
             return None
         if request.method in ("GET", "HEAD", "OPTIONS", "TRACE"):
             return None
@@ -786,6 +786,11 @@ def create_app(config_class=Config):
             response.headers["X-BM-PWA-Cache"] = (
                 "public" if _should_mark_response_public_for_pwa(response) else "private"
             )
+            try:
+                from .services.cache import _get_catalog_version
+                response.headers["X-BM-Catalog-Version"] = str(_get_catalog_version())
+            except Exception:
+                pass
             if app.config.get("SECURITY_CSP_NONCE_ENABLED", True) and nonce:
                 response = _inject_csp_nonce_html(response, nonce)
             content_type = response.headers.get("Content-Type", "")
@@ -813,6 +818,7 @@ def create_app(config_class=Config):
 
     from .routes.api import bp as api_bp
     from .routes.shops import bp as shops_bp
+    from .routes.public_catalog_pages import bp as public_catalog_pages_bp
 
     # Blueprints
     app.register_blueprint(auth.bp, url_prefix="/")
@@ -826,6 +832,7 @@ def create_app(config_class=Config):
     app.register_blueprint(admin_users.bp)  # Blueprint deja prefixe /admin
     app.register_blueprint(assistant_bp)
     app.register_blueprint(shops_bp, url_prefix="/")
+    app.register_blueprint(public_catalog_pages_bp)
     app.register_blueprint(api_bp)  # Blueprint deja prefixe /api
 
     # Compat: anciens liens /admin/admin/* -> /admin/*
@@ -1118,109 +1125,25 @@ def create_app(config_class=Config):
     # ✅ INITIALISATION DES COMMANDES CLI (AJOUTÉ ICI)
     init_cli_commands(app)
 
+    @app.route("/robots.txt")
+    def robots_txt():
+        from .services.public_seo import public_url
+
+        body = "User-agent: *\nAllow: /\n\nSitemap: " + public_url("sitemap") + "\n"
+        return Response(body, content_type="text/plain; charset=utf-8")
+
     @app.route("/sitemap.xml")
     def sitemap():
-        from xml.sax.saxutils import escape
-        from .models.product import Product
-        from .models.shop import Shop
-        from .models.rental import RentalListing
-        from .models.category import Category
+        from .services.public_seo import build_public_sitemap
 
-        urls = []
-        seen = set()
-
-        def add_url(value):
-            if not value:
-                return
-            url_value = str(value).strip()
-            if not url_value or url_value in seen:
-                return
-            seen.add(url_value)
-            urls.append(url_value)
-
-        def build_category_url(category):
-            category_slug = getattr(category, "slug", None)
-            category_detail_endpoint = None
-            for endpoint_name in ("category.detail", "categories.detail", "shop.category_detail"):
-                if endpoint_name in app.view_functions:
-                    category_detail_endpoint = endpoint_name
-                    break
-            if category_detail_endpoint and category_slug:
-                return url_for(category_detail_endpoint, slug=category_slug, _external=True)
-            return url_for("shop.home", cat=category.id, _external=True)
-
-        # Pages statiques
-        add_url(url_for("landing", _external=True))
-        add_url(url_for("shops.list_shops", _external=True))
-        add_url(url_for("rentals.locations_home", _external=True))
-        add_url(url_for("shop.home", _external=True))
-        add_url(url_for("global_search", _external=True))
-
-        # ✅ Boutiques — avec limite pour éviter de charger toute la DB
         try:
-            for shop in (
-                Shop.query
-                .filter(Shop.is_active == True)
-                .order_by(Shop.id.asc())
-                .limit(2000)
-                .all()
-            ):
-                if getattr(shop, "slug", None):
-                    add_url(url_for("shops.shop_detail", shop_slug=shop.slug, _external=True))
+            xml = build_public_sitemap()
         except Exception:
-            app.logger.exception("sitemap.shops_error")
-
-        # ✅ Produits — avec limite
-        try:
-            for product in (
-                Product.query
-                .filter(Product.is_active == True)
-                .order_by(Product.id.asc())
-                .limit(5000)
-                .all()
-            ):
-                add_url(url_for("shop.product_detail", pid=product.id, _external=True))
-        except Exception:
-            app.logger.exception("sitemap.products_error")
-
-        # ✅ Locations — avec limite
-        try:
-            for listing in (
-                RentalListing.query
-                .filter(RentalListing.is_active == True)
-                .order_by(RentalListing.id.asc())
-                .limit(2000)
-                .all()
-            ):
-                listing_slug = getattr(listing, "slug", None)
-                if listing_slug:
-                    add_url(url_for("rentals.location_detail", slug=listing_slug, _external=True))
-        except Exception:
-            app.logger.exception("sitemap.listings_error")
-
-        # ✅ Catégories — avec limite
-        try:
-            categories_query = Category.query.order_by(Category.id.asc()).limit(500)
-            if hasattr(Category, "is_active"):
-                categories_query = categories_query.filter(Category.is_active == True)
-            for category in categories_query.all():
-                add_url(build_category_url(category))
-        except Exception:
-            app.logger.exception("sitemap.categories_error")
-
-        xml_lines = [
-            '<?xml version="1.0" encoding="UTF-8"?>',
-            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
-        ]
-        for url in urls:
-            xml_lines.extend([
-                "<url>",
-                f"<loc>{escape(url)}</loc>",
-                "</url>",
-            ])
-        xml_lines.append("</urlset>")
-        xml = "\n".join(xml_lines)
-        return Response(xml, mimetype="application/xml")
+            safe_session_rollback()
+            app.logger.exception("sitemap.build_failed")
+            return Response("Sitemap temporarily unavailable", status=503,
+                            headers={"Retry-After": "300"}, content_type="text/plain; charset=utf-8")
+        return Response(xml, content_type="application/xml; charset=utf-8")
 
     return app
 

@@ -17,6 +17,9 @@ def test_active_ttl_is_two_minutes():
 def test_bot_detection_detects_common_crawlers_and_scripts():
     crawlers = [
         "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+        "Mozilla/5.0 (compatible; Google-InspectionTool/1.0;)",
+        "Mediapartners-Google",
+        "mediapartners-google",
         "Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)",
         "Mozilla/5.0 (compatible; AhrefsBot/7.0; +http://ahrefs.com/robot/)",
         "Mozilla/5.0 (compatible; SemrushBot/7~bl; +http://www.semrush.com/bot.html)",

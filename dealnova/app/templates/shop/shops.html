@@ -1,10 +1,15 @@
 ﻿<!-- templates/shop/shops.html -->
 {% extends "base.html" %}
 
-{% block title %}{{ t('Boutiques | BABA Market') }}{% endblock %}
+{% block title %}{{ t('Boutiques | Baba Market') }}{% endblock %}
 
 {% block head %}
 {{ super() }}
+<meta name="description" content="Découvrez les boutiques de Baba Market et leurs produits, repas et services à Rabat, Salé, Kénitra et Témara.">
+<meta name="robots" content="index,follow">
+<link rel="canonical" href="{{ url_for('shops.list_shops', _external=True) }}">
+<meta property="og:site_name" content="Baba Market">
+<meta property="og:title" content="Boutiques | Baba Market">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/shops_page.css', v=app_static_version) }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/public_listings_refresh.css', v=app_static_version ~ '-public-v2') }}">
 {% endblock %}

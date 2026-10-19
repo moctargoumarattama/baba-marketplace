@@ -29,6 +29,9 @@
 .bm-shop-manage .sm-button:disabled { opacity:.6; cursor:wait; }
 .bm-shop-manage .sm-primary { background:var(--vd-green); color:#fff; border-color:var(--vd-green); }
 .bm-shop-manage .sm-primary:hover { background:var(--vd-green-dark); color:#fff; }
+.bm-shop-manage .sm-whatsapp-link { background:#25d366; color:#fff; border-color:#25d366; font-weight:700; }
+.bm-shop-manage .sm-whatsapp-link:hover { background:#20bd5a; color:#fff; border-color:#20bd5a; }
+.bm-shop-manage .sm-whatsapp-link i { font-size:16px; }
 .bm-shop-manage .sm-share { background:#f1f6ed; }
 .bm-shop-manage .sm-danger { color:#a2463d; border-color:#ead6d0; background:#fff; }
 .bm-shop-manage .sm-danger:hover { background:#fcf3ef; border-color:#d2a398; }

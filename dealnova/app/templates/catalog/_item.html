@@ -1,0 +1,22 @@
+{% set item_label = {'product': 'Produit', 'service': 'Service', 'location': 'Location', 'shop': 'Boutique'}.get(item.item_type, 'Offre') %}
+<article class="public-catalog-card">
+  <a class="public-catalog-card-link" href="{{ item.url }}">
+    <div class="public-catalog-card-media">
+      <img src="{{ item.image_url or url_for('static', filename='img/placeholders/' ~ ('location' if item.item_type == 'location' else 'product') ~ '.svg') }}" alt="{{ item.name }}" width="480" height="360" loading="lazy" decoding="async">
+      {% if item.has_promo %}<span class="public-catalog-card-badge">{{ t('Promotion') }}</span>{% elif universe == 'search' %}<span class="public-catalog-card-badge">{{ t(item_label) }}</span>{% endif %}
+    </div>
+    <div class="public-catalog-card-content">
+      <h2>{{ item.name }}</h2>
+      {% if item.item_type != 'shop' and item.shop_name %}<p class="public-catalog-card-shop">{{ item.shop_name }}</p>{% endif %}
+      {% if item.city %}<p class="public-catalog-card-city"><i class="bi bi-geo-alt" aria-hidden="true"></i>{{ item.city }}{% if item.area %}, {{ item.area }}{% endif %}</p>{% endif %}
+      {% if item.description %}<p class="public-catalog-card-description">{{ item.description|striptags|truncate(140, true) }}</p>{% endif %}
+      <div class="public-catalog-card-bottom">
+        {% if item.final_price is not none %}
+        <div class="public-catalog-card-price">{% if item.has_promo %}<del>{{ '%.2f'|format(item.price)|replace('.00', '')|replace('.', ',') }} DH</del>{% endif %}<strong>{{ '%.2f'|format(item.final_price)|replace('.00', '')|replace('.', ',') }} DH</strong>{% if item.item_type == 'location' %}<span>/ {{ t('jour' if item.listing_type == 'daily' else 'mois') }}</span>{% endif %}</div>
+        {% else %}<span class="public-catalog-card-state">{{ t('Ouverte' if item.available else 'Fermée') }}</span>{% endif %}
+        <span class="public-catalog-card-details">{{ t('Voir la boutique' if item.item_type == 'shop' else 'Détails') }}<i class="bi bi-arrow-right" aria-hidden="true"></i></span>
+      </div>
+      {% if not item.available and item.item_type != 'shop' %}<span class="public-catalog-card-unavailable">{{ t('Indisponible') }}</span>{% endif %}
+    </div>
+  </a>
+</article>

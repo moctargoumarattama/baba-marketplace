@@ -1,3 +1,4 @@
+{% from 'partials/_public_catalog_links.html' import catalog_url %}
 <header class="hub-header public-header">
   <div class="hub-header-inner">
     <a class="hub-brand" href="{{ url_for('landing') }}" aria-label="BabaMarket — {{ t('Accueil') }}">{% include 'partials/_public_brand.html' %}</a>
@@ -21,6 +22,6 @@
     </div>
   </div>
   <nav class="hub-desktop-nav" aria-label="{{ t('Catégories') }}">
-    {% for key, label, icon in [('products','Produits','bi-basket2'),('services','Services','bi-tools'),('locations','Locations','bi-house-door'),('shops','Boutiques','bi-shop'),('delivery','Livraison de colis','bi-truck'),('promotions','Promotions','bi-tag')] %}<a href="{{ url_for('landing', open=key) }}"><i class="bi {{ icon }}" aria-hidden="true"></i>{{ t(label) }}</a>{% endfor %}
+    {% for key, label, icon in [('products','Produits','bi-basket2'),('services','Services','bi-tools'),('locations','Locations','bi-house-door'),('shops','Boutiques','bi-shop'),('delivery','Livraison de colis','bi-truck'),('promotions','Promotions','bi-tag')] %}<a href="{{ catalog_url(key) }}"><i class="bi {{ icon }}" aria-hidden="true"></i>{{ t(label) }}</a>{% endfor %}
   </nav>
 </header>

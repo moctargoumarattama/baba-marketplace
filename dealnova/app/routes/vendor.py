@@ -1980,11 +1980,21 @@ def _shop_manage_context(shop, **extra) -> dict:
                   .filter_by(vendor_id=current_user.id, shop_id=shop.id)
                   .order_by(VendorChangeRequest.created_at.desc(), VendorChangeRequest.id.desc())
                   .limit(8).all())
+    wa_lines = [
+        "Bonjour Baba Market, je souhaite modifier le nom officiel de ma boutique.",
+    ]
+    if shop and getattr(shop, "name", None):
+        wa_lines.append(f"Boutique : {shop.name} (ID #{shop.id})")
+    if current_user and getattr(current_user, "username", None):
+        wa_lines.append(f"Compte : {current_user.username}")
+    whatsapp_change_name_url = build_support_whatsapp_url(wa_lines)
+
     context = {
         **_vendor_type_flags(shop), "shop": shop,
         "shop_public_url": _public_shop_url(shop.slug) if shop else "",
         "shop_type_labels": SHOP_TYPE_LABELS,
         "locked_contact_email": ((shop.contact_email if shop else "") or current_user.email or "").strip(),
+        "whatsapp_change_name_url": whatsapp_change_name_url,
         "recent_change_requests": recent,
         "pending_change_requests": [item for item in recent if item.status == VendorChangeRequest.STATUS_PENDING],
         "change_request_type_labels": VENDOR_CHANGE_TYPE_LABELS,

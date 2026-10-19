@@ -53,7 +53,7 @@ def test_vendor_manage_shop_groups_settings_without_dashboard_shortcuts():
     assert "Modifier les informations" in content
     assert "Coordonnées" in content
     assert "Adresse et position" in content
-    assert "Demandes à l’administration" in content
+    assert "Pour modifier le nom officiel de votre boutique, contactez le support Baba Market sur WhatsApp" in content
     assert "Options avancées" in content
     for repeated_action in ("Voir ma boutique", "Livre des encaissements", "Nouvelle location", "Actions rapides"):
         assert repeated_action not in content

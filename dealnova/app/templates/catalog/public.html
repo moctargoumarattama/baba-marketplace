@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% set filters = catalog['filters'] %}
+{% set pagination = catalog['pagination'] %}
+{% set facets = catalog['facets'] %}
+{% set universe = seo.universe %}
+{% set has_filters = filters.cat or filters.shop or filters.city or filters.listing_type or filters.property_type or filters.min_price is not none or filters.max_price is not none or filters.stock or filters.promo %}
+
+{% block title %}{{ seo.title }}{% endblock %}
+
+{% block head %}
+{{ super() }}
+<meta name="description" content="{{ seo.description }}">
+<meta name="robots" content="{{ seo.robots }}">
+<link rel="canonical" href="{{ seo.canonical_url }}">
+{% if previous_url %}<link rel="prev" href="{{ previous_url }}">{% endif %}
+{% if next_url %}<link rel="next" href="{{ next_url }}">{% endif %}
+<meta property="og:locale" content="fr_MA">
+<meta property="og:site_name" content="Baba Market">
+<meta property="og:type" content="website">
+<meta property="og:title" content="{{ seo.title }}">
+<meta property="og:description" content="{{ seo.description }}">
+<meta property="og:url" content="{{ seo.canonical_url }}">
+<meta property="og:image" content="{{ url_for('static', filename='android-chrome-512x512.png', _external=True) }}">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="{{ seo.title }}">
+<meta name="twitter:description" content="{{ seo.description }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/public_catalog.css', v=app_static_version) }}">
+{% endblock %}
+
+{% block content %}
+<section class="public-catalog" aria-labelledby="publicCatalogTitle">
+  <a class="public-catalog-back" href="{{ url_for('landing') }}"><i class="bi bi-arrow-left" aria-hidden="true"></i>{{ t('Accueil') }}</a>
+  <header class="public-catalog-heading">
+    <h1 id="publicCatalogTitle">{{ seo.heading }}</h1>
+    <p>{{ seo.description }}</p>
+  </header>
+
+  <nav class="public-catalog-tabs" aria-label="{{ t('Types d’offres') }}">
+    {% for key, label in [('search', 'Tout'), ('products', 'Produits'), ('services', 'Services'), ('locations', 'Locations'), ('shops', 'Boutiques'), ('promotions', 'Promotions')] %}
+    <a href="{{ catalog_urls[key] }}" {% if universe == key %}class="is-active" aria-current="page"{% endif %}>{{ t(label) }}</a>
+    {% endfor %}
+  </nav>
+
+  <form class="public-catalog-form" method="get" action="{{ catalog_urls[universe] }}" role="search">
+    {% if filters.per_page != 12 %}<input type="hidden" name="per_page" value="{{ filters.per_page }}">{% endif %}
+    <div class="public-catalog-search-row">
+      <div class="public-catalog-search">
+        <i class="bi bi-search" aria-hidden="true"></i>
+        <label class="visually-hidden" for="publicCatalogSearch">{{ t('Rechercher dans les offres') }}</label>
+        <input id="publicCatalogSearch" type="search" name="q" value="{{ filters.q }}" placeholder="{{ t('Que recherchez-vous ?') }}" maxlength="160" enterkeyhint="search">
+        <button type="submit" aria-label="{{ t('Rechercher') }}"><i class="bi bi-arrow-right" aria-hidden="true"></i></button>
+      </div>
+      <label class="public-catalog-sort" for="publicCatalogSort"><span>{{ t('Trier') }}</span>
+        <select name="sort" id="publicCatalogSort">
+          {% for value, label in [('new', 'Nouveautés'), ('low', 'Prix croissant'), ('high', 'Prix décroissant')] %}
+          <option value="{{ value }}" {% if filters.sort == value %}selected{% endif %}>{{ t(label) }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    </div>
+
+    <details class="public-catalog-filters" {% if has_filters %}open{% endif %}>
+      <summary><i class="bi bi-sliders2" aria-hidden="true"></i>{{ t('Filtres') }}{% if has_filters %}<span class="public-catalog-filter-active">{{ t('Actifs') }}</span>{% endif %}<i class="bi bi-chevron-down" aria-hidden="true"></i></summary>
+      <div class="public-catalog-filter-fields">
+        {% if facets.categories %}
+        <label>{{ t('Catégorie') }}<select name="cat"><option value="">{{ t('Toutes les catégories') }}</option>{% for category in facets.categories %}<option value="{{ category.id }}" {% if filters.cat == category.id %}selected{% endif %}>{{ category.name }}</option>{% endfor %}</select></label>
+        {% endif %}
+        {% if facets.shops %}
+        <label>{{ t('Boutique') }}<select name="shop"><option value="">{{ t('Toutes les boutiques') }}</option>{% for shop in facets.shops %}<option value="{{ shop.id }}" {% if filters.shop == shop.id %}selected{% endif %}>{{ shop.name }}</option>{% endfor %}</select></label>
+        {% endif %}
+        <label>{{ t('Ville ou quartier') }}<input type="text" name="city" value="{{ filters.city }}" list="publicCatalogCities" maxlength="120" placeholder="Rabat, Salé…"><datalist id="publicCatalogCities">{% for city in facets.cities %}<option value="{{ city }}">{% endfor %}</datalist></label>
+        {% if universe in ['locations', 'search'] %}
+        <label>{{ t('Durée de location') }}<select name="listing_type"><option value="">{{ t('Toutes les durées') }}</option>{% for value, label in [('daily', 'Par jour'), ('monthly', 'Par mois')] %}<option value="{{ value }}" {% if filters.listing_type == value %}selected{% endif %}>{{ t(label) }}</option>{% endfor %}</select></label>
+        <label>{{ t('Type de bien') }}<select name="property_type"><option value="">{{ t('Tous les biens') }}</option>{% for value, label in [('apartment', 'Appartement'), ('studio', 'Studio'), ('room', 'Chambre'), ('store', 'Local commercial')] %}<option value="{{ value }}" {% if filters.property_type == value %}selected{% endif %}>{{ t(label) }}</option>{% endfor %}</select></label>
+        {% endif %}
+        {% if universe != 'shops' %}
+        <label>{{ t('Prix minimum (DH)') }}<input type="number" name="min_price" value="{{ filters.min_price if filters.min_price is not none else '' }}" min="0" max="1000000000" step="0.01" inputmode="decimal" placeholder="0"></label>
+        <label>{{ t('Prix maximum (DH)') }}<input type="number" name="max_price" value="{{ filters.max_price if filters.max_price is not none else '' }}" min="0" max="1000000000" step="0.01" inputmode="decimal" placeholder="{{ t('Sans limite') }}"></label>
+        {% endif %}
+      </div>
+      {% if universe in ['products', 'services', 'promotions', 'search'] %}
+      <div class="public-catalog-checks">
+        {% if universe != 'services' %}<label><input type="checkbox" name="stock" value="1" {% if filters.stock %}checked{% endif %}>{{ t('En stock uniquement') }}</label>{% endif %}
+        {% if universe != 'promotions' %}<label><input type="checkbox" name="promo" value="1" {% if filters.promo %}checked{% endif %}>{{ t('En promotion') }}</label>{% endif %}
+      </div>
+      {% endif %}
+      <div class="public-catalog-filter-actions"><a href="{{ catalog_urls[universe] }}">{{ t('Tout effacer') }}</a><button type="submit">{{ t('Afficher les résultats') }}<i class="bi bi-arrow-right" aria-hidden="true"></i></button></div>
+    </details>
+  </form>
+
+  {% if error_message %}<p class="public-catalog-error" role="alert">{{ error_message }}</p>{% endif %}
+  <div class="public-catalog-result-heading">
+    <p><strong>{{ pagination.total }}</strong> {{ t('résultat' if pagination.total == 1 else 'résultats') }}{% if filters.q %} {{ t('pour') }} « {{ filters.q }} »{% endif %}</p>
+    {% if filters.q or has_filters %}<a href="{{ catalog_urls[universe] }}">{{ t('Tout afficher') }}</a>{% endif %}
+  </div>
+
+  {% if catalog['items'] %}
+  <div class="public-catalog-grid">
+    {% for item in catalog['items'] %}{% include 'catalog/_item.html' %}{% endfor %}
+  </div>
+  {% else %}
+  <div class="public-catalog-empty"><i class="bi bi-search" aria-hidden="true"></i><h2>{{ t('Aucun résultat pour le moment') }}</h2><p>{{ t('Essayez une autre recherche ou retirez quelques filtres.') }}</p><a href="{{ catalog_urls[universe] }}">{{ t('Voir toutes les offres') }}<i class="bi bi-arrow-right" aria-hidden="true"></i></a></div>
+  {% endif %}
+
+  {% if pagination.pages > 1 %}
+  <nav class="public-catalog-pagination" aria-label="{{ t('Pages du catalogue') }}">
+    {% if previous_url %}<a href="{{ previous_url }}" rel="prev"><i class="bi bi-arrow-left" aria-hidden="true"></i>{{ t('Précédent') }}</a>{% else %}<span class="is-disabled" aria-disabled="true"><i class="bi bi-arrow-left" aria-hidden="true"></i>{{ t('Précédent') }}</span>{% endif %}
+    <span>{{ t('Page') }} {{ pagination.page }} / {{ pagination.pages }}</span>
+    {% if next_url %}<a href="{{ next_url }}" rel="next">{{ t('Suivant') }}<i class="bi bi-arrow-right" aria-hidden="true"></i></a>{% else %}<span class="is-disabled" aria-disabled="true">{{ t('Suivant') }}<i class="bi bi-arrow-right" aria-hidden="true"></i></span>{% endif %}
+  </nav>
+  {% endif %}
+</section>
+{% endblock %}

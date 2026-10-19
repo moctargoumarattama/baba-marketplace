@@ -1,9 +1,7 @@
 # app/routes/shop.py
-from flask import Blueprint, render_template, request, flash, redirect, url_for, current_app
-from datetime import datetime
+from flask import Blueprint, render_template, request, redirect, url_for, current_app
 from urllib.parse import urlparse, quote
 from ..models.product import Product
-from ..models.shop import Shop
 from ..services.pricing import prix_final, get_active_promo
 from ..services.shop_access import shop_is_currently_open
 
@@ -77,9 +75,10 @@ def delivery_whatsapp_loader():
 
 
 def _redirect_to_public_hub(default_universe: str = "products"):
-    # Keep public navigation state when legacy catalogue URLs reach the hub.
+    # Keep legacy filters and modal deep links while consolidating catalogue URLs.
     filter_keys = (
         "cat", "sort", "kind", "min_price", "max_price", "promo", "stock", "shop", "page",
+        "city", "type", "listing_type", "property_type", "min", "max", "per_page",
     )
     state_keys = ("q", *filter_keys, "pdetail", "sdetail", "slug")
     state = {
@@ -102,6 +101,18 @@ def _redirect_to_public_hub(default_universe: str = "products"):
         universe = "search"
     else:
         universe = default_universe
+    from ..services.public_seo import CATALOG_ENDPOINTS
+
+    if any(state.get(key) for key in ("pdetail", "sdetail", "slug")):
+        # Old shared modal links still need their detail state consumed by the
+        # existing hub. A catalogue document alone would drop that state.
+        return redirect(url_for("landing", open=universe, **state))
+
+    endpoint = CATALOG_ENDPOINTS.get(universe)
+    if endpoint:
+        # The universe already belongs to the URL. Keep modal-only destinations
+        # on the existing hub (cart, checkout, delivery, or one shop).
+        return redirect(url_for(endpoint, **state), code=301)
     return redirect(url_for("landing", open=universe, **state))
 
 
@@ -115,41 +126,15 @@ def promotions():
     return _redirect_to_public_hub("promotions")
 
 
-_SOCIAL_AND_SEARCH_BOTS = (
-    "facebookexternalhit",
-    "whatsapp",
-    "twitterbot",
-    "telegrambot",
-    "linkedinbot",
-    "slackbot",
-    "pinterest",
-    "discordbot",
-    "googlebot",
-    "bingbot",
-    "baiduspider",
-    "yandexbot",
-    "duckduckbot",
-    "applebot",
-    "skypeuripreview",
-)
-
-
-def _is_social_or_search_bot() -> bool:
-    ua = (request.headers.get("User-Agent") or "").lower()
-    return any(bot in ua for bot in _SOCIAL_AND_SEARCH_BOTS)
-
-
 @bp.route("/product/<int:pid>")
 def product_detail(pid):
-    product = Product.query.get_or_404(pid)
-    
-    if not product.is_active:
-        flash("Ce produit n'est plus disponible", "warning")
-        return redirect(url_for("landing", open="products"))
+    from ..services.marketplace_feed import _base_product_query
 
-    is_crawler = _is_social_or_search_bot()
-    if not is_crawler and request.args.get("view") != "legacy":
-        return redirect(url_for("landing", open="products", pdetail=pid))
+    query, _, _, _, _ = _base_product_query(
+        search_q="", category_id=None, kind="", min_price=None, max_price=None,
+        promo_only="0", in_stock="0", shop_id=None,
+    )
+    product = query.filter(Product.kind.in_(("physical", "service")), Product.id == pid).first_or_404()
 
     shop_is_open_now = shop_is_currently_open(getattr(product, "shop", None), default_if_missing=True)
     promo = get_active_promo(pid)

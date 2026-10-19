@@ -7,7 +7,6 @@ from flask import url_for
 from dealnova.app.routes import cart as cart_routes
 from dealnova.app.routes import shop as shop_routes
 from dealnova.app.routes import shops as shops_routes
-from dealnova.app.routes import rentals as rentals_routes
 
 
 def test_shop_links_use_the_namespaced_url_to_avoid_root_route_collisions():
@@ -17,17 +16,6 @@ def test_shop_links_use_the_namespaced_url_to_avoid_root_route_collisions():
     with app.test_request_context("/"):
         assert url_for("shops.shop_detail", shop_slug="moctar") == "/shops/moctar"
         assert url_for("shops.shop_detail", shop_slug="local-shop") == "/shops/local-shop"
-
-
-def test_rental_redirect_preserves_city_price_duration_and_page(navigation_app):
-    navigation_app.register_blueprint(rentals_routes.bp)
-    response = navigation_app.test_client().get("/locations", query_string={
-        "city": "Rabat", "type": "monthly", "min": "2000", "max": "4000", "page": "3", "next": "https://example.test",
-    })
-    assert response.status_code == 302
-    assert parse_qs(urlparse(response.location).query) == {
-        "open": ["locations"], "city": ["Rabat"], "type": ["monthly"], "min": ["2000"], "max": ["4000"], "page": ["3"],
-    }
 
 
 @pytest.fixture()
@@ -41,6 +29,18 @@ def navigation_app():
     @app.route("/")
     def landing():
         return jsonify(request.args.to_dict())
+
+    # Production always registers these public document endpoints. Stub only
+    # their responses while exercising the real legacy redirect behavior.
+    for endpoint, path in {
+        "public_catalog_pages.products": "/produits",
+        "public_catalog_pages.services": "/services",
+        "public_catalog_pages.promotions": "/promotions",
+        "public_catalog_pages.search": "/recherche",
+        "rentals.locations_home": "/locations",
+        "shops.list_shops": "/shops",
+    }.items():
+        app.add_url_rule(path, endpoint=endpoint, view_func=landing)
 
     return app
 
@@ -64,29 +64,31 @@ def test_cart_links_keep_the_intended_drawer(navigation_app, path, expected_univ
 
 
 @pytest.mark.parametrize(
-    ("query", "expected"),
+    ("query", "status", "path", "expected"),
     [
-        ({}, {"open": "products"}),
-        ({"q": "  karité & savon  "}, {"open": "search", "q": "karité & savon"}),
-        ({"kind": "service"}, {"open": "services", "kind": "service"}),
-        ({"promo": "1"}, {"open": "promotions", "promo": "1"}),
-        ({"open": "checkout", "q": "savon"}, {"open": "checkout", "q": "savon"}),
-        ({"open": "services", "q": "coiffure"}, {"open": "services", "q": "coiffure"}),
-        ({"open": "unknown", "next": "https://example.test"}, {"open": "products"}),
+        ({}, 301, "/produits", {}),
+        ({"q": "  karité & savon  "}, 301, "/recherche", {"q": "karité & savon"}),
+        ({"kind": "service"}, 301, "/services", {"kind": "service"}),
+        ({"promo": "1"}, 301, "/promotions", {"promo": "1"}),
+        ({"open": "checkout", "q": "savon"}, 302, "/", {"open": "checkout", "q": "savon"}),
+        ({"open": "services", "q": "coiffure"}, 301, "/services", {"q": "coiffure"}),
+        ({"open": "locations", "city": "Rabat"}, 301, "/locations", {"city": "Rabat"}),
+        ({"open": "shops"}, 301, "/shops", {}),
+        ({"open": "unknown", "next": "https://example.test"}, 301, "/produits", {}),
     ],
 )
-def test_catalogue_redirect_keeps_public_navigation_state(navigation_app, query, expected):
+def test_catalogue_redirect_keeps_public_navigation_state(navigation_app, query, status, path, expected):
     response = navigation_app.test_client().get("/shop/", query_string=query)
 
-    assert response.status_code == 302
+    assert response.status_code == status
     target = urlparse(response.location)
-    assert target.path == "/"
+    assert target.path == path
     assert not target.netloc
     assert parse_qs(target.query) == {key: [value] for key, value in expected.items()}
 
 
 @pytest.mark.parametrize("path", ["/shop/", "/shop/promotions"])
-def test_catalogue_redirect_keeps_filters_and_detail_links(navigation_app, path):
+def test_catalogue_redirect_keeps_filters_on_the_canonical_catalogue(navigation_app, path):
     filters = {
         "q": "savon",
         "cat": "3",
@@ -98,12 +100,25 @@ def test_catalogue_redirect_keeps_filters_and_detail_links(navigation_app, path)
         "stock": "1",
         "shop": "9",
         "page": "2",
-        "pdetail": "7",
-        "sdetail": "boutique-rabat",
-        "slug": "boutique-rabat",
     }
 
-    response = navigation_app.test_client().get(path, query_string=filters, follow_redirects=True)
+    response = navigation_app.test_client().get(path, query_string=filters)
 
-    assert response.json == {"open": "promotions", **filters}
+    assert response.status_code == 301
+    assert urlparse(response.location).path == "/promotions"
+    assert parse_qs(urlparse(response.location).query) == {key: [value] for key, value in filters.items()}
+    assert navigation_app.test_client().get(response.location).json == filters
+
+
+@pytest.mark.parametrize("path", ["/shop/", "/shop/promotions"])
+@pytest.mark.parametrize("details", [{"pdetail": "7"}, {"sdetail": "boutique-rabat"}, {"slug": "boutique-rabat"}])
+def test_old_detail_links_still_open_the_popup_with_their_catalogue_filters(navigation_app, path, details):
+    filters = {"q": "savon", "sort": "price_asc", "page": "2", "promo": "1", **details}
+    response = navigation_app.test_client().get(path, query_string=filters)
+
+    assert response.status_code == 302
+    target = urlparse(response.location)
+    assert target.path == "/" and not target.netloc
+    assert parse_qs(target.query) == {key: [value] for key, value in {"open": "promotions", **filters}.items()}
+    assert navigation_app.test_client().get(response.location).json == {"open": "promotions", **filters}
 

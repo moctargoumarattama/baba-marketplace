@@ -35,6 +35,9 @@ def storefront():
     app = Flask("storefront-tests", template_folder=str(ROOT / "app/templates"))
     routes = {
         "landing": "/", "global_search": "/search",
+        "public_catalog_pages.products": "/produits", "public_catalog_pages.services": "/services",
+        "public_catalog_pages.promotions": "/promotions", "public_catalog_pages.search": "/recherche",
+        "rentals.locations_home": "/locations",
         "api.public_catalog": "/api/catalog",
         "shop.product_detail": "/shop/product/<int:pid>",
         "booking.book": "/book/<int:pid>",
@@ -152,7 +155,7 @@ def test_homepage_does_not_display_product_or_service_previews(storefront):
     assert not any("data-home-offers" in attrs or "data-home-rotation-url" in attrs
                    for _, attrs in page.tags)
     assert not any("data-cart-add-btn" in attrs for attrs in page.attributes("button"))
-    assert any(attrs.get("data-open-universe") == "shops" for attrs in page.attributes("button"))
+    assert any(attrs.get("data-open-universe") == "shops" for attrs in page.attributes("a"))
 
 
 def test_navigation_keeps_all_universes_and_unique_search_controls(storefront):
@@ -179,4 +182,15 @@ def test_shops_are_accessible_from_the_category_without_a_homepage_list(storefro
     assert "hub-shops-grid" not in source
     assert "Commerce &amp; voisinage" not in source
     assert any(attrs.get("data-open-universe") == "shops" and attrs.get("class") == "hub-category"
-               for attrs in page.attributes("button"))
+               for attrs in page.attributes("a"))
+
+
+def test_six_category_links_remain_crawlable_without_changing_popup_actions(storefront):
+    page = Markup(storefront())
+    cards = [attrs for attrs in page.attributes("a") if attrs.get("class") == "hub-category"]
+
+    assert len(cards) == 6
+    assert {attrs["data-open-universe"]: attrs["href"] for attrs in cards} == {
+        "products": "/produits", "services": "/services", "locations": "/locations",
+        "shops": "/shops", "delivery": "/?open=delivery", "promotions": "/promotions",
+    }

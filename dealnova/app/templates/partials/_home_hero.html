@@ -1,3 +1,4 @@
+{% from 'partials/_public_catalog_links.html' import catalog_url %}
 {% set hero_slides = [
   ('products', 'Repas et produits', 'Repas et', 'produits.', 'Commandez auprès des commerces de Rabat, Salé, Kénitra et Témara.', 'Voir les produits'),
   ('services', 'Services', 'Services près', 'de vous.', 'Consultez les services et contactez un professionnel.', 'Voir les services'),
@@ -19,7 +20,7 @@
     <div class="hub-hero-copy">
       <h2>{{ t(first_line) }}<br>{{ t(second_line) }}</h2>
       <p>{{ t(description) }}</p>
-      <button type="button" class="hub-primary-btn" data-open-universe="{{ universe }}">{{ t(button_label) }}<i class="bi bi-arrow-right" aria-hidden="true"></i></button>
+      <a href="{{ catalog_url(universe) }}" class="hub-primary-btn" data-open-universe="{{ universe }}">{{ t(button_label) }}<i class="bi bi-arrow-right" aria-hidden="true"></i></a>
     </div>
   </div>
   {% endfor %}

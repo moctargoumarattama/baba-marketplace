@@ -14,6 +14,8 @@ from ..models.product import Product
 from ..models.promo import Promo
 from ..models.rental import RentalListing
 from ..models.shop import Shop
+from .cache import get_catalog_cache
+from .image import image_variant
 from .marketplace_feed import _base_product_query, _public_location_query
 from .pricing import cents_to_money
 from .public_text import clean_shop_description
@@ -188,7 +190,7 @@ def _shop_city(address):
     return next((city for city in LOCAL_CITIES if _city_key(city) in normalized), "")
 
 
-def _facets(universe):
+def _compute_facets(universe):
     sources = _source_queries(CatalogFilters(universe=universe))
     categories, cities, shop_selects = [], set(), []
     for source, (model, query, _) in sources.items():
@@ -212,6 +214,13 @@ def _facets(universe):
             "cities": sorted(cities, key=str.casefold)}
 
 
+def _facets(universe):
+    try:
+        return get_catalog_cache(f"facets:{universe}", lambda: _compute_facets(universe), timeout=120)
+    except Exception:
+        return _compute_facets(universe)
+
+
 def _image_url(raw, *, rental=False, shop=False):
     filename = str(raw or "").split("|")[0].strip().replace("\\", "/")
     if (not filename or filename.startswith("//") or ":" in filename or
@@ -224,6 +233,11 @@ def _image_url(raw, *, rental=False, shop=False):
         filename = filename[8:]
     if rental and not filename.startswith("rentals/"):
         filename = "rentals/" + filename
+    elif not rental and not shop:
+        try:
+            filename = image_variant(filename, "thumb")
+        except Exception:
+            pass
     return url_for("static", filename="uploads/" + filename)
 
 

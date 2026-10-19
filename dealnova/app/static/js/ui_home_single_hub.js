@@ -1627,6 +1627,7 @@
 
     // Gestion des clics délégués sur les boutons quantité et suppression
     document.addEventListener('click', function (e) {
+      if (nativeLinkNavigation(e)) return;
       var actBtn = e.target.closest('[data-cart-action]');
       if (actBtn) {
         e.preventDefault();
@@ -1952,8 +1953,17 @@
     // ÉCOUTEURS GLOBAUX EN MODE CAPTURE (INTERCEPTENT TOUT AVANT NAVIGATION)
     // ========================================================
 
+    // Keep real links usable in a new tab while ordinary clicks use the panels.
+    function nativeLinkNavigation(event) {
+      var link = event.target && event.target.closest ? event.target.closest('a[href]') : null;
+      if (!link) return false;
+      return event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey ||
+        link.hasAttribute('download') || (link.target && link.target.toLowerCase() !== '_self');
+    }
+
     // Explicit homepage navigation and native universe buttons share the same handler.
     document.addEventListener('click', function (e) {
+      if (nativeLinkNavigation(e)) return;
       var fullscreenBtn = e.target.closest('[data-modal-fullscreen]');
       if (fullscreenBtn) {
         e.preventDefault();
@@ -2002,6 +2012,7 @@
 
     // 1a. Intercepter TOUT clic vers le panier / checkout pour ouvrir le Smart Drawer en 0ms
     document.addEventListener('click', function (e) {
+      if (nativeLinkNavigation(e)) return;
       var cartClose = e.target.closest('[data-cart-close]');
       if (cartClose) {
         e.preventDefault();
@@ -2050,6 +2061,7 @@
 
     // 1b. Clic pour ouvrir la modale Vitrine Boutique (Zero-reload)
     document.addEventListener('click', function (e) {
+      if (nativeLinkNavigation(e)) return;
       var shopTrigger = e.target.closest('[data-open-shop-detail]');
       if (shopTrigger) {
         e.preventDefault();
@@ -2078,6 +2090,7 @@
 
     // 2. Clic pour ouvrir la modale Détail Produit (Quick-View)
     document.addEventListener('click', function (e) {
+      if (nativeLinkNavigation(e)) return;
       // Vérifier si clic sur un élément déclencheur explicite
       var detailTarget = e.target.closest('[data-open-product-detail]');
       if (detailTarget) {
@@ -2121,6 +2134,7 @@
 
     // 3. Clic pour fermer la modale Détail Produit
     document.addEventListener('click', function (e) {
+      if (nativeLinkNavigation(e)) return;
       var pCloseBtn = e.target.closest('[data-pdetail-close]');
       if (pCloseBtn) {
         e.preventDefault();
@@ -2134,6 +2148,7 @@
 
     // 4. Clic pour fermer la modale Univers
     document.addEventListener('click', function (e) {
+      if (nativeLinkNavigation(e)) return;
       var closeBtn = e.target.closest('[data-u-modal-close]');
       if (closeBtn) {
         e.preventDefault();

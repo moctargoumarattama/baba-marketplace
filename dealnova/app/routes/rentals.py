@@ -274,9 +274,9 @@ def _owner_shops(owner_id: int, location_only: bool = False):
 @bp.route("/locations")
 def locations_home():
     if not (request.headers.get("X-Requested-With") in ("fetch", "XMLHttpRequest") or "application/json" in (request.headers.get("Accept") or "")):
-        allowed = ("q", "city", "type", "listing_type", "property_type", "min", "max", "min_price", "max_price", "page", "sort", "shop")
-        filters = {key: request.args[key] for key in allowed if request.args.get(key)}
-        return redirect(url_for("landing", open="locations", **filters))
+        from ..services.public_seo import render_public_catalog
+
+        return render_public_catalog("locations")
     q = (request.args.get("q") or "").strip()
     search_q = q if len(q) >= 2 else ""
     description_search_q = q if len(q) >= 3 else ""

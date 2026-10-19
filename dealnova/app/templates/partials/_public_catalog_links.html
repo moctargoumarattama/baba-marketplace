@@ -1,0 +1,11 @@
+{% macro catalog_url(universe) -%}
+  {%- set endpoints = {
+    'products': 'public_catalog_pages.products',
+    'services': 'public_catalog_pages.services',
+    'locations': 'rentals.locations_home',
+    'shops': 'shops.list_shops',
+    'promotions': 'public_catalog_pages.promotions',
+    'search': 'public_catalog_pages.search'
+  } -%}
+  {{- url_for(endpoints[universe]) if universe in endpoints else url_for('landing', open=universe) -}}
+{%- endmacro %}

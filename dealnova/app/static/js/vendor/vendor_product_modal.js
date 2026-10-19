@@ -611,6 +611,11 @@
       if (xhr.status >= 200 && xhr.status < 300 && data?.success && (createType === "location" ? data.listing : data.product)) {
         initialValues = signature();
         confirmedLeave = true;
+        if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+          try {
+            navigator.serviceWorker.controller.postMessage({ type: "BM_CLEAR_PUBLIC_PAGE_CACHE" });
+          } catch (_e) {}
+        }
         if (standalone) { window.location.assign(safeLink(dialog.dataset.backUrl) || "/vendor/dashboard"); return; }
         document.dispatchEvent(new CustomEvent("vendor:" + createType + (formMode === "edit" ? "-updated" : "-created"), { detail: data }));
         closeDialog(true);

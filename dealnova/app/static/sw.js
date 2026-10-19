@@ -298,6 +298,8 @@ async function putInCache(cacheName, req, response) {
   await cache.put(req, response);
 }
 
+let currentCatalogVersion = null;
+
 async function putPublicPageInCache(req, response) {
   const responseUrl = resolvePageUrl(response && response.url ? response.url : req);
   if (!isSameOrigin(responseUrl)) return;
@@ -307,6 +309,15 @@ async function putPublicPageInCache(req, response) {
   if (!isPublicPageResponse(response)) {
     await deletePublicPageCacheEntry(responseUrl);
     return;
+  }
+
+  const verHeader = response.headers.get("X-BM-Catalog-Version");
+  if (verHeader) {
+    if (currentCatalogVersion && currentCatalogVersion !== verHeader) {
+      debugLog("Catalog version changed, invalidating cached public pages", { from: currentCatalogVersion, to: verHeader });
+      await clearPublicPageCaches();
+    }
+    currentCatalogVersion = verHeader;
   }
 
   const cache = await caches.open(PAGES_CACHE);
@@ -807,13 +818,21 @@ async function handleStaticAsset(req) {
 
 async function handleCriticalStaticAsset(req) {
   const cache = await caches.open(STATIC_CACHE);
+  const cached = await cache.match(req);
+  if (cached) {
+    fetch(req, { cache: "no-store" })
+      .then((response) => putInCache(STATIC_CACHE, req, response.clone()))
+      .catch((error) => {
+        debugWarn("Critical static refresh failed", { url: req.url, error: String(error && error.message || error) });
+      });
+    return cached;
+  }
+
   try {
     const response = await fetch(req, { cache: "no-store" });
     await putInCache(STATIC_CACHE, req, response.clone());
     return response;
   } catch (err) {
-    const cached = await cache.match(req);
-    if (cached) return cached;
     const fallbackCached = await cache.match(req, { ignoreSearch: true });
     if (fallbackCached) return fallbackCached;
     if (isHtmlRequest(req)) {
@@ -821,6 +840,43 @@ async function handleCriticalStaticAsset(req) {
     }
     throw err;
   }
+}
+
+async function handleCatalogApi(req) {
+  const cache = await caches.open(PAGES_CACHE);
+  const fetchPromise = fetch(req, { cache: "no-store" })
+    .then(async (response) => {
+      if (response && response.ok) {
+        await cache.put(req, response.clone());
+      }
+      return response;
+    })
+    .catch(() => null);
+
+  const raceResult = await Promise.race([
+    fetchPromise.then((response) => ({ response })),
+    new Promise((resolve) => setTimeout(() => resolve({ timeout: true }), 800)),
+  ]).catch(() => ({ error: true }));
+
+  if (raceResult && raceResult.response && raceResult.response.ok) {
+    return raceResult.response;
+  }
+
+  const cached = await cache.match(req);
+  if (cached) {
+    debugWarn("Serving cached catalog API response", { url: req.url });
+    return cached;
+  }
+
+  try {
+    const response = await fetchPromise;
+    if (response) return response;
+  } catch (_err) {}
+
+  return new Response(JSON.stringify({ success: false, items: [], message: "Connexion lente, réessayez." }), {
+    status: 503,
+    headers: { "Content-Type": "application/json" },
+  });
 }
 
 async function handleUploadImage(req) {
@@ -866,7 +922,7 @@ async function handleReadonlyPage(req) {
   const raceResult = await Promise.race([
     fetchPromise.then((response) => ({ response })),
     new Promise((resolve) => {
-      setTimeout(() => resolve({ timeout: true }), 3000);
+      setTimeout(() => resolve({ timeout: true }), 400);
     }),
   ]).catch((error) => ({ error }));
 
@@ -1064,6 +1120,11 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(req.url);
   if (!isSameOrigin(url)) return;
+
+  if (url.pathname === "/api/catalog") {
+    event.respondWith(handleCatalogApi(req));
+    return;
+  }
 
   if (isNetworkOnlyPath(url.pathname) || url.pathname === "/sw.js" || url.pathname === "/manifest.json") {
     event.respondWith(handleNetworkOnly(req));
