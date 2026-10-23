@@ -10,7 +10,7 @@
       {% else %}
       <img src="{{ url_for('static', filename='img/placeholders/' ~ ('service.svg' if is_service else 'product.svg')) }}" alt="{{ product.name }}" width="300" height="300" loading="lazy" decoding="async">
       {% endif %}
-      {% if product.promo_active and product.price|float > final_price %}<span class="hub-offer-tag">{{ t('Promotion') }}</span>{% endif %}
+      {% if product.promo_active and product.price|float > final_price %}<span class="hub-offer-tag promotion-highlight">{{ t('Promotion') }}</span>{% endif %}
     </a>
     <div class="hub-product-info">
       <h3><a href="{{ url_for('shop.product_detail', pid=product.id) }}" data-open-product-detail="{{ product.id }}">{{ product.name }}</a></h3>

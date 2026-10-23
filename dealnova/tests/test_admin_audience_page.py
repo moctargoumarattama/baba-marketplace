@@ -22,8 +22,8 @@ def test_audience_page_keeps_all_existing_monitoring_sections():
     assert "audCities" in template
     assert "audHeaderDebug" in template
     assert "Installations app total" in template
-    assert "Nouveaux visiteurs" in template
-    assert "Visiteurs de retour" in template
+    assert "Nouveaux clients" in template
+    assert "Clients de retour" in template
 
 
 def test_audience_page_uses_clear_french_without_mojibake():
@@ -31,7 +31,7 @@ def test_audience_page_uses_clear_french_without_mojibake():
 
     assert "Résumé en direct" in template
     assert "Détails" in template
-    assert "Équipe seulement" in template
+    assert "Équipe Baba" in template
     assert "Données Cloudflare reçues" in template
     assert "Ã" not in template
     assert "â€™" not in template

@@ -3,7 +3,7 @@
   <a class="public-catalog-card-link" href="{{ item.url }}">
     <div class="public-catalog-card-media">
       <img src="{{ item.image_url or url_for('static', filename='img/placeholders/' ~ ('location' if item.item_type == 'location' else 'product') ~ '.svg') }}" alt="{{ item.name }}" width="480" height="360" loading="lazy" decoding="async">
-      {% if item.has_promo %}<span class="public-catalog-card-badge">{{ t('Promotion') }}</span>{% elif universe == 'search' %}<span class="public-catalog-card-badge">{{ t(item_label) }}</span>{% endif %}
+      {% if item.has_promo %}<span class="public-catalog-card-badge promotion-highlight">{{ t('Promotion') }}</span>{% elif universe == 'search' %}<span class="public-catalog-card-badge">{{ t(item_label) }}</span>{% endif %}
     </div>
     <div class="public-catalog-card-content">
       <h2>{{ item.name }}</h2>

@@ -67,9 +67,13 @@ def get_product_detail(pid):
     """Retourne les details complets d'un produit pour la modale Quick-View."""
     from urllib.parse import quote
 
-    product = Product.query.get_or_404(pid)
-    if not product.is_active:
-        return jsonify({"success": False, "error": "Produit indisponible"}), 404
+    from ..services.marketplace_feed import _base_product_query
+
+    query, _, _, _, _ = _base_product_query(
+        search_q="", category_id=None, kind="", min_price=None, max_price=None,
+        promo_only="0", in_stock="0", shop_id=None,
+    )
+    product = query.filter(Product.kind.in_(("physical", "service")), Product.id == pid).first_or_404()
 
     promo_map = _active_promo_map([product.id])
     promo = promo_map.get(product.id)
@@ -126,6 +130,8 @@ def get_product_detail(pid):
             "stock": getattr(product, "stock", 0) or 0,
             "kind": getattr(product, "kind", "physical") or "physical",
             "images": images,
+            "image_download_urls": [url_for("shop.download_product_photo", pid=product.id, image_index=index)
+                                    for index in range(len(images))],
             "video_url": video_url,
             "has_video": bool(video_url),
             "category": product.category.name if getattr(product, "category", None) else "",

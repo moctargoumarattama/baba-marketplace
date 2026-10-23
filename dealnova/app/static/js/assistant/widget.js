@@ -12,12 +12,22 @@
   var closeBtn = document.getElementById("bmAssistantClose");
   var panel = document.getElementById("bmAssistantPanel");
   var hintBtn = document.getElementById("bmAssistantHint");
+  var contentBox = document.getElementById("bmAssistantContent");
   var messagesBox = document.getElementById("bmAssistantMessages");
   var quickBox = document.getElementById("bmAssistantQuick");
+  var pending = document.getElementById("bmAssistantPending");
   var form = document.getElementById("bmAssistantForm");
   var input = document.getElementById("bmAssistantInput");
+  var sendBtn = document.getElementById("bmAssistantSend");
 
   var hydrated = false;
+  var bootstrapPromise = null;
+  var initialPayload = null;
+  var freshConversation = true;
+  var requestInFlight = false;
+  var lastQuickReplies = [];
+  var lastQuickLayout = "";
+  var pendingTimer = null;
   var bodyOverflowBeforeOpen = "";
   var viewportBound = false;
   var suppressToggleClick = false;
@@ -26,6 +36,16 @@
   var POSITION_STORAGE_KEY = "bm_assistant_position_v2";
   var HINT_TEXT = root.getAttribute("data-welcome-hint") || "Comment puis-je vous aider ?";
   var MOBILE_BREAKPOINT = 768;
+
+  try {
+    var initialNode = document.getElementById("bmAssistantInitial");
+    var initialData = initialNode ? JSON.parse(initialNode.textContent) : null;
+    if (initialData && initialData.response && typeof initialData.response === "object") {
+      initialPayload = initialData;
+    }
+  } catch (_error) {
+    // Older cached documents can still initialize through the bootstrap URL.
+  }
 
   var dragState = {
     active: false,
@@ -218,11 +238,7 @@
       return;
     }
     document.body.classList.remove("bm-assistant-open");
-    if (desktopLock) {
-      document.body.style.overflow = bodyOverflowBeforeOpen;
-    } else {
-      document.body.style.overflow = "";
-    }
+    document.body.style.overflow = bodyOverflowBeforeOpen;
     bodyOverflowBeforeOpen = "";
   }
 
@@ -231,10 +247,10 @@
     var viewport = getViewportRect();
     var layoutHeight = window.innerHeight || document.documentElement.clientHeight || viewport.height;
     var keyboardInset = Math.max(0, Math.round(layoutHeight - (viewport.height + viewport.top)));
-    var desiredHeight = Math.round(layoutHeight * 0.56);
+    var desiredHeight = Math.round(layoutHeight * 0.72);
     var maxDefault = Math.min(560, desiredHeight);
-    var availableHeight = Math.max(190, Math.round(viewport.height) - 18);
-    var panelHeight = Math.max(190, Math.min(maxDefault, availableHeight));
+    var availableHeight = Math.max(0, Math.round(viewport.height) - 18);
+    var panelHeight = Math.min(maxDefault, availableHeight);
     root.style.setProperty("--bm-assistant-vv-inset-bottom", keyboardInset + "px");
     root.style.setProperty("--bm-assistant-mobile-height", panelHeight + "px");
     root.classList.add("is-mobile-open");
@@ -271,8 +287,30 @@
   }
 
   function scrollToBottom() {
-    if (!messagesBox) return;
-    messagesBox.scrollTop = messagesBox.scrollHeight;
+    var scroller = contentBox || messagesBox;
+    if (!scroller) return;
+    scroller.scrollTop = scroller.scrollHeight;
+  }
+
+  function setBusy(busy) {
+    requestInFlight = busy;
+    if (sendBtn) sendBtn.disabled = busy;
+    if (pendingTimer !== null) {
+      window.clearTimeout(pendingTimer);
+      pendingTimer = null;
+    }
+    if (pending) {
+      pending.hidden = true;
+      if (busy) {
+        pendingTimer = window.setTimeout(function () {
+          pendingTimer = null;
+          if (!requestInFlight) return;
+          pending.hidden = false;
+          scrollToBottom();
+        }, 250);
+      }
+    }
+    if (messagesBox) messagesBox.setAttribute("aria-busy", String(busy));
   }
 
   function createMessageBubble(text, role) {
@@ -287,22 +325,63 @@
   function clearQuickReplies() {
     if (!quickBox) return;
     quickBox.innerHTML = "";
+    quickBox.classList.remove("is-menu");
   }
 
-  function renderQuickReplies(replies) {
+  function renderQuickReplies(replies, layout) {
     clearQuickReplies();
     if (!quickBox) return;
     var list = Array.isArray(replies) ? replies : [];
+    lastQuickReplies = list;
+    lastQuickLayout = layout || "";
+    var isMenu = layout === "menu";
+    quickBox.classList.toggle("is-menu", isMenu);
+    if (isMenu) {
+      var heading = document.createElement("p");
+      heading.className = "bm-assistant-quick-heading";
+      heading.textContent = "Que souhaitez-vous faire ?";
+      quickBox.appendChild(heading);
+    }
     list.slice(0, 8).forEach(function (reply) {
+      if (!reply || typeof reply !== "object") return;
       var btn = document.createElement("button");
       btn.type = "button";
       btn.className = "bm-assistant-quick-btn";
-      btn.textContent = String(reply.label || "Option");
+      var label = String(reply.label || "Option");
+      btn.setAttribute("aria-label", label);
+      if (isMenu && reply.action !== "handoff") {
+        var iconName = /^bi-[a-z0-9-]+$/.test(String(reply.icon || "")) ? reply.icon : "bi-arrow-right";
+        var icon = document.createElement("span");
+        icon.className = "bm-assistant-option-icon";
+        icon.setAttribute("aria-hidden", "true");
+        var glyph = document.createElement("i");
+        glyph.className = "bi " + iconName;
+        icon.appendChild(glyph);
+        btn.appendChild(icon);
+        var text = document.createElement("span");
+        text.className = "bm-assistant-option-text";
+        text.textContent = String(reply.display_label || label);
+        if (reply.detail) {
+          var detail = document.createElement("small");
+          detail.textContent = String(reply.detail);
+          text.appendChild(detail);
+        }
+        btn.appendChild(text);
+      } else {
+        if (isMenu && reply.action === "handoff") {
+          btn.classList.add("is-adviser");
+          var adviserIcon = document.createElement("i");
+          adviserIcon.className = "bi bi-headset";
+          adviserIcon.setAttribute("aria-hidden", "true");
+          btn.appendChild(adviserIcon);
+        }
+        btn.appendChild(document.createTextNode(label));
+      }
       btn.dataset.action = String(reply.action || "");
       btn.dataset.value = String(reply.value || "");
       btn.addEventListener("click", function () {
         sendAssistantMessage({
-          message: btn.textContent,
+          message: label,
           action: btn.dataset.action || "",
           value: btn.dataset.value || "",
           showAsUser: true,
@@ -362,6 +441,21 @@
     scrollToBottom();
   }
 
+  function renderMore(more) {
+    if (!messagesBox || !more || !more.url) return;
+    try {
+      var target = new URL(String(more.url), window.location.origin);
+      if (target.origin !== window.location.origin || !/^https?:$/.test(target.protocol)) return;
+      var link = document.createElement("a");
+      link.className = "bm-assistant-more";
+      link.href = target.pathname + target.search + target.hash;
+      link.textContent = String(more.label || "Voir toutes les offres");
+      messagesBox.appendChild(link);
+    } catch (_error) {
+      // Ignore invalid catalog destinations.
+    }
+  }
+
   function redirectIfNeeded(url) {
     if (!url) return;
     try {
@@ -375,10 +469,22 @@
   function renderAssistantResponse(payload) {
     var response = payload && payload.response ? payload.response : null;
     if (!response) return;
+    var previousLast = messagesBox && messagesBox.lastElementChild;
     if (response.text) createMessageBubble(response.text, "bot");
     if (response.items) renderCards(response.items);
+    if (response.more) renderMore(response.more);
     if (response.handoff) renderHandoff(response.handoff);
-    renderQuickReplies(response.quick_replies || []);
+    renderQuickReplies(response.quick_replies || [], response.quick_layout);
+    var responseStart = messagesBox && (previousLast ? previousLast.nextElementSibling : messagesBox.firstElementChild);
+    var showResponseStart = response.quick_layout === "menu" || (Array.isArray(response.items) && response.items.length);
+    if (showResponseStart && contentBox && responseStart) {
+      // Show the welcome or first result without moving the surrounding page.
+      var paddingTop = parseFloat(window.getComputedStyle(contentBox).paddingTop) || 0;
+      contentBox.scrollTop += responseStart.getBoundingClientRect().top
+        - contentBox.getBoundingClientRect().top - contentBox.clientTop - paddingTop;
+    } else {
+      scrollToBottom();
+    }
     redirectIfNeeded(response.redirect_url);
   }
 
@@ -393,44 +499,91 @@
   }
 
   async function fetchAssistant(url) {
-    var res = await fetch(url, {
-      method: "GET",
-      credentials: "same-origin",
-      headers: { Accept: "application/json" },
-    });
-    if (!res.ok) throw new Error("assistant_request_failed");
-    return res.json();
+    var controller = new AbortController();
+    var timeout = window.setTimeout(function () { controller.abort(); }, 20000);
+    try {
+      var res = await fetch(url, {
+        method: "GET",
+        credentials: "same-origin",
+        headers: { Accept: "application/json" },
+        signal: controller.signal,
+      });
+      if (!res.ok) throw new Error("assistant_request_failed");
+      var payload = await res.json();
+      if (!payload || !payload.response || typeof payload.response !== "object") {
+        throw new Error("assistant_invalid_response");
+      }
+      return payload;
+    } finally {
+      window.clearTimeout(timeout);
+    }
   }
 
   async function ensureBootstrap() {
     if (hydrated) return;
-    var payload = await fetchAssistant(bootstrapUrl);
-    renderAssistantResponse(payload);
-    hydrated = true;
+    if (initialPayload) {
+      renderAssistantResponse(initialPayload);
+      hydrated = true;
+      setBusy(false);
+      return;
+    }
+    if (!bootstrapPromise) {
+      setBusy(true);
+      bootstrapPromise = fetchAssistant(bootstrapUrl).then(function (payload) {
+        initialPayload = payload;
+        renderAssistantResponse(payload);
+        hydrated = true;
+      }).catch(function () {
+        createMessageBubble("L'assistant est indisponible pour le moment. Réessayez plus tard.", "bot");
+      }).finally(function () {
+        setBusy(false);
+        bootstrapPromise = null;
+      });
+    }
+    return bootstrapPromise;
   }
 
   async function sendAssistantMessage(options) {
+    if (requestInFlight) return;
     var opts = options || {};
     var message = String(opts.message || "").trim();
     var action = String(opts.action || "").trim();
     var value = String(opts.value || "").trim();
     var showAsUser = opts.showAsUser !== false;
 
+    if ((action === "start" || action === "reset") && initialPayload) {
+      messagesBox.textContent = "";
+      renderAssistantResponse(initialPayload);
+      hydrated = true;
+      freshConversation = true;
+      setBusy(false);
+      return;
+    }
+
+    var previousReplies = lastQuickReplies;
+    var previousLayout = lastQuickLayout;
+    clearQuickReplies();
     if (showAsUser && message) {
       createMessageBubble(message, "user");
     }
 
-    clearQuickReplies();
+    setBusy(true);
+    scrollToBottom();
     var requestUrl = buildUrl(messageUrl, {
       message: message,
       action: action,
       value: value,
+      fresh: freshConversation ? "1" : "",
     });
     try {
       var payload = await fetchAssistant(requestUrl);
       renderAssistantResponse(payload);
+      freshConversation = false;
     } catch (_error) {
       createMessageBubble("Impossible de charger la réponse. Réessayez dans un instant.", "bot");
+      renderQuickReplies(previousReplies, previousLayout);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -452,13 +605,12 @@
     bindViewportEvents();
     syncViewportOffset();
     updatePanelPlacement();
-    try {
-      await ensureBootstrap();
-    } catch (_error) {
-      createMessageBubble("L'assistant est indisponible pour le moment. Réessayez plus tard.", "bot");
-    }
-    if (input) {
+    // Keep the choices visible on mobile instead of opening the keyboard.
+    panel.focus({ preventScroll: true });
+    await ensureBootstrap();
+    if (input && isPanelOpen() && !isMobileViewport()) {
       window.requestAnimationFrame(function () {
+        if (!isPanelOpen() || isMobileViewport()) return;
         try {
           input.focus({ preventScroll: true });
         } catch (_error) {
@@ -471,12 +623,15 @@
 
   function closePanel() {
     if (!panel || !toggleBtn) return;
+    if (input) input.blur();
+    root.classList.remove("is-typing");
     panel.hidden = true;
     toggleBtn.setAttribute("aria-expanded", "false");
     clearMobilePanelLayout();
     unbindViewportEvents();
     setBodyLocked(false);
     updatePanelPlacement();
+    toggleBtn.focus({ preventScroll: true });
   }
 
   function onDragStart(event) {
@@ -563,13 +718,23 @@
     closeBtn.addEventListener("click", closePanel);
   }
 
+  if (panel) {
+    panel.addEventListener("keydown", function (event) {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      closePanel();
+    });
+  }
+
   if (form) {
     form.addEventListener("submit", function (event) {
       event.preventDefault();
-      if (!input) return;
+      if (!input || requestInFlight || event.isComposing) return;
       var value = input.value.trim();
       if (!value) return;
       input.value = "";
+      if (isMobileViewport()) input.blur();
       sendAssistantMessage({ message: value, showAsUser: true });
     });
   }

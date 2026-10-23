@@ -284,6 +284,8 @@ class Config:
 
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
     GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-lite-latest").strip()
+    ASSISTANT_GEMINI_LIMIT_PER_MINUTE = max(1, int(os.getenv("ASSISTANT_GEMINI_LIMIT_PER_MINUTE", "10")))
+    ASSISTANT_GEMINI_LIMIT_PER_HOUR = max(1, int(os.getenv("ASSISTANT_GEMINI_LIMIT_PER_HOUR", "50")))
 
 
 # Compatibilite anciens imports: la source reste Config.

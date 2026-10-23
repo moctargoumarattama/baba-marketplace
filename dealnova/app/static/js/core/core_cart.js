@@ -79,7 +79,7 @@
     const toConfirmCountEl = document.getElementById("toConfirmCount");
     const toConfirmStatEl = document.getElementById("toConfirmStat");
     const toConfirmPill = document.getElementById("toConfirmPill");
-    const soundToggle = document.getElementById("soundToggle");
+    const soundToggle = document.getElementById("adminOrderSoundToggle") || document.getElementById("soundToggle");
 
     let soundEnabled = localStorage.getItem("adminOrderSound") !== "0";
     let toastTimer = null;

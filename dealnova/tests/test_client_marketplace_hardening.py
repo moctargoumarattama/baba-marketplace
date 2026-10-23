@@ -30,11 +30,14 @@ def test_global_search_is_instant_search_shell_without_unused_db_queries():
     assert 'open="search"' in body
 
 
-def test_product_detail_loads_ajax_runtime_for_ajax_forms():
-    template = _read("app/templates/shop/product_detail.html")
+def test_product_detail_uses_home_modal_and_opens_direct_product_links():
+    route = _read("app/routes/shop.py")
+    template = _read("app/templates/home.html")
+    runtime = _read("app/static/js/ui_home_single_hub.js")
 
-    assert 'data-ajax="true"' in template
-    assert "js/core/core_live.js" in template
+    assert '"home.html"' in route
+    assert "data-initial-product-id" in template
+    assert "document.body.dataset.initialProductId" in runtime
 
 
 def test_promotions_uses_server_search_not_current_page_filtering():

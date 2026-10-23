@@ -6,7 +6,7 @@
 </nav>
 <div class="catalog-toolbar" id="catalogToolbar">
   <button type="button" class="catalog-filter-toggle" id="catalogFilterToggle" aria-expanded="false" aria-controls="catalogFilters"><i class="bi bi-sliders2" aria-hidden="true"></i>{{ t('Filtres') }}<span id="catalogFilterCount" hidden></span></button>
-  <label class="catalog-sort" for="catalogSort"><span>{{ t('Trier') }}</span><select id="catalogSort" name="sort"><option value="new">{{ t('Nouveautés') }}</option><option value="low">{{ t('Prix croissant') }}</option><option value="high">{{ t('Prix décroissant') }}</option></select></label>
+  <label class="catalog-sort" for="catalogSort"><span>{{ t('Trier') }}</span><select id="catalogSort" name="sort"><option value="discover">{{ t('À découvrir') }}</option><option value="new">{{ t('Nouveautés') }}</option><option value="low">{{ t('Prix croissant') }}</option><option value="high">{{ t('Prix décroissant') }}</option></select></label>
 </div>
 <div class="u-modal-body catalog-body" id="uModalBody">
   <form class="catalog-filters" id="catalogFilters" hidden>

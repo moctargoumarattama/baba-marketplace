@@ -645,10 +645,13 @@
   {% endif %}
   {% if public_refresh_enabled %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/home_refresh.css', v=app_static_version ~ '-public-v2-header-v2-hero-v1-services-v3-discovery-v1-footer-v2-fluid-v1-cleanup-v1-share-v1-wa-compact-v1-products-v1-seo-v1') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/public_refresh.css', v=app_static_version ~ '-public-v2-home-search-only-v1') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/public_refresh.css', v=app_static_version ~ '-public-v2-home-search-only-v1-promo-glow-v2') }}">
   <script src="{{ url_for('static', filename='js/home_refresh.js', v=app_static_version ~ '-textes-v1-public-v2-cleanup-v1') }}" defer></script>
   {% endif %}
   {% block head %}{% endblock %}
+  {% if public_refresh_enabled or base_endpoint in ['landing', 'shop.home'] %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/promotion_highlight.css', v=app_static_version ~ '-promo-glow-v2') }}">
+  {% endif %}
 </head>
 
 <body data-public-refresh="{{ '1' if public_refresh_enabled else '0' }}" data-page="{{ request.endpoint or '' }}" data-user-role="{{ current_user.role if current_user.is_authenticated else 'guest' }}" data-lang="{{ current_lang }}" data-rtl-langs="{{ (rtl_langs or [])|join(',') }}" data-static-version="{{ app_static_version }}" data-static-root="{{ url_for('static', filename='') }}" data-session-scope="{{ pwa_session_scope }}" dir="{{ 'rtl' if rtl_enabled else 'ltr' }}" {% block body_attrs %}{% endblock %}>

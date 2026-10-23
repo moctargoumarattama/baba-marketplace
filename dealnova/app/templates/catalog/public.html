@@ -43,6 +43,7 @@
 
   <form class="public-catalog-form" method="get" action="{{ catalog_urls[universe] }}" role="search">
     {% if filters.per_page != 12 %}<input type="hidden" name="per_page" value="{{ filters.per_page }}">{% endif %}
+    {% if filters.smart %}<input type="hidden" name="smart" value="1">{% endif %}
     <div class="public-catalog-search-row">
       <div class="public-catalog-search">
         <i class="bi bi-search" aria-hidden="true"></i>

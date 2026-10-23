@@ -5,6 +5,7 @@
   data-message-url="{{ url_for('assistant_api.message') }}"
   data-welcome-hint="Comment puis-je vous aider ?"
 >
+  <script type="application/json" id="bmAssistantInitial">{{ {'response': assistant_welcome()} | tojson }}</script>
   <button
     type="button"
     class="bm-assistant-toggle"
@@ -27,32 +28,44 @@
     <span>Comment puis-je vous aider ?</span>
   </button>
 
-  <section class="bm-assistant-panel" id="bmAssistantPanel" hidden>
+  <section class="bm-assistant-panel" id="bmAssistantPanel" role="dialog" aria-labelledby="bmAssistantTitle" tabindex="-1" hidden>
     <header class="bm-assistant-header">
       <div class="bm-assistant-title">
-        <i class="bi bi-stars"></i>
-        <span>Assistant Baba Market</span>
+        <span class="bm-assistant-avatar" aria-hidden="true"><i class="bi bi-stars"></i></span>
+        <div class="bm-assistant-heading">
+          <h2 id="bmAssistantTitle">Assistant Baba Market</h2>
+          <p><span class="bm-assistant-status-dot" aria-hidden="true"></span>Un coup de main, simplement.</p>
+        </div>
       </div>
-      <button type="button" class="bm-assistant-close" id="bmAssistantClose" aria-label="Fermer">
-        <i class="bi bi-x-lg"></i>
+      <button type="button" class="bm-assistant-close" id="bmAssistantClose" aria-label="Fermer l'assistant">
+        <i class="bi bi-x-lg" aria-hidden="true"></i>
       </button>
     </header>
 
-    <div class="bm-assistant-messages" id="bmAssistantMessages"></div>
-    <div class="bm-assistant-quick" id="bmAssistantQuick"></div>
+    <div class="bm-assistant-content" id="bmAssistantContent">
+      <div class="bm-assistant-messages" id="bmAssistantMessages" role="log" aria-label="Conversation avec l'assistant" aria-live="polite" aria-relevant="additions"></div>
+      <div class="bm-assistant-quick" id="bmAssistantQuick" role="group" aria-label="Suggestions"></div>
+      <div class="bm-assistant-pending" id="bmAssistantPending" role="status" hidden>
+        <span class="bm-assistant-dots" aria-hidden="true"><span></span><span></span><span></span></span>
+        <span>Un instant, je vous aide…</span>
+      </div>
+    </div>
 
     <form class="bm-assistant-form" id="bmAssistantForm">
-      <input
-        type="text"
-        id="bmAssistantInput"
-        maxlength="240"
-        autocomplete="off"
-        placeholder="Écrivez votre message…"
-        aria-label="Votre message"
-      />
-      <button type="submit" id="bmAssistantSend" aria-label="Envoyer le message">
-        <i class="bi bi-send"></i>
-      </button>
+      <div class="bm-assistant-composer">
+        <input
+          type="text"
+          id="bmAssistantInput"
+          maxlength="240"
+          autocomplete="off"
+          enterkeyhint="send"
+          placeholder="Décrivez ce que vous cherchez…"
+          aria-label="Votre recherche ou demande d'aide"
+        />
+        <button type="submit" id="bmAssistantSend" aria-label="Envoyer le message">
+          <i class="bi bi-arrow-up" aria-hidden="true"></i>
+        </button>
+      </div>
     </form>
   </section>
 </div>

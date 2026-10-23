@@ -1,9 +1,8 @@
 # app/routes/shop.py
-from flask import Blueprint, render_template, request, redirect, url_for, current_app
+from flask import Blueprint, render_template, request, redirect, url_for, current_app, abort, send_file
 from urllib.parse import urlparse, quote
 from ..models.product import Product
 from ..services.pricing import prix_final, get_active_promo
-from ..services.shop_access import shop_is_currently_open
 
 bp = Blueprint("shop", __name__)
 
@@ -126,24 +125,91 @@ def promotions():
     return _redirect_to_public_hub("promotions")
 
 
-@bp.route("/product/<int:pid>")
-def product_detail(pid):
+def _public_product(pid):
     from ..services.marketplace_feed import _base_product_query
 
     query, _, _, _, _ = _base_product_query(
         search_q="", category_id=None, kind="", min_price=None, max_price=None,
         promo_only="0", in_stock="0", shop_id=None,
     )
-    product = query.filter(Product.kind.in_(("physical", "service")), Product.id == pid).first_or_404()
+    return query.filter(Product.kind.in_(("physical", "service")), Product.id == pid).first_or_404()
 
-    shop_is_open_now = shop_is_currently_open(getattr(product, "shop", None), default_if_missing=True)
+
+@bp.route("/product/<int:pid>/photo/<int:image_index>/download")
+def download_product_photo(pid, image_index):
+    from pathlib import Path
+    from PIL import Image
+    from ..services.image_download import watermarked_photo
+
+    product = _public_product(pid)
+    images = [name.strip() for name in (product.image_file or "").split("|") if name.strip()]
+    if image_index >= len(images):
+        abort(404)
+    upload_root = current_app.config.get("UPLOAD_FOLDER") or Path(current_app.static_folder) / "uploads"
+    try:
+        download = watermarked_photo(upload_root, images[image_index])
+    except FileNotFoundError:
+        abort(404)
+    except (OSError, ValueError, Image.DecompressionBombError) as exc:
+        current_app.logger.warning("Product photo download failed for %s: %s", pid, exc)
+        abort(422, description="Cette photo ne peut pas etre telechargee pour le moment.")
+    return send_file(
+        download, mimetype="image/jpeg", as_attachment=True,
+        download_name=f"baba-market-produit-{pid}-photo-{image_index + 1}.jpg",
+        max_age=0,
+    )
+
+
+@bp.route("/product/<int:pid>")
+def product_detail(pid):
+    product = _public_product(pid)
     promo = get_active_promo(pid)
     final = prix_final(product, promo)
+    from ..services.cache import get_catalog_cache
+    from ..services.marketplace_feed import build_marketplace_feed
 
+    def build_landing_payload():
+        promo_payload = build_marketplace_feed(page=1, per_page=12, promo_only="1")
+        return {"data": list(promo_payload.get("data", []) or [])}
+
+    try:
+        payload = get_catalog_cache("landing:v4-promotions", build_landing_payload, timeout=60)
+    except Exception as exc:
+        from ..extensions import db
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        current_app.logger.warning("product landing cache/build error: %s", exc)
+        try:
+            payload = build_landing_payload()
+        except Exception as fallback_exc:
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+            current_app.logger.error("product landing fallback build error: %s", fallback_exc)
+            payload = {"data": []}
+
+    canonical_url = url_for("shop.product_detail", pid=product.id, _external=True)
+    from ..services.image import image_variant
+    first_image = next((name.strip() for name in (product.image_file or "").split("|") if name.strip()), None)
+    image_rel = (
+        "uploads/" + image_variant(first_image, "large")
+        if first_image else
+        ("uploads/" + product.shop.logo if product.shop and product.shop.logo else "images/produit.jpeg")
+    )
     return render_template(
-        "shop/product_detail.html",
-        product=product,
-        shop_is_open_now=shop_is_open_now,
-        final=final,
-        promo=promo,
+        "home.html",
+        data=payload.get("data", []),
+        initial_product_id=product.id,
+        seo_product={
+            "id": product.id,
+            "name": product.name,
+            "description": product.description or "Découvrez cette offre sur Baba Market.",
+            "canonical_url": canonical_url,
+            "image_url": request.url_root.rstrip("/") + url_for("static", filename=image_rel),
+            "price": float(final),
+            "in_stock": product.kind == "service" or (getattr(product, "stock", 0) or 0) > 0,
+        },
     )

@@ -1,0 +1,19 @@
+/* Shared by homepage, catalog cards and product details. */
+.promotion-highlight {
+  color: #ed0028;
+  background: #fff5f6;
+  border: 1px solid #ff2549;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  text-shadow: 0 0 8px #ff254980;
+  box-shadow: 0 0 7px #ff254955, 0 0 16px #ff254930;
+  animation: promotion-glow 1.2s ease-in-out infinite;
+}
+@keyframes promotion-glow {
+  0%, 100% { opacity: 1; text-shadow: 0 0 9px #ff2549aa; box-shadow: 0 0 8px #ff254988, 0 0 20px #ff254955; }
+  50% { opacity: .55; text-shadow: none; box-shadow: 0 0 3px #ff254930; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .promotion-highlight { animation: none !important; }
+}

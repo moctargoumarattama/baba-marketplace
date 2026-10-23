@@ -1,7 +1,9 @@
 """Public catalogue queries with SQL filtering, ordering and pagination."""
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+import re
+import time
 import unicodedata
 
 from flask import url_for
@@ -12,7 +14,7 @@ from ..extensions import db
 from ..models.category import Category
 from ..models.product import Product
 from ..models.promo import Promo
-from ..models.rental import RentalListing
+from ..models.rental import RentalListing, RentalMedia
 from ..models.shop import Shop
 from .cache import get_catalog_cache
 from .image import image_variant
@@ -22,7 +24,24 @@ from .public_text import clean_shop_description
 
 
 UNIVERSES = {"products", "services", "locations", "promotions", "shops", "search"}
+DISCOVERY_UNIVERSES = frozenset(("products", "services", "locations", "promotions"))
+DISCOVERY_INTERVAL = 30 * 60
 LOCAL_CITIES = ("Rabat", "Salé", "Kénitra", "Témara")
+_SEARCH_STOPWORDS = frozenset((
+    "a", "au", "aux", "avec", "avez", "bonjour", "ce", "cherche", "chercher", "dans", "de", "des",
+    "du", "en", "est", "et", "il", "je", "la", "le", "les", "ma", "me", "mes", "moi", "mon",
+    "plait", "pour", "que", "quel", "quelle", "quelles", "quels", "qui", "recherche", "s", "sur",
+    "svp", "un", "une", "veux", "voudrais", "vous",
+))
+_SEARCH_SINGULAR_EXCEPTIONS = frozenset((
+    "bois", "couscous", "frais", "francais", "gris", "jus", "matelas", "noix", "prix", "repas", "souris", "tapis",
+))
+_SQL_ACCENT_REPLACEMENTS = tuple(
+    (variant, plain)
+    for plain, variants in (("a", "àâäáãå"), ("c", "ç"), ("e", "éèêë"), ("i", "îïíì"),
+                            ("o", "ôöóòõ"), ("u", "ùûüú"), ("y", "ÿý"), ("oe", "œ"), ("ae", "æ"))
+    for variant in variants
+)
 
 
 @dataclass(frozen=True)
@@ -41,6 +60,8 @@ class CatalogFilters:
     sort: str = "new"
     page: int = 1
     per_page: int = 12
+    smart: bool = False
+    rotation_slot: int | None = None
 
 
 def parse_catalog_filters(args):
@@ -88,7 +109,7 @@ def parse_catalog_filters(args):
         raise ValueError("Cette catégorie n'existe pas.")
     sort = value("sort") or "new"
     sort = {"price_asc": "low", "price_desc": "high", "newest": "new"}.get(sort, sort)
-    if sort not in ("new", "low", "high"):
+    if sort not in ("new", "low", "high", "discover") or (sort == "discover" and universe not in DISCOVERY_UNIVERSES):
         raise ValueError("Ce tri n'est pas disponible.")
     listing_type = value("listing_type", "type")
     property_type = value("property_type")
@@ -103,13 +124,76 @@ def parse_catalog_filters(args):
         universe=universe, q=text("q", 160), cat=integer("cat"), shop=integer("shop"),
         city=text("city", 120), listing_type=listing_type, property_type=property_type,
         min_price=minimum, max_price=maximum, stock=boolean("stock"), promo=boolean("promo"),
-        sort=sort, page=integer("page", 1), per_page=min(24, integer("per_page", 12)),
+        sort=sort, page=integer("page", 1), per_page=min(24, integer("per_page", 12)), smart=boolean("smart"),
+        rotation_slot=integer("rotation_slot"),
     )
 
 
 def _contains(column, value):
     escaped = value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     return column.ilike(f"%{escaped}%", escape="\\")
+
+
+def _fold_search_text(value):
+    text = str(value or "").casefold().replace("œ", "oe").replace("æ", "ae")
+    return "".join(char for char in unicodedata.normalize("NFKD", text)
+                   if not unicodedata.combining(char))
+
+
+def _smart_search_tokens(value):
+    tokens = []
+    for token in re.findall(r"[^\W_]+", _fold_search_text(value)[:160]):
+        if token in _SEARCH_STOPWORDS:
+            continue
+        if len(token) > 4 and token.endswith(("s", "x")) and token not in _SEARCH_SINGULAR_EXCEPTIONS:
+            token = token[:-1]
+        if token not in tokens:
+            tokens.append(token)
+        if len(tokens) == 6:
+            break
+    return tokens
+
+
+def _prepare_smart_search():
+    if db.engine.dialect.name == "sqlite":
+        # SQLite's lower() only handles ASCII and a long replace() expression
+        # exhausts its parser stack. A connection-local deterministic scalar
+        # function keeps filtering/counting/pagination inside the SQL query.
+        connection = db.session.connection().connection
+        if not connection.info.get("bm_assistant_fold_registered"):
+            connection.driver_connection.create_function("bm_assistant_fold", 1, _fold_search_text, deterministic=True)
+            connection.info["bm_assistant_fold_registered"] = True
+
+
+def _fold_search_column(column, text):
+    if db.engine.dialect.name == "sqlite":
+        return db.func.bm_assistant_fold(column)
+    expression = db.func.lower(db.func.coalesce(column, ""))
+    # A fixed alphabet makes this portable to MySQL without database extensions.
+    needed_letters = set(text)
+    for variant, plain in _SQL_ACCENT_REPLACEMENTS:
+        if needed_letters.intersection(plain):
+            expression = db.func.replace(expression, variant, plain)
+    return expression
+
+
+def _smart_search_condition(columns, value, *, category=False):
+    tokens = _smart_search_tokens(value)
+    if not tokens:
+        return or_(*(_contains(column, value) for column in columns))
+    folded = [_fold_search_column(column, "".join(tokens)) for column in columns]
+    conditions = []
+    for token in tokens:
+        matches = [_contains(column, token) for column in folded]
+        if category:
+            matches.append(Product.category.has(_contains(_fold_search_column(Category.name, token), token)))
+        conditions.append(or_(*matches))
+    return and_(*conditions)
+
+
+def _smart_city_condition(columns, city):
+    folded = _fold_search_text(city)
+    return or_(*(_contains(_fold_search_column(column, folded), folded) for column in columns))
 
 
 def _price_expression():
@@ -129,7 +213,9 @@ def _price_expression():
     return case((discounted < 0, 0), else_=discounted), promotions
 
 
-def _source_queries(filters):
+def _source_queries(filters, *, smart_search=False):
+    if smart_search and (filters.q or filters.city):
+        _prepare_smart_search()
     sources = {}
     rental_filters = bool(filters.listing_type or filters.property_type)
     if filters.universe in ("products", "services", "promotions", "search") and not rental_filters:
@@ -142,10 +228,12 @@ def _source_queries(filters):
         price, promotions = _price_expression()
         query = query.outerjoin(promotions, and_(promotions.c.product_id == Product.id, promotions.c.position == 1))
         if filters.q:
-            query = query.filter(or_(_contains(Product.name, filters.q),
-                                     _contains(Product.description, filters.q), _contains(Shop.name, filters.q)))
+            columns = (Product.name, Product.description, Shop.name)
+            query = query.filter(_smart_search_condition(columns, filters.q, category=True) if smart_search else
+                                 or_(*(_contains(column, filters.q) for column in columns)))
         if filters.city:
-            query = query.filter(_contains(Shop.address, filters.city))
+            query = query.filter(_smart_city_condition((Shop.address,), filters.city) if smart_search else
+                                 _contains(Shop.address, filters.city))
         if filters.promo or filters.universe == "promotions":
             query = query.filter(price < Product.price_cents_value)
         if filters.min_price is not None:
@@ -160,12 +248,15 @@ def _source_queries(filters):
             city_area="", min_price=filters.min_price, max_price=filters.max_price, shop_id=filters.shop,
         )
         if filters.q:
-            query = query.filter(or_(*(_contains(column, filters.q) for column in
-                                      (RentalListing.title, RentalListing.description, RentalListing.city,
-                                       RentalListing.area, Shop.name))))
+            columns = (RentalListing.title, RentalListing.description, RentalListing.city, RentalListing.area, Shop.name)
+            if smart_search:
+                columns += (RentalListing.property_type,)
+            query = query.filter(_smart_search_condition(columns, filters.q) if smart_search else
+                                 or_(*(_contains(column, filters.q) for column in columns)))
         if filters.city:
-            query = query.filter(or_(_contains(RentalListing.city, filters.city),
-                                     _contains(RentalListing.area, filters.city)))
+            columns = (RentalListing.city, RentalListing.area)
+            query = query.filter(_smart_city_condition(columns, filters.city) if smart_search else
+                                 or_(*(_contains(column, filters.city) for column in columns)))
         sources["location"] = (RentalListing, query, RentalListing.rent_cents)
 
     if (filters.universe in ("shops", "search") and not
@@ -173,9 +264,12 @@ def _source_queries(filters):
              filters.min_price is not None or filters.max_price is not None)):
         query = Shop.query.filter(Shop.is_active.is_(True))
         if filters.q:
-            query = query.filter(or_(_contains(Shop.name, filters.q), _contains(Shop.description, filters.q)))
+            columns = (Shop.name, Shop.description)
+            query = query.filter(_smart_search_condition(columns, filters.q) if smart_search else
+                                 or_(*(_contains(column, filters.q) for column in columns)))
         if filters.city:
-            query = query.filter(_contains(Shop.address, filters.city))
+            query = query.filter(_smart_city_condition((Shop.address,), filters.city) if smart_search else
+                                 _contains(Shop.address, filters.city))
         sources["shop"] = (Shop, query, cast(literal(None), Integer))
     return sources
 
@@ -245,6 +339,32 @@ def _shop_is_open(shop):
     return bool(shop is None or (shop.is_open and (not shop.closed_until or shop.closed_until <= datetime.utcnow())))
 
 
+def _product_video_url(raw):
+    path = str(raw or "").strip().replace("\\", "/")
+    if (not path or len(path) > 512 or path.startswith("//") or
+            any(ord(char) < 32 for char in path) or any(char in path for char in ":%?#") or
+            any(part in ("", ".", "..") for part in path.lstrip("/").split("/"))):
+        return ""
+    static_path = path.startswith(("/static/", "static/"))
+    if path.startswith("/static/"):
+        path = path[8:]
+    elif path.startswith("static/"):
+        path = path[7:]
+    elif path.startswith("/"):
+        return ""
+    if path.startswith("uploads/product_videos/"):
+        filename = path[len("uploads/product_videos/"):]
+    elif path.startswith("product_videos/"):
+        filename = path[len("product_videos/"):]
+    elif "/" not in path and not static_path:
+        filename = path
+    else:
+        return ""
+    if not filename or "/" in filename:
+        return ""
+    return url_for("static", filename="uploads/product_videos/" + filename)
+
+
 def _serialize(source, model, price):
     item = {"id": model.id, "item_type": source, "kind": source, "name": "", "description": model.description or "",
             "price": None, "final_price": None, "has_promo": False, "stock": None,
@@ -255,6 +375,7 @@ def _serialize(source, model, price):
         item.update(item_type="service" if service else "product", kind=model.kind, name=model.name,
                     price=cents_to_money(base), final_price=cents_to_money(price), has_promo=price < base,
                     image_url=_image_url(model.image_file), url=url_for("shop.product_detail", pid=model.id),
+                    video_url=_product_video_url(model.video_file),
                     stock=model.stock or 0, booking_url=url_for("booking.book", pid=model.id) if service else None,
                     shop_id=model.shop_id, shop_name=model.shop.name if model.shop else "",
                     category_id=model.category_id, category=model.category.name if model.category else "",
@@ -281,11 +402,76 @@ def _serialize(source, model, price):
     return item
 
 
-def build_public_catalog(filters):
-    sources = _source_queries(filters)
+def get_public_catalog_item(item_type: str, item_id: int) -> dict | None:
+    """Inspect one visible offer using the catalogue's prices and access rules."""
+    universe = {"product": "products", "service": "services", "location": "locations", "shop": "shops"}.get(item_type)
+    if universe is None or isinstance(item_id, bool) or not isinstance(item_id, int) or item_id < 1:
+        return None
+    source = "product" if item_type == "service" else item_type
+    model, query, price = _source_queries(CatalogFilters(universe=universe))[source]
+    query = query.filter(model.id == item_id)
+    if source == "product":
+        query = query.options(
+            selectinload(Product.shop).load_only(Shop.id, Shop.name, Shop.address, Shop.is_open, Shop.closed_until),
+            joinedload(Product.category),
+        )
+    elif source == "location":
+        query = query.options(joinedload(RentalListing.shop), selectinload(RentalListing.media))
+    row = query.add_columns(price.label("catalog_price")).first()
+    return _serialize(source, row[0], row[1]) if row else None
+
+
+def _has_discovery_media(source):
+    """Determine media priority in SQL, without loading every offer or media."""
+    if source == "product":
+        return or_(db.func.trim(db.func.coalesce(Product.image_file, "")) != "",
+                   db.func.trim(db.func.coalesce(Product.video_file, "")) != "")
+    if source == "location":
+        return RentalListing.media.any(and_(RentalMedia.kind.in_(("image", "video")),
+                                          db.func.trim(db.func.coalesce(RentalMedia.file_path, "")) != ""))
+    return literal(False)
+
+
+def _discovery_query(merged, slot, per_page):
+    # A fixed permutation followed by a circular rotation gives every offer a
+    # turn, even in a small catalogue. A random SQL order or a per-request seed
+    # would duplicate/skip offers when the visitor changes pages. Each media
+    # group is rotated separately so pictures/videos always keep priority.
+    identity = merged.c.id % 65521
+    permutation = (identity * identity * 48271 + identity * 69621) % 2147483647
+    ranked = db.session.query(
+        merged,
+        db.func.row_number().over(
+            partition_by=merged.c.has_media,
+            order_by=(permutation.asc(), merged.c.source.asc(), merged.c.id.asc()),
+        ).label("rotation_position"),
+        db.func.count().over(partition_by=merged.c.has_media).label("rotation_size"),
+    ).subquery()
+    # A full batch takes over when the group spans multiple pages; a smaller
+    # group still changes its leading offer instead of rotating by its size.
+    step = case((ranked.c.rotation_size > per_page, per_page), else_=1)
+    return db.session.query(ranked).order_by(
+        ranked.c.has_media.desc(),
+        ((ranked.c.rotation_position - 1 + slot * step) % ranked.c.rotation_size).asc(),
+        ranked.c.source.asc(), ranked.c.id.asc(),
+    )
+
+
+def build_public_catalog(filters, *, smart_search=False):
+    discovery = filters.sort == "discover" and filters.universe in DISCOVERY_UNIVERSES
+    rotation = None
+    if discovery:
+        now = time.time()
+        slot = filters.rotation_slot if filters.rotation_slot is not None else int(now) // DISCOVERY_INTERVAL
+        filters = replace(filters, rotation_slot=slot)
+        refresh_at = (slot + 1) * DISCOVERY_INTERVAL
+        rotation = {"slot": slot, "refresh_at": refresh_at, "interval": DISCOVERY_INTERVAL,
+                    "refresh_in": max(0, refresh_at - now)}
+    sources = _source_queries(filters, smart_search=smart_search or filters.smart)
     facets = _facets(filters.universe)
     statements = [query.enable_eagerloads(False).order_by(None).with_entities(
         model.id.label("id"), literal(source).label("source"), price.label("price"), model.created_at.label("created_at"),
+        *([case((_has_discovery_media(source), 1), else_=0).label("has_media")] if discovery else []),
     ).statement for source, (model, query, price) in sources.items()]
     if statements:
         merged = (union_all(*statements) if len(statements) > 1 else statements[0]).subquery()
@@ -296,11 +482,13 @@ def build_public_catalog(filters):
     page = min(filters.page, max(1, pages))
     rows = []
     if total:
-        query = db.session.query(merged)
+        query = _discovery_query(merged, filters.rotation_slot, filters.per_page) if discovery else db.session.query(merged)
         if filters.sort in ("low", "high"):
             query = query.order_by(case((merged.c.price.is_(None), 1), else_=0),
                                    merged.c.price.asc() if filters.sort == "low" else merged.c.price.desc())
-        rows = query.order_by(merged.c.created_at.desc(), merged.c.source.asc(), merged.c.id.desc()).offset(
+        if not discovery:
+            query = query.order_by(merged.c.created_at.desc(), merged.c.source.asc(), merged.c.id.desc())
+        rows = query.offset(
             (page - 1) * filters.per_page).limit(filters.per_page).all()
     models = {}
     for source in sources:
@@ -315,7 +503,10 @@ def build_public_catalog(filters):
             query = query.options(joinedload(RentalListing.shop), selectinload(RentalListing.media))
         models[source] = {entry.id: entry for entry in query.all()}
     items = [_serialize(row.source, models[row.source][row.id], row.price) for row in rows]
-    return {"success": True, "items": items, "facets": facets,
+    result = {"success": True, "items": items, "facets": facets,
             "pagination": {"page": page, "pages": pages, "total": total, "per_page": filters.per_page,
                            "has_next": page < pages, "has_prev": page > 1},
             "filters": {**asdict(filters), "page": page}}
+    if rotation is not None:
+        result["rotation"] = rotation
+    return result

@@ -67,7 +67,7 @@ def _filter_parameters(filters):
         value = filters.get(key)
         if value is not None and value != "":
             values[key] = value
-    for key in ("stock", "promo"):
+    for key in ("stock", "promo", "smart"):
         if filters.get(key):
             values[key] = "1"
     if filters.get("sort") not in (None, "", "new"):

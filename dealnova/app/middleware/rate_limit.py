@@ -89,6 +89,19 @@ def _consume_rate_slot(key, limit, window_seconds):
         return _consume_rate_slot_cache(key, limit, window_seconds, now)
 
 
+def consume_rate_limit_slot(*, limit, window_seconds, key_prefix, identifier=None):
+    """Consume one shared slot outside a route decorator.
+
+    Internal services such as paid AI providers can use a stricter budget while
+    still letting their HTTP endpoint fall back to a cheaper local response.
+    """
+    if not current_app.config.get("SECURITY_RATE_LIMIT_ENABLED", True):
+        return True, 0
+    client_identifier = str(identifier or _client_ip()).strip() or "unknown"
+    key = f"rate:{key_prefix}:{client_identifier}"
+    return _consume_rate_slot(key, max(1, int(limit)), max(1, int(window_seconds)))
+
+
 def rate_limit(limit=10, window_seconds=60, key_prefix=None, key_func=None, methods=None):
     """Shared rate limiter backed by runtime_state with cache fallback."""
 

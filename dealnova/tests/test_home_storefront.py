@@ -131,7 +131,10 @@ def test_promo_badge_and_struck_price_require_an_actual_discount(storefront):
         offer(103, promo=True, final=75),
     ], cards_only=True)
 
-    assert source.count('class="hub-offer-tag"') == 1
+    badges = [attrs for attrs in Markup(source).attributes("span")
+              if "hub-offer-tag" in attrs.get("class", "").split()]
+    assert len(badges) == 1
+    assert "promotion-highlight" in badges[0]["class"].split()
     assert source.count("<del>") == 1
     assert "<del>100.00 DH</del>" in source
     assert "75 <small>DH</small>" in source

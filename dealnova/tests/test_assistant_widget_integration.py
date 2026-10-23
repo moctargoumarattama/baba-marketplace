@@ -37,43 +37,15 @@ def test_assistant_api_blueprint_and_engine_exist():
     assert "help_delivery" in engine_source
     assert "FLOW_CATALOG" in engine_source
     assert "FLOW_DELIVERY" in engine_source
-    assert "_search_products_or_services" in engine_source
-    assert "_search_locations" in engine_source
-    assert "SEMANTIC_PROFILES" in engine_source
-    assert "coiffure" in engine_source
-    assert "esthetique" in engine_source
-    assert "electricite" in engine_source
-    assert "electricien" in engine_source
-    assert "appartement" in engine_source
-    assert "studio" in engine_source
-    assert "_search_catalog_via_existing_api" in engine_source
-    assert "_search_shops_by_name" in engine_source
-    assert 'url_for("shops.shop_detail"' in engine_source
-    assert "search_public_products" in engine_source
-    assert "search_public_locations" in engine_source
-    assert "get_categories" in engine_source
-    assert "_category_context_for_query" in engine_source
-    assert "_category_alias_terms" in engine_source
-    assert "LOCATION_CATEGORY_HINTS" in engine_source
-    assert "Product.category_id.in_(category_ids)" in engine_source
-    assert "Question livraison" not in engine_source
-    assert "DELIVERY_SPEED_OPTIONS" not in engine_source
-    assert "8 h à 3 h du matin" in engine_source
-    assert "ASSISTANT_DELIVERY_HOURS_TEXT" in engine_source
-    assert "def _is_yes_intent" in engine_source
-    assert "def _is_no_intent" in engine_source
-    assert "delivery_confirm" in engine_source
-    assert "delivery_decline" in engine_source
-    assert "oui/non" in engine_source
-    assert "nom" in engine_source
-    assert '"action": "become_vendor"' in engine_source
-    assert 'url_for("auth.vendor_access")' in engine_source
+    # Inventory, visibility and complete journeys are exercised against SQLite
+    # in test_assistant_flows.py, rather than checking removed internal fallbacks.
+    assert "build_public_catalog" in engine_source
+    assert "assistant_welcome" in routes_source
     assert "redirect_url" in engine_source
     assert "redirectIfNeeded" in widget_js_source
     assert "window.location.assign" in widget_js_source
     assert "response.redirect_url" in widget_js_source
     assert "list.slice(0, 8)" in widget_js_source
-    assert "_search_products_or_services(kind, [], budget_max_dh)" not in engine_source
 
 
 def test_assistant_widget_mobile_keyboard_safety_hooks_exist():

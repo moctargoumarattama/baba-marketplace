@@ -1116,6 +1116,36 @@ body[data-page="landing"] footer.footer {
   gap: 0.5rem;
 }
 
+.u-pdetail-photo-download {
+  display: inline-flex;
+  align-self: center;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  max-width: 100%;
+  padding: 0.6rem 1rem;
+  border: 1px solid #10b981;
+  border-radius: 10px;
+  color: #047857;
+  background: #ecfdf5;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-align: center;
+  text-decoration: none;
+}
+
+.u-pdetail-photo-download:hover,
+.u-pdetail-photo-download:focus-visible {
+  color: #047857;
+  border-color: #10b981;
+  background: #ecfdf5;
+}
+
+.u-pdetail-photo-download[hidden] {
+  display: none;
+}
+
 .u-pdetail-main-img-wrap {
   position: relative;
   width: 100%;

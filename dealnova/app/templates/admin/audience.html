@@ -1,6 +1,7 @@
 {% extends "admin/base.html" %}
 
 {% block title %}Audience & Trafic{% endblock %}
+{% block page_title %}Audience{% endblock %}
 
 {% block head %}
 {{ super() }}
@@ -8,6 +9,27 @@
   .aud-page {
     display: grid;
     gap: 1rem;
+    min-width: 0;
+  }
+  .aud-page *,
+  .aud-page *::before,
+  .aud-page *::after {
+    box-sizing: border-box;
+  }
+  .aud-page > *,
+  .aud-shell > *,
+  .aud-grid > *,
+  .aud-grid-small > *,
+  .aud-grid-panels > *,
+  .aud-detail-grid > *,
+  .aud-intro-strip > *,
+  .aud-panel-head > *,
+  .aud-item > *,
+  .aud-detail summary > * {
+    min-width: 0;
+  }
+  .aud-page :where(h1, h2, p, .aud-label, .aud-help, .aud-item-title, .aud-item-meta, .aud-subtle, .aud-code) {
+    overflow-wrap: anywhere;
   }
   .aud-hero {
     position: relative;
@@ -222,7 +244,8 @@
   }
   .aud-item-side {
     text-align: right;
-    white-space: nowrap;
+    flex-shrink: 0;
+    max-width: 42%;
     font-weight: 900;
     color: #0f766e;
   }
@@ -237,6 +260,8 @@
     margin-top: .2rem;
     color: #64748b;
     font-weight: 700;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
   .aud-empty {
     padding: .95rem 1rem;
@@ -264,12 +289,15 @@
   .aud-connected-card {
     display: grid;
     gap: .28rem;
+    min-width: 0;
   }
   .aud-badge {
     padding: .26rem .54rem;
     background: #e2e8f0;
     color: #334155;
     font-size: .77rem;
+    max-width: 100%;
+    overflow-wrap: anywhere;
   }
   .aud-badge.is-client {
     background: #dcfce7;
@@ -374,7 +402,7 @@
     border-radius: 16px;
     display: grid;
     gap: .7rem;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) minmax(0, .9fr);
     padding: .9rem 1rem;
     box-shadow: 0 14px 30px rgba(15, 23, 42, .10);
   }
@@ -393,6 +421,19 @@
     justify-content: flex-end;
     margin-top: 0;
     max-width: 35rem;
+  }
+
+  .aud-monitor-polish .aud-hero-copy,
+  .aud-monitor-polish .aud-hero-meta,
+  .aud-monitor-polish .aud-pill {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  .aud-monitor-polish .aud-pill > .bi,
+  .aud-monitor-polish .aud-nav-chip > .bi {
+    flex-shrink: 0;
   }
 
   .aud-monitor-polish .aud-pill {
@@ -415,7 +456,7 @@
     border-radius: 10px;
     box-shadow: 0 6px 14px rgba(15, 23, 42, .04);
     font-size: .78rem;
-    min-height: 2.05rem;
+    min-height: 2.75rem;
     padding: .36rem .62rem;
   }
 
@@ -447,13 +488,13 @@
   .aud-monitor-polish .aud-filter-btn {
     box-shadow: none;
     font-size: .78rem;
-    min-height: 2rem;
+    min-height: 2.75rem;
     padding: .36rem .68rem;
   }
 
   .aud-monitor-polish .aud-grid {
     gap: .55rem;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.5rem), 1fr));
   }
 
   .aud-monitor-polish .aud-card {
@@ -468,18 +509,19 @@
   }
 
   .aud-monitor-polish .aud-label {
-    font-size: .62rem;
+    font-size: .7rem;
+    line-height: 1.35;
     letter-spacing: .035em;
   }
 
   .aud-monitor-polish .aud-value {
-    font-size: 1.26rem;
+    font-size: 1.5rem;
     margin-top: .22rem;
   }
 
   .aud-monitor-polish .aud-help {
-    font-size: .7rem;
-    line-height: 1.22;
+    font-size: .75rem;
+    line-height: 1.35;
     margin-top: .24rem;
   }
 
@@ -492,6 +534,7 @@
     border-radius: 12px;
     font-size: .74rem;
     padding: .52rem .62rem;
+    line-height: 1.4;
   }
 
   .aud-monitor-polish .aud-shell {
@@ -581,11 +624,18 @@
     .aud-shell,
     .aud-grid-panels,
     .aud-detail-grid,
-    .aud-intro-strip {
-      grid-template-columns: 1fr;
+    .aud-intro-strip,
+    .aud-monitor-polish .aud-shell,
+    .aud-monitor-polish .aud-grid-panels,
+    .aud-monitor-polish .aud-intro-strip,
+    .aud-monitor-polish .aud-hero {
+      grid-template-columns: minmax(0, 1fr);
     }
     .aud-sticky-panel {
       position: static;
+    }
+    .aud-monitor-polish .aud-hero-meta {
+      justify-content: flex-start;
     }
   }
   @media (max-width: 900px) {
@@ -597,11 +647,13 @@
   @media (max-width: 768px) {
     .aud-grid,
     .aud-grid-small,
-    .aud-heatmap,
     .aud-monitor-polish .aud-grid,
-    .aud-monitor-polish .aud-grid-small,
-    .aud-monitor-polish .aud-heatmap {
+    .aud-monitor-polish .aud-grid-small {
       grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .aud-heatmap,
+    .aud-monitor-polish .aud-heatmap {
+      grid-template-columns: repeat(6, minmax(0, 1fr));
     }
     .aud-grid-panels .aud-wide {
       grid-column: auto;
@@ -618,6 +670,33 @@
     .aud-monitor-polish .aud-hero-meta {
       justify-content: flex-start;
     }
+    .aud-monitor-polish .aud-scroll-panel {
+      max-height: none;
+      overflow: visible;
+      padding-right: 0;
+    }
+    .aud-monitor-polish .aud-filters {
+      gap: .4rem;
+    }
+    .aud-monitor-polish .aud-filter-btn {
+      flex: 1 1 auto;
+      justify-content: center;
+    }
+    .aud-detail summary {
+      align-items: flex-start;
+    }
+    .aud-detail summary > .bi {
+      flex-shrink: 0;
+    }
+  }
+  @media (max-width: 360px) {
+    .aud-monitor-polish .aud-grid,
+    .aud-monitor-polish .aud-grid-small {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .aud-monitor-polish .aud-heatmap {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
   }
 </style>
 {% endblock %}
@@ -625,11 +704,13 @@
 {% block content %}
 <div class="aud-page aud-monitor-polish" id="audiencePage" data-live-url="{{ url_for('admin_users.audience_dashboard_live') }}">
   <section class="aud-hero">
-    <h1><i class="bi bi-broadcast-pin me-2"></i>Audience et trafic en direct</h1>
-    <p>
-      Cette page montre qui utilise le site en ce moment, combien de clients sont présents,
-      quelles pages attirent le plus de monde et combien de demandes arrivent.
-    </p>
+    <div class="aud-hero-copy">
+      <h1><i class="bi bi-broadcast-pin me-2"></i>Audience et trafic en direct</h1>
+      <p>
+        Cette page montre qui utilise le site en ce moment, combien de clients sont présents,
+        quelles pages attirent le plus de monde et combien de demandes arrivent.
+      </p>
+    </div>
     <div class="aud-hero-meta">
       <span class="aud-pill"><i class="bi bi-shield-check text-success"></i> Filtre anti-robots actif</span>
       <span class="aud-pill"><i class="bi bi-arrow-repeat"></i> Mise à jour auto toutes les 15 s</span>
@@ -679,7 +760,7 @@
         </div>
         <div class="aud-intro-note">
           <strong>Qui est là</strong>
-          La colonne de droite montre les comptes actuellement actifs.
+          Le panneau « Qui est en ligne maintenant » montre les comptes actuellement actifs.
         </div>
       </div>
     </article>

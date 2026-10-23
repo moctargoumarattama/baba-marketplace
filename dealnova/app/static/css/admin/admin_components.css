@@ -25,7 +25,7 @@ body[data-admin="1"] .stat-card:hover {
 
 body[data-admin="1"] .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
   gap: 1rem;
   margin-bottom: 1.5rem;
 }
