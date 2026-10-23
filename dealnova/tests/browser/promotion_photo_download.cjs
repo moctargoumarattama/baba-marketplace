@@ -7,6 +7,7 @@ const { chromium, webkit } = require(process.env.PLAYWRIGHT_PACKAGE || 'playwrig
 const root = path.resolve(__dirname, '../../app');
 let origin;
 const productRequests = [];
+const downloadRequests = [];
 
 function fixtureHTML() {
   let source = fs.readFileSync(path.join(root, 'templates/home.html'), 'utf8');
@@ -47,10 +48,25 @@ const server = http.createServer((request, response) => {
     body = JSON.stringify({ success: true, items: [], shop_groups: [], count: 0 });
   } else if (url.pathname.startsWith('/api/product/')) {
     productRequests.push(url.pathname);
-    response.statusCode = 500;
+    const id = Number(url.pathname.split('/').pop());
+    const item = items.find(candidate => candidate.id === id);
     contentType = 'application/json';
-    body = JSON.stringify({ success: false });
+    if (!item) {
+      response.statusCode = 404;
+      body = JSON.stringify({ success: false });
+    } else {
+      const images = [101, 102].includes(id) ? ['photo-' + id + '-0.jpg', 'photo-' + id + '-1.jpg'] : [];
+      body = JSON.stringify({ success: true, product: {
+        ...item, kind: item.item_type === 'service' ? 'service' : 'physical',
+        description: 'Offre de test en promotion', category: 'Promotion', images,
+        image_download_urls: images.map((_image, index) => '/shop/product/' + id + '/photo/' + index + '/download'),
+        video_url: id === 103 ? '/static/video.mp4' : '', shop: null,
+        promo_type: 'percentage', promo_value: 25, booking_url: '/book/' + id,
+        whatsapp_order_url: '/contact/' + id, share_url: origin + item.url,
+      } });
+    }
   } else if (url.pathname.endsWith('/download')) {
+    downloadRequests.push(url.pathname);
     contentType = 'image/jpeg';
     body = 'watermarked-photo-fixture';
     response.setHeader('Content-Disposition', 'attachment; filename="baba-market-promotion.jpg"');
@@ -76,6 +92,7 @@ async function run(name, engine, width) {
       reducedMotion: 'reduce', serviceWorkers: 'block', acceptDownloads: true });
     const errors = [];
     productRequests.length = 0;
+    downloadRequests.length = 0;
     page.on('pageerror', error => errors.push(error.message));
     await page.goto(origin + '/fixture');
     for (const script of ['public_catalog', 'ui_home_single_hub']) {
@@ -83,25 +100,45 @@ async function run(name, engine, width) {
     }
     await page.locator('[data-open-universe="promotions"]').click();
     await page.waitForFunction(() => document.querySelectorAll('#catalogResults .catalog-item').length === 6);
-    assert.equal(await page.locator('#catalogResults .promotion-photo-download').count(), 2);
+    assert.equal(await page.locator('#catalogResults a[download]').count(), 0,
+      'promotion catalogue cards must leave photo downloads in the detail modal');
     for (const id of [101, 102]) {
       const card = page.locator('#catalogResults [data-product-id="' + id + '"]');
-      const link = card.locator('.promotion-photo-download');
-      assert.equal(await link.isVisible(), true, 'photo download is visible');
-      assert.equal(await link.getAttribute('href'), '/shop/product/' + id + '/photo/0/download');
-      assert.notEqual(await link.getAttribute('download'), null);
-      assert.equal(await link.evaluate(element => Boolean(element.parentElement.closest('a'))), false,
-        'download link must not be nested in the card detail link');
-      const beforeURL = page.url();
-      const [download] = await Promise.all([page.waitForEvent('download'), link.click()]);
-      assert.equal(download.url(), origin + '/shop/product/' + id + '/photo/0/download');
-      assert.equal(download.suggestedFilename(), 'baba-market-promotion.jpg');
-      assert.equal(await download.failure(), null);
-      assert.equal(page.url(), beforeURL, 'download must not navigate the catalogue');
+      await card.getByRole('link', { name: 'Détails', exact: true }).click();
+      await page.waitForFunction(expected => document.querySelector('#pDetailTitle').textContent === 'Offre ' + expected,
+        id);
+      const panel = page.locator('#productDetailPanel');
+      assert.equal(await panel.getAttribute('aria-hidden'), 'false');
+      assert.equal(await page.locator('#pDetailPromoBadge').isVisible(), true,
+        'the opened product or service detail is a promotion');
+      const link = panel.locator('#pDetailPhotoDownload');
+      for (const index of [0, 1]) {
+        if (index) await panel.locator('#pDetailThumbs img').nth(index).click();
+        assert.equal(await link.isVisible(), true, 'photo download is visible inside the promotion detail');
+        assert.equal(await link.getAttribute('href'), '/shop/product/' + id + '/photo/' + index + '/download');
+        assert.notEqual(await link.getAttribute('download'), null);
+        const beforeURL = page.url();
+        const [download] = await Promise.all([page.waitForEvent('download'), link.click()]);
+        assert.equal(download.url(), origin + '/shop/product/' + id + '/photo/' + index + '/download');
+        assert.equal(download.suggestedFilename(), 'baba-market-promotion.jpg');
+        assert.equal(await download.failure(), null);
+        assert.equal(page.url(), beforeURL, 'download must not navigate away from the detail');
+        assert.equal(await panel.getAttribute('aria-hidden'), 'false');
+      }
+      await panel.getByRole('button', { name: 'Retour', exact: true }).click();
+      await page.waitForFunction(() => document.querySelector('#universeModalPanel').getAttribute('aria-hidden') === 'false');
     }
-    assert.deepEqual(productRequests, [], 'hub must not open the detail modal on download');
+    await page.locator('#catalogResults [data-product-id="103"]').getByRole('link', { name: 'Détails', exact: true }).click();
+    await page.waitForFunction(() => document.querySelector('#pDetailTitle').textContent === 'Offre 103');
+    assert.equal(await page.locator('#pDetailMainVideo').isVisible(), true);
+    assert.equal(await page.locator('#pDetailPhotoDownload').isVisible(), false,
+      'video-only promotions must not offer a photo download');
+    assert.equal(await page.locator('#pDetailPhotoDownload').getAttribute('href'), null);
+    assert.deepEqual(productRequests, ['/api/product/101', '/api/product/102', '/api/product/103']);
+    assert.deepEqual(downloadRequests, [101, 102].flatMap(id => [0, 1].map(index =>
+      '/shop/product/' + id + '/photo/' + index + '/download')));
     assert.deepEqual(errors, []);
-    console.log(name + ' ' + width + 'px: promotion product/service native download, video-only/placeholder/no-discount exclusion PASS');
+    console.log(name + ' ' + width + 'px: no card download; product/service promotion detail photo 0/1 native download; video-only exclusion PASS');
   } finally {
     await browser.close();
   }

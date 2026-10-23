@@ -535,17 +535,6 @@
     if (type === 'product' || type === 'service') detail.dataset.openProductDetail = item.id;
     if (type === 'shop') detail.dataset.openShopDetail = item.slug;
     actions.appendChild(detail); content.appendChild(actions);
-    if ((type === 'product' || type === 'service') && item.has_promo &&
-        Number(item.price) > Number(item.final_price) && !isPlaceholderImageUrl(item.image_url)) {
-      var photoDownload = node('a', 'promotion-photo-download');
-      photoDownload.href = '/shop/product/' + encodeURIComponent(item.id) + '/photo/0/download';
-      photoDownload.setAttribute('download', '');
-      photoDownload.title = 'Télécharger la photo avec le filigrane Baba Market';
-      photoDownload.setAttribute('aria-label', 'Télécharger la photo : ' + item.name);
-      photoDownload.appendChild(icon('download'));
-      photoDownload.appendChild(node('span', '', 'Télécharger la photo'));
-      content.appendChild(photoDownload);
-    }
     card.appendChild(mediaLink); card.appendChild(content); return card;
   }
   function emptyState(error) {

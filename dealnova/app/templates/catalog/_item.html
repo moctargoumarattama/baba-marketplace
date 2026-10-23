@@ -1,6 +1,6 @@
 {% set item_label = {'product': 'Produit', 'service': 'Service', 'location': 'Location', 'shop': 'Boutique'}.get(item.item_type, 'Offre') %}
 {% set has_promo_photo = item.has_promo and item.price|float > item.final_price|float and item.item_type in ['product', 'service'] and item.image_url and '/img/placeholders/' not in item.image_url %}
-<article class="public-catalog-card{% if has_promo_photo %} has-photo-download{% endif %}">
+<article class="public-catalog-card">
   <a class="public-catalog-card-link" href="{{ item.url }}">
     <div class="public-catalog-card-media{% if has_promo_photo %} promotion-photo-frame{% endif %}">
       <img src="{{ (item.image_preview_url or item.image_url) if has_promo_photo else (item.image_url or url_for('static', filename='img/placeholders/' ~ ('location' if item.item_type == 'location' else 'product') ~ '.svg')) }}" alt="{{ item.name }}" width="480" height="360" loading="lazy" decoding="async">
@@ -20,11 +20,4 @@
       {% if not item.available and item.item_type != 'shop' %}<span class="public-catalog-card-unavailable">{{ t('Indisponible') }}</span>{% endif %}
     </div>
   </a>
-  {% if has_promo_photo %}
-  <a class="promotion-photo-download" download
-     href="{{ url_for('shop.download_product_photo', pid=item.id, image_index=0) }}"
-     title="{{ t('Télécharger la photo avec le filigrane Baba Market') }}">
-    <i class="bi bi-download" aria-hidden="true"></i><span>{{ t('Télécharger la photo') }}</span>
-  </a>
-  {% endif %}
 </article>

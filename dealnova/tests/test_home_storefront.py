@@ -183,7 +183,7 @@ def test_discounted_home_placeholder_does_not_receive_photo_effect(storefront):
 
 
 @pytest.mark.parametrize("kind", ["physical", "service"])
-def test_discounted_home_cards_offer_a_separate_watermarked_photo_download(storefront, kind):
+def test_discounted_home_cards_keep_downloads_in_the_detail_only(storefront, kind):
     source = storefront(products=[offer(
         101, kind=kind, promo=True, final=75, image=" | premiere.jpg | seconde.jpg",
     )], cards_only=True)
@@ -191,10 +191,10 @@ def test_discounted_home_cards_offer_a_separate_watermarked_photo_download(store
     links = [attrs for attrs in page.attributes("a")
              if "promotion-photo-download" in attrs.get("class", "").split()]
 
-    assert len(links) == 1
-    assert links[0]["href"] == "/shop/product/101/photo/0/download"
-    assert "download" in links[0]
-    assert "data-open-product-detail" not in links[0]
+    assert links == []
+    assert not any("download" in attrs for attrs in page.attributes("a"))
+    assert any(attrs.get("data-open-product-detail") == "101"
+               for attrs in page.attributes("a"))
     assert not page.nested_links
     assert next(attrs for attrs in page.attributes("img"))["src"] == "/static/uploads/premiere.jpg"
 
@@ -213,14 +213,14 @@ def test_home_photo_download_requires_a_photo_and_an_actual_promotion(storefront
 
 
 @pytest.mark.parametrize("item_type", ["product", "service"])
-@pytest.mark.parametrize("image,promo,final,expected", [
-    ("/static/uploads/photo.jpg", True, 75, True),
-    ("", True, 75, False),
-    ("/static/img/placeholders/product.svg", True, 75, False),
-    ("/static/uploads/photo.jpg", False, 75, False),
-    ("/static/uploads/photo.jpg", True, 100, False),
+@pytest.mark.parametrize("image,promo,final", [
+    ("/static/uploads/photo.jpg", True, 75),
+    ("", True, 75),
+    ("/static/img/placeholders/product.svg", True, 75),
+    ("/static/uploads/photo.jpg", False, 75),
+    ("/static/uploads/photo.jpg", True, 100),
 ])
-def test_public_promotion_card_downloads_a_photo_outside_its_detail_link(item_type, image, promo, final, expected):
+def test_public_promotion_cards_keep_downloads_in_the_detail_only(item_type, image, promo, final):
     app = Flask("promotion-card-tests", template_folder=str(ROOT / "app/templates"))
     app.add_url_rule("/shop/product/<int:pid>/photo/<int:image_index>/download",
                      "shop.download_product_photo", lambda **kwargs: "")
@@ -233,11 +233,10 @@ def test_public_promotion_card_downloads_a_photo_outside_its_detail_link(item_ty
     downloads = [attrs for attrs in page.attributes("a")
                  if "promotion-photo-download" in attrs.get("class", "").split()]
 
-    assert len(downloads) == int(expected)
+    assert downloads == []
+    assert not any("download" in attrs for attrs in page.attributes("a"))
+    assert any(attrs.get("href") == item["url"] for attrs in page.attributes("a"))
     assert not page.nested_links
-    if expected:
-        assert downloads[0]["href"] == "/shop/product/101/photo/0/download"
-        assert "download" in downloads[0]
 
 
 @pytest.mark.parametrize("item_type", ["product", "service"])
