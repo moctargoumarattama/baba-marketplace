@@ -646,11 +646,11 @@
   {% if public_refresh_enabled %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/home_refresh.css', v=app_static_version ~ '-public-v2-header-v2-hero-v1-services-v3-discovery-v1-footer-v2-fluid-v1-cleanup-v1-share-v1-wa-compact-v1-products-v1-seo-v1') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/public_refresh.css', v=app_static_version ~ '-public-v2-home-search-only-v1-promo-glow-v2') }}">
-  <script src="{{ url_for('static', filename='js/home_refresh.js', v=app_static_version ~ '-textes-v1-public-v2-cleanup-v1') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/home_refresh.js', v=app_static_version ~ '-textes-v1-public-v2-cleanup-v1-promo-photo-fit-v1') }}" defer></script>
   {% endif %}
   {% block head %}{% endblock %}
   {% if public_refresh_enabled or base_endpoint in ['landing', 'shop.home'] %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/promotion_highlight.css', v=app_static_version ~ '-promo-glow-v2') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/promotion_highlight.css', v=app_static_version ~ '-promo-glow-v4-photo-fit') }}">
   {% endif %}
 </head>
 

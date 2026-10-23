@@ -2438,3 +2438,7 @@ main.has-home-tabs {
     padding-inline: 0.85rem;
   }
 }
+.u-detail-refresh-note { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; padding: 10px 12px; border: 1px solid #e1e7dc; border-radius: 10px; background: #f5f8f3; color: #526459; font-size: 12px; line-height: 1.4; }
+.u-detail-refresh-note[hidden] { display: none !important; }
+.u-detail-refresh-note button { min-height: 36px; border: 0; padding: 4px 8px; background: transparent; color: #087f5b; font: inherit; font-weight: 600; text-decoration: underline; }
+.u-detail-refresh-note button:focus-visible { outline: 3px solid #087f5b; outline-offset: 2px; }

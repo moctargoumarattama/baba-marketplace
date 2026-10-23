@@ -1,12 +1,14 @@
 {% macro offer_card(item) %}
   {% set product = item[0] %}
   {% set final_price = item[1]|float %}
-  {% set first_image = (product.image_file or '').split('|')[0] %}
+  {% set photos = (product.image_file or '').split('|')|map('trim')|reject('equalto', '')|list %}
+  {% set first_image = photos[0] if photos else '' %}
+  {% set is_promotion = product.promo_active and product.price|float > final_price %}
   {% set is_service = product.kind == 'service' %}
   <article class="hub-product">
-    <a class="hub-product-media" href="{{ url_for('shop.product_detail', pid=product.id) }}" data-open-product-detail="{{ product.id }}" aria-label="{{ t('Voir les détails') }} : {{ product.name }}">
+    <a class="hub-product-media{% if is_promotion and first_image %} promotion-photo-frame{% endif %}" href="{{ url_for('shop.product_detail', pid=product.id) }}" data-open-product-detail="{{ product.id }}" aria-label="{{ t('Voir les détails') }} : {{ product.name }}">
       {% if first_image %}
-      <img src="{{ url_for('static', filename='uploads/' ~ image_variant(first_image, 'thumb')) }}" alt="{{ product.name }}" width="300" height="300" loading="lazy" decoding="async">
+      <img src="{{ url_for('static', filename='uploads/' ~ image_variant(first_image, 'large' if is_promotion else 'thumb')) }}" alt="{{ product.name }}" width="300" height="300" loading="lazy" decoding="async">
       {% else %}
       <img src="{{ url_for('static', filename='img/placeholders/' ~ ('service.svg' if is_service else 'product.svg')) }}" alt="{{ product.name }}" width="300" height="300" loading="lazy" decoding="async">
       {% endif %}
@@ -27,6 +29,13 @@
         <span class="hub-product-unavailable">{{ t('Indisponible') }}</span>
         {% endif %}
       </div>
+      {% if is_promotion and first_image %}
+      <a class="promotion-photo-download" download
+         href="{{ url_for('shop.download_product_photo', pid=product.id, image_index=0) }}"
+         title="{{ t('Télécharger la photo avec le filigrane Baba Market') }}">
+        <i class="bi bi-download" aria-hidden="true"></i><span>{{ t('Télécharger la photo') }}</span>
+      </a>
+      {% endif %}
     </div>
   </article>
 {% endmacro %}

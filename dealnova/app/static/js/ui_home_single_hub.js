@@ -124,8 +124,12 @@
 
     var currentUniverse = 'products';
     var searchTimer = null;
-    var productRequestId = 0;
-    var shopRequestId = 0;
+    var detailCache = new Map();
+    var detailCacheLifetime = 5 * 60 * 1000;
+    var detailViews = {
+      product: { panel: pDetailPanel, body: document.getElementById('pDetailBody'), loading: pDetailLoading, content: pDetailContent, share: pDetailShareBtn, serial: 0 },
+      shop: { panel: shopDetailPanel, body: document.getElementById('shopDetailBody'), loading: shopDetailLoading, content: shopDetailContent, share: shopDetailShareBtn, serial: 0 }
+    };
 
     // One shared lifecycle keeps nested panels, browser Back and assistive tools in sync.
     var hubLayers = {
@@ -360,6 +364,9 @@
           animateHubNode(layer.backdrop, index >= 0, true);
         }
       });
+      Object.keys(detailViews).forEach(function (kind) {
+        if (!hubStack.some(function (entry) { return entry.kind === kind; })) stopDetailRequest(detailViews[kind]);
+      });
       if (top) {
         var activeLayer = hubLayers[top.kind];
         var focusTarget = returnFocus && activeLayer.node.contains(returnFocus) ? returnFocus : activeLayer.node;
@@ -571,7 +578,7 @@
         isExploreMode = !!restoredUniverse.meta.isExplore;
         if (searchInput) searchInput.value = restoredUniverse.meta.query || '';
         var results = document.getElementById('catalogResults');
-        if (!reusedUniverse || (results && results.getAttribute('aria-busy') === 'true')) {
+        if (!reusedUniverse || (results && results.getAttribute('aria-busy') === 'true' && !results.querySelector('.catalog-item, .catalog-empty'))) {
           showUniverseContent(currentUniverse, restoredUniverse.meta.query || '', restoredUniverse.meta.filters || {}, restoredUniverse.meta.scrollTop || 0);
         } else if (bodyEl) bodyEl.scrollTop = restoredUniverse.meta.scrollTop || 0;
       }
@@ -1251,34 +1258,169 @@
       if (button.__shareStatus) button.__shareStatus.textContent = '';
     }
 
+    function stopDetailRequest(view) {
+      ++view.serial;
+      clearTimeout(view.timeout);
+      if (view.controller) view.controller.abort();
+      view.controller = null;
+      if (view.panel) view.panel.removeAttribute('aria-busy');
+    }
+
+    function recentDetail(key) {
+      var saved = detailCache.get(key);
+      if (!saved) return null;
+      if (Date.now() - saved.at >= detailCacheLifetime) { detailCache.delete(key); return null; }
+      detailCache.delete(key); detailCache.set(key, saved);
+      return saved;
+    }
+
+    function rememberDetail(kind, identifier, data) {
+      var saved = { at: Date.now(), data: data };
+      var keys = [kind + ':' + identifier];
+      if (kind === 'shop') {
+        if (data.shop.id !== undefined) keys.push('shop:' + data.shop.id);
+        if (data.shop.slug) keys.push('shop:' + data.shop.slug);
+      }
+      keys.forEach(function (key) { detailCache.delete(key); detailCache.set(key, saved); });
+      while (detailCache.size > 24) detailCache.delete(detailCache.keys().next().value);
+    }
+
+    function forgetDetail(kind, identifier, data) {
+      detailCache.forEach(function (saved, key) {
+        var item = data && data[kind];
+        var candidate = saved.data && saved.data[kind];
+        if (key === kind + ':' + identifier || (item && candidate && String(item.id) === String(candidate.id))) detailCache.delete(key);
+      });
+    }
+
+    function detailRefreshNotice(kind, visible) {
+      var view = detailViews[kind];
+      if (!view.notice && visible && view.body) {
+        view.notice = document.createElement('div');
+        view.notice.className = 'u-detail-refresh-note';
+        view.notice.setAttribute('data-detail-refresh', kind);
+        view.notice.setAttribute('role', 'status');
+        var text = document.createElement('span');
+        text.textContent = 'Actualisation indisponible. Dernières informations consultées.';
+        var retry = document.createElement('button');
+        retry.type = 'button'; retry.textContent = 'Réessayer';
+        retry.setAttribute('data-detail-refresh-retry', kind);
+        retry.addEventListener('click', function () { loadDetail(kind, view.identifier); });
+        view.notice.appendChild(text); view.notice.appendChild(retry);
+        view.body.insertBefore(view.notice, view.body.firstChild);
+      }
+      if (view.notice) view.notice.hidden = !visible;
+    }
+
+    function showDetailError(kind, unavailable) {
+      var view = detailViews[kind];
+      view.content.style.display = 'none';
+      configureDetailShare(view.share);
+      if (kind === 'product') {
+        updatePhotoDownload('');
+        activeGalleryItems = []; activeGalleryImages = [];
+        if (pDetailMainVideo) pDetailMainVideo.pause();
+        if (hubStack.some(function (entry) { return entry.kind === 'lightbox'; })) closeLightbox();
+      }
+      view.loading.replaceChildren();
+      var text = document.createElement('p');
+      text.textContent = unavailable ? (kind === 'shop' ? 'Cette boutique n’est plus disponible.' : 'Cette offre n’est plus disponible.') : 'Impossible de charger cette fiche pour le moment.';
+      var retry = document.createElement('button');
+      retry.type = 'button'; retry.className = 'u-pdetail-back-btn'; retry.textContent = 'Réessayer';
+      retry.addEventListener('click', function () { loadDetail(kind, view.identifier); });
+      view.loading.appendChild(text); view.loading.appendChild(retry);
+      view.loading.style.display = 'block';
+    }
+
+    function loadDetail(kind, identifier) {
+      var view = detailViews[kind];
+      stopDetailRequest(view);
+      var serial = view.serial;
+      var key = kind + ':' + identifier;
+      var saved = recentDetail(key);
+      var sameView = !!(saved && view.data && String(saved.data[kind].id) === String(view.data[kind].id));
+      view.identifier = identifier;
+      if (saved) {
+        if (!sameView || JSON.stringify(view.data) !== JSON.stringify(saved.data)) {
+          (kind === 'product' ? renderProductDetail : renderShopDetail)(saved.data, sameView);
+        } else if (kind === 'product' && activeGalleryItems[activeGalleryIndex] && activeGalleryItems[activeGalleryIndex].type === 'video') {
+          updateGalleryMedia(activeGalleryIndex);
+        }
+        view.data = saved.data;
+        view.loading.style.display = 'none'; view.content.style.display = 'block';
+      } else {
+        view.data = null;
+        view.content.style.display = 'none';
+        configureDetailShare(view.share);
+        if (kind === 'product') updatePhotoDownload('');
+        view.loading.innerHTML = '<i class="bi bi-arrow-repeat spin" aria-hidden="true"></i><p>Chargement de la fiche…</p>';
+        view.loading.style.display = 'block';
+        if (view.body) view.body.scrollTop = 0;
+      }
+      detailRefreshNotice(kind, false);
+      var controller = new AbortController();
+      view.controller = controller;
+      view.panel.setAttribute('aria-busy', 'true');
+      var timedOut = false;
+      view.timeout = setTimeout(function () { timedOut = true; controller.abort(); }, 15000);
+      var url = kind === 'product' ? '/api/product/' + encodeURIComponent(identifier) : '/api/shop/' + encodeURIComponent(identifier) + '?preview=1';
+      fetch(url, { signal: controller.signal, cache: 'no-store' }).then(function (response) {
+        if (!response.ok) { var error = new Error('Detail unavailable'); error.status = response.status; throw error; }
+        return response.json();
+      }).then(function (data) {
+        if (serial !== view.serial) return;
+        if (!data || data.success !== true || !data[kind] || data[kind].id === undefined) throw new Error('Invalid detail response');
+        if (kind === 'product' && String(data.product.id) !== String(identifier)) throw new Error('Unexpected detail response');
+        var unchanged = view.data && JSON.stringify(view.data) === JSON.stringify(data);
+        var scrollTop = view.body ? view.body.scrollTop : 0;
+        if (!unchanged) (kind === 'product' ? renderProductDetail : renderShopDetail)(data, !!view.data);
+        if (view.body && view.data) view.body.scrollTop = scrollTop;
+        view.data = data;
+        rememberDetail(kind, identifier, data);
+        detailRefreshNotice(kind, false);
+      }).catch(function (error) {
+        if (serial !== view.serial || (error.name === 'AbortError' && !timedOut)) return;
+        var unavailable = error.status >= 400 && error.status < 500 && error.status !== 429;
+        if (unavailable) {
+          forgetDetail(kind, identifier, view.data);
+          view.data = null;
+          detailRefreshNotice(kind, false);
+        }
+        if (view.data) detailRefreshNotice(kind, true);
+        else showDetailError(kind, unavailable);
+      }).finally(function () {
+        if (serial !== view.serial) return;
+        clearTimeout(view.timeout); view.controller = null;
+        view.panel.removeAttribute('aria-busy');
+      });
+    }
+
+    window.addEventListener('pagehide', function () { Object.keys(detailViews).forEach(function (kind) { stopDetailRequest(detailViews[kind]); }); });
+    window.addEventListener('pageshow', function (event) {
+      if (!event.persisted) return;
+      Object.keys(detailViews).forEach(function (kind) {
+        var view = detailViews[kind];
+        if (view.identifier !== undefined && hubStack.some(function (entry) { return entry.kind === kind; })) loadDetail(kind, view.identifier);
+      });
+    });
+
     function openProductDetailModal(pid, fromShopSlug) {
       if (deferHubAction(function () { openProductDetailModal(pid, fromShopSlug); })) return;
       if (!pDetailPanel || !pDetailBackdrop) return;
       currentActiveProductId = pid;
       productDetailOrigin = fromShopSlug || null;
-      var requestId = ++productRequestId;
-      configureDetailShare(pDetailShareBtn);
-      updatePhotoDownload('');
       showHubLayer('product', { pid: String(pid), fromShop: fromShopSlug || null });
+      loadDetail('product', pid);
+    }
 
-      if (pDetailLoading) {
-        pDetailLoading.style.display = 'block';
-        pDetailLoading.innerHTML = '<i class="bi bi-arrow-repeat spin" style="font-size:2.2rem;display:inline-block;color:#10b981;"></i><p style="margin-top:0.6rem;font-weight:600;">Chargement des détails...</p>';
-      }
-      if (pDetailContent) pDetailContent.style.display = 'none';
-
-      fetch('/api/product/' + encodeURIComponent(pid), { cache: 'no-store' })
-        .then(function (res) {
-          if (!res.ok) throw new Error('Produit non trouvé');
-          return res.json();
-        })
-        .then(function (data) {
-          if (requestId !== productRequestId) return;
-          if (!data || !data.success || !data.product) {
-            throw new Error('Données indisponibles');
-          }
+    function renderProductDetail(data, preserveView) {
           var product = data.product;
+          var previousProduct = preserveView && detailViews.product.data && detailViews.product.data.product;
+          var gallerySignature = JSON.stringify([product.kind, product.images || [], product.video_url || '', product.image_download_urls || []]);
+          var keepGallery = preserveView && detailViews.product.gallerySignature === gallerySignature;
+          var previousMedia = preserveView && activeGalleryItems[activeGalleryIndex];
           currentProductKind = product.kind === 'service' ? 'service' : 'product';
+          currentProductHasPromo = Boolean(product.has_promo && product.price > product.final_price);
 
           // Catégorie
           if (pDetailCatBadge) pDetailCatBadge.textContent = product.category || 'Détails du produit';
@@ -1298,7 +1440,7 @@
           }
 
           // Boutique
-          if (pDetailShopCard) {
+          if (pDetailShopCard && (!previousProduct || JSON.stringify(previousProduct.shop) !== JSON.stringify(product.shop))) {
             if (product.shop) {
               pDetailShopCard.style.display = 'flex';
               if (pDetailShopName) pDetailShopName.textContent = product.shop.name;
@@ -1324,6 +1466,7 @@
           }
 
           // Galerie Photos & Vidéos (la vidéo est toujours affichée en premier si présente)
+          if (!keepGallery) {
           activeGalleryItems = [];
           if (product.video_url) {
             activeGalleryItems.push({ type: 'video', src: product.video_url });
@@ -1332,7 +1475,7 @@
             product.images.forEach(function (imgName, photoIndex) {
               activeGalleryItems.push({ type: 'image', src: imgName,
                 downloadUrl: (product.image_download_urls || [])[photoIndex] ||
-                  '/shop/product/' + encodeURIComponent(product.id || pid) + '/photo/' + photoIndex + '/download' });
+                  '/shop/product/' + encodeURIComponent(product.id) + '/photo/' + photoIndex + '/download' });
             });
           }
           if (!activeGalleryItems.length) {
@@ -1341,10 +1484,9 @@
           activeGalleryImages = activeGalleryItems
             .filter(function (it) { return it.type === 'image'; })
             .map(function (it) { return it.src; });
-          activeGalleryIndex = 0;
-
-          // Prix & Promos
-          currentProductHasPromo = Boolean(product.has_promo && product.price > product.final_price);
+          var previousIndex = previousMedia ? activeGalleryItems.findIndex(function (item) { return item.type === previousMedia.type && item.src === previousMedia.src; }) : -1;
+          activeGalleryIndex = previousIndex >= 0 ? previousIndex : 0;
+          detailViews.product.gallerySignature = gallerySignature;
 
           if (pDetailThumbs) {
             pDetailThumbs.innerHTML = '';
@@ -1354,12 +1496,12 @@
                 if (item.type === 'video') {
                   thumb = document.createElement('button');
                   thumb.type = 'button';
-                  thumb.className = 'u-pdetail-thumb u-pdetail-thumb-video' + (idx === 0 ? ' is-active' : '');
+                  thumb.className = 'u-pdetail-thumb u-pdetail-thumb-video' + (idx === activeGalleryIndex ? ' is-active' : '');
                   thumb.setAttribute('aria-label', 'Voir la vidéo');
                   thumb.innerHTML = '<i class="bi bi-play-circle-fill"></i><span>Vidéo</span>';
                 } else {
                   thumb = document.createElement('img');
-                  thumb.className = 'u-pdetail-thumb' + (idx === 0 ? ' is-active' : '');
+                  thumb.className = 'u-pdetail-thumb' + (idx === activeGalleryIndex ? ' is-active' : '');
                   thumb.src = item.src ? ('/static/uploads/' + item.src) : detailPlaceholderUrl();
                   thumb.alt = product.name;
                 }
@@ -1380,7 +1522,8 @@
               if (pDetailNavNext) pDetailNavNext.style.display = 'none';
             }
           }
-          updateGalleryMedia(0);
+          updateGalleryMedia(activeGalleryIndex);
+          }
 
           // Titre
           if (pDetailTitle) pDetailTitle.textContent = product.name;
@@ -1400,7 +1543,7 @@
               pDetailDiscountChip.textContent = discLabel;
               pDetailDiscountChip.style.display = 'inline-block';
             }
-            if (pDetailPromoBadge) pDetailPromoBadge.style.display = 'block';
+            if (pDetailPromoBadge) pDetailPromoBadge.style.display = activeGalleryItems[activeGalleryIndex] && activeGalleryItems[activeGalleryIndex].type === 'video' ? 'none' : 'block';
           } else {
             if (pDetailPriceOrig) pDetailPriceOrig.style.display = 'none';
             if (pDetailDiscountChip) pDetailDiscountChip.style.display = 'none';
@@ -1411,6 +1554,7 @@
           if (pDetailDescText) pDetailDescText.textContent = product.description;
 
           // Actions directes
+          if (pDetailBtnCart && pDetailBtnCart.dataset.hubBusy !== '1') pDetailBtnCart.disabled = product.kind !== 'service' && Number(product.stock) <= 0;
           if (product.kind === 'service') {
             if (pDetailOrderSection) pDetailOrderSection.style.display = 'none';
             if (pDetailServiceSection) pDetailServiceSection.style.display = 'flex';
@@ -1424,13 +1568,6 @@
 
           if (pDetailLoading) pDetailLoading.style.display = 'none';
           if (pDetailContent) pDetailContent.style.display = 'block';
-        })
-        .catch(function () {
-          if (requestId !== productRequestId) return;
-          if (pDetailLoading) {
-            pDetailLoading.innerHTML = '<p style="color:#ef4444;font-weight:700;">Impossible de charger les détails du produit.</p><button type="button" class="u-pdetail-back-btn" data-pdetail-close style="margin-top:0.8rem;">← Retour</button>';
-          }
-        });
     }
 
     // ========================================================
@@ -1441,28 +1578,15 @@
       if (!shopDetailPanel || !shopDetailBackdrop) return;
       currentShopSlug = shopSlugOrId;
       shopModalOrigin = origin || 'homepage';
-      var requestId = ++shopRequestId;
-      configureDetailShare(shopDetailShareBtn);
       showHubLayer('shop', { slug: String(shopSlugOrId), origin: shopModalOrigin });
+      loadDetail('shop', shopSlugOrId);
+    }
 
-      if (shopDetailLoading) {
-        shopDetailLoading.style.display = 'block';
-        shopDetailLoading.innerHTML = '<i class="bi bi-arrow-repeat spin" style="font-size:2.2rem;display:inline-block;color:#10b981;"></i><p style="margin-top:0.6rem;font-weight:600;">Chargement de la boutique...</p>';
-      }
-      if (shopDetailContent) shopDetailContent.style.display = 'none';
-
-      fetch('/api/shop/' + encodeURIComponent(shopSlugOrId) + '?preview=1')
-        .then(function (res) {
-          if (!res.ok) throw new Error('Boutique introuvable');
-          return res.json();
-        })
-        .then(function (data) {
-          if (requestId !== shopRequestId) return;
-          if (!data || !data.success || !data.shop) {
-            throw new Error('Données indisponibles');
-          }
+    function renderShopDetail(data, preserveView) {
           var shop = data.shop;
           var products = data.products || [];
+          var previousShop = preserveView && detailViews.shop.data && detailViews.shop.data.shop;
+          var gridSignature = JSON.stringify([shop.id, shop.is_open, products]);
 
           // Nom
           if (shopDetailName) shopDetailName.textContent = shop.name;
@@ -1474,7 +1598,7 @@
           }
 
           // Logo
-          if (shopDetailLogoWrap) {
+          if (shopDetailLogoWrap && (!previousShop || previousShop.logo !== shop.logo || previousShop.name !== shop.name)) {
             if (shop.logo) {
               shopDetailLogoWrap.innerHTML = '<img src="/static/uploads/' + shop.logo + '" alt="' + shop.name + '" onerror="this.onerror=null;this.parentElement.innerHTML=\'<i class=\\\'bi bi-shop\\\'></i>\';" />';
             } else {
@@ -1552,7 +1676,8 @@
           }
 
           // Grille des produits de la boutique
-          if (shopDetailProductsGrid) {
+          if (shopDetailProductsGrid && (!preserveView || detailViews.shop.gridSignature !== gridSignature)) {
+            detailViews.shop.gridSignature = gridSignature;
             shopDetailProductsGrid.innerHTML = '';
             if (products.length > 0) {
               if (shopDetailEmpty) shopDetailEmpty.style.display = 'none';
@@ -1581,13 +1706,6 @@
 
           if (shopDetailLoading) shopDetailLoading.style.display = 'none';
           if (shopDetailContent) shopDetailContent.style.display = 'block';
-        })
-        .catch(function () {
-          if (requestId !== shopRequestId) return;
-          if (shopDetailLoading) {
-            shopDetailLoading.innerHTML = '<p style="color:#ef4444;font-weight:700;">Impossible de charger cette boutique.</p><button type="button" class="u-pdetail-back-btn" data-shop-close style="margin-top:0.8rem;">✕ Fermer</button>';
-          }
-        });
     }
 
     function closeShopDetailModal() {

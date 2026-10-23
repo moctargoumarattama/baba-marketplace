@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from urllib.parse import quote
 
-from flask import Blueprint, abort, current_app, flash, jsonify, redirect, render_template, request, url_for
+from flask import Blueprint, abort, current_app, flash, jsonify, redirect, render_template, request, send_file, url_for
 from flask_login import current_user, login_required
 from slugify import slugify
 from sqlalchemy import func, or_
@@ -381,6 +381,33 @@ def location_detail(slug: str):
         videos=videos,
         cents_to_dh=cents_to_dh,
         rental_video_poster_rel_path=rental_existing_video_poster_rel_path,
+    )
+
+
+@bp.route("/location/<string:slug>/photo/<int:media_id>/download")
+def download_location_photo(slug: str, media_id: int):
+    from pathlib import Path
+    from PIL import Image
+    from ..services.image_download import watermarked_photo
+
+    listing = _public_listing_query().filter(RentalListing.slug == slug).first_or_404()
+    media = RentalMedia.query.filter_by(id=media_id, listing_id=listing.id, kind="image").first_or_404()
+    relative_path = (media.file_path or "").replace("\\", "/")
+    prefix = "uploads/rentals/"
+    if not relative_path.startswith(prefix):
+        abort(404)
+    upload_root = Path(current_app.static_folder) / "uploads" / "rentals"
+    try:
+        download = watermarked_photo(upload_root, relative_path[len(prefix):])
+    except FileNotFoundError:
+        abort(404)
+    except (OSError, ValueError, Image.DecompressionBombError) as exc:
+        current_app.logger.warning("Location photo download failed for %s: %s", listing.id, exc)
+        abort(422, description="Cette photo ne peut pas etre telechargee pour le moment.")
+    return send_file(
+        download, mimetype="image/jpeg", as_attachment=True,
+        download_name=f"baba-market-location-{listing.id}-photo-{media.id}.jpg",
+        max_age=0,
     )
 
 

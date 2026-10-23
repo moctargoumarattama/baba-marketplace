@@ -17,10 +17,10 @@ def download_url(pid, index):
     return f"/shop/product/{pid}/photo/{index}/download"
 
 
-def product(pid, *, images=None, video=False):
+def product(pid, *, images=None, video=False, kind="physical", promotion=False):
     images = images or []
-    return dict(id=pid, name=f"Article {pid}", kind="physical", stock=2,
-                price=25, final_price=20 if pid == 102 else 25, has_promo=pid == 102,
+    return dict(id=pid, name=f"Article {pid}", kind=kind, stock=0 if kind == "service" else 2,
+                price=25, final_price=20 if promotion else 25, has_promo=promotion,
                 promo_value=5, discount_amount=5, promo_type="fixed", description="Article de test",
                 category="Test", shop=None, images=images,
                 image_download_urls=[download_url(pid, i) for i in range(len(images))],
@@ -35,7 +35,7 @@ def modal_fixture():
     source = re.sub(r"\{%.*?%\}|\{\{.*?\}\}", "", source, flags=re.S)
     return '<!doctype html><html><body data-page="landing">' + ''.join(
         f'<button id="open{pid}" data-open-product-detail="{pid}">Article {pid}</button>'
-        for pid in (101, 102, 103)) + source + '</body></html>'
+        for pid in (101, 102, 103, 104, 105)) + source + '</body></html>'
 
 
 def run(browser_type, viewport):
@@ -80,12 +80,31 @@ def run(browser_type, viewport):
         assert promo.evaluate("element => getComputedStyle(element).animationName") == "promotion-glow"
         page.emulate_media(reduced_motion="reduce")
         assert promo.evaluate("element => getComputedStyle(element).animationName") == "none"
+        for pid in (104, 105):
+            page.evaluate("pid => document.querySelector('#open' + pid).click()", pid)
+            expect(page.locator("#pDetailTitle")).to_have_text(f"Article {pid}")
+            expect(page.locator("#pDetailBtnBook")).to_be_visible()
+            expect(button).to_be_hidden()
+            assert button.get_attribute("href") is None, "service video cannot download as photo"
+            page.locator("#pDetailNavNext").click()
+            expect(button).to_have_attribute("href", download_url(pid, 0))
+            expect(button).to_be_visible()
+            expect(page.locator("#pDetailMainImg")).to_have_attribute("src", f"/static/uploads/service-{pid}-a.jpg")
+            page.locator("#pDetailThumbs .u-pdetail-thumb").nth(2).click()
+            expect(button).to_have_attribute("href", download_url(pid, 1))
+            with page.expect_download() as event:
+                button.click()
+            assert event.value.url == ORIGIN + download_url(pid, 1)
+            assert event.value.failure() is None
+            page.locator("#pDetailThumbs .u-pdetail-thumb").nth(0).click()
+            expect(button).to_be_hidden()
+            assert button.get_attribute("href") is None, "switching back to video clears the photo download"
         page.evaluate("document.querySelector('#open103').click()")
         expect(page.locator("#pDetailTitle")).to_have_text("Article 103")
         expect(button).to_be_hidden()
         assert button.get_attribute("href") is None, "placeholder cannot download previous product"
         assert not errors, errors
-        print(f"{browser_type.name} {viewport['width']}px: modal / video / thumbnails / lightbox / download / product switching / promotion PASS")
+        print(f"{browser_type.name} {viewport['width']}px: modal / video / thumbnails / lightbox / download / product switching / services / promotions PASS")
     finally:
         browser.close()
 
@@ -98,7 +117,11 @@ class FixtureHandler(BaseHTTPRequestHandler):
         if path.startswith("/api/product/"):
             pid = int(path.rsplit("/", 1)[1])
             fixtures = {101: product(101, images=["a.jpg", "b.jpg"], video=True),
-                        102: product(102, images=["c.jpg"]), 103: product(103)}
+                        102: product(102, images=["c.jpg"], promotion=True), 103: product(103),
+                        **{service_id: product(service_id, kind="service", video=True,
+                                               promotion=service_id == 105,
+                                               images=[f"service-{service_id}-a.jpg", f"service-{service_id}-b.jpg"])
+                           for service_id in (104, 105)}}
             if pid == 102:
                 fixtures[pid].pop("image_download_urls")  # Earlier API payloads must still show the button.
             body = json.dumps({"success": True, "product": fixtures[pid]}).encode()

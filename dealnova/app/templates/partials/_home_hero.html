@@ -20,7 +20,9 @@
     <div class="hub-hero-copy">
       <h2>{{ t(first_line) }}<br>{{ t(second_line) }}</h2>
       <p>{{ t(description) }}</p>
+      {% if universe != 'products' %}
       <a href="{{ catalog_url(universe) }}" class="hub-primary-btn" data-open-universe="{{ universe }}">{{ t(button_label) }}<i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+      {% endif %}
     </div>
   </div>
   {% endfor %}

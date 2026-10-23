@@ -315,7 +315,7 @@ def _facets(universe):
         return _compute_facets(universe)
 
 
-def _image_url(raw, *, rental=False, shop=False):
+def _image_url(raw, *, rental=False, shop=False, variant="thumb"):
     filename = str(raw or "").split("|")[0].strip().replace("\\", "/")
     if (not filename or filename.startswith("//") or ":" in filename or
             ".." in filename.split("/") or any(ord(char) < 32 for char in filename)):
@@ -329,7 +329,7 @@ def _image_url(raw, *, rental=False, shop=False):
         filename = "rentals/" + filename
     elif not rental and not shop:
         try:
-            filename = image_variant(filename, "thumb")
+            filename = image_variant(filename, variant)
         except Exception:
             pass
     return url_for("static", filename="uploads/" + filename)
@@ -375,6 +375,7 @@ def _serialize(source, model, price):
         item.update(item_type="service" if service else "product", kind=model.kind, name=model.name,
                     price=cents_to_money(base), final_price=cents_to_money(price), has_promo=price < base,
                     image_url=_image_url(model.image_file), url=url_for("shop.product_detail", pid=model.id),
+                    image_preview_url=_image_url(model.image_file, variant="large"),
                     video_url=_product_video_url(model.video_file),
                     stock=model.stock or 0, booking_url=url_for("booking.book", pid=model.id) if service else None,
                     shop_id=model.shop_id, shop_name=model.shop.name if model.shop else "",

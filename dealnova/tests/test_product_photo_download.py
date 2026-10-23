@@ -1,4 +1,5 @@
 """Downloads use temporary photos and an in-memory database, never real uploads."""
+from datetime import datetime, timedelta
 from io import BytesIO
 from types import SimpleNamespace
 
@@ -8,6 +9,7 @@ import pytest
 
 from dealnova.app.extensions import db
 from dealnova.app.models.product import Product
+from dealnova.app.models.promo import Promo
 from dealnova.app.models.shop import Shop
 from dealnova.app.models.user import User
 from dealnova.app.routes import api, shop
@@ -51,7 +53,22 @@ def download(photos, index=0):
     return photos.client.get(f"/shop/product/{photos.product.id}/photo/{index}/download")
 
 
-def test_selected_photo_download_is_watermarked_attachment_without_changing_originals(photos):
+def configure_offer(photos, kind, with_promotion):
+    photos.product.kind = kind
+    # Services remain public without physical stock.
+    photos.product.stock = 0 if kind == "service" else 2
+    photos.shop.set_allowed_types(["products", "services"])
+    if with_promotion:
+        db.session.add(Promo(product_id=photos.product.id, type="percentage", value=20,
+                             status="approved", end_date=datetime.utcnow() + timedelta(days=1)))
+    db.session.commit()
+
+
+@pytest.mark.parametrize("kind,with_promotion", [
+    ("physical", False), ("service", False), ("physical", True), ("service", True),
+])
+def test_selected_photo_download_is_watermarked_attachment_without_changing_originals(photos, kind, with_promotion):
+    configure_offer(photos, kind, with_promotion)
     originals = {path.name: path.read_bytes() for path in photos.root.iterdir()}
     response = download(photos, 1)
     assert response.status_code == 200
@@ -68,10 +85,16 @@ def test_selected_photo_download_is_watermarked_attachment_without_changing_orig
     assert {path.name: path.read_bytes() for path in photos.root.iterdir()} == originals
 
 
-def test_api_download_urls_align_with_photo_order_and_keep_display_images(photos):
+@pytest.mark.parametrize("kind,with_promotion", [
+    ("physical", False), ("service", False), ("physical", True), ("service", True),
+])
+def test_api_download_urls_align_with_photo_order_and_keep_display_images(photos, kind, with_promotion):
+    configure_offer(photos, kind, with_promotion)
     response = photos.client.get(f"/api/product/{photos.product.id}")
     assert response.status_code == 200
     data = response.json["product"]
+    assert data["kind"] == kind
+    assert data["has_promo"] == with_promotion
     assert data["images"] == ["first.jpg", "second.png"]
     assert data["image_download_urls"] == [
         f"/shop/product/{photos.product.id}/photo/{index}/download" for index in range(2)

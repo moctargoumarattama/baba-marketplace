@@ -13,10 +13,19 @@ class Markup(HTMLParser):
     def __init__(self, source):
         super().__init__()
         self.tags = []
+        self.anchor_depth = 0
+        self.nested_links = False
         self.feed(source)
 
     def handle_starttag(self, tag, attrs):
+        if tag == "a":
+            self.nested_links |= self.anchor_depth > 0
+            self.anchor_depth += 1
         self.tags.append((tag, dict(attrs)))
+
+    def handle_endtag(self, tag):
+        if tag == "a":
+            self.anchor_depth = max(0, self.anchor_depth - 1)
 
     def attributes(self, tag):
         return [attrs for name, attrs in self.tags if name == tag]
@@ -40,6 +49,7 @@ def storefront():
         "rentals.locations_home": "/locations",
         "api.public_catalog": "/api/catalog",
         "shop.product_detail": "/shop/product/<int:pid>",
+        "shop.download_product_photo": "/shop/product/<int:pid>/photo/<int:image_index>/download",
         "booking.book": "/book/<int:pid>",
         "shops.list_shops": "/shops", "shops.shop_detail": "/shops/<shop_slug>",
         "auth.login": "/login", "auth.register": "/register", "auth.logout": "/logout",
@@ -51,7 +61,8 @@ def storefront():
     for endpoint, rule in routes.items():
         app.add_url_rule(rule, endpoint=endpoint, view_func=lambda **kwargs: "")
 
-    def render(*, products=None, services=None, promotions=None, shops=None, role=None, cards_only=False):
+    def render(*, products=None, services=None, promotions=None, shops=None, role=None, cards_only=False,
+               variant_names=False):
         with app.test_request_context("/"):
             renderer = render_template_string if cards_only else render_template
             template = (
@@ -63,7 +74,7 @@ def storefront():
                 template,
                 offer_items=(products or []) + (services or []),
                 t=lambda text: text,
-                image_variant=lambda filename, size: filename,
+                image_variant=lambda filename, size: f"{size}/{filename}" if variant_names else filename,
                 csrf_token=lambda: "storefront-csrf-token",
                 current_user=SimpleNamespace(
                     is_authenticated=role is not None, role=role, username="Utilisateur <test>",
@@ -146,6 +157,110 @@ def test_cover_uses_first_product_image_and_informative_alt(storefront):
 
     assert image["src"] == "/static/uploads/premiere.jpg"
     assert image["loading"] == "lazy"
+
+
+@pytest.mark.parametrize("kind", ["physical", "service"])
+@pytest.mark.parametrize("promo,final,expected", [
+    (True, 75, "large"), (False, 75, "thumb"), (True, 100, "thumb"),
+])
+def test_only_discounted_home_photos_use_uncropped_preview(storefront, kind, promo, final, expected):
+    page = Markup(storefront(products=[offer(
+        101, kind=kind, promo=promo, final=final, image="first.jpg|second.jpg",
+    )], cards_only=True, variant_names=True))
+    image = next(attrs for attrs in page.attributes("img"))
+    media = next(attrs for attrs in page.attributes("a")
+                 if "hub-product-media" in attrs.get("class", "").split())
+
+    assert image["src"] == f"/static/uploads/{expected}/first.jpg"
+    assert ("promotion-photo-frame" in media["class"].split()) is (expected == "large")
+    assert image["width"] == image["height"] == "300"
+
+
+def test_discounted_home_placeholder_does_not_receive_photo_effect(storefront):
+    page = Markup(storefront(products=[offer(101, promo=True, final=75)], cards_only=True))
+
+    assert not any("promotion-photo-frame" in attrs.get("class", "").split() for _, attrs in page.tags)
+
+
+@pytest.mark.parametrize("kind", ["physical", "service"])
+def test_discounted_home_cards_offer_a_separate_watermarked_photo_download(storefront, kind):
+    source = storefront(products=[offer(
+        101, kind=kind, promo=True, final=75, image=" | premiere.jpg | seconde.jpg",
+    )], cards_only=True)
+    page = Markup(source)
+    links = [attrs for attrs in page.attributes("a")
+             if "promotion-photo-download" in attrs.get("class", "").split()]
+
+    assert len(links) == 1
+    assert links[0]["href"] == "/shop/product/101/photo/0/download"
+    assert "download" in links[0]
+    assert "data-open-product-detail" not in links[0]
+    assert not page.nested_links
+    assert next(attrs for attrs in page.attributes("img"))["src"] == "/static/uploads/premiere.jpg"
+
+
+@pytest.mark.parametrize("kind", ["physical", "service"])
+@pytest.mark.parametrize("image,promo,final", [
+    ("", True, 75), (" | ", True, 75), ("photo.jpg", False, 75), ("photo.jpg", True, 100),
+])
+def test_home_photo_download_requires_a_photo_and_an_actual_promotion(storefront, kind, image, promo, final):
+    page = Markup(storefront(products=[offer(
+        101, kind=kind, image=image, promo=promo, final=final,
+    )], cards_only=True))
+
+    assert not any("promotion-photo-download" in attrs.get("class", "").split()
+                   for attrs in page.attributes("a"))
+
+
+@pytest.mark.parametrize("item_type", ["product", "service"])
+@pytest.mark.parametrize("image,promo,final,expected", [
+    ("/static/uploads/photo.jpg", True, 75, True),
+    ("", True, 75, False),
+    ("/static/img/placeholders/product.svg", True, 75, False),
+    ("/static/uploads/photo.jpg", False, 75, False),
+    ("/static/uploads/photo.jpg", True, 100, False),
+])
+def test_public_promotion_card_downloads_a_photo_outside_its_detail_link(item_type, image, promo, final, expected):
+    app = Flask("promotion-card-tests", template_folder=str(ROOT / "app/templates"))
+    app.add_url_rule("/shop/product/<int:pid>/photo/<int:image_index>/download",
+                     "shop.download_product_photo", lambda **kwargs: "")
+    item = dict(id=101, item_type=item_type, name="Offre de test", url="/shop/product/101",
+                description="", shop_name="", city="", image_url=image, has_promo=promo,
+                price=100, final_price=final, available=True)
+    with app.test_request_context("/"):
+        source = render_template("catalog/_item.html", item=item, universe="promotions", t=lambda text: text)
+    page = Markup(source)
+    downloads = [attrs for attrs in page.attributes("a")
+                 if "promotion-photo-download" in attrs.get("class", "").split()]
+
+    assert len(downloads) == int(expected)
+    assert not page.nested_links
+    if expected:
+        assert downloads[0]["href"] == "/shop/product/101/photo/0/download"
+        assert "download" in downloads[0]
+
+
+@pytest.mark.parametrize("item_type", ["product", "service"])
+@pytest.mark.parametrize("promo,final,photo,expected", [
+    (True, 75, "/static/uploads/thumb.jpg", True),
+    (False, 75, "/static/uploads/thumb.jpg", False),
+    (True, 100, "/static/uploads/thumb.jpg", False),
+    (True, 75, "/static/img/placeholders/product.svg", False),
+])
+def test_public_card_preserves_photo_only_for_genuine_promotions(item_type, promo, final, photo, expected):
+    app = Flask("promotion-preview-tests", template_folder=str(ROOT / "app/templates"))
+    app.add_url_rule("/photo/<int:pid>/<int:image_index>", "shop.download_product_photo", lambda **kwargs: "")
+    item = dict(id=101, item_type=item_type, name="Offre", url="/shop/product/101", description="",
+                shop_name="", city="", image_url=photo, image_preview_url="/static/uploads/large.jpg",
+                has_promo=promo, price=100, final_price=final, available=True)
+    with app.test_request_context("/"):
+        page = Markup(render_template("catalog/_item.html", item=item, universe="products", t=lambda text: text))
+
+    image = next(attrs for attrs in page.attributes("img"))
+    media = next(attrs for attrs in page.attributes("div")
+                 if "public-catalog-card-media" in attrs.get("class", "").split())
+    assert image["src"] == (item["image_preview_url"] if expected else photo)
+    assert ("promotion-photo-frame" in media["class"].split()) is expected
 
 
 def test_homepage_does_not_display_product_or_service_previews(storefront):

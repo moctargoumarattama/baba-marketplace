@@ -203,6 +203,16 @@
   }
   .gallery-dot { width: 6px; height: 6px; border-radius: 999px; background: rgba(255,255,255,.72); border: 1px solid rgba(15,23,42,.08); transition: all .2s ease; }
   .gallery-dot.active { width: 14px; background: #fff; }
+  .gallery-photo-download {
+    display: flex; align-items: center; justify-content: center; gap: .45rem;
+    width: fit-content; max-width: calc(100% - 1.5rem); min-height: 44px;
+    margin: .75rem auto; padding: .55rem .85rem; border: 1px solid #dce6df;
+    border-radius: 11px; background: #fff; color: #186047; font-size: .85rem;
+    font-weight: 600; text-decoration: none;
+  }
+  .gallery-photo-download:hover { background: #f1f4ea; color: #186047; }
+  .gallery-photo-download:focus-visible { outline: 3px solid #186047; outline-offset: 3px; }
+  .gallery-photo-download[hidden] { display: none !important; }
   .thumbs {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(74px, 1fr));
@@ -457,7 +467,7 @@
       {% set gallery = [] %}
       {% set gallery_poster_fallback = url_for('static', filename=images[0].file_path) if images else '' %}
       {% for image in images %}
-        {% set _ = gallery.append({'kind': 'image', 'src': url_for('static', filename=image.file_path)}) %}
+        {% set _ = gallery.append({'kind': 'image', 'src': url_for('static', filename=image.file_path), 'download_url': url_for('rentals.download_location_photo', slug=listing.slug, media_id=image.id)}) %}
       {% endfor %}
       {% for video in videos %}
         {% set video_poster_rel = rental_video_poster_rel_path(video.file_path) if rental_video_poster_rel_path is defined else None %}
@@ -470,6 +480,7 @@
           <div class="gallery-track">
             {% for media in gallery %}
               <div class="gallery-slide {{ 'is-video' if media.kind == 'video' else 'is-image' }}"
+                   {% if media.kind == 'image' %}data-download-url="{{ media.download_url }}"{% endif %}
                    style="--media-backdrop: url('{{ media.poster if media.kind == 'video' and media.poster else media.src }}');">
                 {% if media.kind == 'image' %}
                   <img src="{{ media.src }}" alt="{{ listing.title }}" loading="lazy">
@@ -494,6 +505,12 @@
             </div>
           {% endif %}
         </div>
+        {% if images %}
+          <a class="gallery-photo-download" id="listingPhotoDownload" download
+             href="{{ gallery[0].download_url }}" title="Télécharger la photo avec le filigrane Baba Market">
+            <i class="bi bi-download" aria-hidden="true"></i> Télécharger la photo
+          </a>
+        {% endif %}
         <div class="gallery-lightbox" id="listingGalleryLightbox" hidden>
           <button type="button" class="gallery-lightbox-backdrop" id="listingGalleryLightboxBackdrop" aria-label="Fermer l'image"></button>
           <div class="gallery-lightbox-dialog" role="dialog" aria-modal="true" aria-label="Image en grand">
@@ -581,6 +598,7 @@
     const thumbs = document.querySelectorAll('.js-gallery-thumbs .thumb-btn');
     const galleryImages = galleryRoot.querySelectorAll('.gallery-slide img');
     const galleryVideos = galleryRoot.querySelectorAll('.gallery-slide video');
+    const photoDownload = document.getElementById('listingPhotoDownload');
     const lightbox = document.getElementById('listingGalleryLightbox');
     const lightboxImage = document.getElementById('listingGalleryLightboxImage');
     const lightboxBackdrop = document.getElementById('listingGalleryLightboxBackdrop');
@@ -616,6 +634,12 @@
       const isPortraitMedia = !!(activeSlide && activeSlide.classList.contains('is-portrait-media'));
       galleryRoot.classList.toggle('is-video-active', isVideoActive);
       galleryRoot.classList.toggle('is-portrait-media', isPortraitMedia);
+      if (photoDownload) {
+        const downloadUrl = !isVideoActive && activeSlide ? activeSlide.dataset.downloadUrl : '';
+        photoDownload.hidden = !downloadUrl;
+        if (downloadUrl) photoDownload.href = downloadUrl;
+        else photoDownload.removeAttribute('href');
+      }
       dots.forEach((dot, dotIndex) => {
         if (dotIndex === index) dot.classList.add('active');
         else dot.classList.remove('active');

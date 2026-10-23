@@ -8,6 +8,12 @@
   var timer = null;
   var elements = null;
   var cache = new Map();
+  var cacheFreshFor = 20000;
+  var cacheKeepFor = 300000;
+  var renderedKey = '';
+  var renderedEntry = null;
+  var renderedItems = '';
+  var renderedForm = '';
   var active = false;
   var requestPending = false;
   var rotationRequest = false;
@@ -48,6 +54,21 @@
     return output;
   }
   function snapshot() { return state ? { universe: state.universe, query: state.query, filters: Object.assign({}, state.filters) } : null; }
+  function requestParams() {
+    var params = new URLSearchParams(Object.assign({ universe: state.universe, q: state.query, per_page: '12' }, state.filters));
+    params.sort();
+    return params;
+  }
+  function cachedResult(key) {
+    var saved = cache.get(key);
+    if (saved && Date.now() - saved.at >= cacheKeepFor) { cache.delete(key); return null; }
+    return saved;
+  }
+  function remember(key, entry) {
+    cache.forEach(function (value, cacheKey) { if (Date.now() - value.at >= cacheKeepFor) cache.delete(cacheKey); });
+    cache.delete(key); cache.set(key, entry);
+    while (cache.size > 20) cache.delete(cache.keys().next().value);
+  }
   function announceState() { document.dispatchEvent(new CustomEvent('bm:catalog-state', { detail: snapshot() })); }
   function defaultSort() { return state && discoveryUniverses.indexOf(state.universe) !== -1 ? 'discover' : 'new'; }
   function stopRotationTimer() { clearTimeout(rotationTimer); rotationTimer = null; }
@@ -86,6 +107,9 @@
     var results = document.getElementById('catalogResults');
     if (!results) return false;
     elements = { results: results, form: document.getElementById('catalogFilters'), toolbar: document.getElementById('catalogToolbar'), toggle: document.getElementById('catalogFilterToggle'), count: document.getElementById('catalogFilterCount'), sort: document.getElementById('catalogSort'), pagination: document.getElementById('catalogPagination'), pageStatus: document.getElementById('catalogPageStatus'), prev: document.getElementById('catalogPrevious'), next: document.getElementById('catalogNext'), active: document.getElementById('catalogActiveFilters'), error: document.getElementById('catalogFilterError'), body: document.getElementById('uModalBody'), total: document.getElementById('uModalCount') };
+    elements.refreshNotice = node('p', 'catalog-filter-error');
+    elements.refreshNotice.setAttribute('role', 'status'); elements.refreshNotice.hidden = true;
+    elements.results.insertAdjacentElement('afterend', elements.refreshNotice);
     elements.toggle.addEventListener('click', function () {
       elements.form.hidden = !elements.form.hidden;
       elements.toggle.setAttribute('aria-expanded', String(!elements.form.hidden));
@@ -132,7 +156,7 @@
     document.addEventListener('visibilitychange', function () {
       if (document.hidden) {
         stopRotationTimer();
-        if (rotationRequest && controller) { controller.abort(); ++requestId; requestPending = false; rotationRequest = false; }
+        if (rotationRequest && controller) { controller.abort(); ++requestId; requestPending = false; rotationRequest = false; elements.results.setAttribute('aria-busy', 'false'); }
       } else scheduleRotation();
     });
     window.addEventListener('offline', stopRotationTimer);
@@ -422,6 +446,8 @@
   }
   function imageFor(item) {
     var media = node('div', 'u-item-media catalog-media');
+    var promotionPhoto = (item.item_type === 'product' || item.item_type === 'service') &&
+      item.has_promo && Number(item.price) > Number(item.final_price) && !isPlaceholderImageUrl(item.image_url);
     if (item.item_type === 'location') {
       if (item.image_url && !isPlaceholderImageUrl(item.image_url)) {
         var locImg = node('img'); locImg.src = safeURL(item.image_url, ''); locImg.alt = item.name || ''; locImg.loading = 'lazy'; locImg.decoding = 'async'; locImg.width = 300; locImg.height = 230;
@@ -436,7 +462,11 @@
       return media;
     }
     if (item.image_url && !isPlaceholderImageUrl(item.image_url)) {
-      var image = node('img'); image.src = safeURL(item.image_url, ''); image.alt = item.name || ''; image.loading = 'lazy'; image.decoding = 'async'; image.width = 300; image.height = 230;
+      var image = node('img'); image.src = safeURL(promotionPhoto && item.image_preview_url || item.image_url, ''); image.alt = item.name || ''; image.loading = 'lazy'; image.decoding = 'async'; image.width = 300; image.height = 230;
+      if (promotionPhoto) {
+        media.classList.add('promotion-photo-frame');
+        if (window.BMPromotionPhotos) window.BMPromotionPhotos.enhance(media, image);
+      }
       image.addEventListener('error', function () { image.remove(); media.appendChild(placeholder(item)); }, { once: true }); media.appendChild(image);
     } else if (item.video_url && !isPlaceholderImageUrl(item.video_url)) {
       var video = node('video', 'catalog-media-video'); video.src = safeURL(item.video_url, ''); video.muted = true; video.playsInline = true; video.preload = 'metadata';
@@ -504,7 +534,19 @@
     var detail = node('a', 'u-item-btn u-btn-detail', type === 'shop' ? 'Visiter la boutique' : type === 'location' ? 'Voir l’annonce' : 'Détails'); detail.href = mediaLink.href;
     if (type === 'product' || type === 'service') detail.dataset.openProductDetail = item.id;
     if (type === 'shop') detail.dataset.openShopDetail = item.slug;
-    actions.appendChild(detail); content.appendChild(actions); card.appendChild(mediaLink); card.appendChild(content); return card;
+    actions.appendChild(detail); content.appendChild(actions);
+    if ((type === 'product' || type === 'service') && item.has_promo &&
+        Number(item.price) > Number(item.final_price) && !isPlaceholderImageUrl(item.image_url)) {
+      var photoDownload = node('a', 'promotion-photo-download');
+      photoDownload.href = '/shop/product/' + encodeURIComponent(item.id) + '/photo/0/download';
+      photoDownload.setAttribute('download', '');
+      photoDownload.title = 'Télécharger la photo avec le filigrane Baba Market';
+      photoDownload.setAttribute('aria-label', 'Télécharger la photo : ' + item.name);
+      photoDownload.appendChild(icon('download'));
+      photoDownload.appendChild(node('span', '', 'Télécharger la photo'));
+      content.appendChild(photoDownload);
+    }
+    card.appendChild(mediaLink); card.appendChild(content); return card;
   }
   function emptyState(error) {
     var hasFilters = Object.keys((state && state.filters) || {}).some(function (k) {
@@ -523,33 +565,72 @@
     return box;
   }
   function setLoading() {
+    renderedKey = ''; renderedEntry = null; renderedItems = '';
+    elements.refreshNotice.hidden = true;
     elements.results.setAttribute('aria-busy', 'true'); elements.results.classList.add('is-loading'); elements.pagination.hidden = true;
     elements.results.replaceChildren();
     for (var i = 0; i < 6; i++) { var card = node('div', 'catalog-skeleton'); card.setAttribute('aria-hidden', 'true'); card.innerHTML = '<span></span><i></i><i></i>'; elements.results.appendChild(card); }
     if (elements.total) elements.total.textContent = 'Chargement…';
   }
-  function render(data, scroll, focus, cachedRotationExpiry) {
+  function renderItems(items, sameContext) {
+    var signature = JSON.stringify(items);
+    if (sameContext && signature === renderedItems) return;
+    var existing = new Map();
+    if (sameContext) Array.prototype.forEach.call(elements.results.children, function (card) {
+      if (card.dataset.catalogKey) existing.set(card.dataset.catalogKey, card);
+    });
+    if (!sameContext) elements.results.replaceChildren();
+    if (!items.length) { elements.results.replaceChildren(emptyState()); renderedItems = signature; return; }
+    items.forEach(function (item, index) {
+      var key = (item.item_type || 'product') + ':' + (item.id || item.slug);
+      var itemSignature = JSON.stringify(item), card = existing.get(key);
+      if (!card || card._catalogSignature !== itemSignature) {
+        var replacement = itemCard(item); replacement.dataset.catalogKey = key; replacement._catalogSignature = itemSignature;
+        if (card) card.replaceWith(replacement);
+        card = replacement;
+      }
+      if (elements.results.children[index] !== card) elements.results.insertBefore(card, elements.results.children[index] || null);
+    });
+    while (elements.results.children.length > items.length) elements.results.lastElementChild.remove();
+    renderedItems = signature;
+  }
+  function render(data, scroll, focus, cachedRotationExpiry, entry) {
+    var previousScroll = elements.body.scrollTop;
+    var focused = elements.results.contains(document.activeElement) ? document.activeElement : null;
+    var focusedCard = focused && focused.closest('[data-catalog-key]');
+    var focusedKey = focusedCard && focusedCard.dataset.catalogKey;
+    var focusedIndex = focusedCard ? Array.prototype.indexOf.call(focusedCard.querySelectorAll('a,button'), focused) : -1;
     if (data.pagination) state.filters.page = String(data.pagination.page);
     if (state.filters.sort === 'discover' && data.rotation) {
       state.filters.rotation_slot = String(data.rotation.slot);
       var remaining = Number(data.rotation.refresh_in);
       rotationDueAt = cachedRotationExpiry || (Number.isFinite(remaining) ? Date.now() + Math.max(0, remaining) * 1000 : Number(data.rotation.refresh_at) * 1000);
     } else rotationDueAt = 0;
-    updateForm(data.facets || {}); renderActive();
-    var fragment = document.createDocumentFragment(); (data.items || []).forEach(function (item) { fragment.appendChild(itemCard(item)); });
-    if (!(data.items || []).length) fragment.appendChild(emptyState());
-    elements.results.replaceChildren(fragment); elements.results.classList.remove('is-loading'); elements.results.setAttribute('aria-busy', 'false');
+    var key = requestParams().toString(), sameContext = renderedKey === key;
+    var formSignature = JSON.stringify([data.facets || {}, state.filters]);
+    if (formSignature !== renderedForm && (!sameContext || elements.form.hidden)) { updateForm(data.facets || {}); renderActive(); renderedForm = formSignature; }
+    renderItems(data.items || [], sameContext);
+    renderedKey = key; renderedEntry = entry || renderedEntry;
+    elements.results.classList.remove('is-loading'); elements.results.setAttribute('aria-busy', 'false'); elements.refreshNotice.hidden = true;
     var pagination = data.pagination || { total: 0, page: 1, pages: 1 };
     if (elements.total) elements.total.textContent = pagination.total + (state.universe === 'shops' ? ' boutique' : ' résultat') + (pagination.total > 1 ? 's' : '');
     elements.pagination.hidden = pagination.pages <= 1;
     elements.prev.disabled = !pagination.has_prev; elements.next.disabled = !pagination.has_next;
     elements.pageStatus.textContent = 'Page ' + pagination.page + ' sur ' + Math.max(1, pagination.pages);
     if (scroll) elements.body.scrollTo({ top: 0, behavior: 'auto' });
+    else elements.body.scrollTop = previousScroll;
     if (state.restoreScroll !== null) {
       elements.body.scrollTop = state.restoreScroll;
       state.restoreScroll = null;
     }
     if (focus) { var target = elements.results.querySelector('a,button') || elements.results; target.tabIndex = target.tabIndex < 0 ? -1 : target.tabIndex; target.focus({ preventScroll: true }); }
+    else if (focused && !focused.isConnected) {
+      var card = Array.prototype.find.call(elements.results.children, function (item) { return item.dataset.catalogKey === focusedKey; });
+      var replacement = card && card.querySelectorAll('a,button')[focusedIndex];
+      if (replacement && replacement.disabled) replacement = card.querySelector('.u-btn-detail');
+      var target = replacement || elements.results; if (target === elements.results) target.tabIndex = -1;
+      target.focus({ preventScroll: true });
+    }
     announceState();
     scheduleRotation();
   }
@@ -558,18 +639,23 @@
     stopRotationTimer();
     var id = ++requestId;
     if (controller) controller.abort();
-    var params = new URLSearchParams(Object.assign({ universe: state.universe, q: state.query, per_page: '12' }, state.filters));
+    var params = requestParams();
     if (quiet) params.delete('rotation_slot');
-    var key = params.toString(), saved = cache.get(key);
+    var key = params.toString(), saved = cachedResult(key);
     requestPending = false; rotationRequest = false;
-    if (!force && saved && Date.now() - saved.at < 20000 && (!saved.rotationExpires || Date.now() < saved.rotationExpires)) { render(saved.data, scroll, focus, saved.rotationExpires); return; }
+    if (!force && saved && Date.now() - saved.at < cacheFreshFor && (!saved.rotationExpires || Date.now() < saved.rotationExpires)) {
+      render(saved.data, scroll, focus, saved.rotationExpires, saved); return;
+    }
+    var background = Boolean(quiet || saved);
+    if (!quiet && saved) { render(saved.data, scroll, focus, saved.rotationExpires, saved); scroll = false; focus = false; }
     controller = new AbortController(); requestPending = true; rotationRequest = Boolean(quiet);
-    if (!quiet) setLoading();
+    if (!background) setLoading();
+    else { elements.results.setAttribute('aria-busy', 'true'); elements.refreshNotice.hidden = true; }
     fetch('/api/catalog?' + key, { signal: controller.signal, cache: 'no-store', headers: { Accept: 'application/json' } }).then(function (response) {
-      return response.json().then(function (data) {
+      return response.json().catch(function (error) { error.status = response.status; throw error; }).then(function (data) {
         if (!response.ok || !data.success) {
           var error = new Error(data.message || 'Réessayez dans un instant.');
-          error.userMessage = error.message;
+          error.userMessage = error.message; error.status = response.status;
           throw error;
         }
         return data;
@@ -577,14 +663,25 @@
     }).then(function (data) {
       if (id !== requestId) return;
       requestPending = false; rotationRequest = false;
-      if (quiet && (!mayRotate() || Date.now() - lastInteractionAt < 2000)) { scheduleRotation(); return; }
+      if (quiet && (!mayRotate() || Date.now() - lastInteractionAt < 2000)) { elements.results.setAttribute('aria-busy', 'false'); scheduleRotation(); return; }
       var expiry = data.rotation && (Number.isFinite(Number(data.rotation.refresh_in)) ? Date.now() + Number(data.rotation.refresh_in) * 1000 : Number(data.rotation.refresh_at) * 1000);
-      cache.set(key, { at: Date.now(), data: data, rotationExpires: expiry }); if (cache.size > 20) cache.delete(cache.keys().next().value);
-      render(data, scroll, focus);
+      var entry = { at: Date.now(), data: data, rotationExpires: expiry };
+      remember(key, entry);
+      render(data, background ? false : scroll, background ? false : focus, expiry, entry);
+      remember(requestParams().toString(), entry);
     }).catch(function (error) {
       if (error.name === 'AbortError' || id !== requestId) return;
       requestPending = false; rotationRequest = false;
-      if (quiet) { rotationDueAt = Date.now() + 30000; scheduleRotation(); return; }
+      elements.results.setAttribute('aria-busy', 'false');
+      if (background && !(error.status >= 400 && error.status < 500)) {
+        elements.refreshNotice.replaceChildren(document.createTextNode('Actualisation impossible. Les offres affichées peuvent avoir changé. '),
+          button('Réessayer', function () { load(false, false, true, quiet); }, 'catalog-reset'));
+        elements.refreshNotice.hidden = false;
+        if (quiet) { rotationDueAt = Date.now() + 30000; scheduleRotation(); }
+        return;
+      }
+      cache.delete(key); if (renderedEntry) cache.forEach(function (entry, cacheKey) { if (entry === renderedEntry) cache.delete(cacheKey); });
+      renderedKey = ''; renderedEntry = null; renderedItems = ''; elements.refreshNotice.hidden = true;
       elements.results.replaceChildren(emptyState(error.userMessage || 'Vérifiez votre connexion, puis réessayez.')); elements.results.classList.remove('is-loading'); elements.results.setAttribute('aria-busy', 'false'); elements.pagination.hidden = true;
       if (elements.total) elements.total.textContent = 'Chargement impossible';
     });
@@ -607,7 +704,18 @@
     if (controller) controller.abort(); ++requestId;
     announceState(); timer = setTimeout(function () { load(true); }, 280);
   }
-  function pause() { active = false; pointerHeld = false; clearTimeout(timer); stopRotationTimer(); if (controller) controller.abort(); ++requestId; requestPending = false; rotationRequest = false; }
-  function resume() { if (state && elements) { active = true; scheduleRotation(); } }
+  function pause() {
+    active = false; pointerHeld = false; clearTimeout(timer); stopRotationTimer();
+    if (controller) controller.abort();
+    ++requestId; requestPending = false; rotationRequest = false;
+    if (renderedEntry && elements) elements.results.setAttribute('aria-busy', 'false');
+  }
+  function resume() {
+    if (!state || !elements) return;
+    var wasActive = active; active = true;
+    if (!wasActive && renderedEntry && Date.now() - renderedEntry.at >= cacheFreshFor &&
+        !(usesDiscovery() && Number(state.filters.page) === 1 && elements.body.scrollTop <= 8 && rotationDueAt && rotationDueAt <= Date.now())) load(false);
+    else scheduleRotation();
+  }
   window.BMCatalog = { open: open, search: search, reset: reset, snapshot: snapshot, pause: pause, resume: resume, filterKeys: filterKeys, normalizeFilters: normalizedFilters, createCard: itemCard };
 })();
