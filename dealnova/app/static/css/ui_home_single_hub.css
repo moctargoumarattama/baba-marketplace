@@ -939,6 +939,12 @@ body[data-page="landing"] footer.footer {
 
 .u-pdetail-header {
   padding: 0.65rem 1rem;
+  background: #ffffff;
+  border-bottom: 1px solid #f1f5f9;
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  flex-shrink: 0;
 }
 
 .u-pdetail-back-btn {
@@ -961,13 +967,18 @@ body[data-page="landing"] footer.footer {
 }
 
 .u-pdetail-cat-badge {
+  display: inline-flex;
+  align-items: center;
   font-size: 0.76rem;
   font-weight: 800;
   background: #ecfdf5;
   color: #047857;
-  padding: 0.25rem 0.75rem;
+  padding: 0.28rem 0.75rem;
   border-radius: 999px;
   letter-spacing: 0.02em;
+  max-width: 100%;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .u-pdetail-modal-body {
@@ -1512,6 +1523,12 @@ body[data-page="landing"] footer.footer {
 
 .u-shop-header {
   padding: 0.65rem 1rem;
+  background: #ffffff;
+  border-bottom: 1px solid #f1f5f9;
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  flex-shrink: 0;
 }
 
 .u-shop-cat-badge {
@@ -2396,4 +2413,28 @@ main.has-home-tabs {
   visibility: hidden !important;
   height: 0 !important;
   pointer-events: none !important;
+}
+
+/* Optimisation mobile : En-têtes modales, boutons et safe-area */
+@media (max-width: 768px) {
+  .u-pdetail-header,
+  .u-shop-header {
+    padding: max(0.55rem, env(safe-area-inset-top, 0px)) 0.85rem 0.55rem 0.85rem;
+  }
+  .u-modal-fullscreen-btn {
+    display: none !important;
+  }
+  .u-detail-share-btn {
+    min-height: 38px;
+    padding: 6px 11px;
+    font-size: 12px;
+  }
+  .u-modal-close-btn {
+    width: 38px !important;
+    height: 38px !important;
+  }
+  .u-pdetail-modal-body,
+  .u-shop-modal-body {
+    padding-inline: 0.85rem;
+  }
 }

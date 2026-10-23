@@ -11,7 +11,7 @@
   "display_override": ["standalone"],
   "orientation": "any",
   "background_color": "#ffffff",
-  "theme_color": "#10B981",
+  "theme_color": "#ffffff",
   "prefer_related_applications": false,
   "categories": ["shopping", "business", "lifestyle"],
   "icons": [

@@ -3,7 +3,7 @@
 {% set public_refresh_enabled = base_endpoint in [
   'auth.login', 'auth.forgot_password',
   'shops.list_shops', 'shops.shop_detail', 'rentals.locations_home',
-  'rentals.location_detail', 'rentals.location_inquiry', 'shop.product_detail',
+  'rentals.location_detail', 'rentals.location_inquiry',
   'public_catalog_pages.products', 'public_catalog_pages.services',
   'public_catalog_pages.promotions', 'public_catalog_pages.search'
 ] %}
@@ -60,7 +60,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Baba Market">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   {% for startup_file, startup_media in apple_startup_images %}
   <link rel="apple-touch-startup-image" href="{{ url_for('static', filename=startup_file, v=app_static_version ~ '-splashw1') }}" media="{{ startup_media }}">
   {% endfor %}
@@ -74,7 +74,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/ui_shell.css', v=app_static_version ~ '-toasts-v7-safearea') }}">
 
   <meta name="csrf-token" content="{{ csrf_token() }}">
-  <meta name="theme-color" content="#10B981">
+  <meta name="theme-color" content="#ffffff">
   <noscript><style>#bm-loader, #bm-navigation-progress { display: none !important; }</style></noscript>
 
   <script type="speculationrules">
@@ -654,7 +654,7 @@
   {% endif %}
 </head>
 
-<body data-public-refresh="{{ '1' if public_refresh_enabled else '0' }}" data-page="{{ request.endpoint or '' }}" data-user-role="{{ current_user.role if current_user.is_authenticated else 'guest' }}" data-lang="{{ current_lang }}" data-rtl-langs="{{ (rtl_langs or [])|join(',') }}" data-static-version="{{ app_static_version }}" data-static-root="{{ url_for('static', filename='') }}" data-session-scope="{{ pwa_session_scope }}" dir="{{ 'rtl' if rtl_enabled else 'ltr' }}" {% block body_attrs %}{% endblock %}>
+<body data-public-refresh="{{ '1' if public_refresh_enabled else '0' }}" data-page="{{ 'landing' if base_endpoint in ['landing', 'shop.product_detail'] else (request.endpoint or '') }}" data-user-role="{{ current_user.role if current_user.is_authenticated else 'guest' }}" data-lang="{{ current_lang }}" data-rtl-langs="{{ (rtl_langs or [])|join(',') }}" data-static-version="{{ app_static_version }}" data-static-root="{{ url_for('static', filename='') }}" data-session-scope="{{ pwa_session_scope }}" dir="{{ 'rtl' if rtl_enabled else 'ltr' }}" {% block body_attrs %}{% endblock %}>
 {% set lang_labels = {"fr": "Français", "en": "English", "ary": "Darija"} %}
 {% set lang_codes = {"fr": "FR", "en": "EN", "ary": "DA"} %}
 {% set current_lang_label = lang_labels.get(current_lang, "Français") %}

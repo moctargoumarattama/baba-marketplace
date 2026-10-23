@@ -104,6 +104,9 @@ MANAGER_BLOCKED_ADMIN_ENDPOINTS = {
     "admin.maintenance_backup_download",
     "admin.maintenance_backup_restore",
     "admin.maintenance_reset_data",
+    "admin.whatsapp_gateway",
+    "admin.whatsapp_gateway_disconnect",
+    "admin.whatsapp_gateway_reconnect",
 }
 
 
@@ -1977,7 +1980,7 @@ def maintenance_reset_data():
 # ======================
 @bp.route("/whatsapp-gateway", methods=["GET"])
 def whatsapp_gateway():
-    if _current_admin_role() not in {ADMIN_ROLE, MANAGER_ROLE}:
+    if _current_admin_role() != ADMIN_ROLE:
         return _sensitive_admin_forbidden_response()
 
     gateway_state = get_whatsapp_gateway_status()
@@ -1996,7 +1999,7 @@ def whatsapp_gateway():
 
 @bp.route("/whatsapp-gateway/disconnect", methods=["POST"])
 def whatsapp_gateway_disconnect():
-    if _current_admin_role() not in {ADMIN_ROLE, MANAGER_ROLE}:
+    if _current_admin_role() != ADMIN_ROLE:
         return _sensitive_admin_forbidden_response()
 
     result = disconnect_whatsapp_gateway()
@@ -2014,7 +2017,7 @@ def whatsapp_gateway_disconnect():
 
 @bp.route("/whatsapp-gateway/reconnect", methods=["POST"])
 def whatsapp_gateway_reconnect():
-    if _current_admin_role() not in {ADMIN_ROLE, MANAGER_ROLE}:
+    if _current_admin_role() != ADMIN_ROLE:
         return _sensitive_admin_forbidden_response()
 
     result = reconnect_whatsapp_gateway()

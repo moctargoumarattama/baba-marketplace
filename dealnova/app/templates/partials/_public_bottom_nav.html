@@ -1,7 +1,4 @@
 {% from 'partials/_public_catalog_links.html' import catalog_url %}
-{% if base_endpoint not in ['auth.login', 'auth.forgot_password'] %}
-<footer class="hub-footer public-footer"><span>© {{ current_year or 2026 }} BabaMarket</span><a href="{{ url_for('auth.vendor_access') }}">{{ t('Devenir vendeur') }}</a><a href="{{ url_for('auth.public_help') }}" data-support-open>{{ t('Support') }}</a></footer>
-{% endif %}
 <nav class="hub-bottom-nav" aria-label="{{ t('Navigation principale') }}">
   <a href="{{ url_for('landing') }}"><i class="bi bi-house-door" aria-hidden="true"></i><span>{{ t('Accueil') }}</span></a>
   <a href="{{ catalog_url('search') }}" {% if base_endpoint.startswith(('shops.', 'rentals.', 'public_catalog_pages.')) or base_endpoint == 'shop.product_detail' %}class="is-active" aria-current="page"{% endif %}><i class="bi bi-search" aria-hidden="true"></i><span>{{ t('Explorer') }}</span></a>
