@@ -107,6 +107,8 @@ MANAGER_BLOCKED_ADMIN_ENDPOINTS = {
     "admin.whatsapp_gateway",
     "admin.whatsapp_gateway_disconnect",
     "admin.whatsapp_gateway_reconnect",
+    "admin.whatsapp_promo_settings",
+    "admin.whatsapp_promo_run",
 }
 
 
@@ -1990,8 +1992,21 @@ def whatsapp_gateway():
         response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
         return response
 
+    from ..services.whatsapp_promo import (
+        get_log as get_promo_log,
+        get_settings as get_promo_settings,
+        recipients_to_text,
+    )
+
+    promo_settings = get_promo_settings()
     response = current_app.make_response(
-        render_template("admin/whatsapp_gateway.html", gateway=gateway_state)
+        render_template(
+            "admin/whatsapp_gateway.html",
+            gateway=gateway_state,
+            promo_settings=promo_settings,
+            promo_log=get_promo_log(),
+            promo_recipients_text=recipients_to_text(promo_settings.get("recipients", [])),
+        )
     )
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     return response
@@ -2031,4 +2046,98 @@ def whatsapp_gateway_reconnect():
     else:
         flash(result.get("message") or "Impossible de regénérer le QR Code.", "warning")
     return redirect(url_for("admin.whatsapp_gateway"))
+
+
+@bp.route("/whatsapp-gateway/promo/settings", methods=["POST"])
+def whatsapp_promo_settings():
+    if _current_admin_role() != ADMIN_ROLE:
+        return _sensitive_admin_forbidden_response()
+
+    from ..services.whatsapp_promo import (
+        get_settings as get_promo_settings,
+        parse_recipients_text,
+        save_settings as save_promo_settings,
+    )
+
+    current = get_promo_settings()
+    data = request.get_json(silent=True) if request.is_json else request.form
+    raw_recipients = data.get("recipients_text")
+    recipients = (
+        parse_recipients_text(raw_recipients, existing=current.get("recipients"))
+        if raw_recipients is not None
+        else current.get("recipients", [])
+    )
+
+    def _bool_field(name: str, default: bool) -> bool:
+        if name not in data:
+            return False if not request.is_json else default
+        val = str(data.get(name) or "").strip().lower()
+        return val in ("1", "true", "on", "yes")
+
+    updated = save_promo_settings({
+        "enabled": _bool_field("enabled", current.get("enabled", False)),
+        "dry_run": _bool_field("dry_run", current.get("dry_run", True)),
+        "admin_phone": data.get("admin_phone", current.get("admin_phone", "")),
+        "recipients": recipients,
+        "status_products": data.get("status_products", current.get("status_products", 4)),
+        "daily_message_limit": data.get("daily_message_limit", current.get("daily_message_limit", 20)),
+        "min_delay": data.get("min_delay", current.get("min_delay", 30)),
+        "max_delay": data.get("max_delay", current.get("max_delay", 90)),
+        "cooldown_days": data.get("cooldown_days", current.get("cooldown_days", 7)),
+    })
+
+    if _is_ajax_request() or request.is_json:
+        return jsonify(success=True, settings=updated)
+
+    flash("Réglages de l'automatisation promotionnelle WhatsApp enregistrés.", "success")
+    return redirect(url_for("admin.whatsapp_gateway"))
+
+
+@bp.route("/whatsapp-gateway/promo/run", methods=["POST"])
+def whatsapp_promo_run():
+    if _current_admin_role() != ADMIN_ROLE:
+        return _sensitive_admin_forbidden_response()
+
+    from ..services.whatsapp_promo import run_daily_promo, run_in_background
+
+    data = request.get_json(silent=True) if request.is_json else request.form
+    mode = str(data.get("mode") or "dry_run").strip().lower()
+    scope = str(data.get("scope") or "all").strip().lower()
+    include_status = scope in ("all", "status")
+    include_messages = scope in ("all", "messages")
+
+    if mode == "live":
+        app_obj = current_app._get_current_object()
+        run_in_background(
+            app_obj,
+            force=True,
+            dry_run=False,
+            include_status=include_status,
+            include_messages=include_messages,
+        )
+        if _is_ajax_request() or request.is_json:
+            return jsonify(
+                success=True,
+                mode="live",
+                started=True,
+                message="Exécution réelle lancée en arrière-plan (avec délais anti-ban).",
+            )
+        flash("Exécution réelle lancée en arrière-plan (avec délais anti-ban 30–90 s).", "info")
+        return redirect(url_for("admin.whatsapp_gateway"))
+
+    summary = run_daily_promo(
+        force=True,
+        dry_run=True,
+        include_status=include_status,
+        include_messages=include_messages,
+    )
+    if _is_ajax_request() or request.is_json:
+        return jsonify(success=True, mode="dry_run", summary=summary)
+
+    flash(
+        f"Aperçu à blanc généré ({len(summary.get('products', []))} produits, source : {summary.get('copy_source') or 'n/a'}).",
+        "success",
+    )
+    return redirect(url_for("admin.whatsapp_gateway"))
+
 

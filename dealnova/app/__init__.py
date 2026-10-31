@@ -48,6 +48,7 @@ from .services.i18n_labels import (
     label_vendor_payout_status,
 )
 from .services.maintenance import init_cli_commands  # ← IMPORT AJOUTÉ
+from .services.whatsapp_promo import init_whatsapp_promo_cli
 
 from .services.i18n_runtime import build_client_i18n_payload, translate_text
 
@@ -1124,6 +1125,7 @@ def create_app(config_class=Config):
 
     # ✅ INITIALISATION DES COMMANDES CLI (AJOUTÉ ICI)
     init_cli_commands(app)
+    init_whatsapp_promo_cli(app)
 
     @app.route("/robots.txt")
     def robots_txt():

@@ -561,6 +561,143 @@ pm2 restart baba-whatsapp</pre>
       </details>
     </div>
   </section>
+
+  {% set ps = promo_settings if promo_settings is defined and promo_settings else {} %}
+  {% set pl = promo_log if promo_log is defined and promo_log else {} %}
+  <section class="wa-gw-card" aria-labelledby="waPromoHeading">
+    <div class="wa-gw-header">
+      <div class="wa-gw-title-group">
+        <div class="wa-gw-icon" aria-hidden="true">
+          <i class="bi bi-megaphone-fill"></i>
+        </div>
+        <div>
+          <h2 class="wa-gw-heading" id="waPromoHeading">Automatisation Promotionnelle Quotidienne (Statut 24h + Messages Opt-in)</h2>
+          <p class="wa-gw-subtitle">Sélection de produits en stock + rédaction Gemini + protection anti-ban (30–90 s, STOP automatique)</p>
+        </div>
+      </div>
+
+      <div class="wa-header-actions">
+        <form method="POST" action="{{ url_for('admin.whatsapp_promo_run') }}" style="display:inline;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="mode" value="dry_run">
+          <button type="submit" class="wa-btn wa-btn-refresh" title="Générer un aperçu complet sans envoyer sur WhatsApp">
+            <i class="bi bi-eye" aria-hidden="true"></i>
+            <span>Aperçu à blanc (Dry-run)</span>
+          </button>
+        </form>
+
+        <form method="POST" action="{{ url_for('admin.whatsapp_promo_run') }}" style="display:inline;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="mode" value="live">
+          <button type="submit" class="wa-btn wa-btn-reconnect" {% if not ps.get('enabled') %}disabled title="Activez d'abord l'interrupteur général ci-dessous"{% else %}title="Lancer immédiatement l'envoi réel en arrière-plan"{% endif %}>
+            <i class="bi bi-send-check-fill" aria-hidden="true"></i>
+            <span>Lancer maintenant (Réel)</span>
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <div class="wa-gw-body">
+      <form method="POST" action="{{ url_for('admin.whatsapp_promo_settings') }}" style="display:grid;gap:1rem;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div style="display:flex;flex-wrap:wrap;gap:1.25rem;padding:0.9rem 1rem;border-radius:0.75rem;border:1px solid var(--line,#e2e8f0);background:rgba(248,250,252,0.7);">
+          <label style="display:inline-flex;align-items:center;gap:0.5rem;font-weight:700;cursor:pointer;">
+            <input type="checkbox" name="enabled" value="1" {% if ps.get('enabled') %}checked{% endif %}>
+            <span>Interrupteur général actif (Kill-switch : décocher coupe tout envoi immédiatement)</span>
+          </label>
+          <label style="display:inline-flex;align-items:center;gap:0.5rem;font-weight:700;cursor:pointer;">
+            <input type="checkbox" name="dry_run" value="1" {% if ps.get('dry_run', True) %}checked{% endif %}>
+            <span>Mode Dry-Run par défaut (aucun envoi réel lors du cron quotidien)</span>
+          </label>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.85rem;">
+          <div>
+            <label for="promoAdminPhone" style="display:block;font-size:0.8rem;font-weight:700;margin-bottom:0.25rem;">Numéro Admin / Test (servi en 1er)</label>
+            <input type="text" id="promoAdminPhone" name="admin_phone" class="form-control form-control-sm"
+                   placeholder="212612345678" value="{{ ps.get('admin_phone') or '' }}">
+          </div>
+          <div>
+            <label for="promoStatusProducts" style="display:block;font-size:0.8rem;font-weight:700;margin-bottom:0.25rem;">Produits en Statut / jour (1–5)</label>
+            <input type="number" id="promoStatusProducts" name="status_products" min="1" max="5" class="form-control form-control-sm"
+                   value="{{ ps.get('status_products', 4) }}">
+          </div>
+          <div>
+            <label for="promoDailyLimit" style="display:block;font-size:0.8rem;font-weight:700;margin-bottom:0.25rem;">Plafond messages / jour (max 50)</label>
+            <input type="number" id="promoDailyLimit" name="daily_message_limit" min="0" max="50" class="form-control form-control-sm"
+                   value="{{ ps.get('daily_message_limit', 20) }}">
+          </div>
+          <div>
+            <label for="promoCooldown" style="display:block;font-size:0.8rem;font-weight:700;margin-bottom:0.25rem;">Cooldown produit (jours)</label>
+            <input type="number" id="promoCooldown" name="cooldown_days" min="0" max="60" class="form-control form-control-sm"
+                   value="{{ ps.get('cooldown_days', 7) }}">
+          </div>
+          <div>
+            <label for="promoMinDelay" style="display:block;font-size:0.8rem;font-weight:700;margin-bottom:0.25rem;">Délai min anti-ban (s)</label>
+            <input type="number" id="promoMinDelay" name="min_delay" min="20" max="300" class="form-control form-control-sm"
+                   value="{{ ps.get('min_delay', 30) }}">
+          </div>
+          <div>
+            <label for="promoMaxDelay" style="display:block;font-size:0.8rem;font-weight:700;margin-bottom:0.25rem;">Délai max anti-ban (s)</label>
+            <input type="number" id="promoMaxDelay" name="max_delay" min="20" max="300" class="form-control form-control-sm"
+                   value="{{ ps.get('max_delay', 90) }}">
+          </div>
+        </div>
+
+        <div>
+          <label for="promoRecipientsText" style="display:block;font-size:0.82rem;font-weight:700;margin-bottom:0.25rem;">
+            Destinataires Opt-in autorisés (1 par ligne : <code>212612345678, Prénom</code>)
+          </label>
+          <textarea id="promoRecipientsText" name="recipients_text" rows="5" class="form-control form-control-sm"
+                    placeholder="212612345678, Youssef&#10;0712345678, Salma">{{ promo_recipients_text if promo_recipients_text is defined else '' }}</textarea>
+          <small style="color:#64748b;font-size:0.76rem;">
+            Seuls les contacts ayant consenti doivent figurer ici. Les personnes qui répondent <strong>STOP</strong> sur WhatsApp sont automatiquement désinscrites.
+          </small>
+        </div>
+
+        <div>
+          <button type="submit" class="wa-btn wa-btn-refresh">
+            <i class="bi bi-check2-circle" aria-hidden="true"></i>
+            <span>Enregistrer les réglages</span>
+          </button>
+        </div>
+      </form>
+
+      {% set last_preview = pl.get('last_preview') %}
+      {% if last_preview and last_preview.get('details') %}
+      <details class="wa-help-details" open>
+        <summary><i class="bi bi-eye"></i> Dernier aperçu généré ({{ last_preview.get('started_at') }} — source : {{ last_preview.get('copy_source') }})</summary>
+        <div class="wa-help-content">
+          {% for d in last_preview.get('details', [])[:8] %}
+            <div style="margin-bottom:0.65rem;">
+              <strong>Cible : <code>{{ d.get('target') }}</code> (Produit #{{ d.get('product_id') }})</strong>
+              <pre style="white-space:pre-wrap;">{{ d.get('text') }}</pre>
+            </div>
+          {% endfor %}
+        </div>
+      </details>
+      {% endif %}
+
+      {% set runs = pl.get('runs') or [] %}
+      {% if runs %}
+      <details class="wa-help-details">
+        <summary><i class="bi bi-journal-text"></i> Historique des dernières exécutions ({{ runs|length }})</summary>
+        <div class="wa-help-content">
+          <ul style="margin:0;padding-left:1.2rem;font-size:0.82rem;">
+            {% for r in runs[:5] %}
+              <li>
+                <strong>{{ r.get('started_at') }}</strong> — Statuts : {{ r.get('statuses_ok', 0) }} OK / {{ r.get('statuses_failed', 0) }} échec —
+                Messages : {{ r.get('messages_ok', 0) }} OK / {{ r.get('messages_failed', 0) }} échec ({{ r.get('skipped', 0) }} ignorés)
+                {% if r.get('aborted') %} — <em>Arrêt : {{ r.get('aborted') }}</em>{% endif %}
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
+      </details>
+      {% endif %}
+    </div>
+  </section>
 </div>
 {% endblock %}
 
