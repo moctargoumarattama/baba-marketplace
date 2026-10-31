@@ -1,12 +1,12 @@
 [Unit]
-Description=Planificateur quotidien Baba Market WhatsApp Promo (10h30 heure Maroc)
+Description=Planificateur bi-quotidien Baba Market WhatsApp Promo (10h30 et 18h30 heure Maroc)
 
 [Timer]
 OnCalendar=*-*-* 10:30:00
-RandomizedDelaySec=900
+OnCalendar=*-*-* 18:30:00
+RandomizedDelaySec=300
 Persistent=true
 Unit=babamarket-whatsapp-promo.service
 
 [Install]
 WantedBy=timers.target
-

@@ -2096,10 +2096,15 @@ def whatsapp_promo_settings():
         "direct_messages_enabled": _bool_field("direct_messages_enabled", current.get("direct_messages_enabled", True)),
         "admin_phone": data.get("admin_phone", current.get("admin_phone", "")),
         "schedule_time": data.get("schedule_time", current.get("schedule_time", "10:30")),
+        "schedule_time_2": data.get("schedule_time_2", current.get("schedule_time_2", "18:30")),
         "pinned_product_ids": current.get("pinned_product_ids", []),
         "groups": groups,
         "recipients": recipients,
         "status_products": data.get("status_products", current.get("status_products", 4)),
+        "products_count": data.get("products_count", current.get("products_count", 3)),
+        "services_count": data.get("services_count", current.get("services_count", 3)),
+        "rentals_count": data.get("rentals_count", current.get("rentals_count", 2)),
+        "rental_max_age_hours": data.get("rental_max_age_hours", current.get("rental_max_age_hours", 24)),
         "daily_message_limit": data.get("daily_message_limit", current.get("daily_message_limit", 20)),
         "min_delay": data.get("min_delay", current.get("min_delay", 30)),
         "max_delay": data.get("max_delay", current.get("max_delay", 90)),
@@ -2277,7 +2282,7 @@ def whatsapp_promo_search_products():
         .outerjoin(Shop, Shop.id == Product.shop_id)
         .options(selectinload(Product.shop))
         .filter(Product.is_active.is_(True))
-        .filter(Product.stock > 0)
+        .filter(or_(Product.kind == "service", Product.stock > 0))
         .filter(Product.name.ilike(f"%{q}%"))
         .limit(10)
         .all()

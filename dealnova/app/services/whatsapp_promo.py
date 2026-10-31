@@ -57,10 +57,15 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "direct_messages_enabled": False,
     "admin_phone": "",
     "schedule_time": "10:30",
+    "schedule_time_2": "18:30",
     "pinned_product_ids": [],
     "groups": [],
     "recipients": [],
     "status_products": 4,
+    "products_count": 3,
+    "services_count": 3,
+    "rentals_count": 2,
+    "rental_max_age_hours": 24,
     "daily_message_limit": 20,
     "min_delay": 30,
     "max_delay": 90,
@@ -124,6 +129,12 @@ def normalize_settings(raw: Any) -> dict[str, Any]:
     raw = raw if isinstance(raw, dict) else {}
     min_delay = _clamp_int(raw.get("min_delay"), DEFAULT_SETTINGS["min_delay"], MIN_DELAY_FLOOR, MAX_DELAY_CEILING)
     max_delay = _clamp_int(raw.get("max_delay"), DEFAULT_SETTINGS["max_delay"], MIN_DELAY_FLOOR, MAX_DELAY_CEILING)
+    sched1 = str(raw.get("schedule_time") or "10:30").strip()
+    if not re.match(r"^(?:[01]\d|2[0-3]):[0-5]\d$", sched1):
+        sched1 = "10:30"
+    sched2 = str(raw.get("schedule_time_2") or "18:30").strip()
+    if not re.match(r"^(?:[01]\d|2[0-3]):[0-5]\d$", sched2):
+        sched2 = "18:30"
     return {
         "enabled": bool(raw.get("enabled", DEFAULT_SETTINGS["enabled"])),
         "dry_run": bool(raw.get("dry_run", DEFAULT_SETTINGS["dry_run"])),
@@ -131,11 +142,16 @@ def normalize_settings(raw: Any) -> dict[str, Any]:
         "groups_enabled": bool(raw.get("groups_enabled", DEFAULT_SETTINGS["groups_enabled"])),
         "direct_messages_enabled": bool(raw.get("direct_messages_enabled", DEFAULT_SETTINGS["direct_messages_enabled"])),
         "admin_phone": normalize_whatsapp_number(raw.get("admin_phone")),
-        "schedule_time": str(raw.get("schedule_time") or "10:30").strip() if re.match(r"^(?:[01]\d|2[0-3]):[0-5]\d$", str(raw.get("schedule_time") or "").strip()) else "10:30",
+        "schedule_time": sched1,
+        "schedule_time_2": sched2,
         "pinned_product_ids": [int(x) for x in (raw.get("pinned_product_ids") or []) if str(x).isdigit()][:10],
         "groups": _clean_groups(raw.get("groups")),
         "recipients": _clean_recipients(raw.get("recipients")),
         "status_products": _clamp_int(raw.get("status_products"), DEFAULT_SETTINGS["status_products"], 1, MAX_STATUS_PRODUCTS),
+        "products_count": _clamp_int(raw.get("products_count"), DEFAULT_SETTINGS["products_count"], 0, 10),
+        "services_count": _clamp_int(raw.get("services_count"), DEFAULT_SETTINGS["services_count"], 0, 10),
+        "rentals_count": _clamp_int(raw.get("rentals_count"), DEFAULT_SETTINGS["rentals_count"], 0, 10),
+        "rental_max_age_hours": _clamp_int(raw.get("rental_max_age_hours"), DEFAULT_SETTINGS["rental_max_age_hours"], 1, 168),
         "daily_message_limit": _clamp_int(raw.get("daily_message_limit"), DEFAULT_SETTINGS["daily_message_limit"], 0, HARD_MAX_MESSAGES_PER_DAY),
         "min_delay": min(min_delay, max_delay),
         "max_delay": max(min_delay, max_delay),
@@ -322,6 +338,146 @@ def _get_product_image_base64(product: Product | None) -> str:
     return ""
 
 
+
+def select_daily_offers(
+    settings: dict[str, Any],
+    *,
+    promoted: dict[str, str] | None = None,
+) -> list[dict[str, Any]]:
+    """Sélectionne un panier équilibré d'offres : 3 produits physiques, 3 services et 2 locations récentes."""
+    promoted = promoted or {}
+    cooldown_days = settings.get("cooldown_days", 7)
+    pinned_ids = settings.get("pinned_product_ids") or []
+    
+    prod_target = settings.get("products_count", 3)
+    serv_target = settings.get("services_count", 3)
+    rent_target = settings.get("rentals_count", 2)
+    rent_max_hours = settings.get("rental_max_age_hours", 24)
+
+    selected_cards: list[dict[str, Any]] = []
+    seen_product_ids: set[int] = set()
+    cutoff_date = (_local_now().date() - timedelta(days=cooldown_days)).isoformat()
+    recent_pids = {int(pid) for pid, day in promoted.items() if str(day) > cutoff_date and str(pid).isdigit()}
+
+    # 1. Coups de cœur épinglés par l'administrateur
+    if pinned_ids:
+        try:
+            pinned_query = (
+                Product.query
+                .outerjoin(Shop, Shop.id == Product.shop_id)
+                .options(selectinload(Product.shop), selectinload(Product.category))
+                .filter(Product.id.in_(pinned_ids), Product.is_active.is_(True))
+                .all()
+            )
+            promos_pinned = get_active_promos_for_products([p.id for p in pinned_query])
+            for p in pinned_query:
+                if p.id not in seen_product_ids:
+                    first_img = _first_image(p)
+                    if first_img and _image_exists(first_img):
+                        card = build_product_card(p, promos_pinned.get(p.id))
+                        selected_cards.append(card)
+                        seen_product_ids.add(p.id)
+        except Exception:
+            safe_session_rollback()
+
+    pinned_prod_count = sum(1 for c in selected_cards if c.get("item_type") == "physical")
+    pinned_serv_count = sum(1 for c in selected_cards if c.get("item_type") == "service")
+
+    needed_prods = max(0, prod_target - pinned_prod_count)
+    needed_servs = max(0, serv_target - pinned_serv_count)
+
+    # 2. Sélection Produits Physiques
+    if needed_prods > 0:
+        try:
+            candidates = (
+                Product.query
+                .outerjoin(Shop, Shop.id == Product.shop_id)
+                .options(selectinload(Product.shop), selectinload(Product.category))
+                .filter(Product.is_active.is_(True))
+                .filter(or_(Product.shop_id.is_(None), Shop.is_active.is_(True)))
+                .filter(Product.kind == "physical")
+                .filter(Product.stock > 0)
+                .filter(Product.image_file.isnot(None), Product.image_file != "")
+                .order_by(Product.created_at.desc())
+                .limit(200)
+                .all()
+            )
+            valid = [p for p in candidates if p.id not in seen_product_ids and _image_exists(_first_image(p))]
+            fresh = [p for p in valid if p.id not in recent_pids]
+            pool = fresh if len(fresh) >= needed_prods else valid
+            promos = get_active_promos_for_products([p.id for p in pool])
+            with_promo = [p for p in pool if p.id in promos]
+            without_promo = [p for p in pool if p.id not in promos]
+            random.shuffle(with_promo)
+            random.shuffle(without_promo)
+            picked = (with_promo + without_promo)[:needed_prods]
+            for p in picked:
+                card = build_product_card(p, promos.get(p.id))
+                selected_cards.append(card)
+                seen_product_ids.add(p.id)
+        except Exception:
+            safe_session_rollback()
+
+    # 3. Sélection Services
+    if needed_servs > 0:
+        try:
+            candidates = (
+                Product.query
+                .outerjoin(Shop, Shop.id == Product.shop_id)
+                .options(selectinload(Product.shop), selectinload(Product.category))
+                .filter(Product.is_active.is_(True))
+                .filter(or_(Product.shop_id.is_(None), Shop.is_active.is_(True)))
+                .filter(Product.kind == "service")
+                .filter(Product.image_file.isnot(None), Product.image_file != "")
+                .order_by(Product.created_at.desc())
+                .limit(200)
+                .all()
+            )
+            valid = [p for p in candidates if p.id not in seen_product_ids and _image_exists(_first_image(p))]
+            fresh = [p for p in valid if p.id not in recent_pids]
+            pool = fresh if len(fresh) >= needed_servs else valid
+            promos = get_active_promos_for_products([p.id for p in pool])
+            with_promo = [p for p in pool if p.id in promos]
+            without_promo = [p for p in pool if p.id not in promos]
+            random.shuffle(with_promo)
+            random.shuffle(without_promo)
+            picked = (with_promo + without_promo)[:needed_servs]
+            for p in picked:
+                card = build_product_card(p, promos.get(p.id))
+                selected_cards.append(card)
+                seen_product_ids.add(p.id)
+        except Exception:
+            safe_session_rollback()
+
+    # 4. Sélection Locations Immobilières (<= 24h en priorité, avec repli si pas de nouvelles)
+    if rent_target > 0:
+        try:
+            from ..models.rental import RentalListing
+            time_cutoff = datetime.utcnow() - timedelta(hours=rent_max_hours)
+            query = (
+                RentalListing.query
+                .outerjoin(Shop, Shop.id == RentalListing.shop_id)
+                .options(selectinload(RentalListing.shop), selectinload(RentalListing.media))
+                .filter(RentalListing.is_active.is_(True), RentalListing.status == "active")
+                .filter(or_(RentalListing.shop_id.is_(None), Shop.is_active.is_(True)))
+                .order_by(RentalListing.created_at.desc())
+                .limit(50)
+                .all()
+            )
+            with_photos = [r for r in query if _first_rental_image(r)[0] > 0]
+            fresh_rentals = [r for r in with_photos if r.created_at >= time_cutoff]
+            pool = fresh_rentals if len(fresh_rentals) >= rent_target else with_photos
+            picked_rentals = pool[:rent_target]
+            for r in picked_rentals:
+                card = build_rental_card(r)
+                selected_cards.append(card)
+        except Exception as exc:
+            safe_session_rollback()
+            current_app.logger.warning("whatsapp_promo.select_rentals_failed: %s", exc)
+
+    return selected_cards
+
+
 def select_products(
     count: int,
     *,
@@ -403,6 +559,96 @@ def _format_dh(value: float) -> str:
     return f"{amount:.0f}" if amount.is_integer() else f"{amount:.2f}"
 
 
+
+def _first_rental_image(listing: Any) -> tuple[int, str]:
+    """Trouve le premier média image d'une location qui existe réellement sur disque."""
+    upload_root = Path(current_app.static_folder) / "uploads" / "rentals"
+    for m in getattr(listing, "media", []) or []:
+        if getattr(m, "kind", "") == "image" and getattr(m, "file_path", ""):
+            rel = (m.file_path or "").replace("\\", "/")
+            prefix = "uploads/rentals/"
+            filename = rel[len(prefix):] if rel.startswith(prefix) else rel
+            try:
+                candidate = (upload_root / filename).resolve()
+                if candidate.is_relative_to(upload_root) and candidate.is_file():
+                    return m.id, filename
+            except (OSError, ValueError):
+                continue
+    return 0, ""
+
+
+def _get_rental_image_base64(listing: Any) -> str:
+    """Génère l'image avec filigrane en base64 pour une location immobilière."""
+    if not listing:
+        return ""
+    try:
+        media_id, img_filename = _first_rental_image(listing)
+        if not media_id or not img_filename:
+            return ""
+        upload_root = Path(current_app.static_folder) / "uploads" / "rentals"
+        from .image_download import watermarked_photo
+        try:
+            buf = watermarked_photo(upload_root, img_filename)
+            raw_bytes = buf.getvalue()
+        except Exception as exc:
+            current_app.logger.debug("watermark_fallback_raw rental_id=%s: %s", getattr(listing, "id", None), exc)
+            src = (upload_root / img_filename).resolve()
+            if src.is_relative_to(upload_root) and src.is_file():
+                raw_bytes = src.read_bytes()
+            else:
+                return ""
+        if raw_bytes:
+            return base64.b64encode(raw_bytes).decode("ascii")
+    except Exception as exc:
+        current_app.logger.warning("whatsapp_promo.rental_image_b64_failed id=%s: %s", getattr(listing, "id", None), exc)
+    return ""
+
+
+def build_rental_card(listing: Any) -> dict[str, Any]:
+    base = _public_base_url()
+    page = f"{base}/l/{listing.id}"
+    rent_dh = float(getattr(listing, "rent_cents", 0) or 0) / 100.0
+    period = "mois" if getattr(listing, "listing_type", "monthly") == "monthly" else "jour"
+    price_line = f"💰 {_format_dh(rent_dh)} DH / {period}"
+    
+    media_id, img_filename = _first_rental_image(listing)
+    has_image = bool(media_id and img_filename)
+    image_url = f"{base}/location/{listing.slug}/photo/{media_id}/download" if has_image else ""
+    image_b64 = _get_rental_image_base64(listing) if has_image else ""
+    
+    shop_name = getattr(getattr(listing, "shop", None), "name", "") or "Baba Market Immo"
+    city = getattr(listing, "city", "") or ""
+    area = getattr(listing, "area", "") or ""
+    city_area = f"{city} - {area}" if (city and area) else (city or area or "Maroc")
+    
+    prop_type = getattr(listing, "property_type", "apartment")
+    type_labels = {
+        "apartment": "Appartement",
+        "studio": "Studio",
+        "room": "Chambre",
+        "store": "Magasin / Local commercial",
+    }
+    cat_label = f"Location {type_labels.get(prop_type, str(prop_type).capitalize())}"
+    
+    return {
+        "id": f"rental_{listing.id}",
+        "raw_id": listing.id,
+        "item_type": "rental",
+        "name": listing.title,
+        "description": " ".join(str(listing.description or "").split())[:300],
+        "shop": shop_name,
+        "category": cat_label,
+        "city": city_area,
+        "price": rent_dh,
+        "old_price": None,
+        "price_line": price_line,
+        "page_url": page,
+        "image_url": image_url,
+        "image_base64": image_b64,
+        "has_image": has_image,
+    }
+
+
 def build_product_card(product: Product, promo=None) -> dict[str, Any]:
     final = float(prix_final(product, promo))
     base_price = float(product.price or 0)
@@ -414,9 +660,11 @@ def build_product_card(product: Product, promo=None) -> dict[str, Any]:
     image_b64 = _get_product_image_base64(product) if has_image else ""
     shop_name = getattr(product.shop, "name", "") or ""
     category = getattr(getattr(product, "category", None), "name", "") or ""
+    item_kind = getattr(product, "kind", "physical") or "physical"
     return {
         "id": product.id,
         "name": product.name,
+        "item_type": item_kind,
         "description": " ".join(str(product.description or "").split())[:300],
         "shop": shop_name,
         "category": category,
@@ -472,6 +720,18 @@ def _sanitize_copy(text: Any, limit: int) -> str:
 
 def _fallback_copy(card: dict[str, Any]) -> dict[str, str]:
     shop = f" chez {card['shop']}" if card.get("shop") else ""
+    item_type = card.get("item_type") or "physical"
+    if item_type == "rental":
+        city = f" à {card.get('city')}" if card.get("city") else ""
+        return {
+            "status": f"🏠 {card['name']}{city} disponible !",
+            "message": f"Logement propre et bien situé{city}, disponible immédiatement pour visite.",
+        }
+    if item_type == "service":
+        return {
+            "status": f"🛠️ {card['name']}{shop} disponible !",
+            "message": f"Service de qualité réalisé par des professionnels compétents et fiables.",
+        }
     return {
         "status": f"⚡ {card['name']}{shop} disponible !",
         "message": f"Produit de qualité disponible immédiatement en commande directe{shop}.",
@@ -523,17 +783,19 @@ def generate_copy(cards: list[dict[str, Any]], *, session: requests.Session | No
         parsed = json.loads("".join(part.get("text", "") for part in parts if not part.get("thought")))
         result = dict(fallback)
         for item in parsed.get("items", []) if isinstance(parsed, dict) else []:
-            try:
-                pid = int(item.get("id"))
-            except (TypeError, ValueError, AttributeError):
-                continue
-            if pid not in result:
+            raw_id = item.get("id")
+            matched_key = None
+            for k in result.keys():
+                if str(k) == str(raw_id):
+                    matched_key = k
+                    break
+            if matched_key is None:
                 continue
             status = _sanitize_copy(item.get("status"), 120)
             message = _sanitize_copy(item.get("message"), 400)
-            result[pid] = {
-                "status": status or fallback[pid]["status"],
-                "message": message or fallback[pid]["message"],
+            result[matched_key] = {
+                "status": status or fallback[matched_key]["status"],
+                "message": message or fallback[matched_key]["message"],
             }
         return result, "gemini"
     except Exception as exc:
@@ -557,28 +819,51 @@ def compose_status_caption(card: dict[str, Any], copy: dict[str, str]) -> str:
 
 
 def compose_group_message(card: dict[str, Any], copy: dict[str, str], group_label: str = "") -> str:
-    """Message destiné aux Groupes de vente WhatsApp (dynamique et rassurant)."""
+    """Message destiné aux Groupes de vente WhatsApp (dynamique, rassurant, SANS lien d'invitation)."""
     clean_grp = (group_label or "").strip()
-    if clean_grp.lower() in ("groupe", "group", "whatsapp"):
+    if (
+        clean_grp.startswith("http://")
+        or clean_grp.startswith("https://")
+        or "whatsapp.com" in clean_grp.lower()
+        or "@g.us" in clean_grp.lower()
+        or clean_grp.lower() in ("groupe", "group", "whatsapp")
+    ):
         clean_grp = ""
-    header = f"📢 *Offre spéciale {clean_grp}*" if clean_grp else "📢 *Offre du jour Baba Market*"
 
-    shop_line = f" chez *{card['shop']}*" if card.get("shop") else ""
-    product_line = f"🌟 *{card['name']}*{shop_line}"
+    item_type = card.get("item_type") or "physical"
+    
+    if item_type == "rental":
+        header = f"🏠 *Nouveau Logement disponible {clean_grp}*".strip() if clean_grp else "🏠 *Nouveau Logement disponible*"
+        city_part = f" à *{card.get('city', '')}*" if card.get("city") else ""
+        item_line = f"✨ *{card['name']}*{city_part}"
+        reassurance = "🏠 Logement vérifié • 📍 Quartier recherché"
+        cta = f"👉 Voir les photos & Contacter : {_tracked(card.get('page_url', ''), 'group')}"
+    elif item_type == "service":
+        header = f"🛠️ *Service recommandé {clean_grp}*".strip() if clean_grp else "🛠️ *Service professionnel recommandé*"
+        shop_part = f" chez *{card['shop']}*" if card.get("shop") else ""
+        item_line = f"🌟 *{card['name']}*{shop_part}"
+        reassurance = "🛠️ Prestataire vérifié • 🤝 Contact direct"
+        cta = f"👉 Découvrir le service en 1 clic : {_tracked(card.get('page_url', ''), 'group')}"
+    else:
+        header = f"📢 *Offre spéciale {clean_grp}*".strip() if clean_grp else "📢 *Offre du jour Baba Market*"
+        shop_part = f" chez *{card['shop']}*" if card.get("shop") else ""
+        item_line = f"🌟 *{card['name']}*{shop_part}"
+        reassurance = "🚚 Livraison rapide • 💵 Paiement à la livraison"
+        cta = f"👉 Voir & Commander en 1 clic : {_tracked(card.get('page_url', ''), 'group')}"
 
     if copy.get("is_custom") and copy.get("custom_group_message"):
         body_text = _clean_body_text(copy["custom_group_message"])
     else:
         body_text = _clean_body_text(copy.get("group_message") or copy.get("message") or copy.get("status") or "")
 
-    parts = [header, product_line]
+    parts = [header, item_line]
     if body_text:
         parts.append(body_text)
     if card.get("price_line"):
         parts.append(card["price_line"])
 
-    parts.append("🚚 Livraison rapide • 💵 Paiement à la livraison")
-    parts.append(f"👉 Voir & Commander en 1 clic : {_tracked(card.get('page_url', ''), 'group')}")
+    parts.append(reassurance)
+    parts.append(cta)
     return "\n\n".join(parts)
 
 
@@ -702,9 +987,17 @@ def post_status(card: dict[str, Any], caption: str, audience: list[str]) -> tupl
     image_b64 = card.get("image_base64")
     if not image_b64 and card.get("id"):
         try:
-            prod = db.session.get(Product, card["id"])
-            if prod:
-                image_b64 = _get_product_image_base64(prod)
+            cid = str(card["id"])
+            if cid.startswith("rental_"):
+                rid = int(cid.split("_")[1])
+                from ..models.rental import RentalListing
+                listing = db.session.get(RentalListing, rid)
+                if listing:
+                    image_b64 = _get_rental_image_base64(listing)
+            elif cid.isdigit():
+                prod = db.session.get(Product, int(cid))
+                if prod:
+                    image_b64 = _get_product_image_base64(prod)
         except Exception:
             safe_session_rollback()
 
@@ -725,9 +1018,17 @@ def send_promo_media(target: str, card: dict[str, Any], text: str) -> tuple[str,
     image_b64 = card.get("image_base64")
     if not image_b64 and card.get("id"):
         try:
-            prod = db.session.get(Product, card["id"])
-            if prod:
-                image_b64 = _get_product_image_base64(prod)
+            cid = str(card["id"])
+            if cid.startswith("rental_"):
+                rid = int(cid.split("_")[1])
+                from ..models.rental import RentalListing
+                listing = db.session.get(RentalListing, rid)
+                if listing:
+                    image_b64 = _get_rental_image_base64(listing)
+            elif cid.isdigit():
+                prod = db.session.get(Product, int(cid))
+                if prod:
+                    image_b64 = _get_product_image_base64(prod)
         except Exception:
             safe_session_rollback()
 
@@ -839,15 +1140,19 @@ def _audience(settings: dict[str, Any]) -> list[dict[str, str]]:
 
 
 def _claim_daily_run(today: str, force: bool) -> bool:
-    """Verrou journalier pour éviter les doubles envois intempestifs (non-bloquant)."""
+    """Verrou bi-quotidien (matin / soir) pour éviter les doubles envois sur le même créneau."""
     try:
         from ..models.runtime_state import RuntimeState
         row = RuntimeState.query.filter_by(state_key=LOG_KEY).first()
         now = datetime.utcnow()
         log = json.loads(row.value_json) if row and row.value_json else {}
-        if log.get("last_run_date") == today and not force:
+        current_hour = _local_now().hour
+        slot_name = "matin" if current_hour < 14 else "soir"
+        slot_key = f"{today}_{slot_name}"
+        if log.get("last_run_slot") == slot_key and not force:
             return False
         log["last_run_date"] = today
+        log["last_run_slot"] = slot_key
         val_str = json.dumps(log, ensure_ascii=True, separators=(",", ":"))
         if row is None:
             row = RuntimeState(state_key=LOG_KEY, created_at=now, updated_at=now, value_json=val_str)
@@ -992,8 +1297,13 @@ def run_daily_promo(
         base = _public_base_url()
         source = last_gen.get("copy_source") or "validated"
         for item in saved_items:
+            item_t = item.get("item_type", "physical")
+            raw_i = item.get("raw_id", item["id"])
+            p_url = item.get("page_url") or (f"{base}/l/{raw_i}" if item_t == "rental" else f"{base}/p/{item['id']}")
             cards.append({
                 "id": item["id"],
+                "raw_id": raw_i,
+                "item_type": item_t,
                 "name": item.get("title") or item.get("name") or "",
                 "shop": item.get("shop_name") or item.get("shop") or "",
                 "category": item.get("shop_city") or "",
@@ -1001,7 +1311,7 @@ def run_daily_promo(
                 "old_price": item.get("old_price"),
                 "price_line": item.get("price_line", ""),
                 "image_url": item.get("image_url", ""),
-                "page_url": f"{base}/p/{item['id']}",
+                "page_url": p_url,
             })
             raw_text = _clean_body_text(item.get("ai_message") or item.get("message") or item.get("direct_message") or "")
             raw_status = _clean_body_text(item.get("ai_status") or item.get("status") or item.get("status_caption") or "")
@@ -1016,17 +1326,13 @@ def run_daily_promo(
             }
         summary["copy_source"] = source
     else:
-        products = select_products(
-            settings["status_products"],
-            cooldown_days=settings["cooldown_days"],
+        cards = select_daily_offers(
+            settings,
             promoted=log.get("promoted") or {},
-            pinned_ids=settings.get("pinned_product_ids") or [],
         )
-        if not products:
+        if not cards:
             return finish("no_eligible_product")
 
-        promos = get_active_promos_for_products([p.id for p in products])
-        cards = [build_product_card(p, promos.get(p.id)) for p in products]
         copies, source = generate_copy(cards)
         summary["copy_source"] = source
 
@@ -1035,7 +1341,9 @@ def run_daily_promo(
     items_data = [
         {
             "id": c["id"],
+            "raw_id": c.get("raw_id", c["id"]),
             "product_id": c["id"],
+            "item_type": c.get("item_type", "physical"),
             "name": c["name"],
             "title": c["name"],
             "shop": c["shop"],

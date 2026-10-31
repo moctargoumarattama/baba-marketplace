@@ -615,7 +615,16 @@
                    onerror="this.src='/static/images/placeholder-product.svg';">
 
               <div class="promo-product-info">
-                <h3 class="promo-product-name">{{ prod.get('title') or prod.get('name') }}</h3>
+                <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
+                  {% if prod.get('item_type') == 'rental' %}
+                    <span class="badge bg-info text-dark" style="font-size:0.75rem;"><i class="bi bi-house-door-fill me-1"></i> Location</span>
+                  {% elif prod.get('item_type') == 'service' %}
+                    <span class="badge bg-warning text-dark" style="font-size:0.75rem;"><i class="bi bi-tools me-1"></i> Service</span>
+                  {% else %}
+                    <span class="badge bg-primary text-white" style="font-size:0.75rem;"><i class="bi bi-bag-fill me-1"></i> Produit</span>
+                  {% endif %}
+                  <h3 class="promo-product-name m-0">{{ prod.get('title') or prod.get('name') }}</h3>
+                </div>
                 <div class="promo-product-shop">
                   <i class="bi bi-shop me-1 text-secondary"></i> Vendeur : <strong>{{ prod.get('shop_name') or prod.get('shop') }}</strong>
                   {% if prod.get('shop_city') %} • {{ prod.get('shop_city') }}{% endif %}
@@ -844,23 +853,53 @@
             <div class="form-check form-switch mb-1">
               <input class="form-check-input" type="checkbox" role="switch" id="settingEnabled" name="enabled" value="1" {% if ps.get('enabled') %}checked{% endif %} style="width:2.5em;height:1.25em;">
               <label class="form-check-label fw-bold ms-2" for="settingEnabled" style="font-size:0.95rem;color:#0f172a;">
-                ⏰ Publier automatiquement chaque jour
+                ⏰ Publier automatiquement 2 fois par jour
               </label>
             </div>
-            <div style="font-size:0.8rem;color:#64748b;margin-left:3.2em;display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
-              <span>Heure programmée :</span>
+            <div style="font-size:0.8rem;color:#64748b;margin-left:3.2em;display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;margin-top:0.35rem;">
+              <span class="fw-bold">☀️ Envoi 1 (Matin) :</span>
               <select name="schedule_time" class="form-select form-select-sm" style="width:auto;font-weight:700;display:inline-block;">
                 <option value="10:30" {% if ps.get('schedule_time', '10:30') == '10:30' %}selected{% endif %}>10:30 (Matinée)</option>
-                <option value="11:45" {% if ps.get('schedule_time') == '11:45' %}selected{% endif %}>11:45 (Avant-déjeuner - Idéal plats & restos)</option>
-                <option value="14:30" {% if ps.get('schedule_time') == '14:30' %}selected{% endif %}>14:30 (Début d'après-midi)</option>
-                <option value="18:00" {% if ps.get('schedule_time') == '18:00' %}selected{% endif %}>18:00 (Fin de journée - Fortes commandes)</option>
-                <option value="20:00" {% if ps.get('schedule_time') == '20:00' %}selected{% endif %}>20:00 (Soirée)</option>
+                <option value="11:45" {% if ps.get('schedule_time') == '11:45' %}selected{% endif %}>11:45 (Avant-déjeuner)</option>
+                <option value="12:30" {% if ps.get('schedule_time') == '12:30' %}selected{% endif %}>12:30 (Midi)</option>
+                <option value="14:00" {% if ps.get('schedule_time') == '14:00' %}selected{% endif %}>14:00 (Début d'après-midi)</option>
+              </select>
+
+              <span class="fw-bold ms-2">🌙 Envoi 2 (Soir) :</span>
+              <select name="schedule_time_2" class="form-select form-select-sm" style="width:auto;font-weight:700;display:inline-block;">
+                <option value="18:00" {% if ps.get('schedule_time_2') == '18:00' %}selected{% endif %}>18:00 (Fin de journée)</option>
+                <option value="18:30" {% if ps.get('schedule_time_2', '18:30') == '18:30' %}selected{% endif %}>18:30 (Forte audience)</option>
+                <option value="19:30" {% if ps.get('schedule_time_2') == '19:30' %}selected{% endif %}>19:30 (Soirée)</option>
+                <option value="20:30" {% if ps.get('schedule_time_2') == '20:30' %}selected{% endif %}>20:30 (Dîner & détente)</option>
+              </select>
+            </div>
+
+            <!-- Réglage du nombre d'offres et fraîcheur locations -->
+            <div style="font-size:0.8rem;color:#475569;margin-left:3.2em;display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;margin-top:0.65rem;background:#f1f5f9;padding:0.45rem 0.85rem;border-radius:10px;">
+              <span class="fw-bold text-dark"><i class="bi bi-sliders me-1"></i> Répartition des offres :</span>
+              
+              <span title="Nombre de produits physiques">🛍️ Produits :</span>
+              <input type="number" name="products_count" value="{{ ps.get('products_count', 3) }}" min="0" max="10" class="form-control form-control-sm text-center fw-bold" style="width:55px;">
+
+              <span title="Nombre de services professionnels">🛠️ Services :</span>
+              <input type="number" name="services_count" value="{{ ps.get('services_count', 3) }}" min="0" max="10" class="form-control form-control-sm text-center fw-bold" style="width:55px;">
+
+              <span title="Nombre de logements & locations">🏠 Locations :</span>
+              <input type="number" name="rentals_count" value="{{ ps.get('rentals_count', 2) }}" min="0" max="10" class="form-control form-control-sm text-center fw-bold" style="width:55px;">
+
+              <span class="ms-2" title="Ancienneté maximum des logements proposés">⏱️ Fraîcheur locations :</span>
+              <select name="rental_max_age_hours" class="form-select form-select-sm" style="width:auto;font-weight:700;">
+                <option value="12" {% if ps.get('rental_max_age_hours') == 12 %}selected{% endif %}>Moins de 12h</option>
+                <option value="24" {% if ps.get('rental_max_age_hours', 24) == 24 %}selected{% endif %}>Moins de 24h (Recommandé)</option>
+                <option value="48" {% if ps.get('rental_max_age_hours') == 48 %}selected{% endif %}>Moins de 48h</option>
+                <option value="72" {% if ps.get('rental_max_age_hours') == 72 %}selected{% endif %}>Moins de 72h</option>
+                <option value="168" {% if ps.get('rental_max_age_hours') == 168 %}selected{% endif %}>Toutes les récentes</option>
               </select>
             </div>
           </div>
 
           <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
-            <button type="submit" class="btn btn-light border fw-bold">
+            <button type="submit" class="btn btn-light border fw-bold shadow-sm">
               <i class="bi bi-check2 me-1"></i> Enregistrer ces choix
             </button>
 
