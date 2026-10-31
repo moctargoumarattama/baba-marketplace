@@ -1341,10 +1341,6 @@
     </div>
 
     <div class="wa-hero-actions">
-      <a href="#step3Settings" class="wa-btn-surface" title="Aller aux horaires, canaux et quotas">
-        <i class="bi bi-sliders text-success"></i> Réglages &amp; Quotas
-      </a>
-
       <button type="button" class="wa-btn-surface" data-bs-toggle="modal" data-bs-target="#logsModal">
         <i class="bi bi-clock-history"></i> Historique ({{ rlogs|length }})
         {% if failed_count > 0 %}
@@ -1352,10 +1348,6 @@
         {% elif pending_count > 0 %}
           <span class="badge bg-warning text-dark rounded-pill">{{ pending_count }}</span>
         {% endif %}
-      </button>
-
-      <button type="button" class="wa-btn-hero-publish" data-bs-toggle="modal" data-bs-target="#sendConfirmModal" {% if st != 'connected' %}disabled title="Connectez d'abord WhatsApp ci-dessous"{% endif %}>
-        <i class="bi bi-rocket-takeoff-fill"></i> Publier ({{ products|length }})
       </button>
     </div>
   </header>
