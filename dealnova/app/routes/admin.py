@@ -1998,10 +1998,15 @@ def whatsapp_gateway():
         get_settings as get_promo_settings,
         recipients_to_text,
         groups_to_text,
+        get_today_clicks,
     )
+    from ..models.product import Product
 
     promo_settings = get_promo_settings()
     promo_log = get_promo_log()
+    today_clicks = get_today_clicks()
+    pinned_ids = promo_settings.get("pinned_product_ids") or []
+    pinned_products = Product.query.filter(Product.id.in_(pinned_ids)).all() if pinned_ids else []
     last_gen = promo_log.get("last_generated") or session.get("whatsapp_promo_last_generated")
     recent_logs = promo_log.get("recent_logs") or session.get("whatsapp_promo_last_details") or []
     response = current_app.make_response(
@@ -2014,6 +2019,8 @@ def whatsapp_gateway():
             promo_groups_text=groups_to_text(promo_settings.get("groups", [])),
             last_generated=last_gen,
             recent_logs=recent_logs,
+            today_clicks=today_clicks,
+            pinned_products=pinned_products,
         )
     )
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
@@ -2098,6 +2105,8 @@ def whatsapp_promo_settings():
         "groups_enabled": _bool_field("groups_enabled", current.get("groups_enabled", True)),
         "direct_messages_enabled": _bool_field("direct_messages_enabled", current.get("direct_messages_enabled", True)),
         "admin_phone": data.get("admin_phone", current.get("admin_phone", "")),
+        "schedule_time": data.get("schedule_time", current.get("schedule_time", "10:30")),
+        "pinned_product_ids": current.get("pinned_product_ids", []),
         "groups": groups,
         "recipients": recipients,
         "status_products": data.get("status_products", current.get("status_products", 4)),
@@ -2229,4 +2238,114 @@ def whatsapp_promo_retry_failed():
             message="Relance des messages non publiés démarrée en arrière-plan avec respect des délais anti-ban.",
         )
     flash("Relance des messages non publiés démarrée en arrière-plan (respect des délais anti-ban).", "info")
+    return redirect(url_for("admin.whatsapp_gateway"))
+
+
+@bp.route("/whatsapp-gateway/promo/send-test", methods=["POST"])
+def whatsapp_promo_send_test():
+    if _current_admin_role() != ADMIN_ROLE:
+        return _sensitive_admin_forbidden_response()
+
+    from ..services.whatsapp_promo import send_test_to_admin
+
+    data = request.get_json(silent=True) if request.is_json else request.form
+    product_id = data.get("product_id")
+    try:
+        pid = int(product_id) if product_id else None
+    except (ValueError, TypeError):
+        pid = None
+
+    result = send_test_to_admin(product_id=pid)
+
+    if _is_ajax_request() or request.is_json:
+        status_code = 200 if result.get("success") else 400
+        return jsonify(result), status_code
+
+    if result.get("success"):
+        flash(result.get("message"), "success")
+    else:
+        flash(result.get("message") or "Impossible d'envoyer le message test.", "danger")
+
+    return redirect(url_for("admin.whatsapp_gateway"))
+
+
+@bp.route("/whatsapp-gateway/promo/search-products")
+def whatsapp_promo_search_products():
+    if _current_admin_role() != ADMIN_ROLE:
+        return _sensitive_admin_forbidden_response()
+
+    q = (request.args.get("q") or "").strip()
+    if not q or len(q) < 2:
+        return jsonify(results=[])
+
+    from ..models.product import Product
+    from ..models.shop import Shop
+    from sqlalchemy.orm import selectinload
+
+    products = (
+        Product.query
+        .outerjoin(Shop, Shop.id == Product.shop_id)
+        .options(selectinload(Product.shop))
+        .filter(Product.is_active.is_(True))
+        .filter(Product.stock > 0)
+        .filter(Product.name.ilike(f"%{q}%"))
+        .limit(10)
+        .all()
+    )
+
+    results = []
+    for p in products:
+        first_img = next((img.strip() for img in (p.image_file or "").split("|") if img.strip()), "")
+        results.append({
+            "id": p.id,
+            "name": p.name,
+            "price": float(p.price or 0),
+            "shop": getattr(p.shop, "name", "") or "Baba Market",
+            "image": first_img,
+        })
+    return jsonify(results=results)
+
+
+@bp.route("/whatsapp-gateway/promo/pin-product", methods=["POST"])
+def whatsapp_promo_pin_product():
+    if _current_admin_role() != ADMIN_ROLE:
+        return _sensitive_admin_forbidden_response()
+
+    from ..services.whatsapp_promo import get_settings, save_settings, run_daily_promo
+
+    data = request.get_json(silent=True) if request.is_json else request.form
+    action = str(data.get("action") or "add").strip()
+    product_id = data.get("product_id")
+
+    settings = get_settings()
+    pinned = list(settings.get("pinned_product_ids") or [])
+
+    if action == "add" and product_id:
+        try:
+            pid = int(product_id)
+            if pid not in pinned:
+                pinned.append(pid)
+        except (ValueError, TypeError):
+            pass
+    elif action == "remove" and product_id:
+        try:
+            pid = int(product_id)
+            pinned = [p for p in pinned if p != pid]
+        except (ValueError, TypeError):
+            pass
+    elif action == "clear":
+        pinned = []
+
+    settings["pinned_product_ids"] = pinned
+    save_settings(settings)
+
+    # Re-génère un aperçu frais avec ces produits
+    summary = run_daily_promo(force=True, dry_run=True)
+    if summary.get("last_generated"):
+        session["whatsapp_promo_last_generated"] = summary.get("last_generated")
+
+    if _is_ajax_request() or request.is_json:
+        return jsonify(success=True, pinned=pinned, summary=summary)
+
+    flash("Produit coup de cœur mis à jour pour la promotion du jour !", "success")
     return redirect(url_for("admin.whatsapp_gateway"))

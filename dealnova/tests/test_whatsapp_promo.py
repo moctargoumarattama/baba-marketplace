@@ -528,3 +528,66 @@ def test_retry_mechanism_and_safeguards(app, tmp_path):
             first_log = updated_log["recent_logs"][0]
             assert first_log["status"] == "ok"
             assert "Statut publié avec succès" in first_log["detail"] or "Message remis avec succès" in first_log["detail"]
+
+
+def test_enhancements_clicks_pinned_test_and_schedule(app, tmp_path):
+    """Vérifie le suivi des clics, les produits coup de cœur épinglés, l'envoi test et l'heure programmée."""
+    promo_id, extra_id, third_id = _seed_catalog(app, tmp_path)
+
+    with app.app_context():
+        # 1. Test du suivi des clics /p/<id>
+        whatsapp_promo.record_link_click(promo_id)
+        whatsapp_promo.record_link_click(promo_id)
+        whatsapp_promo.record_link_click(extra_id)
+
+        clicks = whatsapp_promo.get_today_clicks()
+        assert clicks.get(str(promo_id)) == 2
+        assert clicks.get(str(extra_id)) == 1
+        assert clicks.get("_total") == 3
+
+        # 2. Test sélection avec coup de cœur épinglé
+        selected = whatsapp_promo.select_products(
+            count=3,
+            cooldown_days=7,
+            pinned_ids=[extra_id],
+        )
+        assert len(selected) >= 1
+        assert selected[0].id == extra_id  # Le produit épinglé est en première position !
+
+        # 3. Test heure programmée et réglages
+        st = whatsapp_promo.save_settings({
+            "schedule_time": "18:00",
+            "pinned_product_ids": [extra_id, promo_id],
+        })
+        assert st["schedule_time"] == "18:00"
+        assert extra_id in st["pinned_product_ids"]
+
+        # 4. Test envoi test à l'administrateur
+        card = {
+            "id": promo_id,
+            "name": "Produit Test Admin",
+            "price_line": "💰 50 DH",
+            "page_url": f"https://babamarket.ma/p/{promo_id}",
+            "image_url": "https://babamarket.ma/img.jpg",
+            "shop": "Boutique",
+        }
+        whatsapp_promo.save_settings({
+            **whatsapp_promo.get_settings(),
+            "admin_phone": "212611223344",
+        })
+
+        def success_test_post(path, payload):
+            return 200, {"ok": True}
+
+        with (
+            patch("dealnova.app.services.whatsapp_promo.get_whatsapp_gateway_status", return_value={"status": "connected", "phone": "212611223344"}),
+            patch("dealnova.app.services.whatsapp_promo._gateway_post", side_effect=success_test_post),
+            patch("dealnova.app.services.whatsapp_promo.sleep", return_value=None),
+        ):
+            test_res = whatsapp_promo.send_test_to_admin(product_id=promo_id)
+            assert test_res["success"] is True
+            assert test_res["phone"] == "212611223344"
+
+            # Vérification du tag Test dans les logs
+            logs = whatsapp_promo.get_log().get("recent_logs", [])
+            assert any(l.get("channel_label") == "Test Admin" for l in logs)

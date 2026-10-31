@@ -498,19 +498,112 @@
         </p>
       </div>
 
-      <div style="display:flex;align-items:center;gap:0.5rem;">
+      <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+        <!-- Bouton Test WhatsApp direct vers mon téléphone -->
+        <form method="POST" action="{{ url_for('admin.whatsapp_promo_send_test') }}" style="display:inline;" id="formSendTest">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-outline-primary btn-sm fw-bold shadow-sm" title="M'envoyer immédiatement un message test sur mon WhatsApp pour vérifier le rendu" {% if st != 'connected' %}disabled{% endif %}>
+            <i class="bi bi-send-check me-1"></i> M'envoyer un test WhatsApp 📲
+          </button>
+        </form>
+
         <!-- Bouton Régénérer avec l'IA -->
         <form method="POST" action="{{ url_for('admin.whatsapp_promo_run') }}" style="display:inline;">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="mode" value="dry_run">
-          <button type="submit" class="btn btn-outline-success btn-sm fw-bold shadow-sm" title="Demander à l'IA de proposer un autre produit ou d'autres phrases">
-            <i class="bi bi-magic me-1"></i> Proposer un autre produit (IA)
+          <button type="submit" class="btn btn-outline-success btn-sm fw-bold shadow-sm" title="Demander à l'IA de proposer d'autres produits ou textes">
+            <i class="bi bi-magic me-1"></i> Proposer d'autres produits (IA)
           </button>
         </form>
       </div>
     </div>
 
     <div class="step-body">
+      {% set total_clicks = (today_clicks or {}).get('_total', 0) %}
+
+      <!-- TABLEAU DE BORD DE PERFORMANCE DES CLICS -->
+      <div class="row g-2 mb-3">
+        <div class="col-sm-4">
+          <div class="p-2 px-3 bg-light rounded-3 border d-flex align-items-center justify-content-between">
+            <div>
+              <div class="text-muted" style="font-size:0.75rem;font-weight:700;text-transform:uppercase;">Messages envoyés</div>
+              <div class="fs-4 fw-black text-dark">{{ ok_count }}</div>
+            </div>
+            <i class="bi bi-send text-secondary fs-3"></i>
+          </div>
+        </div>
+        <div class="col-sm-4">
+          <div class="p-2 px-3 bg-light rounded-3 border d-flex align-items-center justify-content-between">
+            <div>
+              <div class="text-muted" style="font-size:0.75rem;font-weight:700;text-transform:uppercase;">Clics réels (/p/..)</div>
+              <div class="fs-4 fw-black text-success">{{ total_clicks }}</div>
+            </div>
+            <i class="bi bi-cursor-fill text-success fs-3"></i>
+          </div>
+        </div>
+        <div class="col-sm-4">
+          <div class="p-2 px-3 bg-light rounded-3 border d-flex align-items-center justify-content-between">
+            <div>
+              <div class="text-muted" style="font-size:0.75rem;font-weight:700;text-transform:uppercase;">Taux d'intérêt</div>
+              <div class="fs-4 fw-black text-primary">
+                {% if ok_count > 0 %}
+                  {{ ((total_clicks / ok_count) * 100) | round(1) }}%
+                {% else %}
+                  -
+                {% endif %}
+              </div>
+            </div>
+            <i class="bi bi-graph-up-arrow text-primary fs-3"></i>
+          </div>
+        </div>
+      </div>
+
+      <!-- CHOIX MANUEL DES PRODUITS (COUP DE CŒUR ADMIN) -->
+      <div class="p-3 mb-3 border rounded-3" style="background:#f8fafc;">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+          <div style="font-weight:700;font-size:0.88rem;color:#1e293b;">
+            <i class="bi bi-star-fill text-warning me-1"></i> Produits Coup de cœur (Sélection manuelle) :
+            <span class="badge bg-secondary ms-1">{{ pinned_products|length }} sélectionné(s)</span>
+          </div>
+          {% if pinned_products %}
+            <form method="POST" action="{{ url_for('admin.whatsapp_promo_pin_product') }}" style="display:inline;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="action" value="clear">
+              <button type="submit" class="btn btn-outline-secondary btn-sm py-0 px-2" style="font-size:0.78rem;">
+                <i class="bi bi-arrow-repeat me-1"></i> Remettre en 100% Automatique
+              </button>
+            </form>
+          {% endif %}
+        </div>
+
+        {% if pinned_products %}
+          <div class="d-flex flex-wrap gap-2 mb-2">
+            {% for pp in pinned_products %}
+              <div class="badge bg-white text-dark border p-2 d-flex align-items-center gap-2" style="font-size:0.82rem;border-radius:8px;">
+                <span>⭐ <strong>{{ pp.name }}</strong> ({{ pp.price }} DH)</span>
+                <form method="POST" action="{{ url_for('admin.whatsapp_promo_pin_product') }}" style="display:inline;" class="m-0">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="action" value="remove">
+                  <input type="hidden" name="product_id" value="{{ pp.id }}">
+                  <button type="submit" class="btn-close btn-close-sm" aria-label="Retirer" style="font-size:0.6rem;"></button>
+                </form>
+              </div>
+            {% endfor %}
+          </div>
+        {% endif %}
+
+        <div class="position-relative" style="max-width:480px;">
+          <div class="input-group input-group-sm">
+            <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+            <input type="text" id="inputSearchProduct" class="form-control" placeholder="Rechercher un produit à épingler en offre du jour..." autocomplete="off">
+          </div>
+          <div id="searchResultsBox" class="list-group shadow position-absolute w-100 mt-1" style="display:none;z-index:1050;max-height:220px;overflow-y:auto;"></div>
+        </div>
+        <div class="form-text" style="font-size:0.75rem;color:#64748b;">
+          Les produits épinglés apparaîtront en priorité absolue dans la promotion du jour de vos clients et groupes.
+        </div>
+      </div>
+
       {% if products %}
         {% for prod in products %}
           {% set pid = prod.get('id') or prod.get('product_id') %}
@@ -528,10 +621,14 @@
                   <i class="bi bi-shop me-1 text-secondary"></i> Vendeur : <strong>{{ prod.get('shop_name') or prod.get('shop') }}</strong>
                   {% if prod.get('shop_city') %} • {{ prod.get('shop_city') }}{% endif %}
                 </div>
-                <div style="margin-top:0.35rem;">
+                <div style="margin-top:0.35rem;display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
                   <a href="{{ prod.get('page_url') or prod.get('product_url') }}" target="_blank" rel="noopener" style="font-size:0.75rem;color:#0f766e;text-decoration:none;">
                     Voir la fiche produit sur le site <i class="bi bi-box-arrow-up-right"></i>
                   </a>
+                  {% set p_clicks = (today_clicks or {}).get(pid|string, 0) %}
+                  <span class="badge bg-success-subtle text-success border border-success-subtle" style="font-size:0.75rem;">
+                    <i class="bi bi-cursor-fill me-1"></i> {{ p_clicks }} clic(s) aujourd'hui
+                  </span>
                 </div>
               </div>
 
@@ -783,11 +880,18 @@
             <div class="form-check form-switch mb-1">
               <input class="form-check-input" type="checkbox" role="switch" id="settingEnabled" name="enabled" value="1" {% if ps.get('enabled') %}checked{% endif %} style="width:2.5em;height:1.25em;">
               <label class="form-check-label fw-bold ms-2" for="settingEnabled" style="font-size:0.95rem;color:#0f172a;">
-                ⏰ Publier automatiquement chaque matin à 10h00
+                ⏰ Publier automatiquement chaque jour
               </label>
             </div>
-            <div style="font-size:0.78rem;color:#64748b;margin-left:3.2em;">
-              Si cette option est activée, vos offres partent toutes seules chaque matin sans aucune intervention.
+            <div style="font-size:0.8rem;color:#64748b;margin-left:3.2em;display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+              <span>Heure programmée :</span>
+              <select name="schedule_time" class="form-select form-select-sm" style="width:auto;font-weight:700;display:inline-block;">
+                <option value="10:30" {% if ps.get('schedule_time', '10:30') == '10:30' %}selected{% endif %}>10:30 (Matinée)</option>
+                <option value="11:45" {% if ps.get('schedule_time') == '11:45' %}selected{% endif %}>11:45 (Avant-déjeuner - Idéal plats & restos)</option>
+                <option value="14:30" {% if ps.get('schedule_time') == '14:30' %}selected{% endif %}>14:30 (Début d'après-midi)</option>
+                <option value="18:00" {% if ps.get('schedule_time') == '18:00' %}selected{% endif %}>18:00 (Fin de journée - Fortes commandes)</option>
+                <option value="20:00" {% if ps.get('schedule_time') == '20:00' %}selected{% endif %}>20:00 (Soirée)</option>
+              </select>
             </div>
           </div>
 
@@ -1285,6 +1389,72 @@
         }
       });
     });
+
+  
+    // Recherche et épinglage de produits coup de cœur
+    var searchInput = document.getElementById("inputSearchProduct");
+    var searchBox = document.getElementById("searchResultsBox");
+    var searchDebounceTimer = null;
+
+    if (searchInput && searchBox) {
+      searchInput.addEventListener("input", function() {
+        var query = this.value.trim();
+        clearTimeout(searchDebounceTimer);
+        if (query.length < 2) {
+          searchBox.style.display = "none";
+          searchBox.innerHTML = "";
+          return;
+        }
+
+        searchDebounceTimer = setTimeout(function() {
+          fetch("{{ url_for('admin.whatsapp_promo_search_products') }}?q=" + encodeURIComponent(query))
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+              var list = data.results || [];
+              if (list.length === 0) {
+                searchBox.innerHTML = '<div class="list-group-item text-muted" style="font-size:0.82rem;">Aucun produit trouvé.</div>';
+                searchBox.style.display = "block";
+                return;
+              }
+
+              var htmlStr = "";
+              list.forEach(function(p) {
+                htmlStr += '<button type="button" class="list-group-item list-group-item-action d-flex align-items-center justify-content-between p-2 btn-pin-item" data-id="' + p.id + '">' +
+                  '<div><strong>' + p.name + '</strong> <span class="text-muted" style="font-size:0.75rem;">(' + p.shop + ')</span></div>' +
+                  '<div class="badge bg-success-subtle text-success border border-success-subtle">' + p.price + ' DH</div>' +
+                  '</button>';
+              });
+              searchBox.innerHTML = htmlStr;
+              searchBox.style.display = "block";
+
+              // Écoute des clics sur les items trouvés
+              searchBox.querySelectorAll(".btn-pin-item").forEach(function(itemBtn) {
+                itemBtn.addEventListener("click", function() {
+                  var pid = this.getAttribute("data-id");
+                  var form = document.createElement("form");
+                  form.method = "POST";
+                  form.action = "{{ url_for('admin.whatsapp_promo_pin_product') }}";
+                  form.innerHTML = '<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">' +
+                    '<input type="hidden" name="action" value="add">' +
+                    '<input type="hidden" name="product_id" value="' + pid + '">';
+                  document.body.appendChild(form);
+                  form.submit();
+                });
+              });
+            })
+            .catch(function(err) {
+              console.error("search error", err);
+            });
+        }, 250);
+      });
+
+      // Fermer le dropdown si clic extérieur
+      document.addEventListener("click", function(evt) {
+        if (!searchInput.contains(evt.target) && !searchBox.contains(evt.target)) {
+          searchBox.style.display = "none";
+        }
+      });
+    }
 
   })();
 </script>

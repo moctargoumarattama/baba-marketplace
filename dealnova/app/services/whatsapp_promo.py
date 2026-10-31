@@ -55,6 +55,8 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "groups_enabled": True,
     "direct_messages_enabled": True,
     "admin_phone": "",
+    "schedule_time": "10:30",
+    "pinned_product_ids": [],
     "groups": [],
     "recipients": [],
     "status_products": 4,
@@ -128,6 +130,8 @@ def normalize_settings(raw: Any) -> dict[str, Any]:
         "groups_enabled": bool(raw.get("groups_enabled", DEFAULT_SETTINGS["groups_enabled"])),
         "direct_messages_enabled": bool(raw.get("direct_messages_enabled", DEFAULT_SETTINGS["direct_messages_enabled"])),
         "admin_phone": normalize_whatsapp_number(raw.get("admin_phone")),
+        "schedule_time": str(raw.get("schedule_time") or "10:30").strip() if re.match(r"^(?:[01]\d|2[0-3]):[0-5]\d$", str(raw.get("schedule_time") or "").strip()) else "10:30",
+        "pinned_product_ids": [int(x) for x in (raw.get("pinned_product_ids") or []) if str(x).isdigit()][:10],
         "groups": _clean_groups(raw.get("groups")),
         "recipients": _clean_recipients(raw.get("recipients")),
         "status_products": _clamp_int(raw.get("status_products"), DEFAULT_SETTINGS["status_products"], 1, MAX_STATUS_PRODUCTS),
@@ -274,9 +278,42 @@ def _image_exists(filename: str) -> bool:
         return False
 
 
-def select_products(count: int, *, cooldown_days: int, promoted: dict[str, str] | None = None) -> list[Product]:
-    """Sélectionne des produits physiques actifs, en stock, avec image valide."""
+def select_products(
+    count: int,
+    *,
+    cooldown_days: int,
+    promoted: dict[str, str] | None = None,
+    pinned_ids: list[int] | None = None,
+) -> list[Product]:
+    """Sélectionne des produits physiques actifs, avec priorité aux coups de cœur épinglés."""
     promoted = promoted or {}
+    pinned_ids = pinned_ids or []
+    selected: list[Product] = []
+    seen_ids: set[int] = set()
+
+    # 1. Sélection prioritaire des produits "Coup de cœur" choisis manuellement par l'admin
+    if pinned_ids:
+        try:
+            pinned_query = (
+                Product.query
+                .outerjoin(Shop, Shop.id == Product.shop_id)
+                .options(selectinload(Product.shop), selectinload(Product.category))
+                .filter(Product.id.in_(pinned_ids))
+                .filter(Product.is_active.is_(True))
+                .all()
+            )
+            pinned_map = {p.id: p for p in pinned_query}
+            for pid in pinned_ids:
+                if pid in pinned_map and pid not in seen_ids:
+                    selected.append(pinned_map[pid])
+                    seen_ids.add(pid)
+        except Exception:
+            safe_session_rollback()
+
+    remaining_quota = max(0, count - len(selected))
+    if remaining_quota <= 0:
+        return selected[:count]
+
     cutoff = (_local_now().date() - timedelta(days=cooldown_days)).isoformat()
     recent_ids = {int(pid) for pid, day in promoted.items() if str(day) > cutoff and str(pid).isdigit()}
     try:
@@ -295,17 +332,18 @@ def select_products(count: int, *, cooldown_days: int, promoted: dict[str, str] 
         )
     except Exception:
         safe_session_rollback()
-        return []
+        return selected
 
-    candidates = [p for p in candidates if _image_exists(_first_image(p))]
+    candidates = [p for p in candidates if p.id not in seen_ids and _image_exists(_first_image(p))]
     fresh = [p for p in candidates if p.id not in recent_ids]
-    pool = fresh if len(fresh) >= count else candidates
+    pool = fresh if len(fresh) >= remaining_quota else candidates
     promos = get_active_promos_for_products([p.id for p in pool])
     with_promo = [p for p in pool if p.id in promos]
     without_promo = [p for p in pool if p.id not in promos]
     random.shuffle(with_promo)
     random.shuffle(without_promo)
-    return (with_promo + without_promo)[:count]
+    auto_selected = (with_promo + without_promo)[:remaining_quota]
+    return selected + auto_selected
 
 
 def _public_base_url() -> str:
@@ -942,6 +980,7 @@ def run_daily_promo(
             settings["status_products"],
             cooldown_days=settings["cooldown_days"],
             promoted=log.get("promoted") or {},
+            pinned_ids=settings.get("pinned_product_ids") or [],
         )
         if not products:
             return finish("no_eligible_product")
@@ -1389,3 +1428,123 @@ def run_retry_in_background(app, **kwargs) -> None:
 
     t = threading.Thread(target=_worker, daemon=True)
     t.start()
+
+
+# ---------------------------------------------------------------------------
+# Suivi des Clics Réels sur les liens WhatsApp (/p/<id>)
+# ---------------------------------------------------------------------------
+def record_link_click(product_id: int) -> None:
+    """Incrémente discrètement le compteur de clics pour ce produit et pour aujourd'hui."""
+    today = _local_now().date().isoformat()
+    def _apply(payloads: dict[str, Any]) -> None:
+        log = payloads.get(LOG_KEY)
+        if not isinstance(log, dict):
+            log = {}
+        clicks = dict(log.get("clicks_by_date") or {})
+        day_stats = dict(clicks.get(today) or {})
+        pid_key = str(product_id)
+        day_stats[pid_key] = int(day_stats.get(pid_key, 0)) + 1
+        day_stats["_total"] = int(day_stats.get("_total", 0)) + 1
+        clicks[today] = day_stats
+        log["clicks_by_date"] = clicks
+        payloads[LOG_KEY] = log
+
+    try:
+        mutate_json_states({LOG_KEY: dict}, _apply)
+    except Exception:
+        safe_session_rollback()
+
+
+def get_today_clicks() -> dict[str, int]:
+    """Retourne les clics enregistrés aujourd'hui : {'_total': 12, '100': 5, ...}."""
+    today = _local_now().date().isoformat()
+    log = get_log() or {}
+    clicks = dict(log.get("clicks_by_date") or {})
+    return dict(clicks.get(today) or {})
+
+
+# ---------------------------------------------------------------------------
+# Envoi de Test Direct vers le WhatsApp de l'Administrateur
+# ---------------------------------------------------------------------------
+def send_test_to_admin(*, product_id: int | None = None) -> dict[str, Any]:
+    """Envoie un aperçu réel (photo + texte) uniquement au WhatsApp de l'administrateur."""
+    gw = get_whatsapp_gateway_status()
+    if gw.get("status") != "connected":
+        return {
+            "success": False,
+            "error": "gateway_not_connected",
+            "message": "La passerelle WhatsApp n'est pas connectée. Veuillez connecter votre téléphone d'abord.",
+        }
+
+    settings = get_settings()
+    admin_phone = settings.get("admin_phone") or gw.get("phone")
+    if not admin_phone:
+        return {
+            "success": False,
+            "error": "no_admin_phone",
+            "message": "Aucun numéro d'administrateur configuré (indiquez votre numéro WhatsApp dans les réglages).",
+        }
+
+    log = get_log() or {}
+    last_gen = log.get("last_generated") or {}
+    items = list(last_gen.get("items") or last_gen.get("products") or [])
+
+    card = None
+    if product_id:
+        for it in items:
+            if it.get("id") == product_id or it.get("product_id") == product_id:
+                card = it
+                break
+
+    if not card and items:
+        card = items[0]
+
+    # Si aucun aperçu généré, on en crée un à la volée
+    if not card:
+        prods = select_products(1, cooldown_days=0)
+        if not prods:
+            return {"success": False, "error": "no_product", "message": "Aucun produit disponible en stock."}
+        promos = get_active_promos_for_products([prods[0].id])
+        c = build_product_card(prods[0], promos.get(prods[0].id))
+        copies, _ = generate_copy([c])
+        card = c
+        card["direct_message"] = compose_message(c, copies[c["id"]], "")
+
+    text = card.get("direct_message") or compose_message(card, {"message": card.get("name", "")}, "")
+    result, reason, attempts = send_promo_media_with_retry(admin_phone, card, text, max_attempts=2)
+
+    today = _local_now().date().isoformat()
+    now_time = _local_now().strftime("%H:%M:%S")
+
+    test_event = {
+        "timestamp": f"{today} {now_time}",
+        "time": now_time,
+        "channel": "direct",
+        "channel_label": "Test Admin",
+        "product_id": card["id"],
+        "product_name": card.get("name") or card.get("title") or "",
+        "product_title": card.get("name") or card.get("title") or "",
+        "target": admin_phone,
+        "target_desc": f"Mon WhatsApp ({admin_phone})",
+        "text": text,
+        "status": "ok" if result == "sent" else "failed",
+        "detail": f"Test remis avec succès au {admin_phone}" if result == "sent" else f"Échec test: {reason}",
+        "details": f"Test remis avec succès au {admin_phone}" if result == "sent" else f"Échec test: {reason}",
+        "attempts": attempts,
+    }
+
+    recent_logs = [test_event] + list(log.get("recent_logs") or [])
+    log["recent_logs"] = recent_logs[:MAX_RECENT_LOGS_KEPT]
+    _save_promo_log(log)
+
+    if result == "sent":
+        return {
+            "success": True,
+            "phone": admin_phone,
+            "message": f"Message test envoyé avec succès sur votre WhatsApp ({admin_phone}) !",
+        }
+    return {
+        "success": False,
+        "error": reason,
+        "message": f"Échec de l'envoi test sur {admin_phone} : {reason}",
+    }

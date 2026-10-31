@@ -579,5 +579,10 @@ def shop_detail_alias(shop_slug):
 
 @bp.route("/p/<int:pid>")
 def short_product_link(pid):
-    """Lien court et propre pour les partages WhatsApp / SMS."""
+    """Lien court et propre pour les partages WhatsApp / SMS avec suivi des clics."""
+    try:
+        from ..services.whatsapp_promo import record_link_click
+        record_link_click(pid)
+    except Exception:
+        pass
     return redirect(url_for("shop.product_detail", pid=pid), code=302)
