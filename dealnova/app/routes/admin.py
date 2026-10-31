@@ -2014,7 +2014,6 @@ def whatsapp_gateway():
             gateway=gateway_state,
             promo_settings=promo_settings,
             promo_log=promo_log,
-            promo_recipients_text=recipients_to_text(promo_settings.get("recipients", [])),
             promo_groups_text=groups_to_text(promo_settings.get("groups", [])),
             last_generated=last_gen,
             recent_logs=recent_logs,
@@ -2078,12 +2077,10 @@ def whatsapp_promo_settings():
 
     recipients = []
 
-    raw_groups = data.get("groups_text")
-    groups = (
-        parse_groups_text(raw_groups, existing=current.get("groups"))
-        if raw_groups is not None
-        else current.get("groups", [])
-    )
+    if "groups_text" in data and data.get("groups_text") is not None:
+        groups = parse_groups_text(data.get("groups_text"), existing=current.get("groups"))
+    else:
+        groups = current.get("groups", [])
 
     def _bool_field(name: str, default: bool) -> bool:
         if name not in data:

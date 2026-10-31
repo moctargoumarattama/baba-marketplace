@@ -820,9 +820,15 @@
               Envoie l'offre avec la photo directement dans vos groupes WhatsApp dédiés à la vente.
             </p>
             <div style="display:flex;align-items:center;justify-content:space-between;margin-top:0.5rem;">
-              <span class="badge bg-light text-dark border">
-                {{ groups_list|length }} groupe(s) actif(s)
-              </span>
+              {% if groups_list|length > 0 %}
+                <span class="badge bg-success-subtle text-success border border-success-subtle fw-bold">
+                  <i class="bi bi-check-circle me-1"></i> {{ groups_list|length }} groupe(s) actif(s)
+                </span>
+              {% else %}
+                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle fw-bold">
+                  <i class="bi bi-exclamation-triangle me-1"></i> Aucun groupe configuré
+                </span>
+              {% endif %}
               <button type="button" class="btn btn-outline-primary btn-sm fw-bold" data-bs-toggle="modal" data-bs-target="#groupsModal">
                 <i class="bi bi-plus-circle me-1"></i> Gérer mes groupes
               </button>
@@ -867,7 +873,6 @@
 
         <!-- Champ caché pour garder le dry_run et les options par défaut sans embêter l'utilisateur -->
         <input type="hidden" name="dry_run" value="0">
-        <input type="hidden" name="groups_text" value="{{ promo_groups_text if promo_groups_text is defined else '' }}">
         <input type="hidden" name="status_products" value="{{ ps.get('status_products', 2) }}">
         <input type="hidden" name="daily_message_limit" value="{{ ps.get('daily_message_limit', 20) }}">
         <input type="hidden" name="min_delay" value="{{ ps.get('min_delay', 30) }}">
@@ -988,7 +993,11 @@
               </li>
               <li class="list-group-item d-flex justify-content-between align-items-center px-0">
                 <span><i class="bi bi-people me-2 text-primary"></i> Mes Groupes de vente</span>
-                <strong>{{ groups_list|length }} groupe(s)</strong>
+                {% if groups_list|length > 0 %}
+                  <strong class="text-success">{{ groups_list|length }} groupe(s)</strong>
+                {% else %}
+                  <span class="badge bg-warning text-dark">0 groupe (ajoutez vos liens dans Gérer mes groupes)</span>
+                {% endif %}
               </li>
 
             </ul>

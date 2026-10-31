@@ -150,13 +150,28 @@ def get_settings() -> dict[str, Any]:
         return normalize_settings({})
 
 
+def _persist_json_state(key: str, data: Any) -> None:
+    """Sauvegarde directe et non-bloquante dans RuntimeState (sans FOR UPDATE pour éviter les deadlocks MySQL)."""
+    try:
+        from ..models.runtime_state import RuntimeState
+        row = RuntimeState.query.filter_by(state_key=key).first()
+        now = datetime.utcnow()
+        val_str = json.dumps(data, ensure_ascii=True, separators=(",", ":"))
+        if row is None:
+            row = RuntimeState(state_key=key, created_at=now, updated_at=now, value_json=val_str)
+            db.session.add(row)
+        else:
+            row.value_json = val_str
+            row.updated_at = now
+        db.session.commit()
+    except Exception as exc:
+        safe_session_rollback()
+        current_app.logger.warning("whatsapp_promo.persist_failed key=%s: %s", key, exc)
+
+
 def save_settings(values: dict[str, Any]) -> dict[str, Any]:
     normalized = normalize_settings(values)
-
-    def _apply(payloads: dict[str, Any]) -> None:
-        payloads[SETTINGS_KEY] = normalized
-
-    mutate_json_states({SETTINGS_KEY: dict}, _apply)
+    _persist_json_state(SETTINGS_KEY, normalized)
     return normalized
 
 
@@ -762,14 +777,23 @@ def _audience(settings: dict[str, Any]) -> list[dict[str, str]]:
 
 
 def _claim_daily_run(today: str, force: bool) -> bool:
-    """Verrou journalier pour éviter les doubles envois intempestifs."""
+    """Verrou journalier pour éviter les doubles envois intempestifs (non-bloquant)."""
     try:
-        with locked_json_states({LOG_KEY: dict}) as payloads:
-            log = payloads[LOG_KEY] if isinstance(payloads[LOG_KEY], dict) else {}
-            if log.get("last_run_date") == today and not force:
-                return False
-            log["last_run_date"] = today
-            payloads[LOG_KEY] = log
+        from ..models.runtime_state import RuntimeState
+        row = RuntimeState.query.filter_by(state_key=LOG_KEY).first()
+        now = datetime.utcnow()
+        log = json.loads(row.value_json) if row and row.value_json else {}
+        if log.get("last_run_date") == today and not force:
+            return False
+        log["last_run_date"] = today
+        val_str = json.dumps(log, ensure_ascii=True, separators=(",", ":"))
+        if row is None:
+            row = RuntimeState(state_key=LOG_KEY, created_at=now, updated_at=now, value_json=val_str)
+            db.session.add(row)
+        else:
+            row.value_json = val_str
+            row.updated_at = now
+        db.session.commit()
         return True
     except Exception:
         safe_session_rollback()
@@ -777,30 +801,8 @@ def _claim_daily_run(today: str, force: bool) -> bool:
 
 
 def _save_promo_log(log_data: dict[str, Any]) -> None:
-    """Persiste l'état de log promo de manière atomique avec repli garanti."""
-    def _apply(payloads: dict[str, Any]) -> None:
-        payloads[LOG_KEY] = log_data
-
-    try:
-        mutate_json_states({LOG_KEY: dict}, _apply)
-        return
-    except Exception as exc:
-        safe_session_rollback()
-        current_app.logger.warning("whatsapp_promo.save_log_retry: %s", exc)
-
-    try:
-        from ..models.runtime_state import RuntimeState
-        row = RuntimeState.query.filter_by(state_key=LOG_KEY).first()
-        now = datetime.utcnow()
-        if row is None:
-            row = RuntimeState(state_key=LOG_KEY, created_at=now, updated_at=now)
-            db.session.add(row)
-        row.value_json = json.dumps(log_data, ensure_ascii=True, separators=(",", ":"))
-        row.updated_at = now
-        db.session.commit()
-    except Exception as exc:
-        safe_session_rollback()
-        current_app.logger.exception("whatsapp_promo.save_log_failed: %s", exc)
+    """Persiste l'état de log promo de manière directe et non-bloquante."""
+    _persist_json_state(LOG_KEY, log_data)
 
 
 def _record_run(
@@ -839,31 +841,7 @@ def _record_run(
         sent_by_date[today] = int(sent_by_date.get(today, 0)) + sent_today
         current_log["sent_by_date"] = sent_by_date
 
-    # 2. Tentative avec verrou partagé
-    def _apply(payloads: dict[str, Any]) -> None:
-        payloads[LOG_KEY] = current_log
-
-    try:
-        mutate_json_states({LOG_KEY: dict}, _apply)
-        return
-    except Exception as exc:
-        safe_session_rollback()
-        current_app.logger.warning("whatsapp_promo.locked_persist_retry: %s", exc)
-
-    # 3. Repli direct garanti sous MySQL/Gunicorn
-    try:
-        from ..models.runtime_state import RuntimeState
-        row = RuntimeState.query.filter_by(state_key=LOG_KEY).first()
-        now = datetime.utcnow()
-        if row is None:
-            row = RuntimeState(state_key=LOG_KEY, created_at=now, updated_at=now)
-            db.session.add(row)
-        row.value_json = json.dumps(current_log, ensure_ascii=True, separators=(",", ":"))
-        row.updated_at = now
-        db.session.commit()
-    except Exception as exc:
-        safe_session_rollback()
-        current_app.logger.exception("whatsapp_promo.log_persist_failed: %s", exc)
+    _persist_json_state(LOG_KEY, current_log)
 
 
 def run_daily_promo(
@@ -1089,56 +1067,76 @@ def run_daily_promo(
                 sleep(random.uniform(*STATUS_DELAY_RANGE))
 
     # 2. CANAL GROUPES WHATSAPP
-    if run_groups and groups:
-        for grp in groups:
-            group_label = grp.get("label") or grp["target"]
-            for card_idx, card in enumerate(cards):
-                group_text = compose_group_message(card, copies[card["id"]], group_label)
-                event = {
-                    "timestamp": f"{today} {_local_now().strftime('%H:%M:%S')}",
-                    "time": _local_now().strftime("%H:%M:%S"),
-                    "channel": "group",
-                    "channel_label": "Groupe WhatsApp",
-                    "product_id": card["id"],
-                    "product_name": card["name"],
-                    "product_title": card["name"],
-                    "target": grp["target"],
-                    "target_desc": group_label,
-                    "text": group_text,
-                }
-                if preview:
-                    summary["groups_ok"] += 1
-                    event["status"] = "ok"
-                    event["details"] = "Aperçu simulé"
+    if run_groups:
+        if not groups:
+            event = {
+                "timestamp": f"{today} {_local_now().strftime('%H:%M:%S')}",
+                "time": _local_now().strftime("%H:%M:%S"),
+                "channel": "group",
+                "channel_label": "Groupe WhatsApp",
+                "product_id": cards[0]["id"] if cards else 0,
+                "product_name": cards[0]["name"] if cards else "Offre",
+                "product_title": cards[0]["name"] if cards else "Offre",
+                "target": "groups",
+                "target_desc": "Groupes WhatsApp",
+                "text": "",
+                "status": "skipped",
+                "details": "Aucun groupe configuré dans vos réglages. Ouvrez « Gérer mes groupes » pour coller les liens de vos groupes de vente.",
+                "detail": "Aucun groupe configuré dans vos réglages. Ouvrez « Gérer mes groupes » pour coller les liens de vos groupes de vente.",
+                "attempts": 0,
+            }
+            recent_events.append(event)
+            summary["details"].append(event)
+        else:
+            for grp in groups:
+                group_label = grp.get("label") or grp["target"]
+                for card_idx, card in enumerate(cards):
+                    group_text = compose_group_message(card, copies[card["id"]], group_label)
+                    event = {
+                        "timestamp": f"{today} {_local_now().strftime('%H:%M:%S')}",
+                        "time": _local_now().strftime("%H:%M:%S"),
+                        "channel": "group",
+                        "channel_label": "Groupe WhatsApp",
+                        "product_id": card["id"],
+                        "product_name": card["name"],
+                        "product_title": card["name"],
+                        "target": grp["target"],
+                        "target_desc": group_label,
+                        "text": group_text,
+                    }
+                    if preview:
+                        summary["groups_ok"] += 1
+                        event["status"] = "ok"
+                        event["details"] = "Aperçu simulé"
+                        event["detail"] = event["details"]
+                        recent_events.append(event)
+                        summary["details"].append(event)
+                        continue
+
+                    if not still_enabled():
+                        return finish("stopped_by_admin", [c["id"] for c in cards], last_generated_data)
+
+                    result, reason, attempts = send_promo_media_with_retry(grp["target"], card, group_text)
+                    event["attempts"] = attempts
+                    if result == "sent":
+                        summary["groups_ok"] += 1
+                        consecutive_failures = 0
+                        event["status"] = "ok"
+                        event["details"] = "Envoyé dans le groupe" if attempts == 1 else f"Envoyé dans le groupe (après {attempts} tentatives)"
+                    else:
+                        summary["groups_failed"] += 1
+                        consecutive_failures += 1
+                        event["status"] = "failed"
+                        event["details"] = f"Erreur après {attempts} tentatives: {reason}"
+
                     event["detail"] = event["details"]
                     recent_events.append(event)
                     summary["details"].append(event)
-                    continue
 
-                if not still_enabled():
-                    return finish("stopped_by_admin", [c["id"] for c in cards], last_generated_data)
+                    if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
+                        return finish("gateway_failures", [c["id"] for c in cards], last_generated_data)
 
-                result, reason, attempts = send_promo_media_with_retry(grp["target"], card, group_text)
-                event["attempts"] = attempts
-                if result == "sent":
-                    summary["groups_ok"] += 1
-                    consecutive_failures = 0
-                    event["status"] = "ok"
-                    event["details"] = "Envoyé dans le groupe" if attempts == 1 else f"Envoyé dans le groupe (après {attempts} tentatives)"
-                else:
-                    summary["groups_failed"] += 1
-                    consecutive_failures += 1
-                    event["status"] = "failed"
-                    event["details"] = f"Erreur après {attempts} tentatives: {reason}"
-
-                event["detail"] = event["details"]
-                recent_events.append(event)
-                summary["details"].append(event)
-
-                if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
-                    return finish("gateway_failures", [c["id"] for c in cards], last_generated_data)
-
-                sleep(random.uniform(settings["min_delay"], settings["max_delay"]))
+                    sleep(random.uniform(settings["min_delay"], settings["max_delay"]))
 
     return finish(None, [] if preview else [c["id"] for c in cards], last_generated_data)
 

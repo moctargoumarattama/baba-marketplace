@@ -108,21 +108,34 @@ async function resolveTargetJid(rawTarget) {
   // 2. Lien d'invitation de groupe (ex: https://chat.whatsapp.com/AbCdEf...)
   const inviteCode = extractInviteCode(str);
   if (inviteCode && sock) {
+    let groupJid = null;
+    let groupSubject = str;
+
+    // A. Rejoindre le groupe si ce n'est pas déjà fait
+    try {
+      const joinedId = await sock.groupAcceptInvite(inviteCode);
+      if (joinedId) {
+        groupJid = joinedId.endsWith("@g.us") ? joinedId : `${joinedId}@g.us`;
+      }
+    } catch (joinErr) {
+      logger.debug({ inviteCode, err: joinErr && joinErr.message }, "groupAcceptInvite (peut-être déjà membre)");
+    }
+
+    // B. Obtenir les informations du groupe
     try {
       const info = await sock.groupGetInviteInfo(inviteCode);
       if (info && info.id) {
-        return { jid: info.id, isGroup: true, label: info.subject || info.id };
-      }
-    } catch (_err) {
-      try {
-        const joinedId = await sock.groupAcceptInvite(inviteCode);
-        if (joinedId) {
-          const jid = joinedId.endsWith("@g.us") ? joinedId : `${joinedId}@g.us`;
-          return { jid, isGroup: true, label: jid };
+        if (!groupJid) {
+          groupJid = info.id.endsWith("@g.us") ? info.id : `${info.id}@g.us`;
         }
-      } catch (_joinErr) {
-        logger.warn({ inviteCode }, "Impossible de résoudre le groupe via le lien d'invitation");
+        groupSubject = info.subject || groupSubject;
       }
+    } catch (infoErr) {
+      logger.warn({ inviteCode, err: infoErr && infoErr.message }, "groupGetInviteInfo");
+    }
+
+    if (groupJid) {
+      return { jid: groupJid, isGroup: true, label: groupSubject };
     }
   }
 
