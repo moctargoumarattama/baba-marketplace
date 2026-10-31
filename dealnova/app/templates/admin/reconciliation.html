@@ -6,563 +6,1282 @@
 
 {% block head %}
 <style>
-    .subs-wrap { display: grid; gap: 1.5rem; }
-    
-    /* Cards de statistiques */
-    .subs-stats { 
-        display: grid; 
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
-        gap: 1rem; 
-    }
-    
-    .subs-stat { 
-        background: #fff; 
-        border: 1px solid #E5E7EB; 
-        border-radius: 16px; 
-        padding: 1.25rem 1.5rem; 
-        box-shadow: 0 12px 26px rgba(0,0,0,0.06);
-        transition: transform 0.2s ease;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-    
-    .subs-stat:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 16px 32px rgba(0,0,0,0.1);
-    }
-    
-    .subs-stat h6 { 
-        font-size: 0.75rem; 
-        text-transform: uppercase; 
-        letter-spacing: 0.08em; 
-        color: #6B7280; 
-        margin-bottom: 0.35rem;
-    }
-    
-    .stat-value {
-        font-size: 1.8rem;
-        font-weight: 800;
-        color: #111827;
-        line-height: 1.2;
-    }
-    
-    .stat-icon {
-        width: 48px;
-        height: 48px;
-        border-radius: 14px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.5rem;
-    }
-    
-    .stat-icon.primary { background: rgba(255, 107, 53, 0.15); color: #FF6B35; }
-    .stat-icon.success { background: rgba(16, 185, 129, 0.15); color: #0F766E; }
-    .stat-icon.warning { background: rgba(247, 184, 1, 0.2); color: #B45309; }
-    .stat-icon.danger { background: rgba(239, 68, 68, 0.15); color: #991B1B; }
+  :root {
+    --rec-bg: #f8fafc;
+    --rec-surface: #ffffff;
+    --rec-surface-subtle: #f8fafc;
+    --rec-surface-muted: #f1f5f9;
+    --rec-border: rgba(226, 232, 240, 0.95);
+    --rec-border-strong: #cbd5e1;
+    --rec-ink: #0f172a;
+    --rec-ink-secondary: #334155;
+    --rec-ink-muted: #64748b;
+    --rec-primary: #0f766e;
+    --rec-emerald: #10b981;
+    --rec-emerald-dark: #059669;
+    --rec-emerald-subtle: rgba(16, 185, 129, 0.12);
+    --rec-amber: #f59e0b;
+    --rec-ruby: #ef4444;
+    --rec-indigo: #6366f1;
+    --rec-radius-lg: 20px;
+    --rec-radius-md: 14px;
+    --rec-radius-sm: 10px;
+    --rec-shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.04), 0 1px 2px rgba(15, 23, 42, 0.03);
+    --rec-shadow-3d: 0 10px 25px -5px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.95);
+    --rec-shadow-3d-hover: 0 16px 32px -6px rgba(15, 23, 42, 0.1), 0 4px 8px -2px rgba(15, 23, 42, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.95);
+    --rec-shadow-inset: inset 0 2px 4px rgba(15, 23, 42, 0.05);
+  }
 
-    /* Cards principales */
-    .subs-card { 
-        background: #fff; 
-        border: 1px solid #E5E7EB; 
-        border-radius: 16px; 
-        box-shadow: 0 12px 26px rgba(0,0,0,0.06); 
-        overflow: hidden; 
+  html[data-admin-theme="noc"] {
+    --rec-bg: #0b1120;
+    --rec-surface: #0f172a;
+    --rec-surface-subtle: #141f32;
+    --rec-surface-muted: #1e293b;
+    --rec-border: #334155;
+    --rec-border-strong: #475569;
+    --rec-ink: #f8fafc;
+    --rec-ink-secondary: #cbd5e1;
+    --rec-ink-muted: #94a3b8;
+    --rec-shadow-3d: 0 10px 25px -5px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    --rec-shadow-3d-hover: 0 16px 36px -6px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    --rec-shadow-inset: inset 0 2px 4px rgba(0, 0, 0, 0.4);
+  }
+
+  .subs-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    max-inline-size: 1440px;
+    margin-inline: auto;
+    padding-block-end: 2.5rem;
+    color: var(--rec-ink);
+  }
+
+  .subs-wrap *,
+  .subs-wrap *::before,
+  .subs-wrap *::after {
+    box-sizing: border-box;
+  }
+
+  /* 3D Glass Hero Executive Bar */
+  .rec-hero {
+    position: relative;
+    border-radius: var(--rec-radius-lg);
+    background: radial-gradient(circle at 90% 12%, rgba(16, 185, 129, 0.28), transparent 45%),
+                linear-gradient(135deg, #091322 0%, #0d2238 50%, #064e3b 100%);
+    color: #ffffff;
+    padding: 1.35rem 1.6rem;
+    box-shadow: 0 20px 40px -10px rgba(9, 19, 34, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .rec-hero-main {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+
+  .rec-hero-title-group {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .rec-hero-icon-bubble {
+    inline-size: 52px;
+    block-size: 52px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.3), rgba(5, 150, 105, 0.15));
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    color: #a7f3d0;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.25), inset 0 1px 1px rgba(255, 255, 255, 0.3);
+    flex-shrink: 0;
+  }
+
+  .rec-hero-title {
+    font-size: clamp(1.25rem, 1rem + 1vw, 1.65rem);
+    font-weight: 900;
+    letter-spacing: -0.025em;
+    margin: 0 0 0.2rem 0;
+    color: #ffffff;
+  }
+
+  .rec-hero-subtitle {
+    margin: 0;
+    font-size: 0.86rem;
+    color: rgba(255, 255, 255, 0.85);
+    max-inline-size: 680px;
+    line-height: 1.45;
+  }
+
+  .rec-hero-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem;
+  }
+
+  .rec-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.38rem 0.8rem;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    color: #ffffff;
+    user-select: none;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+  }
+
+  .rec-pill-live {
+    background: rgba(16, 185, 129, 0.25);
+    color: #a7f3d0;
+    border-color: rgba(16, 185, 129, 0.5);
+    box-shadow: 0 0 14px rgba(16, 185, 129, 0.25);
+  }
+
+  .rec-pill-gift {
+    background: rgba(99, 102, 241, 0.28);
+    color: #c7d2fe;
+    border-color: rgba(99, 102, 241, 0.5);
+    box-shadow: 0 0 14px rgba(99, 102, 241, 0.25);
+  }
+
+  @keyframes rec-pulse {
+    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.8); }
+    70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+  }
+
+  .rec-dot {
+    inline-size: 8px;
+    block-size: 8px;
+    border-radius: 50%;
+    background: #10b981;
+    animation: rec-pulse 2s infinite;
+    flex-shrink: 0;
+  }
+
+  /* Bento 3D KPI Cards */
+  .subs-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1rem;
+  }
+
+  .subs-stat {
+    background: var(--rec-surface);
+    border: 1px solid var(--rec-border);
+    border-radius: var(--rec-radius-lg);
+    padding: 1.25rem 1.4rem;
+    box-shadow: var(--rec-shadow-3d);
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .subs-stat::before {
+    content: "";
+    position: absolute;
+    inset-inline-start: 0;
+    inset-block: 0;
+    inline-size: 4px;
+    background: var(--stat-bar-color, var(--rec-primary));
+    opacity: 0.9;
+    border-start-start-radius: var(--rec-radius-lg);
+    border-end-start-radius: var(--rec-radius-lg);
+  }
+
+  .subs-stat:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--rec-shadow-3d-hover);
+  }
+
+  .subs-stat.is-primary { --stat-bar-color: #10b981; }
+  .subs-stat.is-success { --stat-bar-color: #0284c7; }
+  .subs-stat.is-warning { --stat-bar-color: #f59e0b; }
+  .subs-stat.is-danger  { --stat-bar-color: #ef4444; }
+
+  .subs-stat h6 {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--rec-ink-muted);
+    margin: 0 0 0.35rem 0;
+    font-weight: 800;
+  }
+
+  .stat-value {
+    font-size: 1.85rem;
+    font-weight: 900;
+    color: var(--rec-ink);
+    letter-spacing: -0.03em;
+    line-height: 1.15;
+  }
+
+  .stat-desc {
+    font-size: 0.8rem;
+    color: var(--rec-ink-muted);
+    margin-top: 0.35rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-weight: 600;
+  }
+
+  .stat-icon {
+    inline-size: 52px;
+    block-size: 52px;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    flex-shrink: 0;
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.4);
+  }
+
+  .stat-icon.primary {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.18), rgba(5, 150, 105, 0.08));
+    color: #10b981;
+    border: 1px solid rgba(16, 185, 129, 0.25);
+  }
+  .stat-icon.success {
+    background: linear-gradient(135deg, rgba(14, 165, 233, 0.18), rgba(2, 132, 199, 0.08));
+    color: #0284c7;
+    border: 1px solid rgba(14, 165, 233, 0.25);
+  }
+  .stat-icon.warning {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(217, 119, 6, 0.08));
+    color: #d97706;
+    border: 1px solid rgba(245, 158, 11, 0.25);
+  }
+  .stat-icon.danger {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.18), rgba(220, 38, 38, 0.08));
+    color: #dc2626;
+    border: 1px solid rgba(239, 68, 68, 0.25);
+  }
+
+  /* 3D Glass Cards */
+  .subs-card {
+    background: var(--rec-surface);
+    border: 1px solid var(--rec-border);
+    border-radius: var(--rec-radius-lg);
+    box-shadow: var(--rec-shadow-3d);
+    overflow: hidden;
+  }
+
+  .subs-card-header {
+    padding: 1.1rem 1.4rem;
+    border-bottom: 1px solid var(--rec-border);
+    background: var(--rec-surface-subtle);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .subs-card-title {
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: var(--rec-ink);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .subs-card-subtitle {
+    font-size: 0.82rem;
+    color: var(--rec-ink-muted);
+    margin-top: 0.15rem;
+    display: block;
+  }
+
+  /* Guide / Protocole Assistant */
+  .subs-help {
+    background: var(--rec-surface);
+    border: 1px solid var(--rec-border);
+    border-radius: var(--rec-radius-lg);
+    box-shadow: var(--rec-shadow-3d);
+    padding: 1.15rem 1.4rem;
+  }
+
+  .subs-help h5 {
+    margin: 0 0 0.25rem 0;
+    font-size: 1.02rem;
+    font-weight: 800;
+    color: var(--rec-ink);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .subs-help .help-note {
+    color: var(--rec-ink-muted);
+    font-size: 0.85rem;
+    margin-bottom: 0.85rem;
+  }
+
+  .help-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 0.85rem;
+  }
+
+  .help-item {
+    border: 1px solid var(--rec-border);
+    border-radius: var(--rec-radius-md);
+    padding: 0.9rem 1rem;
+    background: var(--rec-surface-subtle);
+    position: relative;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    transition: transform 0.2s ease;
+  }
+
+  .help-item:hover {
+    transform: translateY(-2px);
+  }
+
+  .help-item .step {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--rec-primary);
+    font-weight: 800;
+    margin-bottom: 0.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  .help-item p {
+    margin: 0;
+    font-size: 0.86rem;
+    color: var(--rec-ink-secondary);
+    line-height: 1.45;
+  }
+
+  /* Settings Controls Bar */
+  .rec-settings-grid {
+    padding: 1.25rem 1.4rem;
+  }
+
+  .rec-form-label {
+    font-size: 0.78rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--rec-ink-muted);
+    margin-bottom: 0.4rem;
+    display: block;
+  }
+
+  .rec-input-box {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .rec-input-box .form-control {
+    border-radius: 12px;
+    border: 1px solid var(--rec-border-strong);
+    padding: 0.65rem 0.9rem;
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: var(--rec-ink);
+    background: var(--rec-surface);
+    box-shadow: var(--rec-shadow-inset);
+    transition: all 0.2s ease;
+  }
+
+  .rec-input-box .form-control:focus {
+    border-color: var(--rec-emerald);
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2), var(--rec-shadow-inset);
+    outline: none;
+  }
+
+  .rec-btn-3d-primary {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    border: 1px solid #059669;
+    color: #ffffff;
+    font-weight: 800;
+    font-size: 0.92rem;
+    padding: 0.65rem 1.25rem;
+    border-radius: 12px;
+    box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+  }
+
+  .rec-btn-3d-primary:hover {
+    background: linear-gradient(135deg, #059669 0%, #047857 100%);
+    color: #ffffff;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(16, 185, 129, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  }
+
+  .rec-btn-3d-primary:active {
+    transform: translateY(1px);
+    box-shadow: 0 2px 6px rgba(16, 185, 129, 0.25);
+  }
+
+  /* Filters & Segmented Switches */
+  .rec-filters-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .rec-date-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    background: var(--rec-surface-subtle);
+    padding: 0.25rem 0.4rem;
+    border-radius: 14px;
+    border: 1px solid var(--rec-border);
+  }
+
+  .rec-select-3d {
+    border-radius: 10px;
+    border: 1px solid var(--rec-border);
+    background: var(--rec-surface);
+    color: var(--rec-ink);
+    font-weight: 700;
+    font-size: 0.8rem;
+    padding: 0.38rem 1.8rem 0.38rem 0.65rem;
+    box-shadow: var(--rec-shadow-inset);
+  }
+
+  .rec-input-3d {
+    border-radius: 10px;
+    border: 1px solid var(--rec-border);
+    background: var(--rec-surface);
+    color: var(--rec-ink);
+    font-weight: 600;
+    font-size: 0.8rem;
+    padding: 0.35rem 0.55rem;
+    box-shadow: var(--rec-shadow-inset);
+    max-inline-size: 132px;
+  }
+
+  .rec-btn-filter-submit {
+    background: var(--rec-surface);
+    border: 1px solid var(--rec-border-strong);
+    color: var(--rec-ink-secondary);
+    border-radius: 10px;
+    padding: 0.35rem 0.65rem;
+    font-size: 0.82rem;
+    font-weight: 700;
+    transition: all 0.2s ease;
+  }
+
+  .rec-btn-filter-submit:hover {
+    background: var(--rec-primary);
+    color: #ffffff;
+    border-color: var(--rec-primary);
+  }
+
+  /* Segmented Status Links */
+  .filter-links {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem;
+    border-radius: 14px;
+    background: var(--rec-surface-subtle);
+    border: 1px solid var(--rec-border);
+    gap: 0.25rem;
+  }
+
+  .filter-links .btn {
+    border-radius: 10px;
+    padding: 0.35rem 0.85rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+    border: 1px solid transparent;
+    color: var(--rec-ink-muted);
+    background: transparent;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  .filter-links .btn:hover {
+    color: var(--rec-ink);
+    background: rgba(15, 23, 42, 0.05);
+  }
+
+  .filter-links .btn.active {
+    background: var(--rec-surface);
+    color: var(--rec-ink);
+    border-color: var(--rec-border);
+    box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  }
+
+  .filter-links .btn.btn-outline-success.active {
+    color: #059669;
+    border-color: rgba(16, 185, 129, 0.35);
+    background: rgba(16, 185, 129, 0.1);
+  }
+
+  .filter-links .btn.btn-outline-warning.active {
+    color: #d97706;
+    border-color: rgba(245, 158, 11, 0.35);
+    background: rgba(245, 158, 11, 0.1);
+  }
+
+  .filter-links .btn.btn-outline-dark.active {
+    color: #dc2626;
+    border-color: rgba(239, 68, 68, 0.35);
+    background: rgba(239, 68, 68, 0.1);
+  }
+
+  /* Modern 3D Table */
+  .subs-table {
+    width: 100%;
+    margin-bottom: 0;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  .subs-table th {
+    background: var(--rec-surface-subtle);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--rec-ink-muted);
+    font-weight: 800;
+    white-space: nowrap;
+    padding: 0.9rem 1.15rem;
+    border-bottom: 2px solid var(--rec-border);
+    border-top: none;
+  }
+
+  .subs-table td {
+    vertical-align: middle;
+    padding: 0.95rem 1.15rem;
+    border-bottom: 1px solid var(--rec-border);
+    color: var(--rec-ink-secondary);
+    font-size: 0.88rem;
+    transition: background 0.15s ease;
+  }
+
+  .subs-table tbody tr:hover td {
+    background: rgba(16, 185, 129, 0.025);
+  }
+
+  /* Vendor cell */
+  .rec-vendor-cell {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .rec-avatar {
+    inline-size: 40px;
+    block-size: 40px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #0d9488 0%, #065f46 100%);
+    color: #ffffff;
+    font-weight: 900;
+    font-size: 0.95rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-shadow: 0 4px 8px rgba(13, 148, 136, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  }
+
+  .rec-vendor-info {
+    display: flex;
+    flex-direction: column;
+    min-inline-size: 0;
+  }
+
+  .rec-vendor-name {
+    font-weight: 800;
+    color: var(--rec-ink);
+    font-size: 0.92rem;
+  }
+
+  .rec-vendor-email {
+    font-size: 0.78rem;
+    color: var(--rec-ink-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-inline-size: 210px;
+  }
+
+  /* Shop Badge */
+  .rec-shop-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.7rem;
+    border-radius: 10px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    background: var(--rec-surface-subtle);
+    border: 1px solid var(--rec-border);
+    color: var(--rec-ink);
+  }
+
+  .rec-shop-empty {
+    font-size: 0.8rem;
+    color: var(--rec-ink-muted);
+    font-style: italic;
+  }
+
+  /* Status Badges */
+  .badge-soft {
+    padding: 0.38rem 0.75rem;
+    border-radius: 999px;
+    font-weight: 800;
+    font-size: 0.74rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    white-space: nowrap;
+    letter-spacing: 0.02em;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.04);
+  }
+
+  .badge-ok {
+    background: rgba(16, 185, 129, 0.15);
+    color: #059669;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+  }
+
+  .badge-warn {
+    background: rgba(245, 158, 11, 0.18);
+    color: #d97706;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+  }
+
+  .badge-bad {
+    background: rgba(239, 68, 68, 0.15);
+    color: #dc2626;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+  }
+
+  .badge-block {
+    background: rgba(15, 23, 42, 0.12);
+    color: var(--rec-ink);
+    border: 1px solid var(--rec-border-strong);
+  }
+
+  .badge-soon {
+    background: linear-gradient(135deg, #f59e0b, #ef4444);
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.35);
+  }
+
+  .badge-expired {
+    background: linear-gradient(135deg, #ef4444, #b91c1c);
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(185, 28, 28, 0.35);
+  }
+
+  /* Action Dock */
+  .rec-action-dock {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    min-inline-size: 290px;
+  }
+
+  .rec-act-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+  }
+
+  .rec-input-unit {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .rec-input-compact {
+    border-radius: 9px;
+    border: 1px solid var(--rec-border-strong);
+    background: var(--rec-surface);
+    color: var(--rec-ink);
+    font-size: 0.8rem;
+    font-weight: 700;
+    padding: 0.35rem 0.5rem;
+    box-shadow: var(--rec-shadow-inset);
+  }
+
+  .rec-input-unit .rec-unit-tag {
+    position: absolute;
+    inset-inline-end: 6px;
+    font-size: 0.7rem;
+    font-weight: 800;
+    color: var(--rec-ink-muted);
+    pointer-events: none;
+    text-transform: uppercase;
+  }
+
+  .months-input {
+    inline-size: 72px;
+    padding-inline-end: 28px !important;
+  }
+
+  .note-input {
+    inline-size: 110px;
+  }
+
+  .rec-btn-act-pay {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    border: 1px solid #059669;
+    color: #ffffff;
+    font-size: 0.78rem;
+    font-weight: 800;
+    padding: 0.35rem 0.75rem;
+    border-radius: 9px;
+    box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+  }
+
+  .rec-btn-act-pay:hover {
+    background: linear-gradient(135deg, #059669 0%, #047857 100%);
+    color: #ffffff;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(16, 185, 129, 0.4);
+  }
+
+  .rec-btn-act-pay:active {
+    transform: translateY(1px);
+  }
+
+  .rec-act-secondary {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+  }
+
+  .rec-btn-act-gift {
+    background: rgba(99, 102, 241, 0.12);
+    border: 1px solid rgba(99, 102, 241, 0.35);
+    color: #4f46e5;
+    font-size: 0.78rem;
+    font-weight: 800;
+    padding: 0.32rem 0.65rem;
+    border-radius: 9px;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+  }
+
+  .rec-btn-act-gift:hover {
+    background: #4f46e5;
+    color: #ffffff;
+    border-color: #4f46e5;
+    transform: translateY(-1px);
+    box-shadow: 0 3px 8px rgba(99, 102, 241, 0.3);
+  }
+
+  .rec-btn-act-block {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #dc2626;
+    font-size: 0.78rem;
+    font-weight: 800;
+    padding: 0.32rem 0.65rem;
+    border-radius: 9px;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+  }
+
+  .rec-btn-act-block:hover {
+    background: #dc2626;
+    color: #ffffff;
+    border-color: #dc2626;
+    transform: translateY(-1px);
+    box-shadow: 0 3px 8px rgba(239, 68, 68, 0.3);
+  }
+
+  .rec-btn-act-unblock {
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.35);
+    color: #059669;
+    font-size: 0.78rem;
+    font-weight: 800;
+    padding: 0.32rem 0.65rem;
+    border-radius: 9px;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+  }
+
+  .rec-btn-act-unblock:hover {
+    background: #059669;
+    color: #ffffff;
+    border-color: #059669;
+    transform: translateY(-1px);
+    box-shadow: 0 3px 8px rgba(16, 185, 129, 0.3);
+  }
+
+  /* Back to Top Floating 3D Button */
+  .back-to-top {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: white;
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 8px 20px rgba(16, 185, 129, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1), transform 0.2s ease;
+    z-index: 100;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    font-size: 1.15rem;
+  }
+
+  .back-to-top.show {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .back-to-top:hover {
+    transform: translateY(-3px) scale(1.05);
+    box-shadow: 0 12px 26px rgba(16, 185, 129, 0.5);
+  }
+
+  /* Empty State */
+  .subs-empty {
+    text-align: center;
+    padding: 3.5rem 1rem;
+    color: var(--rec-ink-muted);
+  }
+
+  .subs-empty i {
+    font-size: 3.5rem;
+    opacity: 0.4;
+    color: var(--rec-ink-muted);
+    margin-bottom: 0.75rem;
+    display: inline-block;
+  }
+
+  .subs-empty h6 {
+    font-weight: 800;
+    font-size: 1.1rem;
+    color: var(--rec-ink);
+    margin: 0 0 0.35rem 0;
+  }
+
+  .subs-empty p {
+    font-size: 0.88rem;
+    margin: 0;
+  }
+
+  /* Dark theme overrides */
+  html[data-admin-theme="noc"] .form-control,
+  html[data-admin-theme="noc"] .form-select,
+  html[data-admin-theme="noc"] .rec-select-3d,
+  html[data-admin-theme="noc"] .rec-input-3d,
+  html[data-admin-theme="noc"] .rec-input-compact {
+    background: #141f32;
+    color: #f8fafc;
+    border-color: #334155;
+  }
+
+  html[data-admin-theme="noc"] .filter-links {
+    background: #141f32;
+    border-color: #334155;
+  }
+
+  html[data-admin-theme="noc"] .filter-links .btn.active {
+    background: #1e293b;
+    color: #f8fafc;
+    border-color: #475569;
+  }
+
+  html[data-admin-theme="noc"] .rec-btn-act-gift {
+    color: #a5b4fc;
+    border-color: rgba(99, 102, 241, 0.4);
+  }
+
+  html[data-admin-theme="noc"] .rec-btn-act-block {
+    color: #f87171;
+    border-color: rgba(239, 68, 68, 0.4);
+  }
+
+  html[data-admin-theme="noc"] .rec-btn-act-unblock {
+    color: #34d399;
+    border-color: rgba(16, 185, 129, 0.4);
+  }
+
+  /* Mobile Responsive */
+  @media (max-width: 992px) {
+    .subs-card-header {
+      flex-direction: column;
+      align-items: stretch;
     }
 
-    .subs-help {
-        background: #fff;
-        border: 1px solid #E5E7EB;
-        border-radius: 16px;
-        box-shadow: 0 12px 26px rgba(0,0,0,0.06);
-        padding: 1rem 1.25rem;
+    .rec-filters-bar {
+      flex-direction: column;
+      align-items: stretch;
     }
 
-    .subs-help h5 {
-        margin: 0 0 0.35rem;
-        font-size: 1.05rem;
-        font-weight: 700;
+    .rec-date-form {
+      inline-size: 100%;
     }
 
-    .subs-help .help-note {
-        color: #6B7280;
-        font-size: 0.9rem;
-        margin-bottom: 0.85rem;
+    .filter-links {
+      inline-size: 100%;
+      justify-content: space-between;
     }
 
-    .help-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-        gap: 0.75rem;
-    }
-
-    .help-item {
-        border: 1px solid #E5E7EB;
-        border-radius: 12px;
-        padding: 0.75rem;
-        background: #F9FAFB;
-    }
-
-    .help-item .step {
-        font-size: 0.75rem;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        color: #6B7280;
-        font-weight: 700;
-        margin-bottom: 0.2rem;
-    }
-
-    .help-item p {
-        margin: 0;
-        font-size: 0.9rem;
-        color: #111827;
-    }
-    
-    .subs-card-header { 
-        padding: 1rem 1.25rem; 
-        border-bottom: 1px solid #E5E7EB; 
-        background: #F9FAFB; 
-        display: flex; 
-        align-items: center; 
-        justify-content: space-between; 
-        gap: 1rem; 
-        flex-wrap: wrap; 
-    }
-    
-    /* Table */
-    .subs-table { 
-        width: 100%;
-        margin-bottom: 0;
-    }
-    
-    .subs-table th { 
-        background: #F9FAFB; 
-        font-size: 0.75rem; 
-        text-transform: uppercase; 
-        letter-spacing: 0.08em; 
-        color: #6B7280; 
-        font-weight: 700; 
-        white-space: nowrap;
-    }
-    
-    .subs-table td {
-        vertical-align: middle;
-    }
-    
-    /* Badges */
-    .badge-soft { 
-        padding: 0.35rem 0.6rem; 
-        border-radius: 999px; 
-        font-weight: 600; 
-        font-size: 0.75rem; 
-        display: inline-flex;
-        align-items: center;
-        gap: 0.25rem;
-        white-space: nowrap;
-    }
-    
-    .badge-ok { background: rgba(16,185,129,0.15); color: #0f766e; }
-    .badge-warn { background: rgba(245,158,11,0.2); color: #b45309; }
-    .badge-bad { background: rgba(239,68,68,0.2); color: #b91c1c; }
-    .badge-block { background: rgba(31,41,55,0.15); color: #111827; }
-    .badge-soon { 
-        background: linear-gradient(135deg, #f59e0b, #ef4444); 
-        color: #fff; 
-        box-shadow: 0 8px 18px rgba(239,68,68,0.35); 
-    }
-    .badge-expired { 
-        background: linear-gradient(135deg, #ef4444, #b91c1c); 
-        color: #fff; 
-        box-shadow: 0 8px 18px rgba(185,28,28,0.35); 
-    }
-    
-    /* Filtres */
-    .filter-links { 
-        display: flex;
-        gap: 0.5rem; 
-        flex-wrap: wrap;
-    }
-    
     .filter-links .btn {
-        border-radius: 999px;
-        padding: 0.35rem 1rem;
-        font-size: 0.85rem;
-        font-weight: 500;
-        transition: all 0.2s ease;
-    }
-    
-    .filter-links .btn.active {
-        background: #FF6B35;
-        color: white;
-        border-color: #FF6B35;
-    }
-    
-    /* Formulaires */
-    .months-input { 
-        max-width: 80px; 
-        min-width: 60px;
-    }
-    
-    .note-input { 
-        max-width: 150px; 
-        min-width: 120px;
+      flex: 1;
+      justify-content: center;
+      padding: 0.35rem 0.5rem;
+      font-size: 0.75rem;
     }
 
-    .action-field {
-        display: flex;
-        flex-direction: column;
-        gap: 0.2rem;
+    .rec-action-dock {
+      min-inline-size: 100%;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .subs-stats {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.75rem;
     }
 
-    .action-label {
-        font-size: 0.72rem;
-        font-weight: 700;
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
-        color: #6B7280;
-        margin: 0;
+    .subs-stat {
+      padding: 1rem;
     }
-    
-    /* Version mobile */
-    @media (max-width: 992px) {
-        .months-input, .note-input {
-            max-width: 100%;
-            width: 100%;
-        }
-        
-        .d-flex.gap-2.align-items-center.flex-wrap {
-            flex-direction: column;
-            align-items: stretch !important;
-        }
-        
-        .btn-sm {
-            width: 100%;
-        }
+
+    .stat-value {
+      font-size: 1.4rem;
     }
-    
-    @media (max-width: 768px) {
-        .subs-stats {
-            grid-template-columns: repeat(2, 1fr);
-            gap: 0.75rem;
-        }
-        
-        .subs-stat {
-            padding: 1rem;
-        }
-        
-        .stat-value {
-            font-size: 1.4rem;
-        }
-        
-        .stat-icon {
-            width: 40px;
-            height: 40px;
-            font-size: 1.2rem;
-        }
-        
-        .subs-card-header {
-            flex-direction: column;
-            align-items: flex-start;
-        }
-        
-        .filter-links {
-            width: 100%;
-        }
-        
-        .filter-links .btn {
-            flex: 1;
-            text-align: center;
-            font-size: 0.8rem;
-            padding: 0.35rem 0.5rem;
-        }
-        
-        /* Transformation de la table */
-        .subs-table,
-        .subs-table thead,
-        .subs-table tbody,
-        .subs-table tr,
-        .subs-table td {
-            display: block;
-        }
-        
-        .subs-table thead {
-            display: none;
-        }
-        
-        .subs-table tr {
-            margin-bottom: 1rem;
-            padding: 1rem;
-            background: #fff;
-            border: 1px solid #E5E7EB;
-            border-radius: 12px;
-        }
-        
-        .subs-table td {
-            display: flex;
-            align-items: flex-start;
-            padding: 0.5rem 0;
-            border: none;
-            text-align: left;
-        }
-        
-        .subs-table td:before {
-            content: attr(data-label);
-            font-weight: 600;
-            color: #6B7280;
-            width: 120px;
-            min-width: 120px;
-            font-size: 0.8rem;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-        
-        .subs-table td > * {
-            flex: 1;
-        }
-        
-        /* Ajustements pour les actions */
-        .subs-table td[data-label="Actions"] {
-            flex-direction: column;
-        }
-        
-        .subs-table td[data-label="Actions"]:before {
-            margin-bottom: 0.5rem;
-        }
-        
-        .d-flex.flex-column.gap-2 {
-            width: 100%;
-        }
-        
-        .badge-soft {
-            white-space: normal;
-            text-align: center;
-        }
+
+    .stat-icon {
+      inline-size: 42px;
+      block-size: 42px;
+      font-size: 1.2rem;
     }
-    
-    @media (max-width: 480px) {
-        .subs-stats {
-            grid-template-columns: 1fr;
-        }
-        
-        .subs-table td:before {
-            width: 100px;
-            min-width: 100px;
-        }
-        
-        .subs-card-header h5 {
-            font-size: 1rem;
-        }
-        
-        .text-muted.small {
-            font-size: 0.7rem;
-        }
-        
-        .badge-soft {
-            font-size: 0.7rem;
-            padding: 0.25rem 0.5rem;
-        }
+
+    .subs-table,
+    .subs-table thead,
+    .subs-table tbody,
+    .subs-table tr,
+    .subs-table td {
+      display: block;
     }
-    
-    /* Animation pour le chargement AJAX */
-    @keyframes pulse {
-        0% { opacity: 1; }
-        50% { opacity: 0.6; }
-        100% { opacity: 1; }
+
+    .subs-table thead {
+      display: none;
     }
-    
-    .subs-updating {
-        animation: pulse 1s infinite;
+
+    .subs-table tr {
+      margin-bottom: 1rem;
+      padding: 1rem;
+      background: var(--rec-surface);
+      border: 1px solid var(--rec-border);
+      border-radius: var(--rec-radius-md);
+      box-shadow: var(--rec-shadow-3d);
     }
-    
-    /* Bouton retour en haut */
-    .back-to-top {
-        position: fixed;
-        bottom: 20px;
-        right: 20px;
-        background: #FF6B35;
-        color: white;
-        width: 40px;
-        height: 40px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        opacity: 0;
-        transition: opacity 0.3s ease;
-        z-index: 100;
-        border: none;
+
+    .subs-table td {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.55rem 0;
+      border: none;
+      border-bottom: 1px dashed var(--rec-border);
     }
-    
-    .back-to-top.show {
-        opacity: 1;
+
+    .subs-table td:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
     }
-    
-    /* État vide amélioré */
-    .subs-empty {
-        text-align: center;
-        padding: 3rem 1rem;
-        color: #6B7280;
+
+    .subs-table td::before {
+      content: attr(data-label);
+      font-weight: 800;
+      color: var(--rec-ink-muted);
+      font-size: 0.74rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      min-inline-size: 100px;
     }
-    
-    .subs-empty i {
-        font-size: 3rem;
-        opacity: 0.5;
-        margin-bottom: 1rem;
+
+    .subs-table td[data-label="Actions"] {
+      flex-direction: column;
+      align-items: stretch;
+      padding-top: 0.85rem;
     }
+
+    .subs-table td[data-label="Actions"]::before {
+      margin-bottom: 0.4rem;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .subs-stats {
+      grid-template-columns: 1fr;
+    }
+  }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="container-fluid subs-wrap">
-    <!-- Bouton retour en haut -->
-    <button class="back-to-top" id="backToTop" title="Retour en haut">
+    <!-- Bouton retour en haut 3D -->
+    <button class="back-to-top" id="backToTop" title="Retour en haut" aria-label="Retour en haut">
         <i class="bi bi-arrow-up"></i>
     </button>
 
-    <!-- Statistiques -->
-    <section class="subs-stats">
-        <div class="subs-stat">
-            <div>
-                <h6>{{ 'Paiements enregistres' if current_user.role == 'manager' else 'Abonnements' }}</h6>
-                <div class="stat-value">{{ '%.2f'|format((subscription_total_cents or 0) / 100) }} MAD</div>
-                <div class="text-muted small">{{ subscription_count }} paiement(s) - {{ date_range_label }}</div>
+    <!-- 3D Glass Hero Executive Bar -->
+    <header class="rec-hero">
+        <div class="rec-hero-main">
+            <div class="rec-hero-title-group">
+                <div class="rec-hero-icon-bubble">
+                    <i class="bi bi-cash-stack"></i>
+                </div>
+                <div>
+                    <h1 class="rec-hero-title">
+                        {{ 'Paiements abonnements' if current_user.role == 'manager' else 'Abonnements & Réconciliation Vendeurs' }}
+                    </h1>
+                    <p class="rec-hero-subtitle">
+                        Pilotage en direct des abonnements vendeurs, encaissements mensuels et gestion des accès boutiques.
+                    </p>
+                </div>
             </div>
-            <div class="stat-icon primary"><i class="bi bi-people"></i></div>
-        </div>
-        <div class="subs-stat">
-            <div>
-                <h6>Vendeurs a jour</h6>
-                <div class="stat-value">{{ active_subs }}</div>
-                <div class="text-muted small">
+            <div class="rec-hero-meta">
+                <div class="rec-pill {% if global_free_active %}rec-pill-gift{% else %}rec-pill-live{% endif %}">
+                    <span class="rec-dot"></span>
                     {% if global_free_active %}
-                        <span class="badge-soft badge-ok">Gratuit pour tous</span>
+                        <i class="bi bi-gift-fill"></i> Mode gratuit général actif (jusqu'au {{ global_free_until.strftime('%d/%m/%Y') }})
                     {% else %}
-                        À jour
+                        <i class="bi bi-shield-check"></i> Facturation active
+                    {% endif %}
+                </div>
+                <div class="rec-pill">
+                    <i class="bi bi-tag-fill"></i> Standard : <strong>{{ '%.2f'|format((settings.vendor_subscription_monthly_cents or 0) / 100) }} MAD / mois</strong>
+                </div>
+                <div class="rec-pill">
+                    <i class="bi bi-calendar3"></i> {{ date_range_label }}
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- 4 Bento KPI Cards -->
+    <section class="subs-stats">
+        <div class="subs-stat is-primary">
+            <div>
+                <h6>{{ 'Paiements enregistres' if current_user.role == 'manager' else 'Encaissements Abonnements' }}</h6>
+                <div class="stat-value">{{ '%.2f'|format((subscription_total_cents or 0) / 100) }} MAD</div>
+                <div class="stat-desc">
+                    <i class="bi bi-receipt"></i> {{ subscription_count }} paiement(s) - {{ date_range_label }}
+                </div>
+            </div>
+            <div class="stat-icon primary"><i class="bi bi-wallet2"></i></div>
+        </div>
+        <div class="subs-stat is-success">
+            <div>
+                <h6>Vendeurs à jour</h6>
+                <div class="stat-value">{{ active_subs }}</div>
+                <div class="stat-desc">
+                    {% if global_free_active %}
+                        <span class="badge-soft badge-ok"><i class="bi bi-gift-fill"></i> Gratuit pour tous</span>
+                    {% else %}
+                        <span class="badge-soft badge-ok"><i class="bi bi-check-circle-fill"></i> Accès valides</span>
                     {% endif %}
                 </div>
             </div>
-            <div class="stat-icon success"><i class="bi bi-check-circle"></i></div>
+            <div class="stat-icon success"><i class="bi bi-check2-circle"></i></div>
         </div>
-        <div class="subs-stat">
+        <div class="subs-stat is-warning">
             <div>
-                <h6>En retard</h6>
+                <h6>En retard de paiement</h6>
                 <div class="stat-value">{{ overdue_subs }}</div>
-                <div class="text-muted small">À relancer</div>
+                <div class="stat-desc">
+                    <span class="badge-soft badge-warn"><i class="bi bi-clock-history"></i> À relancer rapidement</span>
+                </div>
             </div>
-            <div class="stat-icon warning"><i class="bi bi-exclamation-triangle"></i></div>
+            <div class="stat-icon warning"><i class="bi bi-hourglass-split"></i></div>
         </div>
-        <div class="subs-stat">
+        <div class="subs-stat is-danger">
             <div>
                 <h6>Comptes bloqués</h6>
                 <div class="stat-value">{{ blocked_vendors }}</div>
-                <div class="text-muted small">Accès désactivé</div>
+                <div class="stat-desc">
+                    <span class="badge-soft badge-bad"><i class="bi bi-shield-x"></i> Accès suspendu</span>
+                </div>
             </div>
             <div class="stat-icon danger"><i class="bi bi-shield-lock"></i></div>
         </div>
     </section>
 
+    <!-- Guide / Aide Rapide -->
     <section class="subs-help">
-        <h5><i class="bi bi-info-circle"></i> Comment utiliser cette page</h5>
-        <div class="help-note">Cette page sert a suivre les vendeurs et leurs paiements d'abonnement, simplement.</div>
+        <h5><i class="bi bi-info-circle-fill text-success"></i> Protocole de gestion des abonnements vendeurs</h5>
+        <div class="help-note">Contrôlez la régularité des comptes boutiques et appliquez les règlements d'abonnement en toute transparence.</div>
         <div class="help-grid">
             <div class="help-item">
-                <div class="step">Etape 1</div>
-                <p>Reperez un vendeur dans le tableau (actif, en retard, ou bloque).</p>
+                <div class="step"><i class="bi bi-1-circle-fill"></i> Étape 1 : Diagnostic</div>
+                <p>Repérez l'état du vendeur dans le tableau : actif, échéance imminente, retard de paiement ou suspendu.</p>
             </div>
             <div class="help-item">
-                <div class="step">Etape 2</div>
-                <p>Cliquez sur <strong>Enregistrer paiement</strong> pour ajouter des mois d'abonnement.</p>
+                <div class="step"><i class="bi bi-2-circle-fill"></i> Étape 2 : Encaissement</div>
+                <p>Indiquez le nombre de mois réglés (1 à 24), ajoutez une note interne optionnelle, puis cliquez sur <strong>Encaisser</strong>.</p>
             </div>
             <div class="help-item">
-                <div class="step">Etape 3</div>
-                <p>Utilisez <strong>Offrir jours gratuits</strong> ou <strong>Bloquer/Reouvrir</strong> selon la situation.</p>
+                <div class="step"><i class="bi bi-3-circle-fill"></i> Étape 3 : Assistance & Accès</div>
+                <p>Accordez des <strong>jours de grâce offerts</strong> pour fidéliser ou activez <strong>Bloquer / Débloquer</strong> selon la régularisation.</p>
             </div>
         </div>
     </section>
 
-    <!-- Parametres abonnements -->
+    <!-- Paramètres abonnements -->
     <section class="subs-card adm-listing" id="subsListCard" data-adm-listing="reconciliation">
         <div class="subs-card-header">
             <div>
-                <h5 class="m-0">{{ 'Reglages des paiements' if current_user.role == 'manager' else 'Parametres abonnements' }}</h5>
-                <small class="text-muted">Definir le prix mensuel et, si besoin, offrir des jours gratuits a tous les vendeurs.</small>
+                <h5 class="subs-card-title">
+                    <i class="bi bi-sliders2-vertical text-success"></i>
+                    {{ 'Réglages des paiements' if current_user.role == 'manager' else 'Paramètres & Tarifs Abonnements' }}
+                </h5>
+                <span class="subs-card-subtitle">
+                    Fixez le montant mensuel standard et accordez, si nécessaire, une gratuité globale temporaire à tous les vendeurs.
+                </span>
             </div>
         </div>
-        <div class="p-3">
+        <div class="rec-settings-grid">
             <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.subscription_settings') }}" class="row g-3 align-items-end">
                 {% include "partials/_csrf.html" %}
-                <div class="col-md-4">
-                    <label class="form-label">Prix abonnement par mois (MAD)</label>
-                    <input type="number" step="0.01" min="0" class="form-control" name="monthly_amount"
-                           value="{{ '%.2f'|format((settings.vendor_subscription_monthly_cents or 0) / 100) }}">
+                <div class="col-lg-4 col-md-6">
+                    <label class="rec-form-label">Prix abonnement mensuel (MAD)</label>
+                    <div class="rec-input-box">
+                        <input type="number" step="0.01" min="0" class="form-control" name="monthly_amount"
+                               value="{{ '%.2f'|format((settings.vendor_subscription_monthly_cents or 0) / 100) }}">
+                    </div>
                 </div>
-                <div class="col-md-4">
-                    <label class="form-label">Gratuite pour tous (jours)</label>
-                    <input type="number" min="0" max="365" class="form-control" name="free_days_all"
-                           placeholder="0 = desactiver">
-                    <div class="form-text">
+                <div class="col-lg-4 col-md-6">
+                    <label class="rec-form-label">Gratuité globale tous vendeurs (jours)</label>
+                    <div class="rec-input-box">
+                        <input type="number" min="0" max="365" class="form-control" name="free_days_all"
+                               placeholder="0 = facturation normale">
+                    </div>
+                    <div class="form-text mt-1">
                         {% if global_free_until %}
-                            <i class="bi bi-calendar-check"></i> Active jusqu'au {{ global_free_until.strftime('%d/%m/%Y') }}
+                            <span class="text-success fw-semibold"><i class="bi bi-calendar-check-fill"></i> Actif jusqu'au {{ global_free_until.strftime('%d/%m/%Y') }}</span>
                         {% else %}
-                            <i class="bi bi-calendar-x"></i> Aucun mode gratuit global actif
+                            <span class="text-muted"><i class="bi bi-info-circle"></i> Aucun mode gratuit global actif (0 = désactivé)</span>
                         {% endif %}
                     </div>
                 </div>
-                <div class="col-md-4">
-                    <button class="btn btn-primary w-100" type="submit">
-                        <i class="bi bi-save"></i> Enregistrer
+                <div class="col-lg-4 col-md-12">
+                    <button class="btn rec-btn-3d-primary w-100" type="submit">
+                        <i class="bi bi-check2-circle"></i> Mettre à jour les paramètres
                     </button>
                 </div>
             </form>
         </div>
     </section>
 
-    <!-- Gestion des abonnements -->
+    <!-- Table des abonnements vendeurs -->
     <section class="subs-card">
         <div class="subs-card-header">
             <div>
-                <h5 class="m-0">{{ 'Suivi des paiements vendeurs' if current_user.role == 'manager' else 'Suivi des abonnements vendeurs' }}</h5>
-                <small class="text-muted">
-                    <i class="bi bi-layout-text-window"></i> 
-                    Page {{ pagination.page }} / {{ pagination.pages }} ({{ pagination.total }} vendeurs)
-                </small>
+                <h5 class="subs-card-title">
+                    <i class="bi bi-people-fill text-success"></i>
+                    {{ 'Suivi des paiements vendeurs' if current_user.role == 'manager' else 'Annuaire & Suivi des Abonnements Vendeurs' }}
+                </h5>
+                <span class="subs-card-subtitle">
+                    Page {{ pagination.page }} sur {{ pagination.pages }} &bull; {{ pagination.total }} vendeur(s) répertorié(s)
+                </span>
             </div>
-            <div class="filter-links adm-filters">
-                <form method="get" class="d-flex flex-wrap gap-2 align-items-center">
-                   {% if status %}<input type="hidden" name="status" value="{{ status }}">{% endif %}
-                   <select class="form-select form-select-sm" name="range">
-                       <option value="today" {% if range_filter == 'today' %}selected{% endif %}>Aujourd'hui</option>
-                       <option value="month" {% if range_filter == 'month' %}selected{% endif %}>Ce mois</option>
-                       <option value="year" {% if range_filter == 'year' %}selected{% endif %}>Cette annee</option>
-                       <option value="custom" {% if range_filter == 'custom' %}selected{% endif %}>Dates</option>
-                   </select>
-                   <input class="form-control form-control-sm" type="date" name="date_from" value="{{ date_from }}">
-                   <input class="form-control form-control-sm" type="date" name="date_to" value="{{ date_to }}">
-                   <button class="btn btn-outline-primary btn-sm" type="submit"><i class="bi bi-funnel"></i></button>
+            
+            <div class="rec-filters-bar">
+                <form method="get" class="rec-date-form">
+                    {% if status %}<input type="hidden" name="status" value="{{ status }}">{% endif %}
+                    <select class="form-select form-select-sm rec-select-3d" name="range" aria-label="Plage temporelle">
+                        <option value="today" {% if range_filter == 'today' %}selected{% endif %}>Aujourd'hui</option>
+                        <option value="month" {% if range_filter == 'month' %}selected{% endif %}>Ce mois</option>
+                        <option value="year" {% if range_filter == 'year' %}selected{% endif %}>Cette annee</option>
+                        <option value="custom" {% if range_filter == 'custom' %}selected{% endif %}>Dates</option>
+                    </select>
+                    <input class="form-control form-control-sm rec-input-3d" type="date" name="date_from" value="{{ date_from }}" title="Date début" aria-label="Date début">
+                    <input class="form-control form-control-sm rec-input-3d" type="date" name="date_to" value="{{ date_to }}" title="Date fin" aria-label="Date fin">
+                    <button class="btn btn-sm rec-btn-filter-submit" type="submit" title="Filtrer par dates" aria-label="Filtrer">
+                        <i class="bi bi-funnel-fill"></i>
+                    </button>
                 </form>
-                <a class="btn btn-outline-secondary {% if not status %}active{% endif %}" 
-                   data-adm-filter-link="1"
-                   href="{{ url_for('admin_users.reconciliation', range=range_filter, date_from=date_from or None, date_to=date_to or None) }}">
-                    <i class="bi bi-list"></i> Tous
-                </a>
-                <a class="btn btn-outline-success {% if status == 'active' %}active{% endif %}" 
-                   data-adm-filter-link="1"
-                   href="{{ url_for('admin_users.reconciliation', status='active', range=range_filter, date_from=date_from or None, date_to=date_to or None) }}">
-                    <i class="bi bi-check-circle"></i> Actifs
-                </a>
-                <a class="btn btn-outline-warning {% if status == 'overdue' %}active{% endif %}" 
-                   data-adm-filter-link="1"
-                   href="{{ url_for('admin_users.reconciliation', status='overdue', range=range_filter, date_from=date_from or None, date_to=date_to or None) }}">
-                    <i class="bi bi-exclamation-triangle"></i> En retard
-                </a>
-                <a class="btn btn-outline-dark {% if status == 'blocked' %}active{% endif %}" 
-                   data-adm-filter-link="1"
-                   href="{{ url_for('admin_users.reconciliation', status='blocked', range=range_filter, date_from=date_from or None, date_to=date_to or None) }}">
-                    <i class="bi bi-shield-lock"></i> Bloqués
-                </a>
+
+                <div class="filter-links adm-filters">
+                    <a class="btn btn-outline-secondary {% if not status %}active{% endif %}" 
+                       data-adm-filter-link="1"
+                       href="{{ url_for('admin_users.reconciliation', range=range_filter, date_from=date_from or None, date_to=date_to or None) }}">
+                        <i class="bi bi-grid-fill"></i> Tous
+                    </a>
+                    <a class="btn btn-outline-success {% if status == 'active' %}active{% endif %}" 
+                       data-adm-filter-link="1"
+                       href="{{ url_for('admin_users.reconciliation', status='active', range=range_filter, date_from=date_from or None, date_to=date_to or None) }}">
+                        <i class="bi bi-check-circle-fill"></i> Actifs
+                    </a>
+                    <a class="btn btn-outline-warning {% if status == 'overdue' %}active{% endif %}" 
+                       data-adm-filter-link="1"
+                       href="{{ url_for('admin_users.reconciliation', status='overdue', range=range_filter, date_from=date_from or None, date_to=date_to or None) }}">
+                        <i class="bi bi-hourglass-split"></i> En retard
+                    </a>
+                    <a class="btn btn-outline-dark {% if status == 'blocked' %}active{% endif %}" 
+                       data-adm-filter-link="1"
+                       href="{{ url_for('admin_users.reconciliation', status='blocked', range=range_filter, date_from=date_from or None, date_to=date_to or None) }}">
+                        <i class="bi bi-shield-lock-fill"></i> Bloqués
+                    </a>
+                </div>
             </div>
         </div>
         
@@ -586,41 +1305,56 @@
                     {% set free_days_left = (free_until - now).days if free_until else None %}
                     <tr>
                         <td data-label="Vendeur">
-                            <div class="fw-semibold">{{ vendor.username }}</div>
-                            <div class="text-muted small">{{ vendor.email }}</div>
+                            <div class="rec-vendor-cell">
+                                <div class="rec-avatar">
+                                    {{ vendor.username[:2]|upper }}
+                                </div>
+                                <div class="rec-vendor-info">
+                                    <span class="rec-vendor-name">{{ vendor.username }}</span>
+                                    <span class="rec-vendor-email" title="{{ vendor.email }}">
+                                        <i class="bi bi-envelope"></i> {{ vendor.email }}
+                                    </span>
+                                </div>
+                            </div>
                         </td>
                         <td data-label="Boutique">
                             {% if vendor.shop %}
-                                <span class="fw-semibold">{{ vendor.shop.name }}</span>
+                                <div class="rec-shop-chip">
+                                    <i class="bi bi-shop text-success"></i>
+                                    <span>{{ vendor.shop.name }}</span>
+                                </div>
                             {% else %}
-                                <span class="text-muted"><i class="bi bi-shop"></i> Aucune boutique</span>
+                                <span class="rec-shop-empty"><i class="bi bi-dash-circle"></i> Aucune boutique</span>
                             {% endif %}
                         </td>
                         <td data-label="Statut">
                             {% if not vendor.is_active %}
-                                <span class="badge-soft badge-block"><i class="bi bi-lock"></i> Bloqué</span>
+                                <span class="badge-soft badge-block"><i class="bi bi-lock-fill"></i> Bloqué</span>
                             {% elif global_free_active %}
-                        <span class="badge-soft badge-ok"><i class="bi bi-gift"></i> Gratuit (tous)</span>
+                                <span class="badge-soft badge-ok"><i class="bi bi-gift-fill"></i> Gratuit (tous)</span>
                             {% elif free_until and free_days_left is not none and free_days_left >= 0 %}
-                                <span class="badge-soft badge-ok"><i class="bi bi-gift"></i> Gratuit (vendeur)</span>
+                                <span class="badge-soft badge-ok"><i class="bi bi-gift-fill"></i> Gratuit (vendeur)</span>
                             {% elif expires and days_left is not none and days_left >= 0 %}
-                                <span class="badge-soft badge-ok"><i class="bi bi-check-circle"></i> Actif</span>
+                                <span class="badge-soft badge-ok"><i class="bi bi-check-circle-fill"></i> Actif</span>
                             {% elif expires %}
-                                <span class="badge-soft badge-warn"><i class="bi bi-clock"></i> Expiré</span>
+                                <span class="badge-soft badge-warn"><i class="bi bi-clock-history"></i> Expiré</span>
                             {% else %}
-                                <span class="badge-soft badge-bad"><i class="bi bi-x-circle"></i> Aucun paiement</span>
+                                <span class="badge-soft badge-bad"><i class="bi bi-x-circle-fill"></i> Aucun paiement</span>
                             {% endif %}
                         </td>
                         <td data-label="Fin abonnement">
-                            {{ expires.strftime('%d/%m/%Y') if expires else '--' }}
+                            <div class="fw-bold text-dark">
+                                <i class="bi bi-calendar-event text-muted me-1"></i>
+                                {{ expires.strftime('%d/%m/%Y') if expires else '--' }}
+                            </div>
                             {% if free_until %}
-                                <div class="text-muted small">
-                                    <i class="bi bi-gift"></i> Gratuit jusqu'au: {{ free_until.strftime('%d/%m/%Y') }}
+                                <div class="text-success small fw-semibold mt-1">
+                                    <i class="bi bi-gift-fill"></i> Gratuit jusqu'au : {{ free_until.strftime('%d/%m/%Y') }}
                                 </div>
                             {% endif %}
                             {% if vendor.subscription_last_paid_at %}
-                                <div class="text-muted small">
-                                    <i class="bi bi-credit-card"></i> Dernier paiement: {{ vendor.subscription_last_paid_at.strftime('%d/%m/%Y') }}
+                                <div class="text-muted small mt-1">
+                                    <i class="bi bi-credit-card"></i> Payé le : {{ vendor.subscription_last_paid_at.strftime('%d/%m/%Y') }}
                                 </div>
                             {% endif %}
                         </td>
@@ -628,70 +1362,69 @@
                             {% if days_left is not none %}
                                 {% if days_left >= 0 %}
                                     {% if days_left <= 7 %}
-                                        <span class="badge-soft badge-soon"><i class="bi bi-hourglass"></i> {{ days_left }} j</span>
+                                        <span class="badge-soft badge-soon"><i class="bi bi-hourglass-split"></i> {{ days_left }} j restants</span>
                                     {% else %}
-                                        <span class="badge-soft badge-ok">{{ days_left }} j</span>
+                                        <span class="badge-soft badge-ok"><i class="bi bi-check-circle"></i> {{ days_left }} j restants</span>
                                     {% endif %}
                                 {% else %}
-                                    <span class="badge-soft badge-expired"><i class="bi bi-exclamation-circle"></i> -{{ days_left|abs }} j</span>
+                                    <span class="badge-soft badge-expired"><i class="bi bi-exclamation-triangle-fill"></i> -{{ days_left|abs }} j (retard)</span>
                                 {% endif %}
                             {% elif free_days_left is not none and free_days_left >= 0 %}
-                                <span class="badge-soft badge-ok"><i class="bi bi-gift"></i> {{ free_days_left }} j</span>
+                                <span class="badge-soft badge-ok"><i class="bi bi-gift-fill"></i> {{ free_days_left }} j gratuits</span>
                             {% else %}
-                                --
+                                <span class="text-muted fw-bold">--</span>
                             {% endif %}
                         </td>
                         <td data-label="Actions">
-                            <div class="d-flex flex-column gap-2">
-                                <!-- Paiement -->
+                            <div class="rec-action-dock">
+                                <!-- Enregistrer Paiement -->
                                 <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.mark_subscription_paid', user_id=vendor.id) }}" 
-                                      class="d-flex gap-2 align-items-center flex-wrap">
+                                      class="rec-act-row">
                                     {% include "partials/_csrf.html" %}
-                                    <div class="action-field">
-                                        <p class="action-label">Mois</p>
-                                        <input class="form-control form-control-sm months-input" type="number" name="months" 
-                                               min="1" max="24" value="1" required title="Nombre de mois a ajouter" aria-label="Mois d'abonnement">
+                                    <div class="rec-input-unit" title="Nombre de mois à créditer">
+                                        <input class="form-control form-control-sm months-input rec-input-compact" type="number" name="months" 
+                                               min="1" max="24" value="1" required title="Mois à ajouter" aria-label="Mois d'abonnement">
+                                        <span class="rec-unit-tag">mois</span>
                                     </div>
-                                    <div class="action-field">
-                                        <p class="action-label">Note interne</p>
-                                        <input class="form-control form-control-sm note-input" type="text" name="note" 
-                                               placeholder="Optionnelle" aria-label="Note interne">
-                                    </div>
-                                    <button class="btn btn-success btn-sm" type="submit">
-                                        <i class="bi bi-cash-stack"></i> Enregistrer paiement
+                                    <input class="form-control form-control-sm note-input rec-input-compact" type="text" name="note" 
+                                           placeholder="Note interne..." aria-label="Note interne" title="Note optionnelle">
+                                    <button class="rec-btn-act-pay" type="submit" title="Enregistrer le paiement">
+                                        <i class="bi bi-cash-stack"></i> <span>Encaisser</span>
                                     </button>
                                 </form>
                                 
-                                <!-- Mode free -->
-                                <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.subscription_free_vendor', user_id=vendor.id) }}" 
-                                      class="d-flex gap-2 align-items-center flex-wrap">
-                                    {% include "partials/_csrf.html" %}
-                                    <div class="action-field">
-                                        <p class="action-label">Jours gratuits</p>
-                                        <input class="form-control form-control-sm months-input" type="number" name="days" 
-                                               min="1" max="365" value="7" required title="Nombre de jours gratuits" aria-label="Nombre de jours gratuits">
-                                    </div>
-                                    <button class="btn btn-outline-success btn-sm" type="submit">
-                                        <i class="bi bi-gift"></i> Offrir jours gratuits
-                                    </button>
-                                </form>
-                                
-                                <!-- Bloquer/Débloquer -->
-                                {% if vendor.is_active %}
-                                <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.subscription_block_vendor', user_id=vendor.id) }}">
-                                    {% include "partials/_csrf.html" %}
-                                    <button class="btn btn-outline-danger btn-sm" type="submit">
-                                        <i class="bi bi-lock"></i> Bloquer l'accès
-                                    </button>
-                                </form>
-                                {% else %}
-                                <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.subscription_unblock_vendor', user_id=vendor.id) }}">
-                                    {% include "partials/_csrf.html" %}
-                                    <button class="btn btn-outline-success btn-sm" type="submit">
-                                        <i class="bi bi-unlock"></i> Reouvrir l'accès
-                                    </button>
-                                </form>
-                                {% endif %}
+                                <div class="rec-act-secondary">
+                                    <!-- Offrir Jours Gratuits -->
+                                    <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.subscription_free_vendor', user_id=vendor.id) }}" 
+                                          class="d-flex align-items-center gap-1">
+                                        {% include "partials/_csrf.html" %}
+                                        <div class="rec-input-unit" title="Nombre de jours offerts">
+                                            <input class="form-control form-control-sm months-input rec-input-compact" type="number" name="days" 
+                                                   min="1" max="365" value="7" required title="Nombre de jours gratuits" aria-label="Nombre de jours gratuits">
+                                            <span class="rec-unit-tag">j</span>
+                                        </div>
+                                        <button class="rec-btn-act-gift" type="submit" title="Offrir ces jours">
+                                            <i class="bi bi-gift-fill"></i> <span>Offrir</span>
+                                        </button>
+                                    </form>
+                                    
+                                    <!-- Bloquer / Débloquer -->
+                                    {% if vendor.is_active %}
+                                    <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.subscription_block_vendor', user_id=vendor.id) }}">
+                                        {% include "partials/_csrf.html" %}
+                                        <button class="rec-btn-act-block" type="submit" title="Suspendre l'accès vendeur">
+                                            <i class="bi bi-shield-x"></i> <span>Bloquer</span>
+                                        </button>
+                                    </form>
+                                    {% else %}
+                                    <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.subscription_unblock_vendor', user_id=vendor.id) }}">
+                                        {% include "partials/_csrf.html" %}
+                                        <button class="rec-btn-act-unblock" type="submit" title="Rétablir l'accès vendeur">
+                                            <i class="bi bi-shield-check"></i> <span>Débloquer</span>
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                </div>
                             </div>
                         </td>
                     </tr>
@@ -700,7 +1433,8 @@
                         <td colspan="6">
                             <div class="subs-empty">
                                 <i class="bi bi-inbox"></i>
-                                <p class="mt-2">Aucun vendeur trouvé.</p>
+                                <h6>Aucun vendeur trouvé</h6>
+                                <p>Aucun compte vendeur ne correspond aux critères et filtres sélectionnés.</p>
                             </div>
                         </td>
                     </tr>
@@ -719,6 +1453,4 @@
         {% endif %}
     </section>
 </div>
-
 {% endblock %}
-
