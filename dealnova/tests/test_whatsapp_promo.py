@@ -367,8 +367,8 @@ def test_admin_promo_routes_and_cli_commands(app, tmp_path):
     resp_page = adm_client.get("/admin/whatsapp-gateway")
     assert resp_page.status_code == 200
     page_html = resp_page.get_data(as_text=True)
-    assert "Persistance max 2h" in page_html
-    assert "min_delay" in page_html
+    assert "Délais anti-ban" not in page_html
+    assert 'type="hidden" name="min_delay"' in page_html
     assert "status_products" in page_html
 
     # CLI test
@@ -1164,11 +1164,18 @@ def test_wave_1_to_wave_2_auto_transition_and_reinforced_controls(app, tmp_path)
         sess["_fresh"] = True
 
     with patch("dealnova.app.services.whatsapp_promo._rental_upload_roots", return_value=[rentals_dir.resolve()]):
-        # 1) Ouverture de /admin/whatsapp-gateway AVANT l'envoi du matin -> prépare et affiche les 10 offres de Vague 1 (Matin)
-        r_get_1 = client.get("/admin/whatsapp-gateway")
+        # 1) Ouverture RAPIDE de /admin/whatsapp-gateway (zéro watermark CPU ni Gemini synchrone, miniatures /static/uploads/..., zéro ligne Délais anti-ban)
+        with (
+            patch("dealnova.app.services.image_download.watermarked_photo", side_effect=AssertionError("watermarked_photo ne doit jamais bloquer le chargement HTML !")),
+            patch("dealnova.app.services.whatsapp_promo.generate_copy", side_effect=AssertionError("Gemini ne doit jamais bloquer le chargement HTML !")),
+        ):
+            r_get_1 = client.get("/admin/whatsapp-gateway")
         assert r_get_1.status_code == 200
         html_1 = r_get_1.get_data(as_text=True)
         assert "Vague 1 — Matin" in html_1
+        assert "Délais anti-ban" not in html_1
+        assert "/static/uploads/" in html_1
+        assert '/photo/0/download"' not in html_1
         assert 'data-wave-number="1"' in html_1
         assert "#10/10" in html_1
         assert "6 en Statut 24h" in html_1

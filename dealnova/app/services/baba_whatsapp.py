@@ -98,9 +98,14 @@ def get_whatsapp_gateway_status(
         api_key
         or ((current_app and current_app.config.get("BABA_WHATSAPP_API_KEY")) or os.getenv("BABA_WHATSAPP_API_KEY", ""))
     ).strip()
-    timeout_sec = timeout or int(
-        ((current_app and current_app.config.get("BABA_WHATSAPP_TIMEOUT")) or os.getenv("BABA_WHATSAPP_TIMEOUT", "4"))
-    )
+    if timeout is not None:
+        timeout_sec: int | tuple[float, float] = timeout
+    elif (current_app and current_app.config.get("BABA_WHATSAPP_TIMEOUT")) or os.getenv("BABA_WHATSAPP_TIMEOUT"):
+        timeout_sec = int((current_app and current_app.config.get("BABA_WHATSAPP_TIMEOUT")) or os.getenv("BABA_WHATSAPP_TIMEOUT", "2"))
+    elif "127.0.0.1" in url or "localhost" in url:
+        timeout_sec = (0.4, 1.2)
+    else:
+        timeout_sec = (1.0, 2.5)
 
     headers = {"Accept": "application/json"}
     if key:

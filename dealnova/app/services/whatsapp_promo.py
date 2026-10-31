@@ -473,18 +473,65 @@ def _first_image(product: Product) -> str:
     return next((name.strip() for name in (product.image_file or "").split("|") if name.strip()), "")
 
 
-def _image_exists(filename: str) -> bool:
+def _resolved_upload_root() -> Path:
     root = current_app.config.get("UPLOAD_FOLDER") or str(Path(current_app.static_folder) / "uploads")
+    return Path(root).resolve()
+
+
+def _fast_image_exists(filename: str, root_path: Path | None = None) -> bool:
+    if not filename or ".." in filename or filename.startswith(("/", "\\")):
+        return False
     try:
-        root_path = Path(root).resolve()
+        base = root_path or _resolved_upload_root()
+        return (base / filename).is_file()
+    except (OSError, ValueError):
+        return False
+
+
+def _image_exists(filename: str) -> bool:
+    try:
+        root_path = _resolved_upload_root()
         candidate = (root_path / filename).resolve()
         return candidate.is_relative_to(root_path) and candidate.is_file()
     except (OSError, ValueError):
         return False
 
 
+def _product_static_thumb_url(first_img: str, root_path: Path | None = None) -> str:
+    """URL statique légère servie directement par Nginx (sans filigrane CPU ni blocage Gunicorn)."""
+    clean = str(first_img or "").strip().replace("\\", "/").lstrip("/")
+    if not clean or ".." in clean:
+        return ""
+    if clean.startswith("static/"):
+        clean = clean[7:]
+    if clean.startswith("uploads/"):
+        clean = clean[8:]
+    base = root_path or _resolved_upload_root()
+    try:
+        from .image import image_variant
+        thumb_rel = image_variant(clean, "thumb")
+        if thumb_rel and (base / thumb_rel).is_file():
+            return f"/static/uploads/{thumb_rel}"
+    except Exception:
+        pass
+    return f"/static/uploads/{clean}"
+
+
+def _rental_static_thumb_url(img_filename: str) -> str:
+    clean = str(img_filename or "").strip().replace("\\", "/").lstrip("/")
+    if not clean or ".." in clean:
+        return ""
+    if clean.startswith("static/"):
+        clean = clean[7:]
+    if clean.startswith("uploads/"):
+        clean = clean[8:]
+    if not clean.startswith("rentals/"):
+        clean = f"rentals/{clean}"
+    return f"/static/uploads/{clean}"
+
+
 def _get_product_image_base64(product: Product | None) -> str:
-    """Génère l'image avec filigrane en base64 pour transmission instantanée à la passerelle sans requête HTTP."""
+    """Génère l'image avec filigrane en base64 (calibrée 1280px WhatsApp) uniquement au moment de l'envoi."""
     if not product:
         return ""
     try:
@@ -494,7 +541,7 @@ def _get_product_image_base64(product: Product | None) -> str:
         upload_root = current_app.config.get("UPLOAD_FOLDER") or (Path(current_app.static_folder) / "uploads")
         from .image_download import watermarked_photo
         try:
-            buf = watermarked_photo(upload_root, images[0])
+            buf = watermarked_photo(upload_root, images[0], max_edge=1280, optimize=False)
             raw_bytes = buf.getvalue()
         except Exception as exc:
             current_app.logger.debug("watermark_fallback_raw pid=%s: %s", getattr(product, "id", None), exc)
@@ -545,6 +592,7 @@ def select_daily_offers(
     *,
     promoted: dict[str, str] | None = None,
     sent_ids_today: list[str] | set[str] | None = None,
+    include_base64: bool = False,
 ) -> list[dict[str, Any]]:
     """Sélectionne un panier équilibré d'offres (par défaut 5 produits, 3 services, 2 locations)
     avec rotation aléatoire sur tout le catalogue et interdiction absolue de répétition le même jour.
@@ -609,7 +657,7 @@ def select_daily_offers(
                     r_obj = pinned_rent_map.get(rid)
                     cur_rent = sum(1 for c in selected_cards if c.get("item_type") == "rental")
                     if r_obj and rid not in seen_rental_ids and cur_rent < max(1, rent_target) and _first_rental_image(r_obj)[0] > 0:
-                        selected_cards.append(build_rental_card(r_obj))
+                        selected_cards.append(build_rental_card(r_obj, include_base64=include_base64))
                         seen_rental_ids.add(rid)
                 elif s_pin.isdigit():
                     pid = int(s_pin)
@@ -626,7 +674,7 @@ def select_daily_offers(
                         continue
                     first_img = _first_image(p)
                     if first_img and _image_exists(first_img):
-                        selected_cards.append(build_product_card(p, promos_pinned.get(p.id)))
+                        selected_cards.append(build_product_card(p, promos_pinned.get(p.id), include_base64=include_base64))
                         seen_product_ids.add(p.id)
         except Exception:
             safe_session_rollback()
@@ -636,6 +684,8 @@ def select_daily_offers(
 
     needed_prods = max(0, prod_target - pinned_prod_count)
     needed_servs = max(0, serv_target - pinned_serv_count)
+
+    up_root = _resolved_upload_root()
 
     # 2. Sélection Produits Physiques (rotation aléatoire équitable + zéro répétition le même jour)
     if needed_prods > 0:
@@ -650,14 +700,14 @@ def select_daily_offers(
                 .filter(Product.stock > 0)
                 .filter(Product.image_file.isnot(None), Product.image_file != "")
                 .order_by(Product.created_at.desc())
-                .limit(1000)
+                .limit(250)
                 .all()
             )
             valid = [
                 p for p in candidates
                 if p.id not in seen_product_ids
                 and str(p.id) not in excluded_today
-                and _image_exists(_first_image(p))
+                and _fast_image_exists(_first_image(p), up_root)
             ]
             promos = get_active_promos_for_products([p.id for p in valid])
             fresh = [p for p in valid if p.id not in recent_pids]
@@ -667,7 +717,7 @@ def select_daily_offers(
                 fallback_pool = [p for p in valid if p.id not in picked_ids]
                 picked.extend(_pick_fair_random_products(fallback_pool, needed_prods - len(picked), promos))
             for p in picked:
-                card = build_product_card(p, promos.get(p.id))
+                card = build_product_card(p, promos.get(p.id), include_base64=include_base64)
                 selected_cards.append(card)
                 seen_product_ids.add(p.id)
         except Exception:
@@ -685,14 +735,14 @@ def select_daily_offers(
                 .filter(Product.kind == "service")
                 .filter(Product.image_file.isnot(None), Product.image_file != "")
                 .order_by(Product.created_at.desc())
-                .limit(1000)
+                .limit(200)
                 .all()
             )
             valid = [
                 p for p in candidates
                 if p.id not in seen_product_ids
                 and str(p.id) not in excluded_today
-                and _image_exists(_first_image(p))
+                and _fast_image_exists(_first_image(p), up_root)
             ]
             promos = get_active_promos_for_products([p.id for p in valid])
             fresh = [p for p in valid if p.id not in recent_pids]
@@ -702,7 +752,7 @@ def select_daily_offers(
                 fallback_pool = [p for p in valid if p.id not in picked_ids]
                 picked.extend(_pick_fair_random_products(fallback_pool, needed_servs - len(picked), promos))
             for p in picked:
-                card = build_product_card(p, promos.get(p.id))
+                card = build_product_card(p, promos.get(p.id), include_base64=include_base64)
                 selected_cards.append(card)
                 seen_product_ids.add(p.id)
         except Exception:
@@ -752,7 +802,7 @@ def select_daily_offers(
                 random.shuffle(bucket)
             picked_rentals = (r_recent_fresh + r_recent_cooled + r_older_fresh + r_older_cooled)[:needed_rents]
             for r in picked_rentals:
-                selected_cards.append(build_rental_card(r))
+                selected_cards.append(build_rental_card(r, include_base64=include_base64))
                 seen_rental_ids.add(r.id)
         except Exception as exc:
             safe_session_rollback()
@@ -772,14 +822,14 @@ def select_daily_offers(
                 .filter(or_(Product.kind == "service", Product.stock > 0))
                 .filter(Product.image_file.isnot(None), Product.image_file != "")
                 .order_by(Product.created_at.desc())
-                .limit(1000)
+                .limit(250)
                 .all()
             )
             extra_valid = [
                 p for p in extra_candidates
                 if p.id not in seen_product_ids
                 and str(p.id) not in excluded_today
-                and _image_exists(_first_image(p))
+                and _fast_image_exists(_first_image(p), up_root)
             ]
             if extra_valid:
                 promos_extra = get_active_promos_for_products([p.id for p in extra_valid])
@@ -790,7 +840,7 @@ def select_daily_offers(
                     rem_pool = [p for p in extra_valid if p.id not in picked_extra_ids]
                     picked_extra.extend(_pick_fair_random_products(rem_pool, shortfall - len(picked_extra), promos_extra))
                 for p in picked_extra:
-                    selected_cards.append(build_product_card(p, promos_extra.get(p.id)))
+                    selected_cards.append(build_product_card(p, promos_extra.get(p.id), include_base64=include_base64))
                     seen_product_ids.add(p.id)
         except Exception:
             safe_session_rollback()
@@ -925,7 +975,7 @@ def _get_rental_image_base64(listing: Any) -> str:
             return ""
         from .image_download import watermarked_photo
         try:
-            buf = watermarked_photo(upload_root, img_filename)
+            buf = watermarked_photo(upload_root, img_filename, max_edge=1280, optimize=False)
             raw_bytes = buf.getvalue()
         except Exception as exc:
             current_app.logger.debug("watermark_fallback_raw rental_id=%s: %s", getattr(listing, "id", None), exc)
@@ -941,23 +991,24 @@ def _get_rental_image_base64(listing: Any) -> str:
     return ""
 
 
-def build_rental_card(listing: Any) -> dict[str, Any]:
+def build_rental_card(listing: Any, *, include_base64: bool = True) -> dict[str, Any]:
     base = _public_base_url()
     page = f"{base}/l/{listing.id}"
     rent_dh = float(getattr(listing, "rent_cents", 0) or 0) / 100.0
     period = "mois" if getattr(listing, "listing_type", "monthly") == "monthly" else "jour"
     price_line = f"💰 {_format_dh(rent_dh)} DH / {period}"
-    
+
     media_id, img_filename = _first_rental_image(listing)
     has_image = bool(media_id and img_filename)
     image_url = f"{base}/location/{listing.slug}/photo/{media_id}/download" if has_image else ""
-    image_b64 = _get_rental_image_base64(listing) if has_image else ""
-    
+    thumb_url = _rental_static_thumb_url(img_filename) if has_image else ""
+    image_b64 = _get_rental_image_base64(listing) if (has_image and include_base64) else ""
+
     shop_name = getattr(getattr(listing, "shop", None), "name", "") or "Baba Market Immo"
     city = getattr(listing, "city", "") or ""
     area = getattr(listing, "area", "") or ""
     city_area = f"{city} - {area}" if (city and area) else (city or area or "Maroc")
-    
+
     prop_type = getattr(listing, "property_type", "apartment")
     type_labels = {
         "apartment": "Appartement",
@@ -966,7 +1017,7 @@ def build_rental_card(listing: Any) -> dict[str, Any]:
         "store": "Magasin / Local commercial",
     }
     cat_label = f"Location {type_labels.get(prop_type, str(prop_type).capitalize())}"
-    
+
     return {
         "id": f"rental_{listing.id}",
         "raw_id": listing.id,
@@ -981,20 +1032,23 @@ def build_rental_card(listing: Any) -> dict[str, Any]:
         "price_line": price_line,
         "page_url": page,
         "image_url": image_url,
+        "thumb_url": thumb_url,
         "image_base64": image_b64,
         "has_image": has_image,
     }
 
 
-def build_product_card(product: Product, promo=None) -> dict[str, Any]:
+def build_product_card(product: Product, promo=None, *, include_base64: bool = True) -> dict[str, Any]:
     final = float(prix_final(product, promo))
     base_price = float(product.price or 0)
     base = _public_base_url()
     page = f"{base}/p/{product.id}"
     first_img = _first_image(product)
-    has_image = bool(first_img and _image_exists(first_img))
+    up_root = _resolved_upload_root()
+    has_image = bool(first_img and _fast_image_exists(first_img, up_root))
     image = f"{base}/shop/product/{product.id}/photo/0/download" if has_image else ""
-    image_b64 = _get_product_image_base64(product) if has_image else ""
+    thumb_url = _product_static_thumb_url(first_img, up_root) if has_image else ""
+    image_b64 = _get_product_image_base64(product) if (has_image and include_base64) else ""
     shop_name = getattr(product.shop, "name", "") or ""
     category = getattr(getattr(product, "category", None), "name", "") or ""
     item_kind = getattr(product, "kind", "physical") or "physical"
@@ -1013,6 +1067,7 @@ def build_product_card(product: Product, promo=None) -> dict[str, Any]:
         ),
         "page_url": page,
         "image_url": image,
+        "thumb_url": thumb_url,
         "image_base64": image_b64,
         "has_image": has_image,
     }
@@ -1111,7 +1166,7 @@ def generate_copy(cards: list[dict[str, Any]], *, session: requests.Session | No
     try:
         response = (session or requests).post(
             f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
-            headers={"x-goog-api-key": api_key}, json=payload, timeout=(3, 25),
+            headers={"x-goog-api-key": api_key}, json=payload, timeout=(2.5, 8),
         )
         if response.status_code != 200:
             current_app.logger.info("whatsapp_promo.gemini_failed status=%s", response.status_code)
@@ -1324,13 +1379,15 @@ def _gateway_post(path: str, payload: dict[str, Any]) -> tuple[int, dict[str, An
     return response.status_code, body if isinstance(body, dict) else {}
 
 
-def post_status(card: dict[str, Any], caption: str, audience: list[str]) -> tuple[bool, str]:
-    image_b64 = card.get("image_base64")
-    if not image_b64 and card.get("id"):
+def _ensure_card_image_base64(card: dict[str, Any]) -> str:
+    image_b64 = card.get("image_base64") or ""
+    if image_b64:
+        return image_b64
+    if card.get("id"):
         try:
             cid = str(card["id"])
             if cid.startswith("rental_"):
-                rid = int(cid.split("_")[1])
+                rid = int(cid.split("_", 1)[1])
                 from ..models.rental import RentalListing
                 listing = db.session.get(RentalListing, rid)
                 if listing:
@@ -1341,6 +1398,13 @@ def post_status(card: dict[str, Any], caption: str, audience: list[str]) -> tupl
                     image_b64 = _get_product_image_base64(prod)
         except Exception:
             safe_session_rollback()
+        if image_b64:
+            card["image_base64"] = image_b64
+    return image_b64
+
+
+def post_status(card: dict[str, Any], caption: str, audience: list[str]) -> tuple[bool, str]:
+    image_b64 = _ensure_card_image_base64(card)
 
     code, body = _gateway_post("/api/promo/status", {
         "image_url": card.get("image_url", ""),
@@ -1356,22 +1420,7 @@ def send_promo_media(target: str, card: dict[str, Any], text: str) -> tuple[str,
     """Envoie une photo + texte vers un numéro client ou un groupe WhatsApp.
     Retourne (résultat, détail) : sent | opted_out | not_on_whatsapp | failed
     """
-    image_b64 = card.get("image_base64")
-    if not image_b64 and card.get("id"):
-        try:
-            cid = str(card["id"])
-            if cid.startswith("rental_"):
-                rid = int(cid.split("_")[1])
-                from ..models.rental import RentalListing
-                listing = db.session.get(RentalListing, rid)
-                if listing:
-                    image_b64 = _get_rental_image_base64(listing)
-            elif cid.isdigit():
-                prod = db.session.get(Product, int(cid))
-                if prod:
-                    image_b64 = _get_product_image_base64(prod)
-        except Exception:
-            safe_session_rollback()
+    image_b64 = _ensure_card_image_base64(card)
 
     payload = {
         "target": target,
@@ -1788,6 +1837,7 @@ def _build_wave_items_and_meta(
             "old_price_dh": str(c.get("old_price")) if c.get("old_price") else "",
             "price_line": c["price_line"],
             "image_url": c["image_url"],
+            "thumb_url": c.get("thumb_url") or "",
             "has_image": bool(c.get("has_image", bool(c.get("image_url")))),
             "page_url": c["page_url"],
             "product_url": c["page_url"],
@@ -1826,9 +1876,49 @@ def _build_wave_items_and_meta(
     return items_data, last_generated_data, status_cards
 
 
-def prepare_wave_preview(*, force: bool = False) -> dict[str, Any]:
+def _backfill_missing_thumb_urls(items: list[dict[str, Any]]) -> bool:
+    """Complète instantanément thumb_url (/static/uploads/...) sur les lots déjà en cache pour éviter tout appel /download."""
+    missing_pids = [int(it["id"]) for it in items if not it.get("thumb_url") and str(it.get("id", "")).isdigit()]
+    missing_rids = [
+        int(str(it["id"])[7:])
+        for it in items
+        if not it.get("thumb_url") and str(it.get("id", "")).startswith("rental_") and str(it["id"])[7:].isdigit()
+    ]
+    if not missing_pids and not missing_rids:
+        return False
+    changed = False
+    up_root = _resolved_upload_root()
+    try:
+        prod_map = {p.id: p for p in Product.query.filter(Product.id.in_(missing_pids)).all()} if missing_pids else {}
+        rent_map: dict[int, Any] = {}
+        if missing_rids:
+            from ..models.rental import RentalListing
+            rent_map = {
+                r.id: r
+                for r in RentalListing.query.options(selectinload(RentalListing.media)).filter(RentalListing.id.in_(missing_rids)).all()
+            }
+        for it in items:
+            if it.get("thumb_url"):
+                continue
+            sid = str(it.get("id") or "")
+            if sid.isdigit() and int(sid) in prod_map:
+                fn = _first_image(prod_map[int(sid)])
+                if fn:
+                    it["thumb_url"] = _product_static_thumb_url(fn, up_root)
+                    changed = True
+            elif sid.startswith("rental_") and sid[7:].isdigit() and int(sid[7:]) in rent_map:
+                _, r_fn = _first_rental_image(rent_map[int(sid[7:])])
+                if r_fn:
+                    it["thumb_url"] = _rental_static_thumb_url(r_fn)
+                    changed = True
+    except Exception:
+        safe_session_rollback()
+    return changed
+
+
+def prepare_wave_preview(*, force: bool = False, use_ai: bool = True) -> dict[str, Any]:
     """Prépare silencieusement les offres de la vague courante (Matin ou Soir) dans last_generated
-    sans polluer l'Historique des envois (recent_logs)."""
+    sans polluer l'Historique des envois (recent_logs). Si use_ai=False, répond en <30ms sans appel réseau."""
     settings = get_settings()
     today = _today()
     log = get_log()
@@ -1840,7 +1930,11 @@ def prepare_wave_preview(*, force: bool = False) -> dict[str, Any]:
     )
     if not cards:
         return {}
-    copies, source = generate_copy(cards)
+    if use_ai:
+        copies, source = generate_copy(cards)
+    else:
+        copies = {card["id"]: _fallback_copy(card) for card in cards}
+        source = "fallback"
     _, last_generated_data, _ = _build_wave_items_and_meta(
         cards, copies, source, settings, log, today, preview=True, consumed=False
     )
@@ -1851,8 +1945,71 @@ def prepare_wave_preview(*, force: bool = False) -> dict[str, Any]:
     return last_generated_data
 
 
-def ensure_current_wave_preview(*, force_regenerate: bool = False) -> dict[str, Any]:
-    """Garantit que la page admin affiche toujours exactement la vague active (les 10 offres du Matin,
+def enrich_wave_ai_in_background(app) -> None:
+    """Enrichit en tâche de fond les textes IA Gemini du lot affiché sans jamais bloquer le chargement de la page."""
+    if getattr(app, "testing", False) or app.config.get("TESTING"):
+        return
+    api_key = str(app.config.get("GEMINI_API_KEY") or "").strip()
+    if not api_key:
+        return
+    import threading
+
+    def _worker() -> None:
+        with app.app_context():
+            try:
+                log = get_log()
+                lg = log.get("last_generated") or {}
+                items = list(lg.get("items") or [])
+                if not items or lg.get("consumed") or lg.get("source") == "gemini" or lg.get("manually_edited"):
+                    return
+                gen_stamp = lg.get("generated_at")
+                cards_payload = [
+                    {
+                        "id": it["id"],
+                        "name": it.get("name") or it.get("title") or "",
+                        "item_type": it.get("item_type", "physical"),
+                        "description": it.get("name") or "",
+                        "shop": it.get("shop") or "",
+                        "category": it.get("category") or "",
+                        "city": it.get("city") or "",
+                        "price_line": it.get("price_line") or "",
+                        "page_url": it.get("page_url") or "",
+                    }
+                    for it in items
+                ]
+                copies, source = generate_copy(cards_payload)
+                if source != "gemini":
+                    return
+                fresh = get_log()
+                cur_lg = fresh.get("last_generated") or {}
+                if cur_lg.get("generated_at") != gen_stamp or cur_lg.get("consumed") or cur_lg.get("manually_edited"):
+                    return
+                for it in cur_lg.get("items") or []:
+                    if it.get("is_custom") or it.get("manually_edited"):
+                        continue
+                    cp = copies.get(it["id"])
+                    if not cp:
+                        continue
+                    it["ai_status"] = cp.get("status", "")
+                    it["ai_message"] = cp.get("message", "")
+                    it["status_caption"] = compose_status_caption(it, cp)
+                    it["group_message"] = compose_group_message(it, cp)
+                    it["group_message_sample"] = it["group_message"]
+                cur_lg["source"] = "gemini"
+                cur_lg["copy_source"] = "gemini"
+                cur_lg["products"] = cur_lg.get("items") or []
+                fresh["last_generated"] = cur_lg
+                _save_promo_log(fresh)
+            except Exception:
+                safe_session_rollback()
+            finally:
+                db.session.remove()
+
+    threading.Thread(target=_worker, daemon=True).start()
+
+
+def ensure_current_wave_preview(*, force_regenerate: bool = False, use_ai: bool = False) -> dict[str, Any]:
+    """Garantit que la page admin affiche toujours instantanément la vague active (les 10 offres du Matin,
     puis automatiquement les 10 nouvelles offres du Soir dès que le Matin est parti, ou mises à jour
     dès qu'un quota de l'Étape 3 est modifié)."""
     settings = get_settings()
@@ -1875,11 +2032,10 @@ def ensure_current_wave_preview(*, force_regenerate: bool = False) -> dict[str, 
         and all(str(it.get("id")) not in sent_today_set for it in items)
     )
     if is_valid:
-        # Synchroniser les badges Statut/Groupes et l'heure affichée si seuls ces champs ont bougé
         per_run_limit = _compute_per_wave_status_limit(settings, log, today, preview=True)
         pseudo_cards = [{"id": it["id"], "item_type": it.get("item_type", "physical")} for it in items]
         st_ids = {str(c["id"]) for c in _select_balanced_status_cards(pseudo_cards, per_run_limit)}
-        updated_meta = False
+        updated_meta = _backfill_missing_thumb_urls(items)
         for it in items:
             want_st = bool(settings.get("status_enabled", True) and str(it["id"]) in st_ids)
             want_gr = bool(settings.get("groups_enabled", True))
@@ -1900,7 +2056,7 @@ def ensure_current_wave_preview(*, force_regenerate: bool = False) -> dict[str, 
             _save_promo_log(log)
         return last_gen
 
-    return prepare_wave_preview(force=True)
+    return prepare_wave_preview(force=True, use_ai=use_ai)
 
 
 def run_daily_promo(

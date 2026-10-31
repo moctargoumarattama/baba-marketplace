@@ -810,10 +810,13 @@
           <div class="promo-product-box" data-item-type="{{ ptype }}" data-in-story="{{ '1' if in_story else '0' }}" style="margin-bottom:1.1rem;">
             <!-- Haut : Produit -->
             <div class="promo-product-top">
-              <img src="{{ prod.get('image_url') or url_for('static', filename='images/placeholder-product.svg') }}"
+              <img src="{{ prod.get('thumb_url') or prod.get('image_url') or url_for('static', filename='images/placeholder-product.svg') }}"
                    alt="{{ prod.get('title') or prod.get('name') }}"
+                   width="72" height="72"
+                   {% if loop.index == 1 %}fetchpriority="high"{% elif loop.index > 3 %}loading="lazy"{% endif %}
+                   decoding="async"
                    class="promo-product-img"
-                   onerror="this.src='/static/images/placeholder-product.svg';">
+                   onerror="this.onerror=null;this.src='/static/images/placeholder-product.svg';">
 
               <div class="promo-product-info">
                 <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
@@ -1159,26 +1162,7 @@
               </div>
             </div>
 
-            <!-- Ligne 3 : Délais anti-ban avec boutons - / + et aperçu dynamique du pas entre groupes -->
-            <div style="font-size:0.82rem;color:#334155;display:flex;align-items:center;gap:0.65rem;flex-wrap:wrap;margin-top:0.55rem;background:#ffffff;border:1px solid #e2e8f0;padding:0.5rem 0.9rem;border-radius:10px;">
-              <span class="fw-bold text-dark"><i class="bi bi-shield-check text-success me-1"></i> Délais anti-ban :</span>
-              <label for="inpMinDelay" class="m-0">Min</label>
-              <div class="wa-stepper">
-                <button type="button" class="wa-stepper-btn" data-step-target="inpMinDelay" data-step="-5" aria-label="Moins">−</button>
-                <input type="number" id="inpMinDelay" name="min_delay" value="{{ ps.get('min_delay', 45) }}" min="20" max="300" class="js-watch-setting">
-                <button type="button" class="wa-stepper-btn" data-step-target="inpMinDelay" data-step="5" aria-label="Plus">+</button>
-              </div>
-              <label for="inpMaxDelay" class="m-0">sec — Max</label>
-              <div class="wa-stepper">
-                <button type="button" class="wa-stepper-btn" data-step-target="inpMaxDelay" data-step="-5" aria-label="Moins">−</button>
-                <input type="number" id="inpMaxDelay" name="max_delay" value="{{ ps.get('max_delay', 90) }}" min="20" max="300" class="js-watch-setting">
-                <button type="button" class="wa-stepper-btn" data-step-target="inpMaxDelay" data-step="5" aria-label="Plus">+</button>
-              </div>
-              <span>sec</span>
-              <span class="badge bg-secondary-subtle text-dark border ms-auto" style="font-weight:600;" id="liveDelayHintBadge">
-                <i class="bi bi-shuffle me-1"></i> Alternance auto selon nb de groupes • Persistance max 2h
-              </span>
-            </div>
+
           </div>
 
           <!-- Barre d'actions bien visible et synchronisée -->
@@ -1199,8 +1183,10 @@
           </div>
         </div>
 
-        <!-- Champs cachés techniques -->
+        <!-- Champs cachés techniques (délais anti-ban gérés automatiquement en arrière-plan) -->
         <input type="hidden" name="dry_run" value="0">
+        <input type="hidden" name="min_delay" value="{{ ps.get('min_delay', 45) }}">
+        <input type="hidden" name="max_delay" value="{{ ps.get('max_delay', 90) }}">
         <input type="hidden" name="daily_message_limit" value="{{ ps.get('daily_message_limit', 50) }}">
         <input type="hidden" name="cooldown_days" value="{{ ps.get('cooldown_days', 7) }}">
       </form>
@@ -1748,13 +1734,6 @@
       var s = clampNum(document.getElementById("inpServCount"));
       var r = clampNum(document.getElementById("inpRentCount"));
       var stTot = clampNum(document.getElementById("inpStatusCount"));
-      var dMin = clampNum(document.getElementById("inpMinDelay"));
-      var dMax = clampNum(document.getElementById("inpMaxDelay"));
-      if (dMax < dMin) {
-        dMax = dMin;
-        var mxEl = document.getElementById("inpMaxDelay");
-        if (mxEl) mxEl.value = dMax;
-      }
 
       var tot = p + s + r;
       var totEl = document.getElementById("liveTotalOffersLabel");
@@ -1770,17 +1749,7 @@
         descStatus.textContent = "Ce canal est non-intrusif et visible pendant 24h par vos contacts enregistrés (" + stTot + " Statuts/jour : " + stMatin + " matin + " + stSoir + " soir).";
       }
 
-      var delayBadge = document.getElementById("liveDelayHintBadge");
-      if (delayBadge) {
-        var nGrps = Math.max(1, groupsCount);
-        if (nGrps === 1) {
-          delayBadge.innerHTML = '<i class="bi bi-shuffle me-1"></i> 1 groupe : ' + dMin + '–' + dMax + 's entre envois • Persistance max 2h';
-        } else {
-          var stepMin = Math.max(15, Math.round(dMin / nGrps));
-          var stepMax = Math.max(stepMin + 5, Math.round(dMax / nGrps));
-          delayBadge.innerHTML = '<i class="bi bi-shuffle me-1"></i> ' + nGrps + ' groupes alternés : ' + stepMin + '–' + stepMax + 's entre groupes • Persistance max 2h';
-        }
-      }
+
 
       var confirmCountEl = document.getElementById("confirmOffersCount");
       if (confirmCountEl) confirmCountEl.textContent = tot + " offre(s)";

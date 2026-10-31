@@ -10,7 +10,13 @@ MAX_DOWNLOAD_EDGE = 2560
 MAX_SOURCE_PIXELS = 40_000_000
 
 
-def watermarked_photo(upload_root: str | Path, filename: str) -> BytesIO:
+def watermarked_photo(
+    upload_root: str | Path,
+    filename: str,
+    *,
+    max_edge: int = MAX_DOWNLOAD_EDGE,
+    optimize: bool = True,
+) -> BytesIO:
     root = Path(upload_root).resolve()
     if not filename or "/" in filename or "\\" in filename or Path(filename).name != filename:
         raise FileNotFoundError("Photo unavailable")
@@ -21,7 +27,7 @@ def watermarked_photo(upload_root: str | Path, filename: str) -> BytesIO:
         if original.width * original.height > MAX_SOURCE_PIXELS:
             raise ValueError("Photo too large")
         image = ImageOps.exif_transpose(original)
-        image.thumbnail((MAX_DOWNLOAD_EDGE, MAX_DOWNLOAD_EDGE), Image.Resampling.LANCZOS)
+        image.thumbnail((max_edge, max_edge), Image.Resampling.LANCZOS)
         image = image.convert("RGBA")
 
     # Size the lettering to the image, with an outline visible on light photos.
@@ -53,6 +59,6 @@ def watermarked_photo(upload_root: str | Path, filename: str) -> BytesIO:
     background = Image.new("RGB", image.size, "white")
     background.paste(image, mask=image.getchannel("A"))
     output = BytesIO()
-    background.save(output, format="JPEG", quality=92, optimize=True)
+    background.save(output, format="JPEG", quality=88 if not optimize else 92, optimize=optimize)
     output.seek(0)
     return output

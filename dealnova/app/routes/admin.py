@@ -1982,6 +1982,7 @@ def whatsapp_gateway():
 
     from ..services.whatsapp_promo import (
         _today as _promo_today,
+        enrich_wave_ai_in_background,
         ensure_current_wave_preview,
         get_log as get_promo_log,
         get_settings as get_promo_settings,
@@ -2014,8 +2015,10 @@ def whatsapp_gateway():
 
     today_str = _promo_today()
     promo_settings = get_promo_settings()
-    # Garantit que les 10 offres de la vague active (Matin, puis Soir une fois Matin envoyé) sont toujours prêtes en place
-    last_gen = ensure_current_wave_preview(force_regenerate=False)
+    # Garantit en <30ms que les 10 offres de la vague active sont prêtes en place (enrichissement IA en arrière-plan)
+    last_gen = ensure_current_wave_preview(force_regenerate=False, use_ai=False)
+    if (last_gen or {}).get("source") == "fallback":
+        enrich_wave_ai_in_background(current_app._get_current_object())
     promo_log = get_promo_log()
     wave_info = get_wave_info(promo_settings, promo_log)
     today_clicks = get_today_clicks()
@@ -2108,6 +2111,7 @@ def whatsapp_promo_settings():
 
     from ..services.whatsapp_promo import (
         _offer_selection_signature,
+        enrich_wave_ai_in_background,
         ensure_current_wave_preview,
         get_settings as get_promo_settings,
         parse_groups_text,
@@ -2167,7 +2171,9 @@ def whatsapp_promo_settings():
     })
 
     new_sig = _offer_selection_signature(updated)
-    wave_preview = ensure_current_wave_preview(force_regenerate=(new_sig != prev_sig))
+    wave_preview = ensure_current_wave_preview(force_regenerate=(new_sig != prev_sig), use_ai=False)
+    if (wave_preview or {}).get("source") == "fallback":
+        enrich_wave_ai_in_background(current_app._get_current_object())
     offers_ready = len((wave_preview or {}).get("items") or [])
 
     if _is_ajax_request() or request.is_json:
