@@ -1,5 +1,5 @@
 [Unit]
-Description=Baba Market - Promotion WhatsApp Quotidienne (Statut 24h + Messages Opt-in)
+Description=Baba Market - Promotion WhatsApp Quotidienne (Statut 24h + Groupes, persistance max 2h)
 After=network.target babamarket.service baba-whatsapp.service
 
 [Service]
@@ -9,8 +9,7 @@ Group=moctar
 WorkingDirectory=/home/moctar/baba-marketplace/dealnova
 EnvironmentFile=-/etc/babamarket.env
 Environment="FLASK_APP=run.py"
-ExecStart=/home/moctar/baba-marketplace/venv/bin/flask whatsapp-promo run
-TimeoutStartSec=3600
+ExecStart=/home/moctar/baba-marketplace/venv/bin/flask whatsapp-promo run --scheduled
+TimeoutStartSec=7200
 StandardOutput=journal
 StandardError=journal
-

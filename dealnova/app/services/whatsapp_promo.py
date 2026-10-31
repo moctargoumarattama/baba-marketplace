@@ -39,8 +39,12 @@ from .shared_state import get_json_state, locked_json_states, mutate_json_states
 SETTINGS_KEY = "whatsapp_promo_settings"
 LOG_KEY = "whatsapp_promo_log"
 
-HARD_MAX_MESSAGES_PER_DAY = 50
-MAX_STATUS_PRODUCTS = 5
+SETTINGS_SCHEMA_VERSION = 2
+PERSISTENCE_WINDOW_HOURS = 2
+PERSISTENCE_WINDOW_SECONDS = PERSISTENCE_WINDOW_HOURS * 3600  # 2h max de persistance d'envoi
+
+HARD_MAX_MESSAGES_PER_DAY = 200
+MAX_STATUS_PRODUCTS = 20
 MIN_DELAY_FLOOR = 20
 MAX_DELAY_CEILING = 300
 MAX_CONSECUTIVE_FAILURES = 3
@@ -50,6 +54,7 @@ MAX_RECENT_LOGS_KEPT = 100
 OPT_OUT_FOOTER = "Répondez STOP pour ne plus recevoir nos offres."
 
 DEFAULT_SETTINGS: dict[str, Any] = {
+    "schema_version": SETTINGS_SCHEMA_VERSION,
     "enabled": False,
     "dry_run": True,
     "status_enabled": True,
@@ -61,13 +66,13 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "pinned_product_ids": [],
     "groups": [],
     "recipients": [],
-    "status_products": 4,
-    "products_count": 3,
+    "status_products": 10,
+    "products_count": 5,
     "services_count": 3,
     "rentals_count": 2,
     "rental_max_age_hours": 24,
-    "daily_message_limit": 20,
-    "min_delay": 30,
+    "daily_message_limit": 50,
+    "min_delay": 45,
     "max_delay": 90,
     "cooldown_days": 7,
 }
@@ -136,6 +141,7 @@ def normalize_settings(raw: Any) -> dict[str, Any]:
     if not re.match(r"^(?:[01]\d|2[0-3]):[0-5]\d$", sched2):
         sched2 = "18:30"
     return {
+        "schema_version": SETTINGS_SCHEMA_VERSION,
         "enabled": bool(raw.get("enabled", DEFAULT_SETTINGS["enabled"])),
         "dry_run": bool(raw.get("dry_run", DEFAULT_SETTINGS["dry_run"])),
         "status_enabled": bool(raw.get("status_enabled", DEFAULT_SETTINGS["status_enabled"])),
@@ -148,9 +154,9 @@ def normalize_settings(raw: Any) -> dict[str, Any]:
         "groups": _clean_groups(raw.get("groups")),
         "recipients": _clean_recipients(raw.get("recipients")),
         "status_products": _clamp_int(raw.get("status_products"), DEFAULT_SETTINGS["status_products"], 1, MAX_STATUS_PRODUCTS),
-        "products_count": _clamp_int(raw.get("products_count"), DEFAULT_SETTINGS["products_count"], 0, 10),
-        "services_count": _clamp_int(raw.get("services_count"), DEFAULT_SETTINGS["services_count"], 0, 10),
-        "rentals_count": _clamp_int(raw.get("rentals_count"), DEFAULT_SETTINGS["rentals_count"], 0, 10),
+        "products_count": _clamp_int(raw.get("products_count"), DEFAULT_SETTINGS["products_count"], 0, 15),
+        "services_count": _clamp_int(raw.get("services_count"), DEFAULT_SETTINGS["services_count"], 0, 15),
+        "rentals_count": _clamp_int(raw.get("rentals_count"), DEFAULT_SETTINGS["rentals_count"], 0, 15),
         "rental_max_age_hours": _clamp_int(raw.get("rental_max_age_hours"), DEFAULT_SETTINGS["rental_max_age_hours"], 1, 168),
         "daily_message_limit": _clamp_int(raw.get("daily_message_limit"), DEFAULT_SETTINGS["daily_message_limit"], 0, HARD_MAX_MESSAGES_PER_DAY),
         "min_delay": min(min_delay, max_delay),
@@ -161,7 +167,22 @@ def normalize_settings(raw: Any) -> dict[str, Any]:
 
 def get_settings() -> dict[str, Any]:
     try:
-        return normalize_settings(get_json_state(SETTINGS_KEY, dict))
+        raw = get_json_state(SETTINGS_KEY, dict)
+        if isinstance(raw, dict) and raw and int(raw.get("schema_version") or 1) < SETTINGS_SCHEMA_VERSION:
+            upgraded = normalize_settings({
+                **raw,
+                "schema_version": SETTINGS_SCHEMA_VERSION,
+                "products_count": 5,
+                "services_count": 3,
+                "rentals_count": 2,
+                "status_products": 10,
+                "min_delay": 45,
+                "max_delay": max(_clamp_int(raw.get("max_delay"), 90, MIN_DELAY_FLOOR, MAX_DELAY_CEILING), 90),
+                "daily_message_limit": max(_clamp_int(raw.get("daily_message_limit"), 50, 0, HARD_MAX_MESSAGES_PER_DAY), 50),
+            })
+            _persist_json_state(SETTINGS_KEY, upgraded)
+            return upgraded
+        return normalize_settings(raw)
     except Exception:
         safe_session_rollback()
         return normalize_settings({})
@@ -255,13 +276,133 @@ def groups_to_text(groups: list[dict[str, Any]]) -> str:
     )
 
 
+def _parse_local_timestamp(ts: Any, *, ref_now: datetime | None = None) -> datetime | None:
+    """Convertit un horodatage local 'YYYY-MM-DD HH:MM(:SS)' en datetime timezone-aware."""
+    val = str(ts or "").strip()
+    if not val:
+        return None
+    ref = ref_now or _local_now()
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
+        try:
+            parsed = datetime.strptime(val, fmt)
+            return parsed.replace(tzinfo=ref.tzinfo)
+        except ValueError:
+            continue
+    return None
+
+
+def _is_within_persistence_window(
+    ts: Any,
+    *,
+    now: datetime | None = None,
+    max_seconds: int = PERSISTENCE_WINDOW_SECONDS,
+) -> bool:
+    """Vérifie qu'un message ou aperçu date de moins de 2 heures (et du jour même)."""
+    current = now or _local_now()
+    dt = _parse_local_timestamp(ts, ref_now=current)
+    if dt is None or dt.date() != current.date():
+        return False
+    age_seconds = (current - dt).total_seconds()
+    return -300 <= age_seconds <= max_seconds
+
+
+def _clean_and_expire_log(
+    log: dict[str, Any],
+    *,
+    now: datetime | None = None,
+) -> tuple[dict[str, Any], bool]:
+    """Applique deux garde-fous automatiques :
+    1. Vidage quotidien à minuit de l'Historique & Suivi des Messages (recent_logs, runs, compteurs).
+    2. Persistance stricte de 2h : tout message bloqué (failed / pending) vieux de > 2h est vidé.
+    """
+    if not isinstance(log, dict) or not log:
+        return {}, False
+
+    current = now or _local_now()
+    today = current.date().isoformat()
+    cleaned = dict(log)
+    changed = False
+
+    stored_date = str(cleaned.get("history_date") or "").strip()
+    if not stored_date:
+        last_gen_date = str((cleaned.get("last_generated") or {}).get("date") or "").strip()
+        first_log_date = ""
+        init_logs = cleaned.get("recent_logs")
+        if isinstance(init_logs, list) and init_logs and isinstance(init_logs[0], dict):
+            first_log_date = str(init_logs[0].get("timestamp") or "")[:10]
+        stored_date = last_gen_date or first_log_date or str(cleaned.get("last_run_date") or "").strip()
+
+    # 1. Remise à zéro quotidienne de l'Historique et Suivi des Messages
+    if stored_date and stored_date != today:
+        cleaned["recent_logs"] = []
+        cleaned["runs"] = []
+        cleaned["last_preview"] = {}
+        cleaned["last_generated"] = {}
+        for day_map_key in (
+            "clicks_by_date",
+            "sent_by_date",
+            "sent_ids_by_date",
+            "attempted_slots_by_date",
+            "completed_slots_by_date",
+        ):
+            existing_map = dict(cleaned.get(day_map_key) or {})
+            cleaned[day_map_key] = {today: existing_map[today]} if today in existing_map else {}
+        cleaned["history_date"] = today
+        changed = True
+    elif cleaned.get("history_date") != today:
+        cleaned["history_date"] = today
+        changed = True
+
+    # 2. Fenêtre stricte de 2h : purge automatique des messages en attente / échec > 2h ou hors date du jour
+    raw_recent = cleaned.get("recent_logs")
+    if isinstance(raw_recent, list) and raw_recent:
+        kept_recent: list[dict[str, Any]] = []
+        for entry in raw_recent:
+            if not isinstance(entry, dict):
+                changed = True
+                continue
+            ts_str = str(entry.get("timestamp") or "").strip()
+            if ts_str and not ts_str.startswith(today):
+                changed = True
+                continue
+            status_val = str(entry.get("status") or "").lower()
+            if status_val in ("failed", "pending", "waiting"):
+                if not _is_within_persistence_window(ts_str, now=current):
+                    changed = True
+                    continue
+            kept_recent.append(entry)
+        if len(kept_recent) != len(raw_recent):
+            cleaned["recent_logs"] = kept_recent
+            changed = True
+
+    # 3. Expiration des aperçus non envoyés vieux de plus de 2h ou d'un autre jour
+    last_gen = cleaned.get("last_generated")
+    if isinstance(last_gen, dict) and last_gen:
+        gen_date = str(last_gen.get("date") or "").strip()
+        if gen_date and gen_date != today:
+            cleaned["last_generated"] = {}
+            changed = True
+        elif last_gen.get("dry_run") and not last_gen.get("consumed"):
+            gen_ts = last_gen.get("generated_at")
+            if gen_ts and not _is_within_persistence_window(gen_ts, now=current):
+                cleaned["last_generated"] = {}
+                changed = True
+
+    return cleaned, changed
+
+
 def get_log() -> dict[str, Any]:
     try:
         log = get_json_state(LOG_KEY, dict)
     except Exception:
         safe_session_rollback()
         log = {}
-    return log if isinstance(log, dict) else {}
+    if not isinstance(log, dict):
+        return {}
+    cleaned, changed = _clean_and_expire_log(log)
+    if changed:
+        _persist_json_state(LOG_KEY, cleaned)
+    return cleaned
 
 
 def _mark_recipient(phone: str, field: str) -> None:
@@ -339,17 +480,55 @@ def _get_product_image_base64(product: Product | None) -> str:
 
 
 
+def _pick_fair_random_products(
+    candidates: list[Product],
+    needed: int,
+    promos: dict[int, Any],
+) -> list[Product]:
+    """Sélection aléatoire équitable : mélange promotions actives et autres produits du catalogue."""
+    if needed <= 0 or not candidates:
+        return []
+    with_promo = [p for p in candidates if p.id in promos]
+    without_promo = [p for p in candidates if p.id not in promos]
+    random.shuffle(with_promo)
+    random.shuffle(without_promo)
+
+    if with_promo and without_promo and needed >= 2:
+        promo_quota = min(len(with_promo), needed // 2)
+        picked_promo = with_promo[:promo_quota]
+        rem_promo = with_promo[promo_quota:]
+        reg_quota = min(len(without_promo), needed - len(picked_promo))
+        picked = picked_promo + without_promo[:reg_quota]
+        if len(picked) < needed:
+            picked.extend(rem_promo[: needed - len(picked)])
+    else:
+        picked = (with_promo + without_promo)[:needed]
+
+    random.shuffle(picked)
+    return picked
+
+
 def select_daily_offers(
     settings: dict[str, Any],
     *,
     promoted: dict[str, str] | None = None,
+    sent_ids_today: list[str] | set[str] | None = None,
 ) -> list[dict[str, Any]]:
-    """Sélectionne un panier équilibré d'offres : 3 produits physiques, 3 services et 2 locations récentes."""
+    """Sélectionne un panier équilibré d'offres (par défaut 5 produits, 3 services, 2 locations)
+    avec rotation aléatoire sur tout le catalogue et interdiction absolue de répétition le même jour.
+    """
     promoted = promoted or {}
+    today_iso = _today()
     cooldown_days = settings.get("cooldown_days", 7)
     pinned_ids = settings.get("pinned_product_ids") or []
-    
-    prod_target = settings.get("products_count", 3)
+
+    # Exclusion stricte de tout ID déjà diffusé aujourd'hui (matin vs soir)
+    excluded_today: set[str] = {str(x) for x in (sent_ids_today or [])}
+    for k, day in promoted.items():
+        if str(day) == today_iso:
+            excluded_today.add(str(k))
+
+    prod_target = settings.get("products_count", 5)
     serv_target = settings.get("services_count", 3)
     rent_target = settings.get("rentals_count", 2)
     rent_max_hours = settings.get("rental_max_age_hours", 24)
@@ -357,9 +536,10 @@ def select_daily_offers(
     selected_cards: list[dict[str, Any]] = []
     seen_product_ids: set[int] = set()
     cutoff_date = (_local_now().date() - timedelta(days=cooldown_days)).isoformat()
-    recent_pids = {int(pid) for pid, day in promoted.items() if str(day) > cutoff_date and str(pid).isdigit()}
+    recent_keys = {str(pid) for pid, day in promoted.items() if str(day) > cutoff_date}
+    recent_pids = {int(pid) for pid in recent_keys if pid.isdigit()}
 
-    # 1. Coups de cœur épinglés par l'administrateur
+    # 1. Coups de cœur épinglés par l'administrateur (sans répéter un article déjà envoyé aujourd'hui)
     if pinned_ids:
         try:
             pinned_query = (
@@ -369,14 +549,25 @@ def select_daily_offers(
                 .filter(Product.id.in_(pinned_ids), Product.is_active.is_(True))
                 .all()
             )
-            promos_pinned = get_active_promos_for_products([p.id for p in pinned_query])
-            for p in pinned_query:
-                if p.id not in seen_product_ids:
-                    first_img = _first_image(p)
-                    if first_img and _image_exists(first_img):
-                        card = build_product_card(p, promos_pinned.get(p.id))
-                        selected_cards.append(card)
-                        seen_product_ids.add(p.id)
+            pinned_map = {p.id: p for p in pinned_query}
+            promos_pinned = get_active_promos_for_products(list(pinned_map.keys()))
+            for pid in pinned_ids:
+                p = pinned_map.get(pid)
+                if not p or p.id in seen_product_ids or str(p.id) in excluded_today:
+                    continue
+                if p.kind == "physical" and (p.stock or 0) <= 0:
+                    continue
+                cur_phys = sum(1 for c in selected_cards if c.get("item_type") == "physical")
+                cur_serv = sum(1 for c in selected_cards if c.get("item_type") == "service")
+                if p.kind == "physical" and cur_phys >= prod_target:
+                    continue
+                if p.kind == "service" and cur_serv >= serv_target:
+                    continue
+                first_img = _first_image(p)
+                if first_img and _image_exists(first_img):
+                    card = build_product_card(p, promos_pinned.get(p.id))
+                    selected_cards.append(card)
+                    seen_product_ids.add(p.id)
         except Exception:
             safe_session_rollback()
 
@@ -386,7 +577,7 @@ def select_daily_offers(
     needed_prods = max(0, prod_target - pinned_prod_count)
     needed_servs = max(0, serv_target - pinned_serv_count)
 
-    # 2. Sélection Produits Physiques
+    # 2. Sélection Produits Physiques (rotation aléatoire équitable + zéro répétition le même jour)
     if needed_prods > 0:
         try:
             candidates = (
@@ -399,18 +590,22 @@ def select_daily_offers(
                 .filter(Product.stock > 0)
                 .filter(Product.image_file.isnot(None), Product.image_file != "")
                 .order_by(Product.created_at.desc())
-                .limit(200)
+                .limit(1000)
                 .all()
             )
-            valid = [p for p in candidates if p.id not in seen_product_ids and _image_exists(_first_image(p))]
+            valid = [
+                p for p in candidates
+                if p.id not in seen_product_ids
+                and str(p.id) not in excluded_today
+                and _image_exists(_first_image(p))
+            ]
+            promos = get_active_promos_for_products([p.id for p in valid])
             fresh = [p for p in valid if p.id not in recent_pids]
-            pool = fresh if len(fresh) >= needed_prods else valid
-            promos = get_active_promos_for_products([p.id for p in pool])
-            with_promo = [p for p in pool if p.id in promos]
-            without_promo = [p for p in pool if p.id not in promos]
-            random.shuffle(with_promo)
-            random.shuffle(without_promo)
-            picked = (with_promo + without_promo)[:needed_prods]
+            picked = _pick_fair_random_products(fresh, needed_prods, promos)
+            if len(picked) < needed_prods:
+                picked_ids = {p.id for p in picked}
+                fallback_pool = [p for p in valid if p.id not in picked_ids]
+                picked.extend(_pick_fair_random_products(fallback_pool, needed_prods - len(picked), promos))
             for p in picked:
                 card = build_product_card(p, promos.get(p.id))
                 selected_cards.append(card)
@@ -418,7 +613,7 @@ def select_daily_offers(
         except Exception:
             safe_session_rollback()
 
-    # 3. Sélection Services
+    # 3. Sélection Services (rotation aléatoire équitable + zéro répétition le même jour)
     if needed_servs > 0:
         try:
             candidates = (
@@ -430,18 +625,22 @@ def select_daily_offers(
                 .filter(Product.kind == "service")
                 .filter(Product.image_file.isnot(None), Product.image_file != "")
                 .order_by(Product.created_at.desc())
-                .limit(200)
+                .limit(1000)
                 .all()
             )
-            valid = [p for p in candidates if p.id not in seen_product_ids and _image_exists(_first_image(p))]
+            valid = [
+                p for p in candidates
+                if p.id not in seen_product_ids
+                and str(p.id) not in excluded_today
+                and _image_exists(_first_image(p))
+            ]
+            promos = get_active_promos_for_products([p.id for p in valid])
             fresh = [p for p in valid if p.id not in recent_pids]
-            pool = fresh if len(fresh) >= needed_servs else valid
-            promos = get_active_promos_for_products([p.id for p in pool])
-            with_promo = [p for p in pool if p.id in promos]
-            without_promo = [p for p in pool if p.id not in promos]
-            random.shuffle(with_promo)
-            random.shuffle(without_promo)
-            picked = (with_promo + without_promo)[:needed_servs]
+            picked = _pick_fair_random_products(fresh, needed_servs, promos)
+            if len(picked) < needed_servs:
+                picked_ids = {p.id for p in picked}
+                fallback_pool = [p for p in valid if p.id not in picked_ids]
+                picked.extend(_pick_fair_random_products(fallback_pool, needed_servs - len(picked), promos))
             for p in picked:
                 card = build_product_card(p, promos.get(p.id))
                 selected_cards.append(card)
@@ -449,7 +648,7 @@ def select_daily_offers(
         except Exception:
             safe_session_rollback()
 
-    # 4. Sélection Locations Immobilières (<= 24h en priorité, avec repli si pas de nouvelles)
+    # 4. Sélection Locations Immobilières (<= 24h en priorité, repli sur locations actives plus anciennes, sans doublon le même jour)
     if rent_target > 0:
         try:
             from ..models.rental import RentalListing
@@ -461,13 +660,32 @@ def select_daily_offers(
                 .filter(RentalListing.is_active.is_(True), RentalListing.status == "active")
                 .filter(or_(RentalListing.shop_id.is_(None), Shop.is_active.is_(True)))
                 .order_by(RentalListing.created_at.desc())
-                .limit(50)
+                .limit(200)
                 .all()
             )
-            with_photos = [r for r in query if _first_rental_image(r)[0] > 0]
-            fresh_rentals = [r for r in with_photos if r.created_at >= time_cutoff]
-            pool = fresh_rentals if len(fresh_rentals) >= rent_target else with_photos
-            picked_rentals = pool[:rent_target]
+            with_photos = [
+                r for r in query
+                if _first_rental_image(r)[0] > 0 and f"rental_{r.id}" not in excluded_today
+            ]
+            r_recent_fresh = [
+                r for r in with_photos
+                if r.created_at and r.created_at >= time_cutoff and f"rental_{r.id}" not in recent_keys
+            ]
+            r_recent_cooled = [
+                r for r in with_photos
+                if r.created_at and r.created_at >= time_cutoff and f"rental_{r.id}" in recent_keys
+            ]
+            r_older_fresh = [
+                r for r in with_photos
+                if not (r.created_at and r.created_at >= time_cutoff) and f"rental_{r.id}" not in recent_keys
+            ]
+            r_older_cooled = [
+                r for r in with_photos
+                if not (r.created_at and r.created_at >= time_cutoff) and f"rental_{r.id}" in recent_keys
+            ]
+            for bucket in (r_recent_fresh, r_recent_cooled, r_older_fresh, r_older_cooled):
+                random.shuffle(bucket)
+            picked_rentals = (r_recent_fresh + r_recent_cooled + r_older_fresh + r_older_cooled)[:rent_target]
             for r in picked_rentals:
                 card = build_rental_card(r)
                 selected_cards.append(card)
@@ -560,21 +778,39 @@ def _format_dh(value: float) -> str:
 
 
 
-def _first_rental_image(listing: Any) -> tuple[int, str]:
+def _rental_upload_roots() -> list[Path]:
+    roots: list[Path] = []
+    cfg_root = current_app.config.get("UPLOAD_FOLDER")
+    if cfg_root:
+        roots.append((Path(cfg_root) / "rentals").resolve())
+    if current_app.static_folder:
+        st_root = (Path(current_app.static_folder) / "uploads" / "rentals").resolve()
+        if st_root not in roots:
+            roots.append(st_root)
+    return roots
+
+
+def _first_rental_image_with_root(listing: Any) -> tuple[int, str, Path | None]:
     """Trouve le premier média image d'une location qui existe réellement sur disque."""
-    upload_root = Path(current_app.static_folder) / "uploads" / "rentals"
+    roots = _rental_upload_roots()
     for m in getattr(listing, "media", []) or []:
         if getattr(m, "kind", "") == "image" and getattr(m, "file_path", ""):
             rel = (m.file_path or "").replace("\\", "/")
             prefix = "uploads/rentals/"
             filename = rel[len(prefix):] if rel.startswith(prefix) else rel
-            try:
-                candidate = (upload_root / filename).resolve()
-                if candidate.is_relative_to(upload_root) and candidate.is_file():
-                    return m.id, filename
-            except (OSError, ValueError):
-                continue
-    return 0, ""
+            for upload_root in roots:
+                try:
+                    candidate = (upload_root / filename).resolve()
+                    if candidate.is_relative_to(upload_root) and candidate.is_file():
+                        return m.id, filename, upload_root
+                except (OSError, ValueError):
+                    continue
+    return 0, "", None
+
+
+def _first_rental_image(listing: Any) -> tuple[int, str]:
+    media_id, filename, _ = _first_rental_image_with_root(listing)
+    return media_id, filename
 
 
 def _get_rental_image_base64(listing: Any) -> str:
@@ -582,10 +818,9 @@ def _get_rental_image_base64(listing: Any) -> str:
     if not listing:
         return ""
     try:
-        media_id, img_filename = _first_rental_image(listing)
-        if not media_id or not img_filename:
+        media_id, img_filename, upload_root = _first_rental_image_with_root(listing)
+        if not media_id or not img_filename or upload_root is None:
             return ""
-        upload_root = Path(current_app.static_folder) / "uploads" / "rentals"
         from .image_download import watermarked_photo
         try:
             buf = watermarked_photo(upload_root, img_filename)
@@ -1139,6 +1374,23 @@ def _audience(settings: dict[str, Any]) -> list[dict[str, str]]:
     return people
 
 
+def _current_slot_key(today: str) -> str:
+    current_hour = _local_now().hour
+    slot_name = "matin" if current_hour < 14 else "soir"
+    return f"{today}_{slot_name}"
+
+
+def _is_daily_slot_claimed(today: str) -> bool:
+    try:
+        from ..models.runtime_state import RuntimeState
+        row = RuntimeState.query.filter_by(state_key=LOG_KEY).first()
+        log = json.loads(row.value_json) if row and row.value_json else {}
+        return log.get("last_run_slot") == _current_slot_key(today)
+    except Exception:
+        safe_session_rollback()
+        return False
+
+
 def _claim_daily_run(today: str, force: bool) -> bool:
     """Verrou bi-quotidien (matin / soir) pour éviter les doubles envois sur le même créneau."""
     try:
@@ -1146,13 +1398,12 @@ def _claim_daily_run(today: str, force: bool) -> bool:
         row = RuntimeState.query.filter_by(state_key=LOG_KEY).first()
         now = datetime.utcnow()
         log = json.loads(row.value_json) if row and row.value_json else {}
-        current_hour = _local_now().hour
-        slot_name = "matin" if current_hour < 14 else "soir"
-        slot_key = f"{today}_{slot_name}"
+        slot_key = _current_slot_key(today)
         if log.get("last_run_slot") == slot_key and not force:
             return False
         log["last_run_date"] = today
         log["last_run_slot"] = slot_key
+        log["history_date"] = today
         val_str = json.dumps(log, ensure_ascii=True, separators=(",", ":"))
         if row is None:
             row = RuntimeState(state_key=LOG_KEY, created_at=now, updated_at=now, value_json=val_str)
@@ -1175,17 +1426,18 @@ def _save_promo_log(log_data: dict[str, Any]) -> None:
 def _record_run(
     summary: dict[str, Any],
     *,
-    promoted_ids: list[int],
+    promoted_ids: list[int | str],
     sent_today: int,
     today: str,
     preview: bool,
     last_generated: dict[str, Any] | None = None,
     new_recent_logs: list[dict[str, Any]] | None = None,
 ) -> None:
-    # 1. Mise à jour de l'objet de log en mémoire
     current_log = get_log() or {}
     if not isinstance(current_log, dict):
         current_log = {}
+
+    current_log["history_date"] = today
 
     if last_generated:
         current_log["last_generated"] = last_generated
@@ -1204,11 +1456,21 @@ def _record_run(
             promoted[str(pid)] = today
         cutoff = (_local_now().date() - timedelta(days=60)).isoformat()
         current_log["promoted"] = {pid: day for pid, day in promoted.items() if str(day) >= cutoff}
-        sent_by_date = {day: n for day, n in dict(current_log.get("sent_by_date") or {}).items() if day >= cutoff}
-        sent_by_date[today] = int(sent_by_date.get(today, 0)) + sent_today
+
+        sent_ids_map = {today: list((current_log.get("sent_ids_by_date") or {}).get(today) or [])}
+        existing_sent = {str(x) for x in sent_ids_map[today]}
+        for pid in promoted_ids:
+            s_pid = str(pid)
+            if s_pid not in existing_sent:
+                sent_ids_map[today].append(s_pid)
+                existing_sent.add(s_pid)
+        current_log["sent_ids_by_date"] = sent_ids_map
+
+        sent_by_date = {today: int((current_log.get("sent_by_date") or {}).get(today, 0)) + sent_today}
         current_log["sent_by_date"] = sent_by_date
 
-    _persist_json_state(LOG_KEY, current_log)
+    cleaned, _ = _clean_and_expire_log(current_log)
+    _persist_json_state(LOG_KEY, cleaned)
 
 
 def run_daily_promo(
@@ -1220,9 +1482,12 @@ def run_daily_promo(
     include_messages: bool = False,
     sleep: Callable[[float], None] = time.sleep,
 ) -> dict[str, Any]:
+    started_mono = time.monotonic()
     settings = get_settings()
     preview = settings["dry_run"] if dry_run is None else bool(dry_run)
     today = _today()
+    # Nettoyage automatique dès l'entrée (minuit + purge > 2h)
+    get_log()
 
     # Prise en compte des canaux actifs (Statut et Groupes uniquement)
     run_status = include_status and settings.get("status_enabled", True)
@@ -1277,7 +1542,7 @@ def run_daily_promo(
     if not run_status and not run_groups:
         return finish("no_channel_enabled")
 
-    if not preview and not _claim_daily_run(today, force):
+    if not preview and not force and _is_daily_slot_claimed(today):
         summary["aborted"] = "already_ran_today"
         return summary
 
@@ -1285,13 +1550,25 @@ def run_daily_promo(
         gateway = get_whatsapp_gateway_status()
         if gateway.get("status") != "connected":
             return finish("gateway_not_connected")
+        if not _claim_daily_run(today, force):
+            summary["aborted"] = "already_ran_today"
+            return summary
 
     log = get_log()
     last_gen = log.get("last_generated") or {}
     saved_items = last_gen.get("items") or []
+    sent_ids_today = list((log.get("sent_ids_by_date") or {}).get(today) or [])
 
-    # Envoi réel : si un aperçu validé existe aujourd'hui, on réutilise ses produits et textes exacts
-    if not preview and saved_items and last_gen.get("date") == today:
+    # Envoi réel : réutiliser uniquement un aperçu dry_run non consommé préparé il y a moins de 2h
+    can_reuse_preview = (
+        not preview
+        and bool(saved_items)
+        and last_gen.get("date") == today
+        and bool(last_gen.get("dry_run"))
+        and not bool(last_gen.get("consumed"))
+        and _is_within_persistence_window(last_gen.get("generated_at"))
+    )
+    if can_reuse_preview:
         cards = []
         copies = {}
         base = _public_base_url()
@@ -1329,6 +1606,7 @@ def run_daily_promo(
         cards = select_daily_offers(
             settings,
             promoted=log.get("promoted") or {},
+            sent_ids_today=sent_ids_today,
         )
         if not cards:
             return finish("no_eligible_product")
@@ -1374,6 +1652,7 @@ def run_daily_promo(
         "source": source,
         "copy_source": source,
         "dry_run": preview,
+        "consumed": not preview,
         "items": items_data,
         "products": items_data,
     }
@@ -1384,13 +1663,23 @@ def run_daily_promo(
         return preview or get_settings()["enabled"]
 
     consecutive_failures = 0
+    sent_card_ids: list[int | str] = []
+    sent_card_set: set[str] = set()
+
+    def _mark_card_sent(cid: int | str) -> None:
+        key = str(cid)
+        if key not in sent_card_set:
+            sent_card_set.add(key)
+            sent_card_ids.append(cid)
+
     people = _audience(settings)
     groups = settings.get("groups", [])
+    status_cards = cards[: settings.get("status_products", 10)]
 
     # 1. CANAL STATUT WHATSAPP (Story 24h)
     if run_status:
         audience_phones = [person["phone"] for person in people]
-        for index, card in enumerate(cards):
+        for index, card in enumerate(status_cards):
             caption = compose_status_caption(card, copies[card["id"]])
             event = {
                 "timestamp": f"{today} {_local_now().strftime('%H:%M:%S')}",
@@ -1413,14 +1702,18 @@ def run_daily_promo(
                 summary["details"].append(event)
                 continue
 
+            if (time.monotonic() - started_mono) >= PERSISTENCE_WINDOW_SECONDS:
+                return finish("expired_2h_window", sent_card_ids, last_generated_data)
+
             if not still_enabled():
-                return finish("stopped_by_admin", [c["id"] for c in cards[:index]], last_generated_data)
+                return finish("stopped_by_admin", sent_card_ids, last_generated_data)
 
             ok, reason, attempts = post_status_with_retry(card, caption, audience_phones)
             summary["statuses_ok" if ok else "statuses_failed"] += 1
             event["attempts"] = attempts
             event["status"] = "ok" if ok else "failed"
             if ok:
+                _mark_card_sent(card["id"])
                 event["details"] = "Publié avec succès" if attempts == 1 else f"Publié (après {attempts} tentatives)"
                 consecutive_failures = 0
             else:
@@ -1431,9 +1724,9 @@ def run_daily_promo(
             recent_events.append(event)
             summary["details"].append(event)
             if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
-                return finish("gateway_failures", [c["id"] for c in cards[:index + 1]], last_generated_data)
+                return finish("gateway_failures", sent_card_ids, last_generated_data)
 
-            if index < len(cards) - 1:
+            if index < len(status_cards) - 1:
                 sleep(random.uniform(*STATUS_DELAY_RANGE))
 
     # 2. CANAL GROUPES WHATSAPP
@@ -1458,9 +1751,12 @@ def run_daily_promo(
             recent_events.append(event)
             summary["details"].append(event)
         else:
+            total_group_sends = len(groups) * len(cards)
+            sent_group_idx = 0
             for grp in groups:
                 group_label = grp.get("label") or grp["target"]
                 for card_idx, card in enumerate(cards):
+                    sent_group_idx += 1
                     group_text = compose_group_message(card, copies[card["id"]], group_label)
                     event = {
                         "timestamp": f"{today} {_local_now().strftime('%H:%M:%S')}",
@@ -1483,13 +1779,17 @@ def run_daily_promo(
                         summary["details"].append(event)
                         continue
 
+                    if (time.monotonic() - started_mono) >= PERSISTENCE_WINDOW_SECONDS:
+                        return finish("expired_2h_window", sent_card_ids, last_generated_data)
+
                     if not still_enabled():
-                        return finish("stopped_by_admin", [c["id"] for c in cards], last_generated_data)
+                        return finish("stopped_by_admin", sent_card_ids, last_generated_data)
 
                     current_app.logger.info("whatsapp_promo.attempting_group_send target=%s label=%s card_id=%s", grp["target"], group_label, card["id"])
                     result, reason, attempts = send_promo_media_with_retry(grp["target"], card, group_text)
                     event["attempts"] = attempts
                     if result == "sent":
+                        _mark_card_sent(card["id"])
                         summary["groups_ok"] += 1
                         consecutive_failures = 0
                         event["status"] = "ok"
@@ -1507,11 +1807,12 @@ def run_daily_promo(
                     summary["details"].append(event)
 
                     if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
-                        return finish("gateway_failures", [c["id"] for c in cards], last_generated_data)
+                        return finish("gateway_failures", sent_card_ids, last_generated_data)
 
-                    sleep(random.uniform(settings["min_delay"], settings["max_delay"]))
+                    if sent_group_idx < total_group_sends:
+                        sleep(random.uniform(settings["min_delay"], settings["max_delay"]))
 
-    return finish(None, [] if preview else [c["id"] for c in cards], last_generated_data)
+    return finish(None, [] if preview else sent_card_ids, last_generated_data)
 
 
 def run_in_background(app, **kwargs) -> None:
@@ -1544,10 +1845,15 @@ def init_whatsapp_promo_cli(app) -> None:
     @whatsapp_promo_group.command("run")
     @click.option("--dry-run/--live", "dry_run", default=None, help="Aperçu ou réel.")
     @click.option("--force", is_flag=True, help="Ignorer le verrou du jour.")
+    @click.option("--scheduled", is_flag=True, help="Exécution planifiée (fenêtre stricte de 2h, sans rattrapage J+1).")
     @click.option("--status-only", is_flag=True, help="Uniquement Statuts.")
     @click.option("--groups-only", is_flag=True, help="Uniquement Groupes.")
     @click.option("--messages-only", is_flag=True, help="Uniquement Messages Privés.")
-    def run_command(dry_run, force, status_only, groups_only, messages_only):
+    def run_command(dry_run, force, scheduled, status_only, groups_only, messages_only):
+        if scheduled:
+            tick_result = run_scheduled_tick()
+            click.echo(json.dumps(tick_result, ensure_ascii=False, indent=2))
+            return
         inc_status = not (groups_only or messages_only)
         inc_groups = not (status_only or messages_only)
         inc_messages = not (status_only or groups_only)
@@ -1580,10 +1886,116 @@ def init_whatsapp_promo_cli(app) -> None:
         }, ensure_ascii=False, indent=2))
 
 
-def retry_failed_promos(*, force: bool = False) -> dict[str, Any]:
-    """Relance les messages en échec ou en attente enregistrés aujourd'hui, avec garde-fous stricts."""
+def run_scheduled_tick(*, sleep_fn: Callable[[float], None] | None = None) -> dict[str, Any]:
+    """Vérification périodique programmée (systemd toutes les 15 min) :
+    - Purge l'historique quotidien à minuit et vide tout message bloqué vieux de plus de 2 heures.
+    - Déclenche les créneaux programmés (schedule_time / schedule_time_2) UNIQUEMENT dans une fenêtre
+      stricte de 2 heures (aucun envoi différé au lendemain ni au-delà de 2h).
+    """
+    now = _local_now()
+    today = now.date().isoformat()
+    log = get_log()
+    settings = get_settings()
+
+    if not settings.get("enabled"):
+        return {"status": "disabled", "date": today}
+
+    slots = [
+        ("slot_1", settings.get("schedule_time") or "10:30"),
+        ("slot_2", settings.get("schedule_time_2") or "18:30"),
+    ]
+    attempted = list((log.get("attempted_slots_by_date") or {}).get(today) or [])
+    completed = list((log.get("completed_slots_by_date") or {}).get(today) or [])
+
+    for slot_id, sched_str in slots:
+        slot_key = f"{slot_id}:{sched_str}"
+        sched_dt = _parse_local_timestamp(f"{today} {sched_str}:00", ref_now=now)
+        if sched_dt is None:
+            continue
+        elapsed = (now - sched_dt).total_seconds()
+
+        # Hors fenêtre [0, 2h] : soit pas encore l'heure, soit délai de 2h expiré -> ne rien envoyer
+        if elapsed < 0 or elapsed > PERSISTENCE_WINDOW_SECONDS:
+            continue
+
+        if slot_key not in attempted:
+            gw = get_whatsapp_gateway_status()
+            if gw.get("status") != "connected":
+                return {
+                    "status": "waiting_gateway_within_2h",
+                    "slot": slot_key,
+                    "remaining_seconds": int(PERSISTENCE_WINDOW_SECONDS - elapsed),
+                }
+            run_kwargs: dict[str, Any] = {"force": True, "dry_run": False}
+            if sleep_fn is not None:
+                run_kwargs["sleep"] = sleep_fn
+            summary = run_daily_promo(**run_kwargs)
+
+            fresh_log = get_log()
+            att_map = {today: list((fresh_log.get("attempted_slots_by_date") or {}).get(today) or [])}
+            if slot_key not in att_map[today]:
+                att_map[today].append(slot_key)
+            fresh_log["attempted_slots_by_date"] = att_map
+
+            has_pending = any(
+                e.get("status") in ("failed", "pending")
+                for e in (fresh_log.get("recent_logs") or [])
+            )
+            if not has_pending and summary.get("aborted") is None:
+                comp_map = {today: list((fresh_log.get("completed_slots_by_date") or {}).get(today) or [])}
+                if slot_key not in comp_map[today]:
+                    comp_map[today].append(slot_key)
+                fresh_log["completed_slots_by_date"] = comp_map
+            _save_promo_log(fresh_log)
+            return {
+                "status": "executed",
+                "slot": slot_key,
+                "aborted": summary.get("aborted"),
+                "statuses_ok": summary.get("statuses_ok", 0),
+                "groups_ok": summary.get("groups_ok", 0),
+            }
+
+        if slot_key not in completed:
+            has_retryable = any(
+                e.get("status") in ("failed", "pending")
+                and _is_within_persistence_window(e.get("timestamp"), now=now)
+                for e in (log.get("recent_logs") or [])
+            )
+            if has_retryable:
+                gw = get_whatsapp_gateway_status()
+                if gw.get("status") != "connected":
+                    return {
+                        "status": "waiting_gateway_for_retry_within_2h",
+                        "slot": slot_key,
+                        "remaining_seconds": int(PERSISTENCE_WINDOW_SECONDS - elapsed),
+                    }
+                retry_res = retry_failed_promos(force=True, sleep_fn=sleep_fn)
+                fresh_log = get_log()
+                still_failing = any(
+                    e.get("status") in ("failed", "pending")
+                    for e in (fresh_log.get("recent_logs") or [])
+                )
+                if not still_failing:
+                    comp_map = {today: list((fresh_log.get("completed_slots_by_date") or {}).get(today) or [])}
+                    if slot_key not in comp_map[today]:
+                        comp_map[today].append(slot_key)
+                    fresh_log["completed_slots_by_date"] = comp_map
+                    _save_promo_log(fresh_log)
+                return {"status": "retried_within_2h", "slot": slot_key, "retry": retry_res}
+
+    return {"status": "idle", "date": today, "time": now.strftime("%H:%M:%S")}
+
+
+def retry_failed_promos(
+    *,
+    force: bool = False,
+    sleep_fn: Callable[[float], None] | None = None,
+) -> dict[str, Any]:
+    """Relance uniquement les messages en échec/attente de moins de 2 heures aujourd'hui."""
+    started_mono = time.monotonic()
+    _sleep = sleep_fn or sleep
     today = _local_now().date().isoformat()
-    log = get_log() or {}
+    log = get_log() or {}  # Vide déjà automatiquement tout échec > 2h ou de la veille
     recent_logs = list(log.get("recent_logs") or [])
     settings = get_settings()
 
@@ -1604,9 +2016,13 @@ def retry_failed_promos(*, force: bool = False) -> dict[str, Any]:
         r["phone"] for r in settings.get("recipients", []) if r.get("opted_out") or r.get("invalid")
     }
 
-    to_retry = []
+    to_retry: list[tuple[int, dict[str, Any]]] = []
+    expired_indices: set[int] = set()
     for idx, item in enumerate(recent_logs):
         if item.get("status") in ("failed", "pending"):
+            if not _is_within_persistence_window(item.get("timestamp")):
+                expired_indices.add(idx)
+                continue
             target = str(item.get("target") or "")
             if target in opted_out_targets:
                 item["status"] = "skipped"
@@ -1615,10 +2031,19 @@ def retry_failed_promos(*, force: bool = False) -> dict[str, Any]:
                 continue
             to_retry.append((idx, item))
 
+    if expired_indices:
+        recent_logs = [it for i, it in enumerate(recent_logs) if i not in expired_indices]
+        log["recent_logs"] = recent_logs
+        _save_promo_log(log)
+        to_retry = []
+        for idx, item in enumerate(recent_logs):
+            if item.get("status") in ("failed", "pending"):
+                to_retry.append((idx, item))
+
     if not to_retry:
         return {
             "success": True,
-            "message": "Aucun message en attente ou en échec à relancer pour aujourd'hui.",
+            "message": "Aucun message récent (< 2h) en attente ou en échec à relancer.",
             "retried": 0,
             "ok": 0,
             "failed": 0,
@@ -1627,32 +2052,49 @@ def retry_failed_promos(*, force: bool = False) -> dict[str, Any]:
     # Données des produits
     last_gen = log.get("last_generated") or {}
     items_by_id = {
-        item["id"]: item for item in (last_gen.get("items") or last_gen.get("products") or [])
+        str(item["id"]): item for item in (last_gen.get("items") or last_gen.get("products") or [])
     }
 
     retried_count = 0
     ok_count = 0
     failed_count = 0
     consecutive_failures = 0
+    newly_sent_ids: list[str] = []
     audience_phones = [p["phone"] for p in _audience(settings)]
 
-    for idx, event in to_retry:
+    for pos, (idx, event) in enumerate(to_retry):
         if not settings.get("enabled") and not force:
             break
+        if (time.monotonic() - started_mono) >= PERSISTENCE_WINDOW_SECONDS:
+            break
+        if not _is_within_persistence_window(event.get("timestamp")):
+            recent_logs[idx] = None  # Sera vidé à la sauvegarde
+            continue
 
         channel = event.get("channel")
         target = event.get("target")
-        text = event.get("text")
+        msg_text = event.get("text")
         pid = event.get("product_id")
-        card = items_by_id.get(pid)
+        card = items_by_id.get(str(pid)) if pid is not None else None
 
-        if not card:
-            prod = db.session.get(Product, pid)
-            if prod:
-                promos = get_active_promos_for_products([prod.id])
-                card = build_product_card(prod, promos.get(prod.id))
+        if not card and pid is not None:
+            pid_str = str(pid)
+            if pid_str.startswith("rental_"):
+                try:
+                    from ..models.rental import RentalListing
+                    rid = int(pid_str.split("_", 1)[1])
+                    listing = db.session.get(RentalListing, rid)
+                    if listing:
+                        card = build_rental_card(listing)
+                except Exception:
+                    safe_session_rollback()
+            elif pid_str.isdigit():
+                prod = db.session.get(Product, int(pid_str))
+                if prod:
+                    promos = get_active_promos_for_products([prod.id])
+                    card = build_product_card(prod, promos.get(prod.id))
 
-        if not card or not target or not text:
+        if not card or not target or not msg_text:
             event["status"] = "failed"
             event["detail"] = "Données du produit introuvables pour relancer"
             event["details"] = event["detail"]
@@ -1662,10 +2104,11 @@ def retry_failed_promos(*, force: bool = False) -> dict[str, Any]:
         retried_count += 1
 
         if channel == "status":
-            ok, reason, attempts = post_status_with_retry(card, text, audience_phones)
+            ok, reason, attempts = post_status_with_retry(card, msg_text, audience_phones)
             if ok:
                 ok_count += 1
                 consecutive_failures = 0
+                newly_sent_ids.append(str(pid))
                 event["status"] = "ok"
                 event["detail"] = "Statut publié avec succès (après relance)"
             else:
@@ -1675,10 +2118,11 @@ def retry_failed_promos(*, force: bool = False) -> dict[str, Any]:
                 event["detail"] = f"Échec après relance: {reason}"
             event["attempts"] = event.get("attempts", 0) + attempts
         else:
-            result, reason, attempts = send_promo_media_with_retry(target, card, text)
+            result, reason, attempts = send_promo_media_with_retry(target, card, msg_text)
             if result == "sent":
                 ok_count += 1
                 consecutive_failures = 0
+                newly_sent_ids.append(str(pid))
                 event["status"] = "ok"
                 event["detail"] = "Message remis avec succès (après relance)"
             elif result in ("opted_out", "not_on_whatsapp"):
@@ -1693,19 +2137,33 @@ def retry_failed_promos(*, force: bool = False) -> dict[str, Any]:
             event["attempts"] = event.get("attempts", 0) + attempts
 
         event["details"] = event["detail"]
-        event["timestamp"] = f"{today} {_local_now().strftime('%H:%M:%S')}"
-        event["time"] = _local_now().strftime("%H:%M:%S")
+        if event["status"] == "ok":
+            event["timestamp"] = f"{today} {_local_now().strftime('%H:%M:%S')}"
+            event["time"] = _local_now().strftime("%H:%M:%S")
         recent_logs[idx] = event
 
         # GARDE-FOU 3 : Déconnexion ou échecs consécutifs
         if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
             break
 
-        sleep(random.uniform(settings["min_delay"], settings["max_delay"]))
+        if pos < len(to_retry) - 1:
+            _sleep(random.uniform(settings["min_delay"], settings["max_delay"]))
 
-    # Sauvegarde des logs mis à jour
-    log["recent_logs"] = recent_logs
-    _save_promo_log(log)
+    # Sauvegarde des logs mis à jour (sans ceux expirés > 2h)
+    log["recent_logs"] = [e for e in recent_logs if e is not None]
+    if newly_sent_ids:
+        promoted = dict(log.get("promoted") or {})
+        sent_ids_map = {today: list((log.get("sent_ids_by_date") or {}).get(today) or [])}
+        existing_sent = {str(x) for x in sent_ids_map[today]}
+        for s_pid in newly_sent_ids:
+            promoted[s_pid] = today
+            if s_pid not in existing_sent:
+                sent_ids_map[today].append(s_pid)
+                existing_sent.add(s_pid)
+        log["promoted"] = promoted
+        log["sent_ids_by_date"] = sent_ids_map
+    cleaned_log, _ = _clean_and_expire_log(log)
+    _save_promo_log(cleaned_log)
 
     return {
         "success": True,

@@ -1994,6 +1994,7 @@ def whatsapp_gateway():
         return response
 
     from ..services.whatsapp_promo import (
+        _today as _promo_today,
         get_log as get_promo_log,
         get_settings as get_promo_settings,
         groups_to_text,
@@ -2001,13 +2002,26 @@ def whatsapp_gateway():
     )
     from ..models.product import Product
 
+    today_str = _promo_today()
     promo_settings = get_promo_settings()
     promo_log = get_promo_log()
     today_clicks = get_today_clicks()
     pinned_ids = promo_settings.get("pinned_product_ids") or []
     pinned_products = Product.query.filter(Product.id.in_(pinned_ids)).all() if pinned_ids else []
-    last_gen = promo_log.get("last_generated") or session.get("whatsapp_promo_last_generated")
-    recent_logs = promo_log.get("recent_logs") or session.get("whatsapp_promo_last_details") or []
+
+    sess_gen = session.get("whatsapp_promo_last_generated")
+    if isinstance(sess_gen, dict) and sess_gen.get("date") != today_str:
+        session.pop("whatsapp_promo_last_generated", None)
+        sess_gen = None
+    sess_details = session.get("whatsapp_promo_last_details")
+    if isinstance(sess_details, list) and sess_details:
+        first_ts = str(sess_details[0].get("timestamp") or "")
+        if first_ts and not first_ts.startswith(today_str):
+            session.pop("whatsapp_promo_last_details", None)
+            sess_details = None
+
+    last_gen = promo_log.get("last_generated") or sess_gen
+    recent_logs = promo_log["recent_logs"] if "recent_logs" in promo_log else (sess_details or [])
     response = current_app.make_response(
         render_template(
             "admin/whatsapp_gateway.html",
@@ -2100,13 +2114,13 @@ def whatsapp_promo_settings():
         "pinned_product_ids": current.get("pinned_product_ids", []),
         "groups": groups,
         "recipients": recipients,
-        "status_products": data.get("status_products", current.get("status_products", 4)),
-        "products_count": data.get("products_count", current.get("products_count", 3)),
+        "status_products": data.get("status_products", current.get("status_products", 10)),
+        "products_count": data.get("products_count", current.get("products_count", 5)),
         "services_count": data.get("services_count", current.get("services_count", 3)),
         "rentals_count": data.get("rentals_count", current.get("rentals_count", 2)),
         "rental_max_age_hours": data.get("rental_max_age_hours", current.get("rental_max_age_hours", 24)),
-        "daily_message_limit": data.get("daily_message_limit", current.get("daily_message_limit", 20)),
-        "min_delay": data.get("min_delay", current.get("min_delay", 30)),
+        "daily_message_limit": data.get("daily_message_limit", current.get("daily_message_limit", 50)),
+        "min_delay": data.get("min_delay", current.get("min_delay", 45)),
         "max_delay": data.get("max_delay", current.get("max_delay", 90)),
         "cooldown_days": data.get("cooldown_days", current.get("cooldown_days", 7)),
     })
@@ -2154,7 +2168,7 @@ def whatsapp_promo_run():
                 started=True,
                 message="Envoi réel lancé en arrière-plan (avec délais anti-ban).",
             )
-        flash("Envoi réel lancé en arrière-plan (respect des délais anti-ban 30–90 s).", "info")
+        flash("Envoi réel lancé en arrière-plan (respect des délais anti-ban 45–90 s).", "info")
         return redirect(url_for("admin.whatsapp_gateway"))
 
     summary = run_daily_promo(

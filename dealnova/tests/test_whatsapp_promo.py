@@ -344,6 +344,13 @@ def test_admin_promo_routes_and_cli_commands(app, tmp_path):
     assert resp_run.status_code == 200
     assert resp_run.get_json()["summary"]["mode"] == "dry_run"
 
+    resp_page = adm_client.get("/admin/whatsapp-gateway")
+    assert resp_page.status_code == 200
+    page_html = resp_page.get_data(as_text=True)
+    assert "Persistance max 2h" in page_html
+    assert "min_delay" in page_html
+    assert "status_products" in page_html
+
     # CLI test
     runner = app.test_cli_runner()
     cli_status = runner.invoke(args=["whatsapp-promo", "status"])
@@ -478,12 +485,15 @@ def test_retry_mechanism_and_safeguards(app, tmp_path):
             assert res == "opted_out"
             assert count == 1  # Arrêt immédiat sans relance inutile
 
-        # 3. Test retry_failed_promos : relance d'un message failed
+        # 3. Test retry_failed_promos : relance d'un message failed récent (< 2h)
+        now_local = whatsapp_promo._local_now()
+        today_str = now_local.date().isoformat()
+        fresh_ts = (now_local - timedelta(minutes=20)).strftime("%Y-%m-%d %H:%M:%S")
         fake_log = {
-            "last_generated": {"items": [card]},
+            "last_generated": {"items": [card], "date": today_str, "generated_at": fresh_ts},
             "recent_logs": [
                 {
-                    "timestamp": "2026-10-31 10:00:00",
+                    "timestamp": fresh_ts,
                     "channel": "direct",
                     "channel_label": "Message Privé",
                     "product_id": 100,
@@ -497,7 +507,15 @@ def test_retry_mechanism_and_safeguards(app, tmp_path):
                 }
             ]
         }
-        whatsapp_promo._record_run(fake_log, promoted_ids=[], sent_today=0, today="2026-10-31", preview=False, new_recent_logs=fake_log["recent_logs"])
+        whatsapp_promo._record_run(
+            fake_log,
+            promoted_ids=[],
+            sent_today=0,
+            today=today_str,
+            preview=False,
+            last_generated=fake_log["last_generated"],
+            new_recent_logs=fake_log["recent_logs"],
+        )
 
         def success_gateway_post(path, payload):
             return 200, {"ok": True}
@@ -613,3 +631,339 @@ def test_image_base64_transmission_in_media_and_status(app, tmp_path):
             assert sent_payloads[1][0] == "/api/promo/status"
             assert sent_payloads[1][1]["has_image"] is True
             assert sent_payloads[1][1]["image_base64"] == card["image_base64"]
+
+
+
+def test_two_hour_ttl_daily_history_reset_and_scheduled_window(app, tmp_path):
+    """Vérifie :
+    1) Les messages bloqués (failed/pending) de plus de 2h sont automatiquement vidés et jamais relancés.
+    2) L'historique et suivi (recent_logs, runs, compteurs) de la veille se vident automatiquement le lendemain.
+    3) Le planificateur (--scheduled) respecte la fenêtre stricte de 2h et ignore tout créneau expiré (> 2h).
+    """
+    _seed_catalog(app, tmp_path)
+
+    with app.app_context():
+        now_local = whatsapp_promo._local_now()
+        today_str = now_local.date().isoformat()
+        yesterday_str = (now_local.date() - timedelta(days=1)).isoformat()
+
+        # A. Test vidage automatique de l'historique d'hier (J-1 -> J)
+        whatsapp_promo._persist_json_state(whatsapp_promo.LOG_KEY, {
+            "history_date": yesterday_str,
+            "last_run_date": yesterday_str,
+            "recent_logs": [
+                {
+                    "timestamp": f"{yesterday_str} 18:35:00",
+                    "channel": "group",
+                    "product_id": 1,
+                    "target": "https://chat.whatsapp.com/Grp1",
+                    "text": "Message bloqué hier",
+                    "status": "failed",
+                },
+                {
+                    "timestamp": f"{yesterday_str} 10:35:00",
+                    "channel": "status",
+                    "product_id": 2,
+                    "target": "status",
+                    "text": "Statut envoyé hier",
+                    "status": "ok",
+                },
+            ],
+            "runs": [{"started_at": f"{yesterday_str} 10:30:00", "mode": "live"}],
+            "last_generated": {"date": yesterday_str, "items": [{"id": 1, "name": "Hier"}]},
+            "clicks_by_date": {yesterday_str: {"_total": 9, "1": 9}},
+            "sent_by_date": {yesterday_str: 8},
+            "promoted": {"1": yesterday_str},
+        })
+
+        cleaned = whatsapp_promo.get_log()
+        assert cleaned["history_date"] == today_str
+        assert cleaned["recent_logs"] == []  # Historique et suivi entièrement vidés au changement de jour !
+        assert cleaned["runs"] == []
+        assert cleaned["last_generated"] == {}
+        assert yesterday_str not in cleaned.get("clicks_by_date", {})
+        assert cleaned["promoted"].get("1") == yesterday_str  # Anti-répétition préservée en coulisses
+
+        # B. Test persistance max 2h le même jour : > 2h vidé, < 2h conservé, ok du jour conservé
+        expired_ts = (now_local - timedelta(hours=2, minutes=10)).strftime("%Y-%m-%d %H:%M:%S")
+        fresh_ts = (now_local - timedelta(minutes=30)).strftime("%Y-%m-%d %H:%M:%S")
+        ok_ts = (now_local - timedelta(hours=4)).strftime("%Y-%m-%d %H:%M:%S")
+
+        # Si minuit rendrait expired_ts ou ok_ts sur hier, on fixe une heure de référence à 16h00 aujourd'hui
+        ref_now = now_local.replace(hour=16, minute=0, second=0, microsecond=0)
+        ref_today = ref_now.date().isoformat()
+        expired_same_day = (ref_now - timedelta(hours=2, minutes=15)).strftime("%Y-%m-%d %H:%M:%S")
+        fresh_same_day = (ref_now - timedelta(minutes=45)).strftime("%Y-%m-%d %H:%M:%S")
+        ok_same_day = (ref_now - timedelta(hours=5)).strftime("%Y-%m-%d %H:%M:%S")
+
+        cleaned_2h, changed_2h = whatsapp_promo._clean_and_expire_log(
+            {
+                "history_date": ref_today,
+                "recent_logs": [
+                    {"timestamp": expired_same_day, "status": "failed", "product_id": 10, "target": "grp", "text": "Trop vieux"},
+                    {"timestamp": expired_same_day, "status": "pending", "product_id": 11, "target": "grp", "text": "En attente >2h"},
+                    {"timestamp": fresh_same_day, "status": "failed", "product_id": 12, "target": "grp", "text": "Récent <2h"},
+                    {"timestamp": ok_same_day, "status": "ok", "product_id": 13, "target": "grp", "text": "Publié ce matin"},
+                ],
+            },
+            now=ref_now,
+        )
+        assert changed_2h is True
+        remaining_ids = [e["product_id"] for e in cleaned_2h["recent_logs"]]
+        assert 10 not in remaining_ids  # Échec > 2h vidé !
+        assert 11 not in remaining_ids  # Pending > 2h vidé !
+        assert 12 in remaining_ids      # Échec < 2h encore dans la fenêtre de persistance
+        assert 13 in remaining_ids      # Succès du jour conservé jusqu'à minuit
+
+        # C. Test fenêtre stricte 2h dans run_scheduled_tick()
+        whatsapp_promo._persist_json_state(whatsapp_promo.LOG_KEY, {"history_date": ref_today})
+        whatsapp_promo.save_settings({
+            "enabled": True,
+            "dry_run": False,
+            "schedule_time": "10:30",    # À 16h00 -> dépassé de 5h30 (> 2h) => NE DOIT PAS PARTIR !
+            "schedule_time_2": "18:30",  # À 16h00 -> pas encore l'heure => NE DOIT PAS PARTIR !
+            "groups": whatsapp_promo.parse_groups_text("https://chat.whatsapp.com/Test2h, Groupe 2h"),
+        })
+        with patch("dealnova.app.services.whatsapp_promo._local_now", return_value=ref_now):
+            tick_expired = whatsapp_promo.run_scheduled_tick(sleep_fn=lambda _: None)
+            assert tick_expired["status"] == "idle"
+
+        # À 19h15 (45 min après 18:30 -> dans la fenêtre de 2h), l'envoi 2 s'exécute
+        evening_now = now_local.replace(hour=19, minute=15, second=0, microsecond=0)
+        with (
+            patch("dealnova.app.services.whatsapp_promo._local_now", return_value=evening_now),
+            patch("dealnova.app.services.whatsapp_promo.get_whatsapp_gateway_status", return_value={"status": "connected"}),
+            patch("dealnova.app.services.whatsapp_promo._gateway_post", return_value=(200, {"ok": True})),
+        ):
+            tick_ok = whatsapp_promo.run_scheduled_tick(sleep_fn=lambda _: None)
+            assert tick_ok["status"] == "executed"
+            assert tick_ok["slot"] == "slot_2:18:30"
+
+            # Un second tick 15 min plus tard sur le même créneau ne renvoie rien en double
+            tick_dup = whatsapp_promo.run_scheduled_tick(sleep_fn=lambda _: None)
+            assert tick_dup["status"] == "idle"
+
+
+def test_ten_offers_mix_random_rotation_and_zero_same_day_repeat(app, tmp_path):
+    """Vérifie :
+    - Quotas par défaut : 5 produits + 3 services + 2 locations = 10 offres, 10 Statuts 24h, délais 45s-90s.
+    - Migration automatique d'anciens réglages v1 -> v2.
+    - Mélange aléatoire équitable entre produits en promo et produits standards (hors promo).
+    - Zéro répétition le même jour entre l'envoi du Matin (10 offres) et l'envoi du Soir (10 nouvelles offres),
+      avec repli sur les locations actives plus anciennes si < 24h est épuisé.
+    """
+    from dealnova.app.models.rental import RentalListing, RentalMedia
+
+    upload_dir = tmp_path / "uploads"
+    rentals_dir = upload_dir / "rentals"
+    upload_dir.mkdir(exist_ok=True)
+    rentals_dir.mkdir(exist_ok=True)
+    app.config["UPLOAD_FOLDER"] = str(upload_dir)
+
+    with app.app_context():
+        app.config["GEMINI_API_KEY"] = ""
+
+        # 1. Vérification de la migration v1 -> v2 et des nouveaux défauts
+        whatsapp_promo._persist_json_state(whatsapp_promo.SETTINGS_KEY, {
+            "enabled": True,
+            "products_count": 3,
+            "services_count": 3,
+            "rentals_count": 2,
+            "status_products": 2,
+            "min_delay": 30,
+            "max_delay": 90,
+        })
+        migrated = whatsapp_promo.get_settings()
+        assert migrated["products_count"] == 5
+        assert migrated["services_count"] == 3
+        assert migrated["rentals_count"] == 2
+        assert migrated["status_products"] == 10
+        assert migrated["min_delay"] == 45
+        assert migrated["max_delay"] == 90
+
+        # 2. Création d'un catalogue riche : 12 produits (6 promos + 6 hors promo), 6 services, 4 locations (2 <24h + 2 anciennes)
+        vendor = User.query.filter_by(username="wa_mix10_vendor").first()
+        if not vendor:
+            vendor = User(
+                username="wa_mix10_vendor",
+                email="wa_mix10_vendor@babamarket.ma",
+                role="vendor",
+                is_active=True,
+            )
+            vendor.set_password("VendorPass123!")
+            db.session.add(vendor)
+            db.session.flush()
+
+        shop = Shop.query.filter_by(slug="wa-mix10-shop").first()
+        if not shop:
+            shop = Shop(name="Marché Mix 10", slug="wa-mix10-shop", vendor_id=vendor.id, is_active=True)
+            db.session.add(shop)
+            db.session.flush()
+
+        # Nettoyer uniquement les entrées de cette boutique de test (sans toucher aux clés étrangères existantes)
+        for old_r in RentalListing.query.filter_by(shop_id=shop.id).all():
+            db.session.delete(old_r)
+        for old_p in Product.query.filter_by(shop_id=shop.id).all():
+            Promo.query.filter_by(product_id=old_p.id).delete()
+            db.session.delete(old_p)
+        db.session.flush()
+
+        promo_prod_ids = set()
+        regular_prod_ids = set()
+        for i in range(12):
+            img_name = f"phys_{i}.jpg"
+            Image.new("RGB", (300, 300), (30 + i * 10, 100, 80)).save(upload_dir / img_name)
+            p = Product(
+                name=f"Produit Catalogue {i}",
+                description="Qualité supérieure",
+                price=100.0 + i,
+                stock=10,
+                kind="physical",
+                shop_id=shop.id,
+                vendor_id=vendor.id,
+                is_active=True,
+                image_file=img_name,
+            )
+            db.session.add(p)
+            db.session.flush()
+            if i < 6:
+                promo_prod_ids.add(p.id)
+                db.session.add(Promo(
+                    product_id=p.id,
+                    type="percentage",
+                    value=15.0,
+                    end_date=datetime.utcnow() + timedelta(days=5),
+                    status=Promo.STATUS_APPROVED,
+                ))
+            else:
+                regular_prod_ids.add(p.id)
+
+        for i in range(6):
+            img_name = f"serv_{i}.jpg"
+            Image.new("RGB", (300, 300), (80, 60 + i * 20, 140)).save(upload_dir / img_name)
+            s = Product(
+                name=f"Service Pro {i}",
+                description="Intervention rapide",
+                price=150.0 + i * 10,
+                stock=0,
+                kind="service",
+                shop_id=shop.id,
+                vendor_id=vendor.id,
+                is_active=True,
+                image_file=img_name,
+            )
+            db.session.add(s)
+
+        recent_rental_keys = set()
+        older_rental_keys = set()
+        for i in range(4):
+            r_img = f"rent_{i}.jpg"
+            Image.new("RGB", (320, 320), (120, 90, 40 + i * 30)).save(rentals_dir / r_img)
+            created_dt = (
+                datetime.utcnow() - timedelta(hours=3)
+                if i < 2
+                else datetime.utcnow() - timedelta(hours=72)
+            )
+            r = RentalListing(
+                owner_id=vendor.id,
+                shop_id=shop.id,
+                title=f"Appartement Test {i}",
+                slug=f"appartement-test-mix-{i}",
+                description="Bel appartement lumineux",
+                listing_type="monthly",
+                property_type="apartment",
+                city="Casablanca",
+                area="Maarif",
+                rent_cents=350000 + i * 10000,
+                status="active",
+                is_active=True,
+                created_at=created_dt,
+            )
+            db.session.add(r)
+            db.session.flush()
+            db.session.add(RentalMedia(
+                listing_id=r.id,
+                kind="image",
+                file_path=f"uploads/rentals/{r_img}",
+            ))
+            if i < 2:
+                recent_rental_keys.add(f"rental_{r.id}")
+            else:
+                older_rental_keys.add(f"rental_{r.id}")
+
+        db.session.commit()
+
+        # Réinitialiser le log et configurer les paramètres cibles
+        whatsapp_promo._persist_json_state(whatsapp_promo.LOG_KEY, {})
+        whatsapp_promo.save_settings({
+            "enabled": True,
+            "dry_run": False,
+            "status_enabled": True,
+            "groups_enabled": True,
+            "groups": whatsapp_promo.parse_groups_text("https://chat.whatsapp.com/GrpMix10, Groupe Mix"),
+            "products_count": 5,
+            "services_count": 3,
+            "rentals_count": 2,
+            "rental_max_age_hours": 24,
+            "status_products": 10,
+            "min_delay": 45,
+            "max_delay": 90,
+        })
+
+        base_now = whatsapp_promo._local_now()
+        morning_now = base_now.replace(hour=10, minute=35, second=0, microsecond=0)
+        evening_now = base_now.replace(hour=18, minute=35, second=0, microsecond=0)
+        recorded_group_delays = []
+
+        def capture_sleep(sec):
+            if sec >= 45:
+                recorded_group_delays.append(sec)
+
+        with (
+            patch("dealnova.app.services.whatsapp_promo._rental_upload_roots", return_value=[rentals_dir.resolve()]),
+            patch("dealnova.app.services.whatsapp_promo._local_now", return_value=morning_now),
+            patch("dealnova.app.services.whatsapp_promo.get_whatsapp_gateway_status", return_value={"status": "connected"}),
+            patch("dealnova.app.services.whatsapp_promo._gateway_post", return_value=(200, {"ok": True})),
+        ):
+            morning_run = whatsapp_promo.run_daily_promo(force=False, dry_run=False, sleep=capture_sleep)
+
+        assert morning_run["aborted"] is None
+        assert len(morning_run["products"]) == 10
+        assert morning_run["statuses_ok"] == 10  # 10 Statuts 24h publiés !
+        assert morning_run["groups_ok"] == 10
+        assert all(45.0 <= d <= 90.0 for d in recorded_group_delays)
+
+        m_phys = [it["id"] for it in morning_run["products"] if it["item_type"] == "physical"]
+        m_serv = [it["id"] for it in morning_run["products"] if it["item_type"] == "service"]
+        m_rent = [it["id"] for it in morning_run["products"] if it["item_type"] == "rental"]
+        assert len(m_phys) == 5
+        assert len(m_serv) == 3
+        assert len(m_rent) == 2
+
+        # Vérifie que les produits HORS PROMO passent aussi aléatoirement dès le 1er envoi (pas monopolisé par les 6 promos)
+        assert any(pid in regular_prod_ids for pid in m_phys)
+        assert any(pid in promo_prod_ids for pid in m_phys)
+        # Vérifie que les 2 locations < 24h ont été prises en priorité le matin
+        assert set(m_rent) == recent_rental_keys
+
+        # Envoi du Soir (18h35) le MÊME JOUR : 10 NOUVELLES offres, ZÉRO doublon avec le matin !
+        with (
+            patch("dealnova.app.services.whatsapp_promo._rental_upload_roots", return_value=[rentals_dir.resolve()]),
+            patch("dealnova.app.services.whatsapp_promo._local_now", return_value=evening_now),
+            patch("dealnova.app.services.whatsapp_promo.get_whatsapp_gateway_status", return_value={"status": "connected"}),
+            patch("dealnova.app.services.whatsapp_promo._gateway_post", return_value=(200, {"ok": True})),
+        ):
+            evening_run = whatsapp_promo.run_daily_promo(force=False, dry_run=False, sleep=lambda _: None)
+
+        assert evening_run["aborted"] is None
+        assert len(evening_run["products"]) == 10
+        assert evening_run["statuses_ok"] == 10
+        assert evening_run["groups_ok"] == 10
+
+        morning_ids = {str(it["id"]) for it in morning_run["products"]}
+        evening_ids = {str(it["id"]) for it in evening_run["products"]}
+        assert morning_ids.isdisjoint(evening_ids)  # ZÉRO répétition le même jour !
+
+        # Les 2 locations du soir doivent être les 2 locations actives plus anciennes (repli <24h épuisé)
+        e_rent = {it["id"] for it in evening_run["products"] if it["item_type"] == "rental"}
+        assert e_rent == older_rental_keys

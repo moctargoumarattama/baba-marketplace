@@ -400,7 +400,7 @@
               {% if pending_count > 0 %}
                 <span class="badge bg-warning text-dark me-1">{{ pending_count }} en attente</span>
               {% endif %}
-              <span>Garde-fous activés : aucune saturation, les contacts désinscrits sont automatiquement écartés.</span>
+              <span>Persistance max 2h : les messages bloqués sont automatiquement vidés après 2h (aucun rattrapage le lendemain).</span>
             </div>
           </div>
         </div>
@@ -809,7 +809,7 @@
               <input class="form-check-input" type="checkbox" name="status_enabled" value="1" {% if ps.get('status_enabled', True) %}checked{% endif %} style="width:1.25rem;height:1.25rem;">
             </div>
             <p class="channel-choice-desc">
-              Publie la photo et la légende dans votre Story WhatsApp. Visible pendant 24h par tous vos contacts enregistrés.
+              Ce canal est non-intrusif et visible pendant 24h par vos contacts enregistrés ({{ ps.get('status_products', 10) }} produits/jour en Statut).
             </p>
             <div style="font-size:0.75rem;font-weight:700;color:#059669;">
               <i class="bi bi-check-circle me-1"></i> Recommandé pour la visibilité
@@ -874,27 +874,43 @@
               </select>
             </div>
 
-            <!-- Réglage du nombre d'offres et fraîcheur locations -->
+            <!-- Réglage des 10 offres (5 Produits + 3 Services + 2 Locations), Statuts 24h et Fraîcheur -->
             <div style="font-size:0.8rem;color:#475569;margin-left:3.2em;display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;margin-top:0.65rem;background:#f1f5f9;padding:0.45rem 0.85rem;border-radius:10px;">
-              <span class="fw-bold text-dark"><i class="bi bi-sliders me-1"></i> Répartition des offres :</span>
-              
+              <span class="fw-bold text-dark"><i class="bi bi-sliders me-1"></i> Répartition par envoi (10 offres) :</span>
+
               <span title="Nombre de produits physiques">🛍️ Produits :</span>
-              <input type="number" name="products_count" value="{{ ps.get('products_count', 3) }}" min="0" max="10" class="form-control form-control-sm text-center fw-bold" style="width:55px;">
+              <input type="number" name="products_count" value="{{ ps.get('products_count', 5) }}" min="0" max="15" class="form-control form-control-sm text-center fw-bold" style="width:55px;">
 
               <span title="Nombre de services professionnels">🛠️ Services :</span>
-              <input type="number" name="services_count" value="{{ ps.get('services_count', 3) }}" min="0" max="10" class="form-control form-control-sm text-center fw-bold" style="width:55px;">
+              <input type="number" name="services_count" value="{{ ps.get('services_count', 3) }}" min="0" max="15" class="form-control form-control-sm text-center fw-bold" style="width:55px;">
 
               <span title="Nombre de logements & locations">🏠 Locations :</span>
-              <input type="number" name="rentals_count" value="{{ ps.get('rentals_count', 2) }}" min="0" max="10" class="form-control form-control-sm text-center fw-bold" style="width:55px;">
+              <input type="number" name="rentals_count" value="{{ ps.get('rentals_count', 2) }}" min="0" max="15" class="form-control form-control-sm text-center fw-bold" style="width:55px;">
 
-              <span class="ms-2" title="Ancienneté maximum des logements proposés">⏱️ Fraîcheur locations :</span>
+              <span class="ms-1" title="Nombre d'offres en Statut WhatsApp 24h (Story)">📸 Statuts 24h :</span>
+              <input type="number" name="status_products" value="{{ ps.get('status_products', 10) }}" min="1" max="20" class="form-control form-control-sm text-center fw-bold" style="width:55px;">
+
+              <span class="ms-1" title="Ancienneté prioritaire des logements proposés">⏱️ Fraîcheur locations :</span>
               <select name="rental_max_age_hours" class="form-select form-select-sm" style="width:auto;font-weight:700;">
                 <option value="12" {% if ps.get('rental_max_age_hours') == 12 %}selected{% endif %}>Moins de 12h</option>
-                <option value="24" {% if ps.get('rental_max_age_hours', 24) == 24 %}selected{% endif %}>Moins de 24h (Recommandé)</option>
+                <option value="24" {% if ps.get('rental_max_age_hours', 24) == 24 %}selected{% endif %}>Moins de 24h (Prioritaire)</option>
                 <option value="48" {% if ps.get('rental_max_age_hours') == 48 %}selected{% endif %}>Moins de 48h</option>
                 <option value="72" {% if ps.get('rental_max_age_hours') == 72 %}selected{% endif %}>Moins de 72h</option>
                 <option value="168" {% if ps.get('rental_max_age_hours') == 168 %}selected{% endif %}>Toutes les récentes</option>
               </select>
+            </div>
+
+            <!-- Réglage des délais anti-ban (45s - 90s) et rappel de persistance 2h -->
+            <div style="font-size:0.8rem;color:#475569;margin-left:3.2em;display:flex;align-items:center;gap:0.65rem;flex-wrap:wrap;margin-top:0.45rem;background:#f8fafc;border:1px solid #e2e8f0;padding:0.4rem 0.85rem;border-radius:10px;">
+              <span class="fw-bold text-dark"><i class="bi bi-shield-check text-success me-1"></i> Délais anti-ban :</span>
+              <span>Min</span>
+              <input type="number" name="min_delay" value="{{ ps.get('min_delay', 45) }}" min="20" max="300" class="form-control form-control-sm text-center fw-bold" style="width:60px;">
+              <span>sec — Max</span>
+              <input type="number" name="max_delay" value="{{ ps.get('max_delay', 90) }}" min="20" max="300" class="form-control form-control-sm text-center fw-bold" style="width:60px;">
+              <span>sec</span>
+              <span class="badge bg-secondary-subtle text-dark border ms-auto" style="font-weight:600;">
+                <i class="bi bi-hourglass-split me-1"></i> Persistance max 2h • Historique vidé chaque jour
+              </span>
             </div>
           </div>
 
@@ -910,12 +926,9 @@
           </div>
         </div>
 
-        <!-- Champ caché pour garder le dry_run et les options par défaut sans embêter l'utilisateur -->
+        <!-- Champs cachés techniques -->
         <input type="hidden" name="dry_run" value="0">
-        <input type="hidden" name="status_products" value="{{ ps.get('status_products', 2) }}">
-        <input type="hidden" name="daily_message_limit" value="{{ ps.get('daily_message_limit', 20) }}">
-        <input type="hidden" name="min_delay" value="{{ ps.get('min_delay', 30) }}">
-        <input type="hidden" name="max_delay" value="{{ ps.get('max_delay', 90) }}">
+        <input type="hidden" name="daily_message_limit" value="{{ ps.get('daily_message_limit', 50) }}">
         <input type="hidden" name="cooldown_days" value="{{ ps.get('cooldown_days', 7) }}">
       </form>
     </div>
@@ -931,9 +944,15 @@
           <input type="hidden" name="enabled" value="{{ 1 if ps.get('enabled') else 0 }}">
           <input type="hidden" name="status_enabled" value="{{ 1 if ps.get('status_enabled', True) else 0 }}">
           <input type="hidden" name="groups_enabled" value="1">
-          <input type="hidden" name="status_products" value="{{ ps.get('status_products', 2) }}">
-          <input type="hidden" name="daily_message_limit" value="{{ ps.get('daily_message_limit', 20) }}">
-          <input type="hidden" name="min_delay" value="{{ ps.get('min_delay', 30) }}">
+          <input type="hidden" name="schedule_time" value="{{ ps.get('schedule_time', '10:30') }}">
+          <input type="hidden" name="schedule_time_2" value="{{ ps.get('schedule_time_2', '18:30') }}">
+          <input type="hidden" name="products_count" value="{{ ps.get('products_count', 5) }}">
+          <input type="hidden" name="services_count" value="{{ ps.get('services_count', 3) }}">
+          <input type="hidden" name="rentals_count" value="{{ ps.get('rentals_count', 2) }}">
+          <input type="hidden" name="rental_max_age_hours" value="{{ ps.get('rental_max_age_hours', 24) }}">
+          <input type="hidden" name="status_products" value="{{ ps.get('status_products', 10) }}">
+          <input type="hidden" name="daily_message_limit" value="{{ ps.get('daily_message_limit', 50) }}">
+          <input type="hidden" name="min_delay" value="{{ ps.get('min_delay', 45) }}">
           <input type="hidden" name="max_delay" value="{{ ps.get('max_delay', 90) }}">
           <input type="hidden" name="cooldown_days" value="{{ ps.get('cooldown_days', 7) }}">
 
@@ -1170,7 +1189,7 @@
 
         <div class="modal-footer bg-light d-flex justify-content-between">
           <span class="text-muted" style="font-size:0.8rem;">
-            <i class="bi bi-shield-check text-success me-1"></i> Garde-fous actifs : détection anti-ban, 3 essais automatiques et arrêt de protection.
+            <i class="bi bi-shield-check text-success me-1"></i> Garde-fous actifs : délais anti-ban (45–90 s), persistance max 2h (aucun envoi J+1) et vidage quotidien de l'historique.
           </span>
           <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Fermer</button>
         </div>

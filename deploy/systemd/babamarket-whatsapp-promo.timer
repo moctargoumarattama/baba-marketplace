@@ -1,11 +1,10 @@
 [Unit]
-Description=Planificateur bi-quotidien Baba Market WhatsApp Promo (10h30 et 18h30 heure Maroc)
+Description=Planificateur WhatsApp Promo Baba Market (verification 15 min, persistance max 2h, sans rattrapage J+1)
 
 [Timer]
-OnCalendar=*-*-* 10:30:00
-OnCalendar=*-*-* 18:30:00
-RandomizedDelaySec=300
-Persistent=true
+OnCalendar=*:00/15
+RandomizedDelaySec=45
+Persistent=false
 Unit=babamarket-whatsapp-promo.service
 
 [Install]
