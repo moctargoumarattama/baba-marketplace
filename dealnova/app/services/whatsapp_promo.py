@@ -324,7 +324,7 @@ def build_product_card(product: Product, promo=None) -> dict[str, Any]:
     final = float(prix_final(product, promo))
     base_price = float(product.price or 0)
     base = _public_base_url()
-    page = f"{base}/shop/product/{product.id}"
+    page = f"{base}/p/{product.id}"
     image = f"{base}/shop/product/{product.id}/photo/0/download"
     shop_name = getattr(product.shop, "name", "") or ""
     category = getattr(getattr(product, "category", None), "name", "") or ""
@@ -345,9 +345,9 @@ def build_product_card(product: Product, promo=None) -> dict[str, Any]:
     }
 
 
-def _tracked(url: str, medium: str) -> str:
-    separator = "&" if "?" in url else "?"
-    return f"{url}{separator}utm_source=whatsapp&utm_medium={medium}&utm_campaign=daily_promo"
+def _tracked(url: str, medium: str = "") -> str:
+    """Retourne une URL courte, propre et digne de confiance pour WhatsApp."""
+    return url
 
 
 # ---------------------------------------------------------------------------
@@ -454,16 +454,18 @@ def compose_group_message(card: dict[str, Any], copy: dict[str, str], group_labe
 
 
 def compose_message(card: dict[str, Any], copy: dict[str, str], label: str = "") -> str:
-    """Message direct personnalisé 1-à-1 avec pied de désinscription STOP."""
+    """Message direct personnalisé 1-à-1 chaleureux et propre."""
     if copy.get("custom_direct_message"):
         return copy["custom_direct_message"]
-    greeting = f"Bonjour {label} 👋" if label else "Bonjour 👋"
+    clean_label = (label or "").strip()
+    if clean_label.lower() in ("admin", "test", "client", "destinataire", "user", "contact"):
+        clean_label = ""
+    greeting = f"Bonjour {clean_label} 👋" if clean_label else "Bonjour 👋"
     body_text = copy.get("direct_message") or copy.get("message") or copy.get("status") or ""
     parts = [greeting, body_text]
     if card.get("price_line"):
         parts.append(card["price_line"])
-    parts.append(f"👉 Voir le produit : {_tracked(card.get('page_url', ''), 'message')}")
-    parts.append(OPT_OUT_FOOTER)
+    parts.append(f"👉 Commander ici : {_tracked(card.get('page_url', ''), 'message')}")
     return "\n\n".join(parts)
 
 
@@ -884,54 +886,53 @@ def run_daily_promo(
 
     # 2. CANAL GROUPES WHATSAPP
     if run_groups and groups:
-        for index, grp in enumerate(groups):
-            card = cards[index % len(cards)]
+        for grp in groups:
             group_label = grp.get("label") or grp["target"]
-            group_text = compose_group_message(card, copies[card["id"]], group_label)
-            event = {
-                "timestamp": f"{today} {_local_now().strftime('%H:%M:%S')}",
-                "time": _local_now().strftime("%H:%M:%S"),
-                "channel": "group",
-                "channel_label": "Groupe WhatsApp",
-                "product_id": card["id"],
-                "product_name": card["name"],
-                "product_title": card["name"],
-                "target": grp["target"],
-                "target_desc": group_label,
-                "text": group_text,
-            }
-            if preview:
-                summary["groups_ok"] += 1
-                event["status"] = "ok"
-                event["details"] = "Aperçu simulé"
+            for card_idx, card in enumerate(cards):
+                group_text = compose_group_message(card, copies[card["id"]], group_label)
+                event = {
+                    "timestamp": f"{today} {_local_now().strftime('%H:%M:%S')}",
+                    "time": _local_now().strftime("%H:%M:%S"),
+                    "channel": "group",
+                    "channel_label": "Groupe WhatsApp",
+                    "product_id": card["id"],
+                    "product_name": card["name"],
+                    "product_title": card["name"],
+                    "target": grp["target"],
+                    "target_desc": group_label,
+                    "text": group_text,
+                }
+                if preview:
+                    summary["groups_ok"] += 1
+                    event["status"] = "ok"
+                    event["details"] = "Aperçu simulé"
+                    event["detail"] = event["details"]
+                    recent_events.append(event)
+                    summary["details"].append(event)
+                    continue
+
+                if not still_enabled():
+                    return finish("stopped_by_admin", [c["id"] for c in cards], last_generated_data)
+
+                result, reason = send_promo_media(grp["target"], card, group_text)
+                if result == "sent":
+                    summary["groups_ok"] += 1
+                    consecutive_failures = 0
+                    event["status"] = "ok"
+                    event["details"] = "Envoyé dans le groupe"
+                else:
+                    summary["groups_failed"] += 1
+                    consecutive_failures += 1
+                    event["status"] = "failed"
+                    event["details"] = f"Erreur: {reason}"
+
                 event["detail"] = event["details"]
                 recent_events.append(event)
                 summary["details"].append(event)
-                continue
 
-            if not still_enabled():
-                return finish("stopped_by_admin", [c["id"] for c in cards], last_generated_data)
+                if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
+                    return finish("gateway_failures", [c["id"] for c in cards], last_generated_data)
 
-            result, reason = send_promo_media(grp["target"], card, group_text)
-            if result == "sent":
-                summary["groups_ok"] += 1
-                consecutive_failures = 0
-                event["status"] = "ok"
-                event["details"] = "Envoyé dans le groupe"
-            else:
-                summary["groups_failed"] += 1
-                consecutive_failures += 1
-                event["status"] = "failed"
-                event["details"] = f"Erreur: {reason}"
-
-            event["detail"] = event["details"]
-            recent_events.append(event)
-            summary["details"].append(event)
-
-            if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
-                return finish("gateway_failures", [c["id"] for c in cards], last_generated_data)
-
-            if index < len(groups) - 1:
                 sleep(random.uniform(settings["min_delay"], settings["max_delay"]))
 
     # 3. CANAL MESSAGES PRIVÉS (1-à-1 Opt-in)
@@ -941,60 +942,63 @@ def run_daily_promo(
         targets = people[:remaining]
         summary["skipped"] += max(0, len(people) - len(targets))
 
-        for index, person in enumerate(targets):
-            card = cards[index % len(cards)]
+        for person in targets:
             client_label = person.get("label", "")
             target_desc = f"{person['phone']}" + (f" ({client_label})" if client_label else "")
-            text = compose_message(card, copies[card["id"]], client_label)
-            event = {
-                "timestamp": f"{today} {_local_now().strftime('%H:%M:%S')}",
-                "time": _local_now().strftime("%H:%M:%S"),
-                "channel": "direct",
-                "channel_label": "Message Privé",
-                "product_id": card["id"],
-                "product_name": card["name"],
-                "product_title": card["name"],
-                "target": person["phone"],
-                "target_desc": target_desc,
-                "text": text,
-            }
-            if preview:
-                summary["messages_ok"] += 1
-                event["status"] = "ok"
-                event["details"] = "Aperçu simulé"
+            for card_idx, card in enumerate(cards):
+                text = compose_message(card, copies[card["id"]], client_label)
+                event = {
+                    "timestamp": f"{today} {_local_now().strftime('%H:%M:%S')}",
+                    "time": _local_now().strftime("%H:%M:%S"),
+                    "channel": "direct",
+                    "channel_label": "Message Privé",
+                    "product_id": card["id"],
+                    "product_name": card["name"],
+                    "product_title": card["name"],
+                    "target": person["phone"],
+                    "target_desc": target_desc,
+                    "text": text,
+                }
+                if preview:
+                    summary["messages_ok"] += 1
+                    event["status"] = "ok"
+                    event["details"] = "Aperçu simulé"
+                    event["detail"] = event["details"]
+                    recent_events.append(event)
+                    summary["details"].append(event)
+                    continue
+
+                if not still_enabled():
+                    return finish("stopped_by_admin", [c["id"] for c in cards], last_generated_data)
+
+                result, reason = send_promo_media(person["phone"], card, text)
+                if result == "sent":
+                    summary["messages_ok"] += 1
+                    consecutive_failures = 0
+                    event["status"] = "ok"
+                    event["details"] = "Message remis"
+                elif result in ("opted_out", "not_on_whatsapp"):
+                    summary["skipped"] += 1
+                    event["status"] = "skipped"
+                    event["details"] = "Désinscrit (STOP)" if result == "opted_out" else "Pas de WhatsApp"
+                    _mark_recipient(person["phone"], "opted_out" if result == "opted_out" else "invalid")
+                    event["detail"] = event["details"]
+                    recent_events.append(event)
+                    summary["details"].append(event)
+                    break
+                else:
+                    summary["messages_failed"] += 1
+                    consecutive_failures += 1
+                    event["status"] = "failed"
+                    event["details"] = f"Échec: {reason}"
+
                 event["detail"] = event["details"]
                 recent_events.append(event)
                 summary["details"].append(event)
-                continue
 
-            if not still_enabled():
-                return finish("stopped_by_admin", [c["id"] for c in cards], last_generated_data)
+                if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
+                    return finish("gateway_failures", [c["id"] for c in cards], last_generated_data)
 
-            result, reason = send_promo_media(person["phone"], card, text)
-            if result == "sent":
-                summary["messages_ok"] += 1
-                consecutive_failures = 0
-                event["status"] = "ok"
-                event["details"] = "Message remis"
-            elif result in ("opted_out", "not_on_whatsapp"):
-                summary["skipped"] += 1
-                event["status"] = "skipped"
-                event["details"] = "Désinscrit (STOP)" if result == "opted_out" else "Pas de WhatsApp"
-                _mark_recipient(person["phone"], "opted_out" if result == "opted_out" else "invalid")
-            else:
-                summary["messages_failed"] += 1
-                consecutive_failures += 1
-                event["status"] = "failed"
-                event["details"] = f"Échec: {reason}"
-
-            event["detail"] = event["details"]
-            recent_events.append(event)
-            summary["details"].append(event)
-
-            if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
-                return finish("gateway_failures", [c["id"] for c in cards], last_generated_data)
-
-            if index < len(targets) - 1 and result != "opted_out":
                 sleep(random.uniform(settings["min_delay"], settings["max_delay"]))
 
     return finish(None, [] if preview else [c["id"] for c in cards], last_generated_data)

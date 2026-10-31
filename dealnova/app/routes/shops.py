@@ -575,3 +575,9 @@ def shop_detail_alias(shop_slug):
     if not is_safe_public_shop_slug(normalized_slug, reserved=RESERVED_ROOT_SHOP_SLUGS):
         return render_template("errors/404.html"), 404
     return redirect(url_for("shops.shop_detail", shop_slug=normalized_slug, **request.args), code=301)
+
+
+@bp.route("/p/<int:pid>")
+def short_product_link(pid):
+    """Lien court et propre pour les partages WhatsApp / SMS."""
+    return redirect(url_for("shop.product_detail", pid=pid), code=302)

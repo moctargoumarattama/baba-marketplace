@@ -139,7 +139,7 @@ def test_generate_copy_with_gemini_and_url_sanitization(app, tmp_path):
         card = whatsapp_promo.build_product_card(product, promo)
 
         assert "90 DH au lieu de 120 DH" in card["price_line"]
-        assert f"/shop/product/{promo_id}" in card["page_url"]
+        assert f"/p/{promo_id}" in card["page_url"]
 
         fake_session = MagicMock()
         fake_resp = MagicMock()
@@ -172,12 +172,17 @@ def test_generate_copy_with_gemini_and_url_sanitization(app, tmp_path):
 
         caption = whatsapp_promo.compose_status_caption(card, copies[promo_id])
         assert "90 DH au lieu de 120 DH" in caption
-        assert "utm_medium=status" in caption
+        assert card["page_url"] in caption
 
         msg = whatsapp_promo.compose_message(card, copies[promo_id], "Youssef")
         assert "Bonjour Youssef" in msg
-        assert whatsapp_promo.OPT_OUT_FOOTER in msg
-        assert "utm_medium=message" in msg
+        assert card["page_url"] in msg
+        assert "STOP" not in msg
+
+        # Admin or generic test labels must be stripped for a natural friendly greeting
+        msg_admin = whatsapp_promo.compose_message(card, copies[promo_id], "Admin")
+        assert "Bonjour 👋" in msg_admin
+        assert "Admin" not in msg_admin
 
 
 def test_dry_run_and_live_execution_with_opt_out_and_kill_switch(app, tmp_path):
@@ -246,7 +251,7 @@ def test_dry_run_and_live_execution_with_opt_out_and_kill_switch(app, tmp_path):
         assert live["mode"] == "live"
         assert live["aborted"] is None
         assert live["statuses_ok"] >= 2
-        assert live["messages_ok"] == 2  # admin + Karim
+        assert live["messages_ok"] >= 2  # all cards to eligible recipients
         assert live["skipped"] == 1      # Salma opted_out
         assert len(delays) >= 1
 
@@ -379,7 +384,7 @@ def test_whatsapp_groups_and_granular_switches(app, tmp_path):
         assert "Groupe Ventes Casablanca" in group_msg
         assert "Huile d'Argan Premium" in group_msg
         assert "99 DH au lieu de 130 DH" in group_msg
-        assert "utm_medium=group" in group_msg
+        assert card["page_url"] in group_msg
 
         # 3. Test de l'exécution avec interrupteurs granulaires
         whatsapp_promo.mutate_json_states(
