@@ -2129,6 +2129,11 @@ def whatsapp_promo_run():
     include_messages = scope in ("all", "messages")
 
     if mode == "live":
+        from ..services.whatsapp_promo import get_settings as _get_promo_settings, save_settings as _save_promo_settings
+        current_st = _get_promo_settings()
+        if not current_st.get("enabled"):
+            current_st["enabled"] = True
+            _save_promo_settings(current_st)
         app_obj = current_app._get_current_object()
         run_in_background(
             app_obj,

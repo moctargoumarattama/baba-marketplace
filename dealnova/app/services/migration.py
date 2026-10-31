@@ -361,7 +361,14 @@ def ensure_runtime_state_table():
         dialect = (db.engine.dialect.name or "").lower()
         if "mysql" in dialect:
             with db.engine.begin() as conn:
-                conn.execute(text("ALTER TABLE runtime_state MODIFY value_json LONGTEXT"))
+                try:
+                    conn.execute(text("ALTER TABLE runtime_state CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"))
+                except Exception:
+                    pass
+                try:
+                    conn.execute(text("ALTER TABLE runtime_state MODIFY value_json LONGTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"))
+                except Exception:
+                    pass
         print("+ Table runtime_state verifiee")
     except Exception as e:
         print(f"- Erreur runtime_state: {e}")

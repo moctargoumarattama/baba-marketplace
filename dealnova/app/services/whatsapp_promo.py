@@ -666,7 +666,7 @@ def _record_run(
         if row is None:
             row = RuntimeState(state_key=LOG_KEY, created_at=now, updated_at=now)
             db.session.add(row)
-        row.value_json = json.dumps(current_log, ensure_ascii=False, separators=(",", ":"))
+        row.value_json = json.dumps(current_log, ensure_ascii=True, separators=(",", ":"))
         row.updated_at = now
         db.session.commit()
     except Exception as exc:

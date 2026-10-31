@@ -45,7 +45,7 @@ def _decode_json(raw_value: str | None, default_factory: JsonFactory | Any) -> A
 
 
 def _encode_json(value: Any) -> str:
-    return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+    return json.dumps(value, ensure_ascii=True, separators=(",", ":"))
 
 
 def _lock_rows(keys: list[str]) -> dict[str, RuntimeState]:
