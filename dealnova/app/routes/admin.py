@@ -2001,6 +2001,8 @@ def whatsapp_gateway():
 
     promo_settings = get_promo_settings()
     promo_log = get_promo_log()
+    last_gen = promo_log.get("last_generated") or session.get("whatsapp_promo_last_generated")
+    recent_logs = promo_log.get("recent_logs") or session.get("whatsapp_promo_last_details") or []
     response = current_app.make_response(
         render_template(
             "admin/whatsapp_gateway.html",
@@ -2009,8 +2011,8 @@ def whatsapp_gateway():
             promo_log=promo_log,
             promo_recipients_text=recipients_to_text(promo_settings.get("recipients", [])),
             promo_groups_text=groups_to_text(promo_settings.get("groups", [])),
-            last_generated=promo_log.get("last_generated"),
-            recent_logs=promo_log.get("recent_logs", []),
+            last_generated=last_gen,
+            recent_logs=recent_logs,
         )
     )
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
@@ -2152,6 +2154,11 @@ def whatsapp_promo_run():
         include_groups=include_groups,
         include_messages=include_messages,
     )
+    if summary.get("last_generated"):
+        session["whatsapp_promo_last_generated"] = summary.get("last_generated")
+    if summary.get("details"):
+        session["whatsapp_promo_last_details"] = summary.get("details")
+
     if _is_ajax_request() or request.is_json:
         return jsonify(success=True, mode="dry_run", summary=summary)
 

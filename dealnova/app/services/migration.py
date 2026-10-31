@@ -350,3 +350,18 @@ def ensure_admin_performance_indexes():
 
 
 
+
+
+def ensure_runtime_state_table():
+    """Cree la table runtime_state si absente et garantit LONGTEXT sous MySQL."""
+    print(">> Verification de la table runtime_state...")
+    try:
+        from ..models.runtime_state import RuntimeState
+        RuntimeState.__table__.create(db.engine, checkfirst=True)
+        dialect = (db.engine.dialect.name or "").lower()
+        if "mysql" in dialect:
+            with db.engine.begin() as conn:
+                conn.execute(text("ALTER TABLE runtime_state MODIFY value_json LONGTEXT"))
+        print("+ Table runtime_state verifiee")
+    except Exception as e:
+        print(f"- Erreur runtime_state: {e}")

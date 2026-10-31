@@ -564,36 +564,57 @@ def _record_run(
     last_generated: dict[str, Any] | None = None,
     new_recent_logs: list[dict[str, Any]] | None = None,
 ) -> None:
+    # 1. Mise à jour de l'objet de log en mémoire
+    current_log = get_log() or {}
+    if not isinstance(current_log, dict):
+        current_log = {}
+
+    if last_generated:
+        current_log["last_generated"] = last_generated
+
+    if new_recent_logs:
+        existing_logs = list(current_log.get("recent_logs") or [])
+        current_log["recent_logs"] = (new_recent_logs + existing_logs)[:MAX_RECENT_LOGS_KEPT]
+
+    if preview:
+        current_log["last_preview"] = summary
+    else:
+        runs = [summary] + list(current_log.get("runs") or [])
+        current_log["runs"] = runs[:MAX_RUNS_KEPT]
+        promoted = dict(current_log.get("promoted") or {})
+        for pid in promoted_ids:
+            promoted[str(pid)] = today
+        cutoff = (_local_now().date() - timedelta(days=60)).isoformat()
+        current_log["promoted"] = {pid: day for pid, day in promoted.items() if str(day) >= cutoff}
+        sent_by_date = {day: n for day, n in dict(current_log.get("sent_by_date") or {}).items() if day >= cutoff}
+        sent_by_date[today] = int(sent_by_date.get(today, 0)) + sent_today
+        current_log["sent_by_date"] = sent_by_date
+
+    # 2. Tentative avec verrou partagé
     def _apply(payloads: dict[str, Any]) -> None:
-        log = payloads[LOG_KEY] if isinstance(payloads[LOG_KEY], dict) else {}
-        if last_generated:
-            log["last_generated"] = last_generated
-
-        if new_recent_logs:
-            existing_logs = list(log.get("recent_logs") or [])
-            log["recent_logs"] = (new_recent_logs + existing_logs)[:MAX_RECENT_LOGS_KEPT]
-
-        if preview:
-            log["last_preview"] = summary
-        else:
-            runs = [summary] + list(log.get("runs") or [])
-            log["runs"] = runs[:MAX_RUNS_KEPT]
-            promoted = dict(log.get("promoted") or {})
-            for pid in promoted_ids:
-                promoted[str(pid)] = today
-            cutoff = (_local_now().date() - timedelta(days=60)).isoformat()
-            log["promoted"] = {pid: day for pid, day in promoted.items() if str(day) >= cutoff}
-            sent_by_date = {day: n for day, n in dict(log.get("sent_by_date") or {}).items() if day >= cutoff}
-            sent_by_date[today] = int(sent_by_date.get(today, 0)) + sent_today
-            log["sent_by_date"] = sent_by_date
-
-        payloads[LOG_KEY] = log
+        payloads[LOG_KEY] = current_log
 
     try:
         mutate_json_states({LOG_KEY: dict}, _apply)
-    except Exception:
+        return
+    except Exception as exc:
         safe_session_rollback()
-        current_app.logger.warning("whatsapp_promo.log_persist_failed")
+        current_app.logger.warning("whatsapp_promo.locked_persist_retry: %s", exc)
+
+    # 3. Repli direct garanti sous MySQL/Gunicorn
+    try:
+        from ..models.runtime_state import RuntimeState
+        row = RuntimeState.query.filter_by(state_key=LOG_KEY).first()
+        now = datetime.utcnow()
+        if row is None:
+            row = RuntimeState(state_key=LOG_KEY, created_at=now, updated_at=now)
+            db.session.add(row)
+        row.value_json = json.dumps(current_log, ensure_ascii=False, separators=(",", ":"))
+        row.updated_at = now
+        db.session.commit()
+    except Exception as exc:
+        safe_session_rollback()
+        current_app.logger.exception("whatsapp_promo.log_persist_failed: %s", exc)
 
 
 def run_daily_promo(
@@ -684,10 +705,7 @@ def run_daily_promo(
     cards = [build_product_card(p, promos.get(p.id)) for p in products]
     copies, source = generate_copy(cards)
     summary["copy_source"] = source
-    summary["products"] = [
-        {"id": c["id"], "name": c["name"], "shop": c["shop"], "price_line": c["price_line"], "image_url": c["image_url"]}
-        for c in cards
-    ]
+
 
     # Construction du modèle d'aperçu pour l'interface admin
     items_data = [
@@ -724,6 +742,8 @@ def run_daily_promo(
         "items": items_data,
         "products": items_data,
     }
+    summary["products"] = items_data
+    summary["last_generated"] = last_generated_data
 
     def still_enabled() -> bool:
         return preview or get_settings()["enabled"]
@@ -750,6 +770,7 @@ def run_daily_promo(
                 "text": caption,
             }
             if preview:
+                summary["statuses_ok"] += 1
                 event["status"] = "ok"
                 event["details"] = "Aperçu simulé"
                 event["detail"] = event["details"]
@@ -794,6 +815,7 @@ def run_daily_promo(
                 "text": group_text,
             }
             if preview:
+                summary["groups_ok"] += 1
                 event["status"] = "ok"
                 event["details"] = "Aperçu simulé"
                 event["detail"] = event["details"]
@@ -851,6 +873,7 @@ def run_daily_promo(
                 "text": text,
             }
             if preview:
+                summary["messages_ok"] += 1
                 event["status"] = "ok"
                 event["details"] = "Aperçu simulé"
                 event["detail"] = event["details"]

@@ -39,6 +39,7 @@ from .services.migration import (
     ensure_vendor_application_table,
     ensure_vendor_change_request_table,
     ensure_vendor_push_subscription_table,
+    ensure_runtime_state_table,
 )
 from .services.shop_access import is_safe_public_shop_slug, normalize_public_shop_slug
 from .services.i18n_labels import (
@@ -119,6 +120,7 @@ def create_app(config_class=Config):
         ensure_platform_settings_columns()
         ensure_promo_workflow_columns()
         ensure_admin_performance_indexes()
+        ensure_runtime_state_table()
         if app.config.get("SECRET_KEY") == "dev":
             app.logger.warning("SECURITY: SECRET_KEY par défaut détectée. Configurez une clé forte.")
 
