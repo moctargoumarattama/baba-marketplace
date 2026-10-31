@@ -1,6 +1,7 @@
 import os
 import re
 import threading
+import time
 from datetime import datetime
 from urllib.parse import quote
 import requests
@@ -314,6 +315,8 @@ def send_whatsapp_message(
     gateway_url: str | None = None,
     api_key: str | None = None,
     timeout: int | None = None,
+    activity_action: str | None = "vendor_welcome_sent",
+    activity_message: str | None = None,
 ) -> dict:
     """Transmet un message à la passerelle baba-whatsapp via HTTP POST.
     
@@ -352,15 +355,17 @@ def send_whatsapp_message(
     try:
         resp = requests.post(url, json=payload, headers=headers, timeout=timeout_sec)
         if resp.status_code in (200, 201, 202):
-            try:
-                logging_service.log_activity(
-                    "whatsapp",
-                    "vendor_welcome_sent",
-                    message=f"Message de bienvenue WhatsApp transmis avec succès à {normalized_phone} via baba-whatsapp",
-                    level="INFO",
-                )
-            except Exception:
-                pass
+            if activity_action:
+                try:
+                    logging_service.log_activity(
+                        "whatsapp",
+                        activity_action,
+                        message=activity_message
+                        or f"Message de bienvenue WhatsApp transmis avec succès à {normalized_phone} via baba-whatsapp",
+                        level="INFO",
+                    )
+                except Exception:
+                    pass
             return {
                 "sent": True,
                 "method": "baba-whatsapp",
@@ -396,6 +401,131 @@ def send_whatsapp_message(
             "error": str(exc),
             "wa_me_url": wa_me_url,
         }
+
+
+def test_whatsapp_tunnel_and_reception(
+    *,
+    fallback_phone: str | None = None,
+    status_url: str | None = None,
+    gateway_url: str | None = None,
+    api_key: str | None = None,
+    timeout: int | None = None,
+) -> dict:
+    """Vérifie de bout en bout l'état du tunnel local (port 3002) et la réception WhatsApp réelle."""
+    t0 = time.perf_counter()
+    gw = get_whatsapp_gateway_status(
+        status_url=status_url,
+        api_key=api_key,
+        timeout=timeout or 4,
+    )
+    tunnel_latency_ms = max(1, round((time.perf_counter() - t0) * 1000))
+    checked_at = datetime.now().strftime("%H:%M:%S")
+
+    if not gw.get("reachable"):
+        return {
+            "success": False,
+            "tunnel_ok": False,
+            "reception_ok": False,
+            "status": "disconnected",
+            "phone": None,
+            "tunnel_latency_ms": tunnel_latency_ms,
+            "delivery_latency_ms": None,
+            "checked_at": checked_at,
+            "message": (
+                f"Tunnel injoignable ({tunnel_latency_ms} ms) : "
+                f"le service local WhatsApp (127.0.0.1:3002) ne répond pas."
+            ),
+        }
+
+    st = str(gw.get("status") or "disconnected").strip().lower()
+    if st != "connected":
+        label = gw.get("status_label") or STATUS_LABELS.get(st, "Déconnecté")
+        return {
+            "success": False,
+            "tunnel_ok": True,
+            "reception_ok": False,
+            "status": st,
+            "phone": gw.get("phone"),
+            "tunnel_latency_ms": tunnel_latency_ms,
+            "delivery_latency_ms": None,
+            "checked_at": checked_at,
+            "message": (
+                f"Tunnel actif ({tunnel_latency_ms} ms), mais la session WhatsApp "
+                f"n'est pas connectée ({label} — scan QR requis)."
+            ),
+        }
+
+    target_phone = normalize_whatsapp_number(gw.get("phone") or fallback_phone)
+    if not target_phone:
+        return {
+            "success": False,
+            "tunnel_ok": True,
+            "reception_ok": False,
+            "status": "connected",
+            "phone": None,
+            "tunnel_latency_ms": tunnel_latency_ms,
+            "delivery_latency_ms": None,
+            "checked_at": checked_at,
+            "message": (
+                f"Tunnel actif ({tunnel_latency_ms} ms), mais aucun numéro de réception "
+                f"n'est détecté sur la session."
+            ),
+        }
+
+    ping_text = (
+        f"🟢 [Diagnostic Baba Market] Tunnel local actif ({tunnel_latency_ms} ms) • "
+        f"Réception WhatsApp opérationnelle ({checked_at})."
+    )
+    t_send = time.perf_counter()
+    send_res = send_whatsapp_message(
+        target_phone,
+        ping_text,
+        gateway_url=gateway_url,
+        api_key=api_key,
+        timeout=timeout or 6,
+        activity_action="tunnel_diagnostic_test",
+        activity_message=f"Diagnostic tunnel & réception WhatsApp confirmé sur +{target_phone} ({tunnel_latency_ms} ms)",
+    )
+    delivery_latency_ms = max(1, round((time.perf_counter() - t_send) * 1000))
+
+    if send_res.get("sent"):
+        return {
+            "success": True,
+            "tunnel_ok": True,
+            "reception_ok": True,
+            "status": "connected",
+            "phone": target_phone,
+            "tunnel_latency_ms": tunnel_latency_ms,
+            "delivery_latency_ms": delivery_latency_ms,
+            "checked_at": checked_at,
+            "message": (
+                f"Tunnel actif ({tunnel_latency_ms} ms) • "
+                f"Réception WhatsApp confirmée sur +{target_phone} ({delivery_latency_ms} ms)."
+            ),
+        }
+
+    err_detail = send_res.get("error") or (
+        f"HTTP {send_res.get('status_code')}"
+        if send_res.get("status_code")
+        else send_res.get("method", "erreur d'envoi")
+    )
+    return {
+        "success": False,
+        "tunnel_ok": True,
+        "reception_ok": False,
+        "status": "connected",
+        "phone": target_phone,
+        "tunnel_latency_ms": tunnel_latency_ms,
+        "delivery_latency_ms": delivery_latency_ms,
+        "checked_at": checked_at,
+        "message": (
+            f"Tunnel actif ({tunnel_latency_ms} ms), mais échec du test de réception "
+            f"sur +{target_phone} ({err_detail})."
+        ),
+    }
+
+
+test_whatsapp_tunnel_and_reception.__test__ = False
 
 
 def send_vendor_welcome_whatsapp(

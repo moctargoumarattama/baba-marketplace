@@ -226,6 +226,81 @@
     box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
   }
 
+  .wa-tunnel-diag-wrap {
+    flex: 1 1 100%;
+    inline-size: 100%;
+    border-block-start: 1px dashed var(--wa-border);
+    padding-block-start: 0.6rem;
+    margin-block-start: 0.1rem;
+  }
+
+  .wa-tunnel-progress-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 0.77rem;
+    font-weight: 700;
+    color: var(--wa-ink-muted);
+  }
+
+  .wa-tunnel-progress {
+    inline-size: 130px;
+    block-size: 7px;
+    accent-color: #10b981;
+    flex-shrink: 0;
+  }
+
+  .wa-tunnel-result {
+    display: flex;
+    align-items: safe center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0.48rem 0.75rem;
+    border-radius: 10px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    border: 1px solid var(--wa-border);
+    background: var(--wa-surface-subtle);
+    color: var(--wa-ink);
+  }
+  .wa-tunnel-result.is-ok {
+    background: rgba(16, 185, 129, 0.1);
+    border-color: rgba(16, 185, 129, 0.35);
+    color: #065f46;
+  }
+  .wa-tunnel-result.is-warn {
+    background: rgba(245, 158, 11, 0.12);
+    border-color: rgba(245, 158, 11, 0.4);
+    color: #92400e;
+  }
+  .wa-tunnel-result.is-err {
+    background: rgba(239, 68, 68, 0.1);
+    border-color: rgba(239, 68, 68, 0.35);
+    color: #991b1b;
+  }
+  html[data-admin-theme="noc"] .wa-app-container .wa-tunnel-result.is-ok { color: #6ee7b7; }
+  html[data-admin-theme="noc"] .wa-app-container .wa-tunnel-result.is-warn { color: #fcd34d; }
+  html[data-admin-theme="noc"] .wa-app-container .wa-tunnel-result.is-err { color: #fca5a5; }
+
+  .wa-tunnel-metrics {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+    font-size: 0.71rem;
+    font-weight: 800;
+  }
+
+  .wa-tunnel-metric-pill {
+    padding: 0.12rem 0.48rem;
+    border-radius: 999px;
+    background: var(--wa-surface);
+    border: 1px solid var(--wa-border-strong);
+    color: var(--wa-ink-secondary);
+    white-space: nowrap;
+  }
+
   .wa-kpi-strip {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1355,6 +1430,10 @@
       </div>
 
       <div style="display:flex;align-items:center;gap:0.4rem;flex-wrap:wrap;">
+        <button type="button" id="waTestTunnelBtn" class="btn btn-outline-success btn-sm fw-bold" data-test-tunnel-url="{{ url_for('admin.whatsapp_gateway_test_tunnel') }}" title="Vérifier l'état du tunnel local (port 3002) et la réception sur WhatsApp">
+          <i class="bi bi-activity me-1" aria-hidden="true"></i> Tester tunnel &amp; réception
+        </button>
+
         {% if st == 'qr_ready' or st == 'disconnected' %}
           <button type="button" class="btn btn-warning btn-sm fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#qrModal">
             <i class="bi bi-qr-code me-1"></i> Scanner le QR
@@ -1374,6 +1453,17 @@
         <a href="{{ url_for('admin.whatsapp_gateway') }}" id="waRefreshBtn" class="btn btn-light border btn-sm" data-status-url="{{ url_for('admin.whatsapp_gateway', format='json') }}" title="Actualiser la connexion">
           <i class="bi bi-arrow-clockwise"></i>
         </a>
+      </div>
+
+      <div id="waTunnelDiagWrap" class="wa-tunnel-diag-wrap" hidden>
+        <div id="waTunnelProgressRow" class="wa-tunnel-progress-row" hidden>
+          <progress id="waTunnelProgress" class="wa-tunnel-progress" aria-label="Diagnostic du tunnel et de la réception en cours"></progress>
+          <span>Vérification du tunnel local et de la réception WhatsApp…</span>
+        </div>
+        <div id="waTunnelResultBox" class="wa-tunnel-result" hidden>
+          <span id="waTunnelLiveMsg" role="status" aria-live="polite" aria-atomic="true"></span>
+          <span id="waTunnelMetrics" class="wa-tunnel-metrics" aria-hidden="true"></span>
+        </div>
       </div>
     </section>
 
@@ -1449,13 +1539,6 @@
       </div>
 
       <div style="display:flex;align-items:center;gap:0.45rem;flex-wrap:wrap;">
-        <form method="POST" action="{{ url_for('admin.whatsapp_promo_send_test') }}" class="m-0" id="formSendTest">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button type="submit" class="btn btn-outline-primary btn-sm fw-bold" title="M'envoyer immédiatement la 1ère offre en test sur mon WhatsApp" {% if st != 'connected' %}disabled{% endif %}>
-            <i class="bi bi-send-check me-1"></i> Test WhatsApp
-          </button>
-        </form>
-
         <form method="POST" action="{{ url_for('admin.whatsapp_promo_run') }}" class="m-0" id="formRegenerateWave">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="mode" value="dry_run">
@@ -1717,14 +1800,6 @@
                 </span>
 
                 <div style="display:flex;align-items:center;gap:0.4rem;">
-                  <form method="POST" action="{{ url_for('admin.whatsapp_promo_send_test') }}" class="m-0 d-inline">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <input type="hidden" name="product_id" value="{{ pid }}">
-                    <button type="submit" class="btn btn-outline-primary btn-sm py-1 px-2 fw-semibold" style="font-size:0.76rem;" {% if st != 'connected' %}disabled{% endif %} title="Recevoir cette offre en test sur mon WhatsApp">
-                      <i class="bi bi-whatsapp me-1"></i>Tester
-                    </button>
-                  </form>
-
                   <button type="button" class="btn btn-outline-secondary btn-sm py-1 px-2 fw-bold" style="font-size:0.76rem;" data-bs-toggle="modal" data-bs-target="#editModal_{{ pid }}">
                     <i class="bi bi-pencil-square me-1 text-success"></i>Modifier
                   </button>
@@ -2214,7 +2289,7 @@
                         {% elif ch == 'group' or ch == 'groupe' %}
                           <span class="badge bg-primary-subtle text-primary border border-primary-subtle"><i class="bi bi-people"></i> Groupe</span>
                         {% else %}
-                          <span class="badge bg-secondary-subtle text-dark border"><i class="bi bi-chat"></i> Test / Direct</span>
+                          <span class="badge bg-secondary-subtle text-dark border"><i class="bi bi-chat"></i> Direct</span>
                         {% endif %}
                       </td>
                       <td><strong>{{ log.get('product_title') or log.get('product_name') or ('#' ~ log.get('product_id')) }}</strong></td>
@@ -2409,6 +2484,94 @@
         })
           .then(function () { window.location.reload(); })
           .catch(function () { window.location.reload(); });
+      });
+    }
+
+    // Diagnostic unique du tunnel local & de la réception WhatsApp
+    var testTunnelBtn = document.getElementById("waTestTunnelBtn");
+    var diagWrap = document.getElementById("waTunnelDiagWrap");
+    var progressRow = document.getElementById("waTunnelProgressRow");
+    var resultBox = document.getElementById("waTunnelResultBox");
+    var liveMsg = document.getElementById("waTunnelLiveMsg");
+    var metricsEl = document.getElementById("waTunnelMetrics");
+
+    if (testTunnelBtn) {
+      var testTunnelUrl = testTunnelBtn.getAttribute("data-test-tunnel-url") || "";
+      testTunnelBtn.addEventListener("click", function (e) {
+        e.preventDefault();
+        if (!testTunnelUrl || testTunnelBtn.disabled) return;
+
+        testTunnelBtn.disabled = true;
+        testTunnelBtn.setAttribute("aria-busy", "true");
+        if (diagWrap) diagWrap.hidden = false;
+        if (progressRow) progressRow.hidden = false;
+        if (resultBox) resultBox.hidden = true;
+
+        fetch(testTunnelUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "X-Requested-With": "fetch",
+            "X-CSRFToken": csrfToken
+          },
+          body: JSON.stringify({ action: "test_tunnel" })
+        })
+          .then(function (resp) { return resp.json(); })
+          .then(function (res) {
+            if (progressRow) progressRow.hidden = true;
+            if (!resultBox || !liveMsg) return;
+
+            var tone = "is-err";
+            var prefix = "❌ ";
+            if (res && res.success && res.reception_ok) {
+              tone = "is-ok";
+              prefix = "✅ ";
+            } else if (res && res.tunnel_ok) {
+              tone = "is-warn";
+              prefix = "⚠️ ";
+            }
+
+            resultBox.className = "wa-tunnel-result " + tone;
+            resultBox.hidden = false;
+            liveMsg.textContent = prefix + ((res && res.message) || "Diagnostic terminé.");
+
+            if (metricsEl) {
+              metricsEl.innerHTML = "";
+              if (res && res.tunnel_latency_ms != null) {
+                var p1 = document.createElement("span");
+                p1.className = "wa-tunnel-metric-pill";
+                p1.textContent = "Tunnel : " + res.tunnel_latency_ms + " ms";
+                metricsEl.appendChild(p1);
+              }
+              if (res && res.delivery_latency_ms != null) {
+                var p2 = document.createElement("span");
+                p2.className = "wa-tunnel-metric-pill";
+                p2.textContent = "Réception : " + res.delivery_latency_ms + " ms";
+                metricsEl.appendChild(p2);
+              }
+              if (res && res.checked_at) {
+                var p3 = document.createElement("span");
+                p3.className = "wa-tunnel-metric-pill";
+                p3.textContent = res.checked_at;
+                metricsEl.appendChild(p3);
+              }
+            }
+          })
+          .catch(function () {
+            if (progressRow) progressRow.hidden = true;
+            if (resultBox && liveMsg) {
+              resultBox.className = "wa-tunnel-result is-err";
+              resultBox.hidden = false;
+              liveMsg.textContent = "❌ Impossible de joindre le serveur pour vérifier le tunnel WhatsApp.";
+            }
+          })
+          .finally(function () {
+            testTunnelBtn.removeAttribute("aria-busy");
+            window.setTimeout(function () {
+              testTunnelBtn.disabled = false;
+            }, 2500);
+          });
       });
     }
 

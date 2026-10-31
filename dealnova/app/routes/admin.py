@@ -76,6 +76,7 @@ from ..services.baba_whatsapp import (
     disconnect_whatsapp_gateway,
     get_whatsapp_gateway_status,
     reconnect_whatsapp_gateway,
+    test_whatsapp_tunnel_and_reception,
 )
 
 
@@ -2101,6 +2102,29 @@ def whatsapp_gateway_reconnect():
         flash("Demande de nouveau QR Code transmise avec succès.", "info")
     else:
         flash(result.get("message") or "Impossible de regénérer le QR Code.", "warning")
+    return redirect(url_for("admin.whatsapp_gateway"))
+
+
+@bp.route("/whatsapp-gateway/test-tunnel", methods=["POST"])
+def whatsapp_gateway_test_tunnel():
+    if _current_admin_role() not in {ADMIN_ROLE, MANAGER_ROLE}:
+        return _sensitive_admin_forbidden_response()
+
+    from ..services.whatsapp_promo import get_settings as get_promo_settings
+
+    promo_st = get_promo_settings()
+    result = test_whatsapp_tunnel_and_reception(
+        fallback_phone=promo_st.get("admin_phone"),
+    )
+    if _is_ajax_request() or request.is_json or request.args.get("format") == "json":
+        response = jsonify(result)
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        return response
+
+    flash(
+        result.get("message") or "Diagnostic du tunnel WhatsApp terminé.",
+        "success" if result.get("success") else ("warning" if result.get("tunnel_ok") else "danger"),
+    )
     return redirect(url_for("admin.whatsapp_gateway"))
 
 
