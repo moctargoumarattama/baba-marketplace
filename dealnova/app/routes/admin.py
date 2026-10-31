@@ -1996,7 +1996,6 @@ def whatsapp_gateway():
     from ..services.whatsapp_promo import (
         get_log as get_promo_log,
         get_settings as get_promo_settings,
-        recipients_to_text,
         groups_to_text,
         get_today_clicks,
     )
@@ -2070,7 +2069,6 @@ def whatsapp_promo_settings():
 
     from ..services.whatsapp_promo import (
         get_settings as get_promo_settings,
-        parse_recipients_text,
         parse_groups_text,
         save_settings as save_promo_settings,
     )
@@ -2078,12 +2076,7 @@ def whatsapp_promo_settings():
     current = get_promo_settings()
     data = request.get_json(silent=True) if request.is_json else request.form
 
-    raw_recipients = data.get("recipients_text")
-    recipients = (
-        parse_recipients_text(raw_recipients, existing=current.get("recipients"))
-        if raw_recipients is not None
-        else current.get("recipients", [])
-    )
+    recipients = []
 
     raw_groups = data.get("groups_text")
     groups = (

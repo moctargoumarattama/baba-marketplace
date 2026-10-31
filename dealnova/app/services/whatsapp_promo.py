@@ -53,7 +53,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "dry_run": True,
     "status_enabled": True,
     "groups_enabled": True,
-    "direct_messages_enabled": True,
+    "direct_messages_enabled": False,
     "admin_phone": "",
     "schedule_time": "10:30",
     "pinned_product_ids": [],
@@ -872,17 +872,17 @@ def run_daily_promo(
     dry_run: bool | None = None,
     include_status: bool = True,
     include_groups: bool = True,
-    include_messages: bool = True,
+    include_messages: bool = False,
     sleep: Callable[[float], None] = time.sleep,
 ) -> dict[str, Any]:
     settings = get_settings()
     preview = settings["dry_run"] if dry_run is None else bool(dry_run)
     today = _today()
 
-    # Prise en compte des interrupteurs granulaires
+    # Prise en compte des canaux actifs (Statut et Groupes uniquement)
     run_status = include_status and settings.get("status_enabled", True)
     run_groups = include_groups and settings.get("groups_enabled", True)
-    run_messages = include_messages and settings.get("direct_messages_enabled", True)
+    run_messages = False
 
     summary: dict[str, Any] = {
         "started_at": _local_now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -929,7 +929,7 @@ def run_daily_promo(
         summary["aborted"] = "disabled"
         return summary
 
-    if not run_status and not run_groups and not run_messages:
+    if not run_status and not run_groups:
         return finish("no_channel_enabled")
 
     if not preview and not _claim_daily_run(today, force):
@@ -1130,73 +1130,6 @@ def run_daily_promo(
                     consecutive_failures += 1
                     event["status"] = "failed"
                     event["details"] = f"Erreur après {attempts} tentatives: {reason}"
-
-                event["detail"] = event["details"]
-                recent_events.append(event)
-                summary["details"].append(event)
-
-                if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
-                    return finish("gateway_failures", [c["id"] for c in cards], last_generated_data)
-
-                sleep(random.uniform(settings["min_delay"], settings["max_delay"]))
-
-    # 3. CANAL MESSAGES PRIVÉS (1-à-1 Opt-in)
-    if run_messages and people:
-        already_sent = int(dict(log.get("sent_by_date") or {}).get(today, 0))
-        remaining = max(0, settings["daily_message_limit"] - already_sent)
-        targets = people[:remaining]
-        summary["skipped"] += max(0, len(people) - len(targets))
-
-        for person in targets:
-            client_label = person.get("label", "")
-            target_desc = f"{person['phone']}" + (f" ({client_label})" if client_label else "")
-            for card_idx, card in enumerate(cards):
-                text = compose_message(card, copies[card["id"]], client_label)
-                event = {
-                    "timestamp": f"{today} {_local_now().strftime('%H:%M:%S')}",
-                    "time": _local_now().strftime("%H:%M:%S"),
-                    "channel": "direct",
-                    "channel_label": "Message Privé",
-                    "product_id": card["id"],
-                    "product_name": card["name"],
-                    "product_title": card["name"],
-                    "target": person["phone"],
-                    "target_desc": target_desc,
-                    "text": text,
-                }
-                if preview:
-                    summary["messages_ok"] += 1
-                    event["status"] = "ok"
-                    event["details"] = "Aperçu simulé"
-                    event["detail"] = event["details"]
-                    recent_events.append(event)
-                    summary["details"].append(event)
-                    continue
-
-                if not still_enabled():
-                    return finish("stopped_by_admin", [c["id"] for c in cards], last_generated_data)
-
-                result, reason, attempts = send_promo_media_with_retry(person["phone"], card, text)
-                event["attempts"] = attempts
-                if result == "sent":
-                    summary["messages_ok"] += 1
-                    consecutive_failures = 0
-                    event["status"] = "ok"
-                    event["details"] = "Message remis" if attempts == 1 else f"Message remis (après {attempts} tentatives)"
-                elif result in ("opted_out", "not_on_whatsapp"):
-                    summary["skipped"] += 1
-                    event["status"] = "skipped"
-                    event["details"] = "Désinscrit (STOP)" if result == "opted_out" else "Pas de WhatsApp"
-                    _mark_recipient(person["phone"], "opted_out" if result == "opted_out" else "invalid")
-                    event["detail"] = event["details"]
-                    recent_events.append(event)
-                    summary["details"].append(event)
-                    break
-                else:
-                    summary["messages_failed"] += 1
-                    consecutive_failures += 1
-                    event["status"] = "failed"
-                    event["details"] = f"Échec après {attempts} tentatives: {reason}"
 
                 event["detail"] = event["details"]
                 recent_events.append(event)
@@ -1510,7 +1443,13 @@ def send_test_to_admin(*, product_id: int | None = None) -> dict[str, Any]:
         card = c
         card["direct_message"] = compose_message(c, copies[c["id"]], "")
 
-    text = card.get("direct_message") or compose_message(card, {"message": card.get("name", "")}, "")
+    text = (
+        card.get("group_message")
+        or card.get("group_message_sample")
+        or card.get("status_caption")
+        or card.get("direct_message")
+        or compose_group_message(card, {"message": card.get("name", "")})
+    )
     result, reason, attempts = send_promo_media_with_retry(admin_phone, card, text, max_attempts=2)
 
     today = _local_now().date().isoformat()

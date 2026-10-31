@@ -211,13 +211,12 @@ def test_dry_run_and_live_execution_with_opt_out_and_kill_switch(app, tmp_path):
             {whatsapp_promo.LOG_KEY: dict},
             lambda p: p.update({whatsapp_promo.LOG_KEY: {}})
         )
+        groups = whatsapp_promo.parse_groups_text("https://chat.whatsapp.com/Ex12345, Groupe Test")
         whatsapp_promo.save_settings({
             "enabled": False,
             "dry_run": False,
             "admin_phone": "0611223344",
-            "recipients": whatsapp_promo.parse_recipients_text(
-                "0655667788, Salma\n0711223344, Karim"
-            ),
+            "groups": groups,
             "status_products": 2,
             "daily_message_limit": 10,
             "min_delay": 30,
@@ -228,7 +227,8 @@ def test_dry_run_and_live_execution_with_opt_out_and_kill_switch(app, tmp_path):
         # 1) Live run while kill-switch is OFF must abort immediately
         blocked = whatsapp_promo.run_daily_promo(force=True, dry_run=False)
         assert blocked["aborted"] == "disabled"
-        assert blocked["messages_ok"] == 0
+        assert blocked["statuses_ok"] == 0
+        assert blocked["groups_ok"] == 0
 
         # 2) Dry-run preview works even when kill-switch is OFF and sends nothing
         preview = whatsapp_promo.run_daily_promo(force=True, dry_run=True)
@@ -236,7 +236,7 @@ def test_dry_run_and_live_execution_with_opt_out_and_kill_switch(app, tmp_path):
         assert preview["aborted"] is None
         assert len(preview["products"]) >= 2
         assert any(d["target"] == "status" for d in preview["details"])
-        assert any(d["target"] == "212611223344" for d in preview["details"])
+        assert any("chat.whatsapp.com/Ex12345" in d["target"] for d in preview["details"])
 
         # 3) Enable kill-switch and run live with mocked gateway
         whatsapp_promo.save_settings({
@@ -249,8 +249,6 @@ def test_dry_run_and_live_execution_with_opt_out_and_kill_switch(app, tmp_path):
             if path == "/api/promo/status":
                 return 200, {"ok": True}
             if path == "/api/promo/send-media":
-                if payload["phone"] == "212655667788":
-                    return 409, {"error": "opted_out"}
                 return 200, {"ok": True}
             return 500, {"error": "unexpected"}
 
@@ -267,16 +265,8 @@ def test_dry_run_and_live_execution_with_opt_out_and_kill_switch(app, tmp_path):
         assert live["mode"] == "live"
         assert live["aborted"] is None
         assert live["statuses_ok"] >= 2
-        assert live["messages_ok"] >= 2  # all cards to eligible recipients
-        assert live["skipped"] == 1      # Salma opted_out
+        assert live["groups_ok"] >= 2
         assert len(delays) >= 1
-
-        # Salma must now be marked opted_out in persisted settings
-        updated_recipients = {
-            r["phone"]: r for r in whatsapp_promo.get_settings()["recipients"]
-        }
-        assert updated_recipients["212655667788"]["opted_out"] is True
-        assert updated_recipients["212711223344"]["opted_out"] is False
 
         # 4) Second automatic run on the same day is blocked by daily lock
         second = whatsapp_promo.run_daily_promo(force=False, dry_run=False)
@@ -332,7 +322,7 @@ def test_admin_promo_routes_and_cli_commands(app, tmp_path):
             "enabled": True,
             "dry_run": True,
             "admin_phone": "0612345678",
-            "recipients_text": "0699887766, Nadia",
+            "groups_text": "https://chat.whatsapp.com/GroupeNadia, Nadia Groupe",
             "status_products": 3,
             "daily_message_limit": 15,
             "min_delay": 35,
@@ -344,8 +334,8 @@ def test_admin_promo_routes_and_cli_commands(app, tmp_path):
     saved = resp_save.get_json()["settings"]
     assert saved["enabled"] is True
     assert saved["admin_phone"] == "212612345678"
-    assert saved["recipients"][0]["phone"] == "212699887766"
-    assert saved["recipients"][0]["label"] == "Nadia"
+    assert saved["groups"][0]["target"] == "https://chat.whatsapp.com/GroupeNadia"
+    assert saved["groups"][0]["label"] == "Nadia Groupe"
 
     resp_run = adm_client.post(
         "/admin/whatsapp-gateway/promo/run",

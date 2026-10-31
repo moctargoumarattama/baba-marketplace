@@ -351,7 +351,6 @@
 {% set lg = last_generated or {} %}
 {% set rlogs = recent_logs or [] %}
 {% set groups_list = ps.get('groups', []) %}
-{% set recipients_list = ps.get('recipients', []) %}
 {% set st = gateway.status or 'disconnected' %}
 {% set products = lg.get('products') or lg.get('items') or [] %}
 {% set failed_count = rlogs | selectattr('status', 'equalto', 'failed') | list | length %}
@@ -640,16 +639,13 @@
               </div>
             </div>
 
-            <!-- Onglets de prévisualisation : Statut / Groupes / VIP -->
+            <!-- Onglets de prévisualisation : Statut / Groupes -->
             <div class="channel-tabs-bar" role="tablist">
               <button class="channel-tab-btn active" data-target="msg_status_{{ pid }}" type="button">
                 <i class="bi bi-camera-fill text-success"></i> 1. Mon Statut WhatsApp (Story)
               </button>
               <button class="channel-tab-btn" data-target="msg_group_{{ pid }}" type="button">
                 <i class="bi bi-people-fill text-primary"></i> 2. Mes Groupes de Vente
-              </button>
-              <button class="channel-tab-btn" data-target="msg_vip_{{ pid }}" type="button">
-                <i class="bi bi-chat-heart-fill text-purple" style="color:#7e22ce;"></i> 3. Mes Meilleurs Clients (VIP)
               </button>
             </div>
 
@@ -683,19 +679,7 @@
                   </div>
                 </div>
 
-                <!-- Vue VIP -->
-                <div id="msg_vip_{{ pid }}" class="wa-tab-view" style="display:none;">
-                  <div class="wa-chat-bubble">
-                    <div class="wa-bubble-badge" style="color:#7e22ce;">
-                      <i class="bi bi-chat-heart-fill"></i> Message Privé (1 client à la fois)
-                    </div>
-                    <p class="wa-bubble-text">{{ prod.get('direct_message') or 'Aucun message privé' }}</p>
-                    <div class="wa-bubble-time">
-                      <span>Message individuel discret</span>
-                      <i class="bi bi-check2-all text-primary"></i>
-                    </div>
-                  </div>
-                </div>
+
               </div>
             </div>
 
@@ -747,13 +731,7 @@
                       <small class="text-muted">Ce texte sera envoyé avec la photo dans chacun de vos groupes enregistrés.</small>
                     </div>
 
-                    <div>
-                      <label class="form-label fw-bold" style="font-size:0.88rem;">
-                        <i class="bi bi-chat-heart text-purple me-1" style="color:#7e22ce;"></i> 3. Message Privé pour vos Clients VIP
-                      </label>
-                      <textarea name="direct_message" rows="5" class="form-control" style="font-size:0.88rem;" required>{{ prod.get('direct_message') or '' }}</textarea>
-                      <small class="text-muted">Envoyé individuellement. La mention légale STOP est toujours incluse.</small>
-                    </div>
+
                   </div>
 
                   <div class="modal-footer bg-light">
@@ -810,7 +788,7 @@
       <form method="POST" action="{{ url_for('admin.whatsapp_promo_settings') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-        <!-- Les 3 canaux de diffusion (grandes cartes simples) -->
+        <!-- Les 2 canaux de diffusion : Statut & Groupes -->
         <div class="channels-selection-grid">
           <!-- Canal 1 : Statut -->
           <label class="channel-choice-card {% if ps.get('status_enabled', True) %}is-selected{% endif %}">
@@ -851,27 +829,7 @@
             </div>
           </div>
 
-          <!-- Canal 3 : VIP -->
-          <div class="channel-choice-card {% if ps.get('direct_messages_enabled', False) %}is-selected{% endif %}">
-            <div class="channel-choice-header">
-              <label class="channel-choice-title" for="chDirectChoice" style="cursor:pointer;margin:0;">
-                <i class="bi bi-chat-heart-fill text-purple fs-5" style="color:#7e22ce;"></i>
-                <span>Mes Clients VIP</span>
-              </label>
-              <input class="form-check-input" type="checkbox" id="chDirectChoice" name="direct_messages_enabled" value="1" {% if ps.get('direct_messages_enabled', False) %}checked{% endif %} style="width:1.25rem;height:1.25rem;">
-            </div>
-            <p class="channel-choice-desc">
-              Envoie un message privé individuel à vos meilleurs clients réguliers (avec désinscription STOP).
-            </p>
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-top:0.5rem;">
-              <span class="badge bg-light text-dark border">
-                {{ recipients_list|length }} client(s)
-              </span>
-              <button type="button" class="btn btn-outline-secondary btn-sm fw-bold" data-bs-toggle="modal" data-bs-target="#vipModal">
-                <i class="bi bi-pencil me-1"></i> Gérer ma liste VIP
-              </button>
-            </div>
-          </div>
+
         </div>
 
         <!-- Mode de diffusion : Automatique ou Manuel -->
@@ -910,7 +868,6 @@
         <!-- Champ caché pour garder le dry_run et les options par défaut sans embêter l'utilisateur -->
         <input type="hidden" name="dry_run" value="0">
         <input type="hidden" name="groups_text" value="{{ promo_groups_text if promo_groups_text is defined else '' }}">
-        <input type="hidden" name="recipients_text" value="{{ promo_recipients_text if promo_recipients_text is defined else '' }}">
         <input type="hidden" name="status_products" value="{{ ps.get('status_products', 2) }}">
         <input type="hidden" name="daily_message_limit" value="{{ ps.get('daily_message_limit', 20) }}">
         <input type="hidden" name="min_delay" value="{{ ps.get('min_delay', 30) }}">
@@ -930,8 +887,6 @@
           <input type="hidden" name="enabled" value="{{ 1 if ps.get('enabled') else 0 }}">
           <input type="hidden" name="status_enabled" value="{{ 1 if ps.get('status_enabled', True) else 0 }}">
           <input type="hidden" name="groups_enabled" value="1">
-          <input type="hidden" name="direct_messages_enabled" value="{{ 1 if ps.get('direct_messages_enabled') else 0 }}">
-          <input type="hidden" name="recipients_text" value="{{ promo_recipients_text if promo_recipients_text is defined else '' }}">
           <input type="hidden" name="status_products" value="{{ ps.get('status_products', 2) }}">
           <input type="hidden" name="daily_message_limit" value="{{ ps.get('daily_message_limit', 20) }}">
           <input type="hidden" name="min_delay" value="{{ ps.get('min_delay', 30) }}">
@@ -964,57 +919,6 @@
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
             <button type="submit" class="btn btn-primary fw-bold">
               <i class="bi bi-check2-circle me-1"></i> Enregistrer mes groupes
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
-
-  <!-- MODAL : GÉRER MA LISTE VIP -->
-  <div class="modal fade" id="vipModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
-      <div class="modal-content border-0 shadow-lg" style="border-radius:16px;">
-        <form method="POST" action="{{ url_for('admin.whatsapp_promo_settings') }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <!-- Conserver les autres réglages -->
-          <input type="hidden" name="enabled" value="{{ 1 if ps.get('enabled') else 0 }}">
-          <input type="hidden" name="status_enabled" value="{{ 1 if ps.get('status_enabled', True) else 0 }}">
-          <input type="hidden" name="groups_enabled" value="{{ 1 if ps.get('groups_enabled', True) else 0 }}">
-          <input type="hidden" name="direct_messages_enabled" value="1">
-          <input type="hidden" name="groups_text" value="{{ promo_groups_text if promo_groups_text is defined else '' }}">
-          <input type="hidden" name="status_products" value="{{ ps.get('status_products', 2) }}">
-          <input type="hidden" name="daily_message_limit" value="{{ ps.get('daily_message_limit', 20) }}">
-          <input type="hidden" name="min_delay" value="{{ ps.get('min_delay', 30) }}">
-          <input type="hidden" name="max_delay" value="{{ ps.get('max_delay', 90) }}">
-          <input type="hidden" name="cooldown_days" value="{{ ps.get('cooldown_days', 7) }}">
-
-          <div class="modal-header bg-light">
-            <h5 class="modal-title fw-bold">
-              <i class="bi bi-chat-heart-fill text-purple me-2" style="color:#7e22ce;"></i> Mes Clients VIP (Messages privés)
-            </h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
-          </div>
-
-          <div class="modal-body p-4">
-            <p style="font-size:0.85rem;color:#475569;margin-bottom:1rem;line-height:1.5;">
-              Entrez les numéros de vos clients réguliers (1 numéro par ligne avec leur nom).<br>
-              <em>Exemple : <code>0612345678, Youssef Casablanca</code></em>
-            </p>
-
-            <label class="form-label fw-bold" style="font-size:0.85rem;">Numéros autorisés (1 par ligne) :</label>
-            <textarea name="recipients_text" rows="5" class="form-control" style="font-family:monospace;font-size:0.85rem;"
-                      placeholder="0612345678, Salma Rabat&#10;0698765432, Karim Casablanca">{{ promo_recipients_text if promo_recipients_text is defined else '' }}</textarea>
-
-            <div class="alert alert-warning py-2 px-3 mt-3 mb-0" style="font-size:0.78rem;">
-              <i class="bi bi-shield-check me-1"></i> Vos clients reçoivent un message sécurisé. S'ils répondent « STOP », ils sont automatiquement retirés de la liste pour ne plus être dérangés.
-            </div>
-          </div>
-
-          <div class="modal-footer bg-light">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-            <button type="submit" class="btn btn-success fw-bold">
-              <i class="bi bi-check2-circle me-1"></i> Enregistrer ma liste VIP
             </button>
           </div>
         </form>
@@ -1086,10 +990,7 @@
                 <span><i class="bi bi-people me-2 text-primary"></i> Mes Groupes de vente</span>
                 <strong>{{ groups_list|length }} groupe(s)</strong>
               </li>
-              <li class="list-group-item d-flex justify-content-between align-items-center px-0">
-                <span><i class="bi bi-chat-heart me-2 text-purple" style="color:#7e22ce;"></i> Clients VIP</span>
-                <strong>{{ recipients_list|length }} contact(s)</strong>
-              </li>
+
             </ul>
 
             <div class="alert alert-info py-2 px-3 mb-0" style="font-size:0.8rem;">
@@ -1175,7 +1076,7 @@
                         {% elif ch == 'group' or ch == 'groupe' %}
                           <span class="badge bg-primary-subtle text-primary border border-primary-subtle"><i class="bi bi-people"></i> Groupe</span>
                         {% else %}
-                          <span class="badge bg-purple-subtle text-dark border"><i class="bi bi-chat"></i> Privé VIP</span>
+                          <span class="badge bg-secondary-subtle text-dark border"><i class="bi bi-chat"></i> Test / Direct</span>
                         {% endif %}
                       </td>
                       <td><strong>{{ log.get('product_title') or log.get('product_name') or ('#' ~ log.get('product_id')) }}</strong></td>
