@@ -806,13 +806,13 @@
       </div>
       <!-- 3D Segmented Scope Switch -->
       <div class="aud-filters" id="audFilters" role="tablist" aria-label="Portée de l'audience">
-        <button type="button" class="aud-filter-btn active" data-scope="clients">
+        <button type="button" class="aud-filter-btn" data-scope="clients">
           <i class="bi bi-people-fill"></i>Clients réels
         </button>
         <button type="button" class="aud-filter-btn" data-scope="internal">
           <i class="bi bi-shield-lock"></i>Équipe Baba
         </button>
-        <button type="button" class="aud-filter-btn" data-scope="all">
+        <button type="button" class="aud-filter-btn active" data-scope="all">
           <i class="bi bi-grid-fill"></i>Tout voir
         </button>
       </div>
@@ -827,13 +827,6 @@
       <span class="aud-pill"><i class="bi bi-phone"></i> Application incluse</span>
     </div>
   </section>
-
-  <!-- Quick Nav Chips -->
-  <nav class="aud-section-nav" aria-label="Navigation rapide">
-    <a class="aud-nav-chip" href="#audResume"><i class="bi bi-speedometer2"></i> Résumé en direct</a>
-    <a class="aud-nav-chip" href="#audConversions"><i class="bi bi-graph-up-arrow"></i> Demandes et paniers</a>
-    <a class="aud-nav-chip" href="#audDetails"><i class="bi bi-sliders"></i> Détails</a>
-  </nav>
 
   <!-- Balanced 2-Column Bento Layout -->
   <section class="aud-shell" id="audResume">
@@ -969,7 +962,7 @@
     const initialNode = document.getElementById("audienceInitialData");
     let pollTimer = null;
     let fetchInFlight = false;
-    let currentScope = "clients";
+    let currentScope = "all";
     let latestData = null;
 
     function readInitialData() {
