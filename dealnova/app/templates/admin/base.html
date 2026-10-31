@@ -66,6 +66,19 @@
             box-sizing: border-box; 
         }
 
+        @view-transition {
+            navigation: auto;
+        }
+
+        .sidebar {
+            view-transition-name: admin-sidebar;
+        }
+
+        .top-bar {
+            view-transition-name: admin-topbar;
+        }
+
+
         :root {
             --primary: #ff6b35;
             --secondary: #0f766e;
@@ -1147,6 +1160,28 @@
                     window.sessionStorage.setItem('__BM_NAV_PENDING__', 'quiet');
                 } catch (_storageError) {}
             }, { capture: true });
+        })();
+    </script>
+    <script>
+        (function () {
+            if (typeof window === "undefined" || !("fetch" in window)) return;
+            var prefetched = new Set();
+            document.addEventListener("pointerover", function (event) {
+                var link = event.target && event.target.closest ? event.target.closest(".sidebar .nav-link, .actions a.btn-custom") : null;
+                if (!link || !link.href) return;
+                var href = link.href;
+                if (prefetched.has(href)) return;
+                try {
+                    var url = new URL(href, window.location.href);
+                    if (url.origin !== window.location.origin) return;
+                    if (url.pathname === window.location.pathname && url.search === window.location.search) return;
+                    prefetched.add(href);
+                    var prefetchLink = document.createElement("link");
+                    prefetchLink.rel = "prefetch";
+                    prefetchLink.href = href;
+                    document.head.appendChild(prefetchLink);
+                } catch (_e) {}
+            }, { passive: true });
         })();
     </script>
 {% block scripts %}{% endblock %}
