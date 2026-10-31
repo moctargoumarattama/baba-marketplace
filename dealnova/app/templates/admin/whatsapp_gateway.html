@@ -422,39 +422,6 @@
     padding: 1.1rem 1.2rem;
   }
 
-  /* Puces récapitulatives de la vague (intégrées dans l'en-tête Étape 2 sans doublon) */
-  .wa-wave-chips {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 0.4rem;
-    margin-block-start: 0.45rem;
-  }
-
-  .wa-meta-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-    padding: 0.18rem 0.58rem;
-    border-radius: 999px;
-    font-size: 0.73rem;
-    font-weight: 700;
-    background: var(--wa-surface);
-    border: 1px solid var(--wa-border);
-    color: var(--wa-ink-secondary);
-  }
-  .wa-meta-chip--story {
-    background: rgba(16, 185, 129, 0.1);
-    border-color: rgba(16, 185, 129, 0.3);
-    color: #059669;
-  }
-  .wa-meta-chip--groups {
-    background: rgba(37, 99, 235, 0.08);
-    border-color: rgba(37, 99, 235, 0.25);
-    color: #2563eb;
-  }
-  html[data-admin-theme="noc"] .wa-meta-chip--story { color: #34d399; }
-  html[data-admin-theme="noc"] .wa-meta-chip--groups { color: #60a5fa; }
 
   /* Barre d'outils unifiée : Filtres de catégories + Recherche Coup de cœur */
   .wa-CommandToolbar {
@@ -1515,19 +1482,7 @@
           {% endif %}
         </p>
 
-        {% if products %}
-          <div class="wa-wave-chips">
-            <span class="wa-meta-chip">🛍️ {{ count_phys }} Produit(s)</span>
-            <span class="wa-meta-chip">🛠️ {{ count_serv }} Service(s)</span>
-            <span class="wa-meta-chip">🏠 {{ count_rent }} Location(s)</span>
-            <span class="wa-meta-chip wa-meta-chip--story">
-              <i class="bi bi-camera-fill"></i> {{ count_story }} en Statut 24h
-            </span>
-            <span class="wa-meta-chip wa-meta-chip--groups">
-              <i class="bi bi-people-fill"></i> {{ products|length if ps.get('groups_enabled', True) else 0 }} dans {{ groups_list|length }} groupe(s)
-            </span>
-          </div>
-        {% endif %}
+
       </div>
 
       <div style="display:flex;align-items:center;gap:0.45rem;flex-wrap:wrap;">
@@ -1560,11 +1515,7 @@
           <button type="button" class="offer-filter-pill" data-offer-filter="story">
             📸 Story 24h ({{ count_story }})
           </button>
-          {% if count_video > 0 %}
-            <button type="button" class="offer-filter-pill" data-offer-filter="video">
-              🎬 Vidéos ({{ count_video }})
-            </button>
-          {% endif %}
+
         </div>
 
         <div class="wa-pin-search-wrap">
@@ -2677,8 +2628,7 @@
           show = true;
         } else if (flt === "story") {
           show = card.getAttribute("data-in-story") === "1";
-        } else if (flt === "video") {
-          show = card.getAttribute("data-has-video") === "1";
+
         } else {
           show = card.getAttribute("data-item-type") === flt;
         }
