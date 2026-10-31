@@ -113,6 +113,24 @@ def _clean_recipients(raw: Any) -> list[dict[str, Any]]:
     return cleaned
 
 
+def _clean_pinned_ids(raw: Any) -> list[int | str]:
+    cleaned: list[int | str] = []
+    seen: set[str] = set()
+    for item in raw if isinstance(raw, list) else []:
+        s = str(item or "").strip()
+        if not s or s in seen:
+            continue
+        if s.isdigit():
+            seen.add(s)
+            cleaned.append(int(s))
+        elif s.startswith("rental_") and s[7:].isdigit():
+            seen.add(s)
+            cleaned.append(s)
+        if len(cleaned) >= 15:
+            break
+    return cleaned
+
+
 def _clean_groups(raw: Any) -> list[dict[str, Any]]:
     cleaned: list[dict[str, Any]] = []
     seen: set[str] = set()
@@ -151,7 +169,7 @@ def normalize_settings(raw: Any) -> dict[str, Any]:
         "admin_phone": normalize_whatsapp_number(raw.get("admin_phone")),
         "schedule_time": sched1,
         "schedule_time_2": sched2,
-        "pinned_product_ids": [int(x) for x in (raw.get("pinned_product_ids") or []) if str(x).isdigit()][:10],
+        "pinned_product_ids": _clean_pinned_ids(raw.get("pinned_product_ids")),
         "groups": _clean_groups(raw.get("groups")),
         "recipients": _clean_recipients(raw.get("recipients")),
         "status_products": _clamp_int(raw.get("status_products"), DEFAULT_SETTINGS["status_products"], 1, MAX_STATUS_PRODUCTS),
@@ -386,18 +404,21 @@ def _clean_and_expire_log(
             cleaned["recent_logs"] = kept_recent
             changed = True
 
-    # 3. Expiration des aperçus non envoyés vieux de plus de 2h ou d'un autre jour
+    # 3. Expiration des aperçus d'un autre jour (les offres préparées pour la vague du jour restent actives jusqu'à leur envoi)
     last_gen = cleaned.get("last_generated")
     if isinstance(last_gen, dict) and last_gen:
         gen_date = str(last_gen.get("date") or "").strip()
         if gen_date and gen_date != today:
             cleaned["last_generated"] = {}
             changed = True
-        elif last_gen.get("dry_run") and not last_gen.get("consumed"):
-            gen_ts = last_gen.get("generated_at")
-            if gen_ts and not _is_within_persistence_window(gen_ts, now=current):
-                cleaned["last_generated"] = {}
-                changed = True
+
+    # 4. Expiration automatique d'un indicateur d'envoi actif bloqué depuis > 2h
+    active_send = cleaned.get("active_send")
+    if isinstance(active_send, dict) and active_send:
+        started_ts = active_send.get("started_at")
+        if not _is_within_persistence_window(started_ts, now=current):
+            cleaned["active_send"] = None
+            changed = True
 
     return cleaned, changed
 
@@ -550,35 +571,63 @@ def select_daily_offers(
     recent_keys = {str(pid) for pid, day in promoted.items() if str(day) > cutoff_date}
     recent_pids = {int(pid) for pid in recent_keys if pid.isdigit()}
 
-    # 1. Coups de cœur épinglés par l'administrateur (sans répéter un article déjà envoyé aujourd'hui)
+    seen_rental_ids: set[int] = set()
+    # 1. Coups de cœur épinglés par l'administrateur (Produits, Services ou Locations, sans doublon le même jour)
     if pinned_ids:
+        int_pinned = [int(x) for x in pinned_ids if str(x).isdigit()]
+        rent_pinned = [int(str(x).split("_", 1)[1]) for x in pinned_ids if str(x).startswith("rental_") and str(x)[7:].isdigit()]
+        pinned_prod_map: dict[int, Product] = {}
+        promos_pinned: dict[int, Any] = {}
+        pinned_rent_map: dict[int, Any] = {}
         try:
-            pinned_query = (
-                Product.query
-                .outerjoin(Shop, Shop.id == Product.shop_id)
-                .options(selectinload(Product.shop), selectinload(Product.category))
-                .filter(Product.id.in_(pinned_ids), Product.is_active.is_(True))
-                .all()
-            )
-            pinned_map = {p.id: p for p in pinned_query}
-            promos_pinned = get_active_promos_for_products(list(pinned_map.keys()))
-            for pid in pinned_ids:
-                p = pinned_map.get(pid)
-                if not p or p.id in seen_product_ids or str(p.id) in excluded_today:
+            if int_pinned:
+                pinned_query = (
+                    Product.query
+                    .outerjoin(Shop, Shop.id == Product.shop_id)
+                    .options(selectinload(Product.shop), selectinload(Product.category))
+                    .filter(Product.id.in_(int_pinned), Product.is_active.is_(True))
+                    .all()
+                )
+                pinned_prod_map = {p.id: p for p in pinned_query}
+                promos_pinned = get_active_promos_for_products(list(pinned_prod_map.keys()))
+            if rent_pinned:
+                from ..models.rental import RentalListing
+                r_query = (
+                    RentalListing.query
+                    .outerjoin(Shop, Shop.id == RentalListing.shop_id)
+                    .options(selectinload(RentalListing.shop), selectinload(RentalListing.media))
+                    .filter(RentalListing.id.in_(rent_pinned), RentalListing.is_active.is_(True), RentalListing.status == "active")
+                    .all()
+                )
+                pinned_rent_map = {r.id: r for r in r_query}
+            for raw_pin in pinned_ids:
+                s_pin = str(raw_pin)
+                if s_pin in excluded_today:
                     continue
-                if p.kind == "physical" and (p.stock or 0) <= 0:
-                    continue
-                cur_phys = sum(1 for c in selected_cards if c.get("item_type") == "physical")
-                cur_serv = sum(1 for c in selected_cards if c.get("item_type") == "service")
-                if p.kind == "physical" and cur_phys >= prod_target:
-                    continue
-                if p.kind == "service" and cur_serv >= serv_target:
-                    continue
-                first_img = _first_image(p)
-                if first_img and _image_exists(first_img):
-                    card = build_product_card(p, promos_pinned.get(p.id))
-                    selected_cards.append(card)
-                    seen_product_ids.add(p.id)
+                if s_pin.startswith("rental_") and s_pin[7:].isdigit():
+                    rid = int(s_pin[7:])
+                    r_obj = pinned_rent_map.get(rid)
+                    cur_rent = sum(1 for c in selected_cards if c.get("item_type") == "rental")
+                    if r_obj and rid not in seen_rental_ids and cur_rent < max(1, rent_target) and _first_rental_image(r_obj)[0] > 0:
+                        selected_cards.append(build_rental_card(r_obj))
+                        seen_rental_ids.add(rid)
+                elif s_pin.isdigit():
+                    pid = int(s_pin)
+                    p = pinned_prod_map.get(pid)
+                    if not p or p.id in seen_product_ids:
+                        continue
+                    if p.kind == "physical" and (p.stock or 0) <= 0:
+                        continue
+                    cur_phys = sum(1 for c in selected_cards if c.get("item_type") == "physical")
+                    cur_serv = sum(1 for c in selected_cards if c.get("item_type") == "service")
+                    if p.kind == "physical" and cur_phys >= max(1, prod_target):
+                        continue
+                    if p.kind == "service" and cur_serv >= max(1, serv_target):
+                        continue
+                    first_img = _first_image(p)
+                    if first_img and _image_exists(first_img):
+                        selected_cards.append(build_product_card(p, promos_pinned.get(p.id)))
+                        seen_product_ids.add(p.id)
         except Exception:
             safe_session_rollback()
 
@@ -659,8 +708,11 @@ def select_daily_offers(
         except Exception:
             safe_session_rollback()
 
+    pinned_rent_count = sum(1 for c in selected_cards if c.get("item_type") == "rental")
+    needed_rents = max(0, rent_target - pinned_rent_count)
+
     # 4. Sélection Locations Immobilières (<= 24h en priorité, repli sur locations actives plus anciennes, sans doublon le même jour)
-    if rent_target > 0:
+    if needed_rents > 0:
         try:
             from ..models.rental import RentalListing
             time_cutoff = datetime.utcnow() - timedelta(hours=rent_max_hours)
@@ -676,7 +728,9 @@ def select_daily_offers(
             )
             with_photos = [
                 r for r in query
-                if _first_rental_image(r)[0] > 0 and f"rental_{r.id}" not in excluded_today
+                if r.id not in seen_rental_ids
+                and _first_rental_image(r)[0] > 0
+                and f"rental_{r.id}" not in excluded_today
             ]
             r_recent_fresh = [
                 r for r in with_photos
@@ -696,13 +750,50 @@ def select_daily_offers(
             ]
             for bucket in (r_recent_fresh, r_recent_cooled, r_older_fresh, r_older_cooled):
                 random.shuffle(bucket)
-            picked_rentals = (r_recent_fresh + r_recent_cooled + r_older_fresh + r_older_cooled)[:rent_target]
+            picked_rentals = (r_recent_fresh + r_recent_cooled + r_older_fresh + r_older_cooled)[:needed_rents]
             for r in picked_rentals:
-                card = build_rental_card(r)
-                selected_cards.append(card)
+                selected_cards.append(build_rental_card(r))
+                seen_rental_ids.add(r.id)
         except Exception as exc:
             safe_session_rollback()
             current_app.logger.warning("whatsapp_promo.select_rentals_failed: %s", exc)
+
+    # 5. Complément automatique jusqu'au quota total (ex: 10 offres) si une catégorie a moins de stock actif
+    total_target = prod_target + serv_target + rent_target
+    shortfall = total_target - len(selected_cards)
+    if shortfall > 0:
+        try:
+            extra_candidates = (
+                Product.query
+                .outerjoin(Shop, Shop.id == Product.shop_id)
+                .options(selectinload(Product.shop), selectinload(Product.category))
+                .filter(Product.is_active.is_(True))
+                .filter(or_(Product.shop_id.is_(None), Shop.is_active.is_(True)))
+                .filter(or_(Product.kind == "service", Product.stock > 0))
+                .filter(Product.image_file.isnot(None), Product.image_file != "")
+                .order_by(Product.created_at.desc())
+                .limit(1000)
+                .all()
+            )
+            extra_valid = [
+                p for p in extra_candidates
+                if p.id not in seen_product_ids
+                and str(p.id) not in excluded_today
+                and _image_exists(_first_image(p))
+            ]
+            if extra_valid:
+                promos_extra = get_active_promos_for_products([p.id for p in extra_valid])
+                fresh_extra = [p for p in extra_valid if p.id not in recent_pids]
+                picked_extra = _pick_fair_random_products(fresh_extra, shortfall, promos_extra)
+                if len(picked_extra) < shortfall:
+                    picked_extra_ids = {p.id for p in picked_extra}
+                    rem_pool = [p for p in extra_valid if p.id not in picked_extra_ids]
+                    picked_extra.extend(_pick_fair_random_products(rem_pool, shortfall - len(picked_extra), promos_extra))
+                for p in picked_extra:
+                    selected_cards.append(build_product_card(p, promos_extra.get(p.id)))
+                    seen_product_ids.add(p.id)
+        except Exception:
+            safe_session_rollback()
 
     return selected_cards
 
@@ -1051,6 +1142,8 @@ def generate_copy(cards: list[dict[str, Any]], *, session: requests.Session | No
 
 def compose_status_caption(card: dict[str, Any], copy: dict[str, str]) -> str:
     """Légende pour le Statut WhatsApp 24h."""
+    if copy.get("custom_full_status_caption"):
+        return str(copy["custom_full_status_caption"]).strip()
     if copy.get("is_custom") and copy.get("custom_caption"):
         body = _clean_body_text(copy["custom_caption"])
     else:
@@ -1066,6 +1159,8 @@ def compose_status_caption(card: dict[str, Any], copy: dict[str, str]) -> str:
 
 def compose_group_message(card: dict[str, Any], copy: dict[str, str], group_label: str = "") -> str:
     """Message destiné aux Groupes de vente WhatsApp (dynamique, rassurant, SANS lien d'invitation)."""
+    if copy.get("custom_full_group_message"):
+        return str(copy["custom_full_group_message"]).strip()
     clean_grp = (group_label or "").strip()
     if (
         clean_grp.startswith("http://")
@@ -1157,10 +1252,9 @@ def update_product_copy(
     group_message: str | None = None,
     direct_message: str | None = None,
 ) -> dict[str, Any] | None:
-    """Met à jour manuellement les textes générés pour un produit."""
-    try:
-        pid = int(product_id)
-    except (TypeError, ValueError):
+    """Met à jour manuellement les textes générés pour un produit, un service ou une location."""
+    target_pid = str(product_id or "").strip()
+    if not target_pid:
         return None
 
     log = get_log() or {}
@@ -1171,12 +1265,20 @@ def update_product_copy(
     items = list(last_gen.get("items") or last_gen.get("products") or [])
     found = False
     for item in items:
-        if item.get("id") == pid or item.get("product_id") == pid:
+        if str(item.get("id")) == target_pid or str(item.get("product_id")) == target_pid:
             if status_caption is not None:
-                item["status_caption"] = status_caption.strip()
+                clean_st = status_caption.strip()
+                item["status_caption"] = clean_st
+                item["custom_full_status_caption"] = clean_st
+                item["is_custom"] = True
+                item["manually_edited"] = True
             if group_message is not None:
-                item["group_message"] = group_message.strip()
-                item["group_message_sample"] = group_message.strip()
+                clean_gr = group_message.strip()
+                item["group_message"] = clean_gr
+                item["group_message_sample"] = clean_gr
+                item["custom_full_group_message"] = clean_gr
+                item["is_custom"] = True
+                item["manually_edited"] = True
             if direct_message is not None:
                 item["direct_message"] = direct_message.strip()
             found = True
@@ -1188,15 +1290,8 @@ def update_product_copy(
     last_gen["items"] = items
     last_gen["products"] = items
     last_gen["manually_edited"] = True
-
-    _record_run(
-        summary=log.get("last_preview") or {},
-        promoted_ids=[],
-        sent_today=0,
-        today=_today(),
-        preview=True,
-        last_generated=last_gen,
-    )
+    log["last_generated"] = last_gen
+    _save_promo_log(log)
     return last_gen
 
 
@@ -1559,6 +1654,255 @@ def _select_balanced_status_cards(cards: list[dict[str, Any]], limit: int) -> li
     return interleaved[:limit]
 
 
+def _offer_selection_signature(settings: dict[str, Any]) -> str:
+    """Signature déterministe des paramètres de sélection (nombre d'offres, fraîcheur locations, épinglés)."""
+    pinned = ",".join(str(x) for x in (settings.get("pinned_product_ids") or []))
+    return (
+        f"p={settings.get('products_count', 5)}|"
+        f"s={settings.get('services_count', 3)}|"
+        f"r={settings.get('rentals_count', 2)}|"
+        f"age={settings.get('rental_max_age_hours', 24)}|"
+        f"pin={pinned}"
+    )
+
+
+def _compute_per_wave_status_limit(
+    settings: dict[str, Any],
+    log: dict[str, Any],
+    today: str,
+    *,
+    preview: bool,
+) -> int:
+    total_daily_status_target = int(settings.get("status_products", 12))
+    if total_daily_status_target >= 4:
+        half_quota = (total_daily_status_target + 1) // 2
+        if preview:
+            return half_quota
+        already_posted_statuses = int((log.get("statuses_by_date") or {}).get(today, 0))
+        remaining_daily_statuses = max(0, total_daily_status_target - already_posted_statuses)
+        return min(half_quota, remaining_daily_statuses)
+    return total_daily_status_target
+
+
+def get_wave_info(
+    settings: dict[str, Any] | None = None,
+    log: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Détermine l'état exact des vagues d'envoi du jour (Vague 1 Matin -> Vague 2 Soir)."""
+    st = settings or get_settings()
+    lg = log if log is not None else get_log()
+    today = _today()
+    runs = lg.get("runs") or []
+    completed_runs_today = sum(
+        1
+        for r in runs
+        if isinstance(r, dict)
+        and r.get("mode") == "live"
+        and str(r.get("started_at") or "").startswith(today)
+        and (
+            r.get("aborted") is None
+            or (int(r.get("statuses_ok") or 0) + int(r.get("groups_ok") or 0)) > 0
+        )
+    )
+    active_send = lg.get("active_send") if isinstance(lg.get("active_send"), dict) else None
+    if active_send and not _is_within_persistence_window(active_send.get("started_at")):
+        active_send = None
+
+    sched1 = st.get("schedule_time", "10:30")
+    sched2 = st.get("schedule_time_2", "18:30")
+    if completed_runs_today == 0:
+        wave_number = 1
+        wave_code = "morning"
+        wave_title = "Vague 1 — Matin"
+        wave_icon = "☀️"
+        scheduled_at = sched1
+        all_waves_done = False
+    elif completed_runs_today == 1:
+        wave_number = 2
+        wave_code = "evening"
+        wave_title = "Vague 2 — Soir"
+        wave_icon = "🌙"
+        scheduled_at = sched2
+        all_waves_done = False
+    else:
+        wave_number = completed_runs_today + 1
+        wave_code = "extra"
+        wave_title = "2/2 Vagues du jour diffusées (Aperçu bonus)"
+        wave_icon = "✅"
+        scheduled_at = sched2
+        all_waves_done = True
+
+    return {
+        "today": today,
+        "runs_today": completed_runs_today,
+        "wave_number": wave_number,
+        "wave_code": wave_code,
+        "wave_title": wave_title,
+        "wave_icon": wave_icon,
+        "scheduled_at": scheduled_at,
+        "schedule_time_1": sched1,
+        "schedule_time_2": sched2,
+        "all_waves_done": all_waves_done,
+        "is_sending": bool(active_send),
+        "active_send": active_send,
+    }
+
+
+def _build_wave_items_and_meta(
+    cards: list[dict[str, Any]],
+    copies: dict[Any, dict[str, Any]],
+    source: str,
+    settings: dict[str, Any],
+    log: dict[str, Any],
+    today: str,
+    *,
+    preview: bool,
+    consumed: bool,
+) -> tuple[list[dict[str, Any]], dict[str, Any], list[dict[str, Any]]]:
+    per_run_status_limit = _compute_per_wave_status_limit(settings, log, today, preview=preview)
+    status_cards = _select_balanced_status_cards(cards, per_run_status_limit)
+    status_id_set = {str(c["id"]) for c in status_cards}
+    wave = get_wave_info(settings, log)
+
+    items_data = []
+    for idx, c in enumerate(cards):
+        cid = c["id"]
+        cp = copies.get(cid) or {}
+        in_status = bool(settings.get("status_enabled", True) and str(cid) in status_id_set)
+        items_data.append({
+            "order_index": idx + 1,
+            "id": cid,
+            "raw_id": c.get("raw_id", cid),
+            "product_id": cid,
+            "item_type": c.get("item_type", "physical"),
+            "name": c["name"],
+            "title": c["name"],
+            "shop": c["shop"],
+            "shop_name": c["shop"],
+            "category": c.get("category", "") or "",
+            "city": c.get("city", "") or "",
+            "shop_city": c.get("city") or c.get("category", "") or "",
+            "price": c.get("price", 0),
+            "price_dh": str(c.get("price", 0)),
+            "old_price": c.get("old_price"),
+            "old_price_dh": str(c.get("old_price")) if c.get("old_price") else "",
+            "price_line": c["price_line"],
+            "image_url": c["image_url"],
+            "has_image": bool(c.get("has_image", bool(c.get("image_url")))),
+            "page_url": c["page_url"],
+            "product_url": c["page_url"],
+            "in_status": in_status,
+            "in_groups": bool(settings.get("groups_enabled", True)),
+            "status_caption": compose_status_caption(c, cp),
+            "group_message": compose_group_message(c, cp),
+            "group_message_sample": compose_group_message(c, cp),
+            "ai_status": cp.get("status", ""),
+            "ai_message": cp.get("message", ""),
+            "is_custom": bool(cp.get("is_custom")),
+            "manually_edited": bool(cp.get("manually_edited") or cp.get("is_custom")),
+            "custom_full_status_caption": cp.get("custom_full_status_caption", ""),
+            "custom_full_group_message": cp.get("custom_full_group_message", ""),
+            "direct_message": compose_message(c, cp, ""),
+        })
+
+    last_generated_data = {
+        "generated_at": f"{today} {_local_now().strftime('%H:%M:%S')}",
+        "date": today,
+        "time": _local_now().strftime("%H:%M:%S"),
+        "source": source,
+        "copy_source": source,
+        "dry_run": preview,
+        "consumed": consumed,
+        "wave_number": wave["wave_number"],
+        "wave_code": wave["wave_code"],
+        "wave_title": wave["wave_title"],
+        "wave_icon": wave["wave_icon"],
+        "scheduled_at": wave["scheduled_at"],
+        "selection_sig": _offer_selection_signature(settings),
+        "status_count_planned": sum(1 for it in items_data if it["in_status"]),
+        "items": items_data,
+        "products": items_data,
+    }
+    return items_data, last_generated_data, status_cards
+
+
+def prepare_wave_preview(*, force: bool = False) -> dict[str, Any]:
+    """Prépare silencieusement les offres de la vague courante (Matin ou Soir) dans last_generated
+    sans polluer l'Historique des envois (recent_logs)."""
+    settings = get_settings()
+    today = _today()
+    log = get_log()
+    sent_ids_today = list((log.get("sent_ids_by_date") or {}).get(today) or [])
+    cards = select_daily_offers(
+        settings,
+        promoted=log.get("promoted") or {},
+        sent_ids_today=sent_ids_today,
+    )
+    if not cards:
+        return {}
+    copies, source = generate_copy(cards)
+    _, last_generated_data, _ = _build_wave_items_and_meta(
+        cards, copies, source, settings, log, today, preview=True, consumed=False
+    )
+    fresh_log = get_log()
+    fresh_log["history_date"] = today
+    fresh_log["last_generated"] = last_generated_data
+    _save_promo_log(fresh_log)
+    return last_generated_data
+
+
+def ensure_current_wave_preview(*, force_regenerate: bool = False) -> dict[str, Any]:
+    """Garantit que la page admin affiche toujours exactement la vague active (les 10 offres du Matin,
+    puis automatiquement les 10 nouvelles offres du Soir dès que le Matin est parti, ou mises à jour
+    dès qu'un quota de l'Étape 3 est modifié)."""
+    settings = get_settings()
+    today = _today()
+    log = get_log()
+    wave = get_wave_info(settings, log)
+    last_gen = log.get("last_generated") or {}
+    items = list(last_gen.get("items") or last_gen.get("products") or [])
+    sent_today_set = {str(x) for x in ((log.get("sent_ids_by_date") or {}).get(today) or [])}
+    expected_sig = _offer_selection_signature(settings)
+
+    is_valid = (
+        not force_regenerate
+        and bool(items)
+        and last_gen.get("date") == today
+        and bool(last_gen.get("dry_run"))
+        and not bool(last_gen.get("consumed"))
+        and last_gen.get("selection_sig") == expected_sig
+        and int(last_gen.get("wave_number") or 1) == wave["wave_number"]
+        and all(str(it.get("id")) not in sent_today_set for it in items)
+    )
+    if is_valid:
+        # Synchroniser les badges Statut/Groupes et l'heure affichée si seuls ces champs ont bougé
+        per_run_limit = _compute_per_wave_status_limit(settings, log, today, preview=True)
+        pseudo_cards = [{"id": it["id"], "item_type": it.get("item_type", "physical")} for it in items]
+        st_ids = {str(c["id"]) for c in _select_balanced_status_cards(pseudo_cards, per_run_limit)}
+        updated_meta = False
+        for it in items:
+            want_st = bool(settings.get("status_enabled", True) and str(it["id"]) in st_ids)
+            want_gr = bool(settings.get("groups_enabled", True))
+            if it.get("in_status") != want_st or it.get("in_groups") != want_gr:
+                it["in_status"] = want_st
+                it["in_groups"] = want_gr
+                updated_meta = True
+        if last_gen.get("scheduled_at") != wave["scheduled_at"] or last_gen.get("wave_title") != wave["wave_title"]:
+            last_gen["scheduled_at"] = wave["scheduled_at"]
+            last_gen["wave_title"] = wave["wave_title"]
+            last_gen["wave_icon"] = wave["wave_icon"]
+            updated_meta = True
+        if updated_meta:
+            last_gen["status_count_planned"] = sum(1 for it in items if it.get("in_status"))
+            last_gen["items"] = items
+            last_gen["products"] = items
+            log["last_generated"] = last_gen
+            _save_promo_log(log)
+        return last_gen
+
+    return prepare_wave_preview(force=True)
+
+
 def run_daily_promo(
     *,
     force: bool = False,
@@ -1598,10 +1942,19 @@ def run_daily_promo(
 
     recent_events: list[dict[str, Any]] = []
 
-    def finish(reason: str | None = None, promoted_ids: list[int] | None = None, last_gen: dict[str, Any] | None = None) -> dict[str, Any]:
+    def _clear_active_send() -> None:
+        if preview:
+            return
+        cur = get_log()
+        if cur.get("active_send"):
+            cur["active_send"] = None
+            _save_promo_log(cur)
+
+    def finish(reason: str | None = None, promoted_ids: list[int | str] | None = None, last_gen: dict[str, Any] | None = None) -> dict[str, Any]:
         summary["aborted"] = reason
         summary["finished_at"] = _local_now().strftime("%Y-%m-%d %H:%M:%S")
         sent = summary["messages_ok"] + summary["groups_ok"]
+        _clear_active_send()
         _record_run(
             summary,
             promoted_ids=promoted_ids or [],
@@ -1611,6 +1964,14 @@ def run_daily_promo(
             last_generated=last_gen,
             new_recent_logs=recent_events,
         )
+        # Dès qu'une vague réelle est envoyée (ex: Vague 1 Matin), préparer aussitôt en place la Vague suivante (ex: Vague 2 Soir) !
+        if not preview and (reason is None or bool(promoted_ids)):
+            try:
+                next_wave = get_wave_info(settings, get_log())
+                if not next_wave.get("all_waves_done"):
+                    prepare_wave_preview(force=True)
+            except Exception as exc:
+                current_app.logger.warning("whatsapp_promo.auto_prepare_next_wave_failed: %s", exc)
         current_app.logger.info(
             "whatsapp_promo.run mode=%s statuts=%s/%s groupes=%s/%s direct=%s/%s aborted=%s",
             summary["mode"],
@@ -1644,15 +2005,18 @@ def run_daily_promo(
     last_gen = log.get("last_generated") or {}
     saved_items = last_gen.get("items") or []
     sent_ids_today = list((log.get("sent_ids_by_date") or {}).get(today) or [])
+    sent_today_set = {str(x) for x in sent_ids_today}
+    expected_sig = _offer_selection_signature(settings)
 
-    # Envoi réel : réutiliser uniquement un aperçu dry_run non consommé préparé il y a moins de 2h
+    # Envoi réel : réutiliser l'aperçu de la vague du jour (non consommé, quotas identiques, zéro doublon du jour)
     can_reuse_preview = (
         not preview
         and bool(saved_items)
         and last_gen.get("date") == today
         and bool(last_gen.get("dry_run"))
         and not bool(last_gen.get("consumed"))
-        and _is_within_persistence_window(last_gen.get("generated_at"))
+        and (not last_gen.get("selection_sig") or last_gen.get("selection_sig") == expected_sig)
+        and all(str(it.get("id")) not in sent_today_set for it in saved_items)
     )
     if can_reuse_preview:
         cards = []
@@ -1669,11 +2033,13 @@ def run_daily_promo(
                 "item_type": item_t,
                 "name": item.get("title") or item.get("name") or "",
                 "shop": item.get("shop_name") or item.get("shop") or "",
-                "category": item.get("shop_city") or "",
+                "category": item.get("category") or item.get("shop_city") or "",
+                "city": item.get("city") or "",
                 "price": item.get("price", 0),
                 "old_price": item.get("old_price"),
                 "price_line": item.get("price_line", ""),
                 "image_url": item.get("image_url", ""),
+                "has_image": bool(item.get("has_image", bool(item.get("image_url")))),
                 "page_url": p_url,
             })
             raw_text = _clean_body_text(item.get("ai_message") or item.get("message") or item.get("direct_message") or "")
@@ -1681,6 +2047,9 @@ def run_daily_promo(
             is_custom = bool(item.get("is_custom"))
             copies[item["id"]] = {
                 "is_custom": is_custom,
+                "manually_edited": bool(item.get("manually_edited") or is_custom),
+                "custom_full_status_caption": item.get("custom_full_status_caption") or "",
+                "custom_full_group_message": item.get("custom_full_group_message") or "",
                 "custom_caption": _clean_body_text(item.get("custom_caption") or "") if is_custom else "",
                 "custom_group_message": _clean_body_text(item.get("custom_group_message") or "") if is_custom else "",
                 "custom_direct_message": _clean_body_text(item.get("custom_direct_message") or "") if is_custom else "",
@@ -1700,48 +2069,9 @@ def run_daily_promo(
         copies, source = generate_copy(cards)
         summary["copy_source"] = source
 
-
-    # Construction du modèle d'aperçu pour l'interface admin
-    items_data = [
-        {
-            "id": c["id"],
-            "raw_id": c.get("raw_id", c["id"]),
-            "product_id": c["id"],
-            "item_type": c.get("item_type", "physical"),
-            "name": c["name"],
-            "title": c["name"],
-            "shop": c["shop"],
-            "shop_name": c["shop"],
-            "shop_city": c.get("category", "") or "",
-            "price": c.get("price", 0),
-            "price_dh": str(c.get("price", 0)),
-            "old_price": c.get("old_price"),
-            "old_price_dh": str(c.get("old_price")) if c.get("old_price") else "",
-            "price_line": c["price_line"],
-            "image_url": c["image_url"],
-            "page_url": c["page_url"],
-            "product_url": c["page_url"],
-            "status_caption": compose_status_caption(c, copies[c["id"]]),
-            "group_message": compose_group_message(c, copies[c["id"]]),
-            "group_message_sample": compose_group_message(c, copies[c["id"]]),
-            "ai_status": copies[c["id"]].get("status", ""),
-            "ai_message": copies[c["id"]].get("message", ""),
-            "is_custom": bool(copies[c["id"]].get("is_custom")),
-            "direct_message": compose_message(c, copies[c["id"]], ""),
-        }
-        for c in cards
-    ]
-    last_generated_data = {
-        "generated_at": f"{today} {_local_now().strftime('%H:%M:%S')}",
-        "date": today,
-        "time": _local_now().strftime("%H:%M:%S"),
-        "source": source,
-        "copy_source": source,
-        "dry_run": preview,
-        "consumed": not preview,
-        "items": items_data,
-        "products": items_data,
-    }
+    items_data, last_generated_data, status_cards = _build_wave_items_and_meta(
+        cards, copies, source, settings, log, today, preview=preview, consumed=not preview
+    )
     summary["products"] = items_data
     summary["last_generated"] = last_generated_data
 
@@ -1760,19 +2090,17 @@ def run_daily_promo(
 
     people = _audience(settings)
     groups = settings.get("groups", [])
-    total_daily_status_target = int(settings.get("status_products", 12))
-    # Répartition équilibrée Matin / Soir (ex: 12 au total -> 6 le matin + 6 le soir)
-    if total_daily_status_target >= 4:
-        half_quota = (total_daily_status_target + 1) // 2
-        if preview:
-            per_run_status_limit = half_quota
-        else:
-            already_posted_statuses = int((log.get("statuses_by_date") or {}).get(today, 0))
-            remaining_daily_statuses = max(0, total_daily_status_target - already_posted_statuses)
-            per_run_status_limit = min(half_quota, remaining_daily_statuses)
-    else:
-        per_run_status_limit = total_daily_status_target
-    status_cards = _select_balanced_status_cards(cards, per_run_status_limit)
+
+    if not preview:
+        wave_now = get_wave_info(settings, log)
+        total_ops = (len(status_cards) if run_status else 0) + (len(cards) * len(groups) if (run_groups and groups) else 0)
+        log["active_send"] = {
+            "started_at": f"{today} {_local_now().strftime('%H:%M:%S')}",
+            "wave_title": wave_now["wave_title"],
+            "offers_count": len(cards),
+            "total_ops": total_ops,
+        }
+        _save_promo_log(log)
 
     # 1. CANAL STATUT WHATSAPP (Story 24h)
     if run_status:
@@ -2341,7 +2669,7 @@ def get_today_clicks() -> dict[str, int]:
 # ---------------------------------------------------------------------------
 # Envoi de Test Direct vers le WhatsApp de l'Administrateur
 # ---------------------------------------------------------------------------
-def send_test_to_admin(*, product_id: int | None = None) -> dict[str, Any]:
+def send_test_to_admin(*, product_id: int | str | None = None) -> dict[str, Any]:
     """Envoie un aperçu réel (photo + texte) uniquement au WhatsApp de l'administrateur."""
     gw = get_whatsapp_gateway_status()
     if gw.get("status") != "connected":
@@ -2365,9 +2693,10 @@ def send_test_to_admin(*, product_id: int | None = None) -> dict[str, Any]:
     items = list(last_gen.get("items") or last_gen.get("products") or [])
 
     card = None
-    if product_id:
+    if product_id is not None and str(product_id).strip() != "":
+        target_str = str(product_id).strip()
         for it in items:
-            if it.get("id") == product_id or it.get("product_id") == product_id:
+            if str(it.get("id")) == target_str or str(it.get("product_id")) == target_str:
                 card = it
                 break
 

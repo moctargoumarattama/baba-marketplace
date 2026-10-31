@@ -1017,3 +1017,250 @@ def test_ten_offers_mix_random_rotation_and_zero_same_day_repeat(app, tmp_path):
         # Les 2 locations du soir doivent être les 2 locations actives plus anciennes (repli <24h épuisé)
         e_rent = {it["id"] for it in evening_run["products"] if it["item_type"] == "rental"}
         assert e_rent == older_rental_keys
+def test_wave_1_to_wave_2_auto_transition_and_reinforced_controls(app, tmp_path):
+    """Vérifie :
+    1) Affichage auto des 10 offres de la Vague 1 (Matin) à l'ouverture de /admin/whatsapp-gateway
+       (avec complétion intelligente jusqu'à 10 offres même si une catégorie manque d'articles).
+    2) Édition personnalisée d'une location ('rental_X'), recherche & épinglage multi-types,
+       et conservation exacte du texte personnalisé lors de l'envoi réel.
+    3) Dès que la Vague 1 (Matin) est envoyée, la Vague 2 (Soir) de 10 nouvelles offres prend
+       automatiquement sa place dans la page sans doublon avec le matin.
+    4) Tout changement de quotas dans l'Étape 3 adapte immédiatement les offres affichées à l'Étape 2.
+    """
+    from dealnova.app.models.rental import RentalListing, RentalMedia
+
+    upload_dir = tmp_path / "uploads_wave_ui"
+    upload_dir.mkdir(exist_ok=True)
+    rentals_dir = tmp_path / "rentals_wave_ui"
+    rentals_dir.mkdir(exist_ok=True)
+    app.config["UPLOAD_FOLDER"] = str(upload_dir)
+
+    with app.app_context():
+        app.config["GEMINI_API_KEY"] = ""
+        admin_user = User.query.filter_by(username="wa_wave_admin").first()
+        if not admin_user:
+            admin_user = User(
+                username="wa_wave_admin",
+                email="wa_wave_admin@babamarket.ma",
+                role="admin",
+                is_active=True,
+            )
+            admin_user.set_password("AdminWave123!")
+            db.session.add(admin_user)
+
+        vendor = User.query.filter_by(username="wa_wave_vendor").first()
+        if not vendor:
+            vendor = User(
+                username="wa_wave_vendor",
+                email="wa_wave_vendor@babamarket.ma",
+                role="vendor",
+                is_active=True,
+            )
+            vendor.set_password("VendorWave123!")
+            db.session.add(vendor)
+        db.session.flush()
+
+        shop = Shop.query.filter_by(slug="wa-wave-shop").first()
+        if not shop:
+            shop = Shop(name="Boutique Vagues", slug="wa-wave-shop", vendor_id=vendor.id, is_active=True)
+            db.session.add(shop)
+            db.session.flush()
+
+        # Nettoyer les anciennes lignes de cette boutique de test (idempotence entre runs) et désactiver le reste
+        for old_r in RentalListing.query.filter_by(shop_id=shop.id).all():
+            db.session.delete(old_r)
+        for old_p in Product.query.filter_by(shop_id=shop.id).all():
+            Promo.query.filter_by(product_id=old_p.id).delete()
+            db.session.delete(old_p)
+        db.session.flush()
+        Product.query.update({Product.is_active: False})
+        RentalListing.query.update({RentalListing.is_active: False})
+        db.session.flush()
+
+        # On crée 18 produits physiques, 3 services seulement (donc le soir il n'en restera plus et le backfill complétera à 10 !) et 3 locations
+        for i in range(18):
+            fn = f"wv_phys_{i}.jpg"
+            Image.new("RGB", (300, 300), (40 + i * 8, 110, 90)).save(upload_dir / fn)
+            db.session.add(Product(
+                name=f"Article Vague {i}",
+                description="Stock vérifié",
+                price=90.0 + i,
+                stock=8,
+                kind="physical",
+                shop_id=shop.id,
+                vendor_id=vendor.id,
+                is_active=True,
+                image_file=fn,
+            ))
+
+        for i in range(3):
+            fn = f"wv_serv_{i}.jpg"
+            Image.new("RGB", (300, 300), (90, 70 + i * 25, 150)).save(upload_dir / fn)
+            db.session.add(Product(
+                name=f"Prestation Vague {i}",
+                description="Service pro",
+                price=200.0 + i * 15,
+                stock=0,
+                kind="service",
+                shop_id=shop.id,
+                vendor_id=vendor.id,
+                is_active=True,
+                image_file=fn,
+            ))
+
+        rental_keys = []
+        for i in range(3):
+            fn = f"wv_rent_{i}.jpg"
+            Image.new("RGB", (320, 320), (130, 95, 50 + i * 30)).save(rentals_dir / fn)
+            rl = RentalListing(
+                owner_id=vendor.id,
+                shop_id=shop.id,
+                title=f"Studio Moderne {i}",
+                slug=f"studio-moderne-vague-{i}",
+                description="Proche tramway",
+                listing_type="monthly",
+                property_type="studio",
+                city="Rabat",
+                area="Agdal",
+                rent_cents=280000 + i * 10000,
+                status="active",
+                is_active=True,
+                created_at=datetime.utcnow() - timedelta(hours=2),
+            )
+            db.session.add(rl)
+            db.session.flush()
+            db.session.add(RentalMedia(
+                listing_id=rl.id,
+                kind="image",
+                file_path=f"uploads/rentals/{fn}",
+            ))
+            rental_keys.append(f"rental_{rl.id}")
+
+        db.session.commit()
+        admin_id = admin_user.id
+
+        # Réinitialiser le log et configurer 5 produits + 3 services + 2 locations = 10 offres/vague
+        whatsapp_promo._persist_json_state(whatsapp_promo.LOG_KEY, {})
+        whatsapp_promo.save_settings({
+            "enabled": True,
+            "dry_run": False,
+            "status_enabled": True,
+            "groups_enabled": True,
+            "groups": whatsapp_promo.parse_groups_text("https://chat.whatsapp.com/GrpWave, Groupe Vague"),
+            "products_count": 5,
+            "services_count": 3,
+            "rentals_count": 2,
+            "rental_max_age_hours": 24,
+            "status_products": 12,
+            "min_delay": 45,
+            "max_delay": 90,
+            "schedule_time": "10:30",
+            "schedule_time_2": "18:30",
+        })
+
+    client = app.test_client()
+    with client.session_transaction() as sess:
+        sess["_user_id"] = str(admin_id)
+        sess["_fresh"] = True
+
+    with patch("dealnova.app.services.whatsapp_promo._rental_upload_roots", return_value=[rentals_dir.resolve()]):
+        # 1) Ouverture de /admin/whatsapp-gateway AVANT l'envoi du matin -> prépare et affiche les 10 offres de Vague 1 (Matin)
+        r_get_1 = client.get("/admin/whatsapp-gateway")
+        assert r_get_1.status_code == 200
+        html_1 = r_get_1.get_data(as_text=True)
+        assert "Vague 1 — Matin" in html_1
+        assert 'data-wave-number="1"' in html_1
+        assert "#10/10" in html_1
+        assert "6 en Statut 24h" in html_1
+
+        with app.app_context():
+            lg_morning = whatsapp_promo.get_log()["last_generated"]
+            assert lg_morning["wave_number"] == 1
+            assert len(lg_morning["items"]) == 10
+            morning_wave_ids = [str(it["id"]) for it in lg_morning["items"]]
+            target_rental_id = next(str(it["id"]) for it in lg_morning["items"] if it["item_type"] == "rental")
+
+        # 2) Recherche multi-types (produits + services + locations) et édition personnalisée sur une Location ('rental_X')
+        r_search = client.get("/admin/whatsapp-gateway/promo/search-products?q=Studio")
+        assert r_search.status_code == 200
+        found_items = r_search.get_json()["results"]
+        assert any(str(x["id"]).startswith("rental_") and x["kind"] == "Location" for x in found_items)
+
+        custom_status = "🏠 Studio Moderne exclusif à Rabat Agdal — Visite immédiate !"
+        custom_group = "🔥 NOUVEAU LOGEMENT DISPONIBLE À RABAT AGDAL ! Contactez-nous vite sur Baba Market."
+        r_edit = client.post(
+            "/admin/whatsapp-gateway/promo/edit-copy",
+            json={
+                "product_id": target_rental_id,
+                "status_caption": custom_status,
+                "group_message": custom_group,
+            },
+        )
+        assert r_edit.status_code == 200
+        assert r_edit.get_json()["success"] is True
+
+        # 3) Exécution LIVE de la Vague 1 (Matin) -> utilise exactement les 10 offres affichées + conserve le texte personnalisé
+        sent_payloads = []
+
+        def capture_gateway_post(path, payload):
+            sent_payloads.append((path, payload))
+            return 200, {"ok": True}
+
+        with (
+            app.app_context(),
+            patch("dealnova.app.services.whatsapp_promo.get_whatsapp_gateway_status", return_value={"status": "connected"}),
+            patch("dealnova.app.services.whatsapp_promo._gateway_post", side_effect=capture_gateway_post),
+        ):
+            live_w1 = whatsapp_promo.run_daily_promo(force=False, dry_run=False, sleep=lambda _s: None)
+
+        assert live_w1["aborted"] is None
+        assert [str(it["id"]) for it in live_w1["products"]] == morning_wave_ids
+        assert any(custom_group in (p.get("caption") or "") for path, p in sent_payloads if path == "/api/promo/send-media")
+
+        # 4) IMMÉDIATEMENT après l'envoi du matin, last_generated et la page sont mis à jour sur Vague 2 — Soir (10 nouvelles offres, même avec 0 service restant grâce au backfill !)
+        with app.app_context():
+            lg_evening = whatsapp_promo.get_log()["last_generated"]
+            assert lg_evening["consumed"] is False
+            assert lg_evening["wave_number"] == 2
+            assert lg_evening["wave_title"] == "Vague 2 — Soir"
+            assert len(lg_evening["items"]) == 10
+            evening_wave_ids = {str(it["id"]) for it in lg_evening["items"]}
+            assert evening_wave_ids.isdisjoint(set(morning_wave_ids))
+
+        r_get_2 = client.get("/admin/whatsapp-gateway")
+        assert r_get_2.status_code == 200
+        html_2 = r_get_2.get_data(as_text=True)
+        assert "Vague 2 — Soir" in html_2
+        assert 'data-wave-number="2"' in html_2
+        assert "#10/10" in html_2
+
+        r_json_status = client.get("/admin/whatsapp-gateway?format=json")
+        assert r_json_status.status_code == 200
+        assert r_json_status.get_json()["promo_state"]["wave_number"] == 2
+
+        # 5) Changement des quotas via Étape 3 (ex: 4 produits + 2 services + 1 location = 7 offres) -> adaptation immédiate du lot affiché !
+        r_upd = client.post(
+            "/admin/whatsapp-gateway/promo/settings",
+            json={
+                "enabled": True,
+                "status_enabled": True,
+                "groups_enabled": True,
+                "products_count": 4,
+                "services_count": 2,
+                "rentals_count": 1,
+                "status_products": 10,
+                "min_delay": 45,
+                "max_delay": 90,
+                "schedule_time": "09:30",
+                "schedule_time_2": "19:15",
+            },
+        )
+        assert r_upd.status_code == 200
+        upd_json = r_upd.get_json()
+        assert upd_json["regenerated"] is True
+        assert upd_json["settings"]["schedule_time"] == "09:30"
+        assert upd_json["settings"]["schedule_time_2"] == "19:15"
+
+        with app.app_context():
+            lg_adapted = whatsapp_promo.get_log()["last_generated"]
+            assert len(lg_adapted["items"]) == 7

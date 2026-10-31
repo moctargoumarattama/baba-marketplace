@@ -1980,33 +1980,65 @@ def whatsapp_gateway():
     if _current_admin_role() not in {ADMIN_ROLE, MANAGER_ROLE}:
         return _sensitive_admin_forbidden_response()
 
-    gateway_state = get_whatsapp_gateway_status()
-
-    if request.args.get("format") == "json" or _is_ajax_request():
-        response = jsonify(gateway_state)
-        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
-        return response
-
     from ..services.whatsapp_promo import (
         _today as _promo_today,
+        ensure_current_wave_preview,
         get_log as get_promo_log,
         get_settings as get_promo_settings,
-        groups_to_text,
         get_today_clicks,
+        get_wave_info,
+        groups_to_text,
     )
     from ..models.product import Product
 
+    gateway_state = get_whatsapp_gateway_status()
+
+    if request.args.get("format") == "json" or _is_ajax_request():
+        p_settings = get_promo_settings()
+        p_log = get_promo_log()
+        w_info = get_wave_info(p_settings, p_log)
+        r_logs = p_log.get("recent_logs") or []
+        payload = dict(gateway_state)
+        payload["promo_state"] = {
+            "is_sending": w_info["is_sending"],
+            "active_send": w_info["active_send"],
+            "wave_number": w_info["wave_number"],
+            "wave_title": w_info["wave_title"],
+            "runs_today": w_info["runs_today"],
+            "ok_count": sum(1 for x in r_logs if x.get("status") in ("ok", "success") and x.get("details") != "Aperçu simulé"),
+            "failed_count": sum(1 for x in r_logs if x.get("status") == "failed"),
+        }
+        response = jsonify(payload)
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        return response
+
     today_str = _promo_today()
     promo_settings = get_promo_settings()
+    # Garantit que les 10 offres de la vague active (Matin, puis Soir une fois Matin envoyé) sont toujours prêtes en place
+    last_gen = ensure_current_wave_preview(force_regenerate=False)
     promo_log = get_promo_log()
+    wave_info = get_wave_info(promo_settings, promo_log)
     today_clicks = get_today_clicks()
-    pinned_ids = promo_settings.get("pinned_product_ids") or []
-    pinned_products = Product.query.filter(Product.id.in_(pinned_ids)).all() if pinned_ids else []
 
-    sess_gen = session.get("whatsapp_promo_last_generated")
-    if isinstance(sess_gen, dict) and sess_gen.get("date") != today_str:
-        session.pop("whatsapp_promo_last_generated", None)
-        sess_gen = None
+    pinned_ids = promo_settings.get("pinned_product_ids") or []
+    pinned_products = []
+    if pinned_ids:
+        int_pins = [int(x) for x in pinned_ids if str(x).isdigit()]
+        rent_pins = [int(str(x)[7:]) for x in pinned_ids if str(x).startswith("rental_") and str(x)[7:].isdigit()]
+        prod_map = {p.id: p for p in Product.query.filter(Product.id.in_(int_pins)).all()} if int_pins else {}
+        rent_map = {}
+        if rent_pins:
+            rent_map = {r.id: r for r in RentalListing.query.filter(RentalListing.id.in_(rent_pins)).all()}
+        for raw_pin in pinned_ids:
+            s_pin = str(raw_pin)
+            if s_pin.isdigit() and int(s_pin) in prod_map:
+                p = prod_map[int(s_pin)]
+                pinned_products.append({"id": p.id, "name": p.name, "price": float(p.price or 0), "kind": p.kind})
+            elif s_pin.startswith("rental_") and s_pin[7:].isdigit() and int(s_pin[7:]) in rent_map:
+                r = rent_map[int(s_pin[7:])]
+                pinned_products.append({"id": f"rental_{r.id}", "name": r.title, "price": float(r.rent_cents or 0) / 100.0, "kind": "rental"})
+
+    session.pop("whatsapp_promo_last_generated", None)
     sess_details = session.get("whatsapp_promo_last_details")
     if isinstance(sess_details, list) and sess_details:
         first_ts = str(sess_details[0].get("timestamp") or "")
@@ -2014,7 +2046,6 @@ def whatsapp_gateway():
             session.pop("whatsapp_promo_last_details", None)
             sess_details = None
 
-    last_gen = promo_log.get("last_generated") or sess_gen
     recent_logs = promo_log["recent_logs"] if "recent_logs" in promo_log else (sess_details or [])
     response = current_app.make_response(
         render_template(
@@ -2022,6 +2053,7 @@ def whatsapp_gateway():
             gateway=gateway_state,
             promo_settings=promo_settings,
             promo_log=promo_log,
+            wave_info=wave_info,
             promo_groups_text=groups_to_text(promo_settings.get("groups", [])),
             last_generated=last_gen,
             recent_logs=recent_logs,
@@ -2075,16 +2107,31 @@ def whatsapp_promo_settings():
         return _sensitive_admin_forbidden_response()
 
     from ..services.whatsapp_promo import (
+        _offer_selection_signature,
+        ensure_current_wave_preview,
         get_settings as get_promo_settings,
         parse_groups_text,
         save_settings as save_promo_settings,
     )
 
     current = get_promo_settings()
+    prev_sig = _offer_selection_signature(current)
     data = request.get_json(silent=True) if request.is_json else request.form
 
-    recipients = []
+    if str(data.get("groups_only_modal") or "") == "1":
+        groups = parse_groups_text(data.get("groups_text") or "", existing=current.get("groups"))
+        updated = save_promo_settings({
+            **current,
+            "groups": groups,
+            "groups_enabled": True if groups else current.get("groups_enabled", True),
+        })
+        ensure_current_wave_preview(force_regenerate=False)
+        if _is_ajax_request() or request.is_json:
+            return jsonify(success=True, settings=updated)
+        flash(f"Vos groupes WhatsApp ont été mis à jour ({len(groups)} groupe(s) actif(s)).", "success")
+        return redirect(url_for("admin.whatsapp_gateway"))
 
+    recipients = []
     if "groups_text" in data and data.get("groups_text") is not None:
         groups = parse_groups_text(data.get("groups_text"), existing=current.get("groups"))
     else:
@@ -2092,7 +2139,7 @@ def whatsapp_promo_settings():
 
     def _bool_field(name: str, default: bool) -> bool:
         if name not in data:
-            return False if not request.is_json else default
+            return False if (not request.is_json and str(data.get("partial_toggle") or "") != "1") else default
         val = str(data.get(name) or "").strip().lower()
         return val in ("1", "true", "on", "yes")
 
@@ -2101,7 +2148,7 @@ def whatsapp_promo_settings():
         "dry_run": _bool_field("dry_run", current.get("dry_run", True)),
         "status_enabled": _bool_field("status_enabled", current.get("status_enabled", True)),
         "groups_enabled": _bool_field("groups_enabled", current.get("groups_enabled", True)),
-        "direct_messages_enabled": _bool_field("direct_messages_enabled", current.get("direct_messages_enabled", True)),
+        "direct_messages_enabled": False,
         "admin_phone": data.get("admin_phone", current.get("admin_phone", "")),
         "schedule_time": data.get("schedule_time", current.get("schedule_time", "10:30")),
         "schedule_time_2": data.get("schedule_time_2", current.get("schedule_time_2", "18:30")),
@@ -2119,10 +2166,22 @@ def whatsapp_promo_settings():
         "cooldown_days": data.get("cooldown_days", current.get("cooldown_days", 7)),
     })
 
-    if _is_ajax_request() or request.is_json:
-        return jsonify(success=True, settings=updated)
+    new_sig = _offer_selection_signature(updated)
+    wave_preview = ensure_current_wave_preview(force_regenerate=(new_sig != prev_sig))
+    offers_ready = len((wave_preview or {}).get("items") or [])
 
-    flash("Réglages de promotion WhatsApp enregistrés avec succès.", "success")
+    if _is_ajax_request() or request.is_json:
+        return jsonify(
+            success=True,
+            settings=updated,
+            regenerated=(new_sig != prev_sig),
+            offers_ready=offers_ready,
+        )
+
+    flash(
+        f"Réglages enregistrés et vague synchronisée ({offers_ready} offre(s) prête(s) pour {updated['schedule_time']} / {updated['schedule_time_2']}).",
+        "success",
+    )
     return redirect(url_for("admin.whatsapp_gateway"))
 
 
@@ -2252,11 +2311,12 @@ def whatsapp_promo_send_test():
     from ..services.whatsapp_promo import send_test_to_admin
 
     data = request.get_json(silent=True) if request.is_json else request.form
-    product_id = data.get("product_id")
-    try:
-        pid = int(product_id) if product_id else None
-    except (ValueError, TypeError):
-        pid = None
+    raw_pid = str(data.get("product_id") or "").strip()
+    pid: int | str | None = None
+    if raw_pid.isdigit():
+        pid = int(raw_pid)
+    elif raw_pid.startswith("rental_") and raw_pid[7:].isdigit():
+        pid = raw_pid
 
     result = send_test_to_admin(product_id=pid)
 
@@ -2281,10 +2341,6 @@ def whatsapp_promo_search_products():
     if not q or len(q) < 2:
         return jsonify(results=[])
 
-    from ..models.product import Product
-    from ..models.shop import Shop
-    from sqlalchemy.orm import selectinload
-
     products = (
         Product.query
         .outerjoin(Shop, Shop.id == Product.shop_id)
@@ -2292,7 +2348,16 @@ def whatsapp_promo_search_products():
         .filter(Product.is_active.is_(True))
         .filter(or_(Product.kind == "service", Product.stock > 0))
         .filter(Product.name.ilike(f"%{q}%"))
-        .limit(10)
+        .limit(8)
+        .all()
+    )
+    rentals = (
+        RentalListing.query
+        .outerjoin(Shop, Shop.id == RentalListing.shop_id)
+        .options(selectinload(RentalListing.shop))
+        .filter(RentalListing.is_active.is_(True), RentalListing.status == "active")
+        .filter(RentalListing.title.ilike(f"%{q}%"))
+        .limit(4)
         .all()
     )
 
@@ -2301,10 +2366,20 @@ def whatsapp_promo_search_products():
         first_img = next((img.strip() for img in (p.image_file or "").split("|") if img.strip()), "")
         results.append({
             "id": p.id,
+            "kind": "Service" if p.kind == "service" else "Produit",
             "name": p.name,
             "price": float(p.price or 0),
             "shop": getattr(p.shop, "name", "") or "Baba Market",
             "image": first_img,
+        })
+    for r in rentals:
+        results.append({
+            "id": f"rental_{r.id}",
+            "kind": "Location",
+            "name": r.title,
+            "price": float(r.rent_cents or 0) / 100.0,
+            "shop": getattr(r.shop, "name", "") or (r.city or "Baba Market Immo"),
+            "image": "",
         })
     return jsonify(results=results)
 
@@ -2314,41 +2389,36 @@ def whatsapp_promo_pin_product():
     if _current_admin_role() not in {ADMIN_ROLE, MANAGER_ROLE}:
         return _sensitive_admin_forbidden_response()
 
-    from ..services.whatsapp_promo import get_settings, save_settings, run_daily_promo
+    from ..services.whatsapp_promo import ensure_current_wave_preview, get_settings, save_settings
 
     data = request.get_json(silent=True) if request.is_json else request.form
     action = str(data.get("action") or "add").strip()
-    product_id = data.get("product_id")
+    raw_pid = str(data.get("product_id") or "").strip()
+
+    pin_val: int | str | None = None
+    if raw_pid.isdigit():
+        pin_val = int(raw_pid)
+    elif raw_pid.startswith("rental_") and raw_pid[7:].isdigit():
+        pin_val = raw_pid
 
     settings = get_settings()
     pinned = list(settings.get("pinned_product_ids") or [])
 
-    if action == "add" and product_id:
-        try:
-            pid = int(product_id)
-            if pid not in pinned:
-                pinned.append(pid)
-        except (ValueError, TypeError):
-            pass
-    elif action == "remove" and product_id:
-        try:
-            pid = int(product_id)
-            pinned = [p for p in pinned if p != pid]
-        except (ValueError, TypeError):
-            pass
+    if action == "add" and pin_val is not None:
+        if str(pin_val) not in {str(x) for x in pinned}:
+            pinned.append(pin_val)
+    elif action == "remove" and pin_val is not None:
+        pinned = [p for p in pinned if str(p) != str(pin_val)]
     elif action == "clear":
         pinned = []
 
     settings["pinned_product_ids"] = pinned
     save_settings(settings)
 
-    # Re-génère un aperçu frais avec ces produits
-    summary = run_daily_promo(force=True, dry_run=True)
-    if summary.get("last_generated"):
-        session["whatsapp_promo_last_generated"] = summary.get("last_generated")
+    wave_preview = ensure_current_wave_preview(force_regenerate=True)
 
     if _is_ajax_request() or request.is_json:
-        return jsonify(success=True, pinned=pinned, summary=summary)
+        return jsonify(success=True, pinned=pinned, last_generated=wave_preview)
 
-    flash("Produit coup de cœur mis à jour pour la promotion du jour !", "success")
+    flash("Sélection coup de cœur mise à jour et vague recalculée !", "success")
     return redirect(url_for("admin.whatsapp_gateway"))

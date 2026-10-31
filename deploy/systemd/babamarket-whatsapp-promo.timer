@@ -1,9 +1,9 @@
 [Unit]
-Description=Planificateur WhatsApp Promo Baba Market (verification 15 min, persistance max 2h, sans rattrapage J+1)
+Description=Planificateur WhatsApp Promo Baba Market (verification 5 min, persistance max 2h, sans rattrapage J+1)
 
 [Timer]
-OnCalendar=*:00/15
-RandomizedDelaySec=45
+OnCalendar=*:00/5
+RandomizedDelaySec=20
 Persistent=false
 Unit=babamarket-whatsapp-promo.service
 

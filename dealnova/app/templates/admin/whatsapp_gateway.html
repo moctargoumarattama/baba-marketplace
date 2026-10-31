@@ -305,6 +305,128 @@
     margin: 0 0 0.75rem 0;
   }
 
+  /* Bandeau de Vague & Filtres d'offres */
+  .wave-status-banner {
+    background: linear-gradient(135deg, #f0fdf4 0%, #eff6ff 100%);
+    border: 1.5px solid #bbf7d0;
+    border-radius: 14px;
+    padding: 0.9rem 1.15rem;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+  .wave-status-banner.is-evening {
+    background: linear-gradient(135deg, #eef2ff 0%, #f0fdf4 100%);
+    border-color: #c7d2fe;
+  }
+  .offer-filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+  }
+  .offer-filter-pill {
+    border: 1px solid #cbd5e1;
+    background: #ffffff;
+    color: #334155;
+    border-radius: 999px;
+    padding: 0.3rem 0.75rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .offer-filter-pill:hover {
+    border-color: #10b981;
+    color: #0f766e;
+  }
+  .offer-filter-pill.active {
+    background: #0f172a;
+    border-color: #0f172a;
+    color: #ffffff;
+  }
+
+  /* Contrôles renforcés Étape 3 (Steppers +/- & Horaires) */
+  .wa-stepper {
+    display: inline-flex;
+    align-items: center;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 9px;
+    background: #ffffff;
+    overflow: hidden;
+    height: 32px;
+  }
+  .wa-stepper-btn {
+    border: none;
+    background: #f8fafc;
+    color: #0f172a;
+    width: 28px;
+    height: 100%;
+    font-weight: 900;
+    font-size: 0.95rem;
+    line-height: 1;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s ease;
+    user-select: none;
+  }
+  .wa-stepper-btn:hover {
+    background: #e2e8f0;
+  }
+  .wa-stepper-btn:active {
+    background: #cbd5e1;
+  }
+  .wa-stepper input[type="number"] {
+    border: none !important;
+    box-shadow: none !important;
+    width: 44px;
+    text-align: center;
+    font-weight: 800;
+    font-size: 0.85rem;
+    color: #0f172a;
+    padding: 0 2px;
+    height: 100%;
+    -moz-appearance: textfield;
+  }
+  .wa-stepper input[type="number"]::-webkit-outer-spin-button,
+  .wa-stepper input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  .wa-time-chip {
+    border: 1px solid #cbd5e1;
+    background: #ffffff;
+    color: #475569;
+    border-radius: 6px;
+    padding: 0.15rem 0.45rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .wa-time-chip:hover, .wa-time-chip.is-active {
+    background: #dcfce7;
+    border-color: #10b981;
+    color: #065f46;
+  }
+  .btn-apply-settings {
+    font-weight: 800;
+    border-radius: 10px;
+    padding: 0.55rem 1rem;
+    transition: all 0.2s ease;
+  }
+  .btn-apply-settings.is-dirty {
+    background: #059669 !important;
+    border-color: #059669 !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 14px rgba(5, 150, 105, 0.3);
+  }
+
   /* Envoi automatique & Bouton d'action */
   .broadcast-action-bar {
     background: #f8fafc;
@@ -349,15 +471,43 @@
 {% set ps = promo_settings or {} %}
 {% set pl = promo_log or {} %}
 {% set lg = last_generated or {} %}
+{% set wi = wave_info or {} %}
 {% set rlogs = recent_logs or [] %}
 {% set groups_list = ps.get('groups', []) %}
 {% set st = gateway.status or 'disconnected' %}
 {% set products = lg.get('products') or lg.get('items') or [] %}
-{% set failed_count = rlogs | selectattr('status', 'equalto', 'failed') | list | length %}
-{% set pending_count = rlogs | selectattr('status', 'equalto', 'pending') | list | length %}
-{% set ok_count = rlogs | selectattr('status', 'in', ['ok', 'success']) | list | length %}
+{% set real_rlogs = rlogs | rejectattr('details', 'equalto', 'Aperçu simulé') | list %}
+{% set failed_count = real_rlogs | selectattr('status', 'equalto', 'failed') | list | length %}
+{% set pending_count = real_rlogs | selectattr('status', 'equalto', 'pending') | list | length %}
+{% set ok_count = real_rlogs | selectattr('status', 'in', ['ok', 'success']) | list | length %}
+{% set wave_num = wi.get('wave_number') or lg.get('wave_number') or 1 %}
+{% set wave_title = wi.get('wave_title') or lg.get('wave_title') or 'Vague 1 — Matin' %}
+{% set wave_icon = wi.get('wave_icon') or lg.get('wave_icon') or '☀️' %}
+{% set wave_sched = wi.get('scheduled_at') or lg.get('scheduled_at') or ps.get('schedule_time', '10:30') %}
+{% set count_phys = products | selectattr('item_type', 'equalto', 'physical') | list | length %}
+{% set count_serv = products | selectattr('item_type', 'equalto', 'service') | list | length %}
+{% set count_rent = products | selectattr('item_type', 'equalto', 'rental') | list | length %}
+{% set count_story = products | selectattr('in_status') | list | length %}
 
-<div class="wa-app-container">
+<div class="wa-app-container" data-wave-number="{{ wave_num }}" data-is-sending="{{ '1' if wi.get('is_sending') else '0' }}" data-groups-count="{{ groups_list|length }}">
+
+  <!-- BANDEAU ENVOI EN COURS (TEMPS RÉEL) -->
+  <div id="liveSendBanner" class="card border-success shadow-sm" style="border-radius:14px;background:#ecfdf5;border-left:5px solid #10b981;{% if not wi.get('is_sending') %}display:none;{% endif %}">
+    <div class="card-body p-3 d-flex align-items-center justify-content-between flex-wrap gap-3">
+      <div class="d-flex align-items-center gap-3">
+        <div class="spinner-border text-success spinner-border-sm" role="status" aria-hidden="true"></div>
+        <div>
+          <div style="font-weight:800;color:#065f46;font-size:0.95rem;">
+            🚀 Diffusion en cours ({{ (wi.get('active_send') or {}).get('wave_title') or wave_title }})…
+          </div>
+          <div style="font-size:0.8rem;color:#047857;">
+            Les messages partent en arrière-plan avec vos délais anti-ban. Dès la fin de cet envoi, la vague suivante s'affichera automatiquement ici.
+          </div>
+        </div>
+      </div>
+      <span class="badge bg-success px-3 py-2">Actualisation automatique active</span>
+    </div>
+  </div>
 
   <!-- EN-TÊTE DE LA PAGE -->
   <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-top:0.5rem;">
@@ -485,15 +635,21 @@
     </div>
   </div>
 
-  <!-- ÉTAPE 2 : CE QUE VOS CLIENTS VONT VOIR (L'OFFRE DU JOUR) -->
+  <!-- ÉTAPE 2 : VAGUE D'ENVOI ACTIVE (LES 10 OFFRES MATIN PUIS SOIR) -->
   <div class="step-card">
     <div class="step-header">
       <div>
         <h2 class="step-title">
-          <span class="step-badge-num">2</span> L'Offre du Jour (Ce que vos clients vont voir)
+          <span class="step-badge-num">2</span> {{ wave_icon }} {{ wave_title }} — {{ products|length }} offre(s) prête(s)
         </h2>
         <p class="step-subtitle">
-          Voici le produit sélectionné aujourd'hui et le message préparé pour vos clients.
+          {% if wave_num == 1 %}
+            Voici les <strong>{{ products|length }} offres de la 1ère vague (Matin • {{ wave_sched }})</strong>. Dès qu'elles seront envoyées, les <strong>offres du Soir ({{ ps.get('schedule_time_2', '18:30') }})</strong> prendront automatiquement leur place ici.
+          {% elif wave_num == 2 %}
+            ✅ La vague du matin a été envoyée ! Voici les <strong>{{ products|length }} nouvelles offres prêtes pour la 2ème vague (Soir • {{ wave_sched }})</strong>, sans doublon avec ce matin.
+          {% else %}
+            ✅ Les 2 vagues automatiques d'aujourd'hui ont été envoyées. Voici un lot prêt si vous souhaitez lancer une diffusion manuelle supplémentaire.
+          {% endif %}
         </p>
       </div>
 
@@ -501,17 +657,17 @@
         <!-- Bouton Test WhatsApp direct vers mon téléphone -->
         <form method="POST" action="{{ url_for('admin.whatsapp_promo_send_test') }}" style="display:inline;" id="formSendTest">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button type="submit" class="btn btn-outline-primary btn-sm fw-bold shadow-sm" title="M'envoyer immédiatement un message test sur mon WhatsApp pour vérifier le rendu" {% if st != 'connected' %}disabled{% endif %}>
+          <button type="submit" class="btn btn-outline-primary btn-sm fw-bold shadow-sm" title="M'envoyer immédiatement la 1ère offre en test sur mon WhatsApp" {% if st != 'connected' %}disabled{% endif %}>
             <i class="bi bi-send-check me-1"></i> M'envoyer un test WhatsApp 📲
           </button>
         </form>
 
-        <!-- Bouton Régénérer avec l'IA -->
-        <form method="POST" action="{{ url_for('admin.whatsapp_promo_run') }}" style="display:inline;">
+        <!-- Bouton Régénérer la vague avec l'IA (synchronise aussi l'Étape 3 si modifiée) -->
+        <form method="POST" action="{{ url_for('admin.whatsapp_promo_run') }}" style="display:inline;" id="formRegenerateWave">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="mode" value="dry_run">
-          <button type="submit" class="btn btn-outline-success btn-sm fw-bold shadow-sm" title="Demander à l'IA de proposer d'autres produits ou textes">
-            <i class="bi bi-magic me-1"></i> Proposer d'autres produits (IA)
+          <button type="submit" class="btn btn-success btn-sm fw-bold shadow-sm" id="btnRegenerateWave" title="Tirer au sort un nouveau lot d'offres pour cette vague en respectant vos quotas">
+            <i class="bi bi-arrow-repeat me-1"></i> Changer ce lot ({{ products|length }} offres IA)
           </button>
         </form>
       </div>
@@ -591,22 +747,67 @@
           </div>
         {% endif %}
 
-        <div class="position-relative" style="max-width:480px;">
+        <div class="position-relative" style="max-width:520px;">
+          <label for="inputSearchProduct" class="visually-hidden">Rechercher un produit, service ou logement à épingler</label>
           <div class="input-group input-group-sm">
             <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
-            <input type="text" id="inputSearchProduct" class="form-control" placeholder="Rechercher un produit à épingler en offre du jour..." autocomplete="off">
+            <input type="text" id="inputSearchProduct" class="form-control" placeholder="Rechercher un produit, service ou logement à épingler en priorité..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
           </div>
-          <div id="searchResultsBox" class="list-group shadow position-absolute w-100 mt-1" style="display:none;z-index:1050;max-height:220px;overflow-y:auto;"></div>
+          <div id="searchResultsBox" class="list-group shadow position-absolute w-100 mt-1" style="display:none;z-index:1050;max-height:240px;overflow-y:auto;"></div>
         </div>
         <div class="form-text" style="font-size:0.75rem;color:#64748b;">
-          Les produits épinglés apparaîtront en priorité absolue dans la promotion du jour de vos clients et groupes.
+          Les offres épinglées passent en priorité absolue dans la vague actuelle (sans se répéter le soir si déjà envoyées le matin).
         </div>
       </div>
 
       {% if products %}
+        <!-- BANDEAU RÉCAPITULATIF DE LA VAGUE ACTIVE -->
+        <div class="wave-status-banner {% if wave_num == 2 %}is-evening{% endif %}">
+          <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;">
+            <span class="badge {% if wave_num == 2 %}bg-primary{% else %}bg-success{% endif %} px-2 py-1" style="font-size:0.82rem;">
+              {{ wave_icon }} {{ wave_title }} • {{ wave_sched }}
+            </span>
+            <span style="font-size:0.84rem;font-weight:700;color:#0f172a;">
+              {{ products|length }} offre(s) dans cette vague :
+              <span class="text-primary">{{ count_phys }} Produit(s)</span> •
+              <span class="text-warning-emphasis">{{ count_serv }} Service(s)</span> •
+              <span class="text-info-emphasis">{{ count_rent }} Location(s)</span>
+            </span>
+          </div>
+          <div style="display:flex;align-items:center;gap:0.45rem;flex-wrap:wrap;font-size:0.78rem;">
+            <span class="badge bg-white text-success border border-success-subtle">
+              <i class="bi bi-camera-fill me-1"></i> {{ count_story }} en Statut 24h
+            </span>
+            <span class="badge bg-white text-primary border border-primary-subtle">
+              <i class="bi bi-people-fill me-1"></i> {{ products|length if ps.get('groups_enabled', True) else 0 }} dans {{ groups_list|length }} groupe(s)
+            </span>
+          </div>
+        </div>
+
+        <!-- FILTRES RAPIDES POUR PARCOURIR LES 10 OFFRES -->
+        <div class="offer-filter-bar" id="offerCategoryFilterBar">
+          <button type="button" class="offer-filter-pill active" data-offer-filter="all">
+            Toutes les offres ({{ products|length }})
+          </button>
+          <button type="button" class="offer-filter-pill" data-offer-filter="physical">
+            🛍️ Produits ({{ count_phys }})
+          </button>
+          <button type="button" class="offer-filter-pill" data-offer-filter="service">
+            🛠️ Services ({{ count_serv }})
+          </button>
+          <button type="button" class="offer-filter-pill" data-offer-filter="rental">
+            🏠 Locations ({{ count_rent }})
+          </button>
+          <button type="button" class="offer-filter-pill" data-offer-filter="story">
+            📸 En Statut 24h ({{ count_story }})
+          </button>
+        </div>
+
         {% for prod in products %}
           {% set pid = prod.get('id') or prod.get('product_id') %}
-          <div class="promo-product-box">
+          {% set ptype = prod.get('item_type', 'physical') %}
+          {% set in_story = prod.get('in_status', True) %}
+          <div class="promo-product-box" data-item-type="{{ ptype }}" data-in-story="{{ '1' if in_story else '0' }}" style="margin-bottom:1.1rem;">
             <!-- Haut : Produit -->
             <div class="promo-product-top">
               <img src="{{ prod.get('image_url') or url_for('static', filename='images/placeholder-product.svg') }}"
@@ -616,12 +817,23 @@
 
               <div class="promo-product-info">
                 <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
-                  {% if prod.get('item_type') == 'rental' %}
+                  <span class="badge bg-dark text-white" style="font-size:0.72rem;">#{{ loop.index }}/{{ products|length }}</span>
+                  {% if ptype == 'rental' %}
                     <span class="badge bg-info text-dark" style="font-size:0.75rem;"><i class="bi bi-house-door-fill me-1"></i> Location</span>
-                  {% elif prod.get('item_type') == 'service' %}
+                  {% elif ptype == 'service' %}
                     <span class="badge bg-warning text-dark" style="font-size:0.75rem;"><i class="bi bi-tools me-1"></i> Service</span>
                   {% else %}
                     <span class="badge bg-primary text-white" style="font-size:0.75rem;"><i class="bi bi-bag-fill me-1"></i> Produit</span>
+                  {% endif %}
+                  {% if in_story %}
+                    <span class="badge bg-success-subtle text-success border border-success-subtle" style="font-size:0.72rem;" title="Publié aussi dans votre Story WhatsApp 24h">
+                      <i class="bi bi-camera-fill me-1"></i> Story 24h
+                    </span>
+                  {% endif %}
+                  {% if ps.get('groups_enabled', True) %}
+                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle" style="font-size:0.72rem;">
+                      <i class="bi bi-people-fill me-1"></i> Groupes
+                    </span>
                   {% endif %}
                   <h3 class="promo-product-name m-0">{{ prod.get('title') or prod.get('name') }}</h3>
                 </div>
@@ -692,19 +904,29 @@
               </div>
             </div>
 
-            <!-- Bouton Modifier le texte -->
+            <!-- Actions par offre : Tester sur mon WhatsApp + Modifier le texte -->
             <div style="padding:0.75rem 1rem;background:#ffffff;border-top:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;">
               <span style="font-size:0.78rem;color:#64748b;">
-                {% if lg.get('manually_edited') %}
-                  <i class="bi bi-check-circle-fill text-success me-1"></i> Texte personnalisé par vos soins
+                {% if prod.get('manually_edited') or prod.get('is_custom') %}
+                  <i class="bi bi-check-circle-fill text-success me-1"></i> <strong>Texte personnalisé par vos soins</strong>
                 {% else %}
                   <i class="bi bi-stars text-success me-1"></i> Rédigé automatiquement par l'IA (court et percutant)
                 {% endif %}
               </span>
 
-              <button type="button" class="btn btn-outline-dark btn-sm fw-bold" data-bs-toggle="modal" data-bs-target="#editModal_{{ pid }}">
-                <i class="bi bi-pencil-square me-1 text-success"></i> Modifier le texte à ma façon
-              </button>
+              <div style="display:flex;align-items:center;gap:0.45rem;flex-wrap:wrap;">
+                <form method="POST" action="{{ url_for('admin.whatsapp_promo_send_test') }}" class="m-0 d-inline">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="product_id" value="{{ pid }}">
+                  <button type="submit" class="btn btn-outline-primary btn-sm fw-semibold" {% if st != 'connected' %}disabled{% endif %} title="Recevoir cette offre précise en test sur mon WhatsApp">
+                    <i class="bi bi-whatsapp me-1"></i> Tester
+                  </button>
+                </form>
+
+                <button type="button" class="btn btn-outline-dark btn-sm fw-bold" data-bs-toggle="modal" data-bs-target="#editModal_{{ pid }}">
+                  <i class="bi bi-pencil-square me-1 text-success"></i> Modifier le texte à ma façon
+                </button>
+              </div>
             </div>
           </div>
 
@@ -794,24 +1016,24 @@
     </div>
 
     <div class="step-body">
-      <form method="POST" action="{{ url_for('admin.whatsapp_promo_settings') }}">
+      <form method="POST" action="{{ url_for('admin.whatsapp_promo_settings') }}" id="promoSettingsForm">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
         <!-- Les 2 canaux de diffusion : Statut & Groupes -->
         <div class="channels-selection-grid">
           <!-- Canal 1 : Statut -->
-          <label class="channel-choice-card {% if ps.get('status_enabled', True) %}is-selected{% endif %}">
+          <label class="channel-choice-card {% if ps.get('status_enabled', True) %}is-selected{% endif %}" id="cardStatusChoice">
             <div class="channel-choice-header">
               <div class="channel-choice-title">
                 <i class="bi bi-camera-fill text-success fs-5"></i>
                 <span>Mon Statut (Story)</span>
               </div>
-              <input class="form-check-input" type="checkbox" name="status_enabled" value="1" {% if ps.get('status_enabled', True) %}checked{% endif %} style="width:1.25rem;height:1.25rem;">
+              <input class="form-check-input js-instant-toggle" type="checkbox" id="chStatusChoice" name="status_enabled" value="1" {% if ps.get('status_enabled', True) %}checked{% endif %} style="width:1.25rem;height:1.25rem;">
             </div>
             {% set st_tot = ps.get('status_products', 12) %}
             {% set st_matin = (st_tot + 1) // 2 if st_tot >= 4 else st_tot %}
             {% set st_soir = (st_tot - st_matin) if st_tot >= 4 else 0 %}
-            <p class="channel-choice-desc">
+            <p class="channel-choice-desc" id="descStatusQuota">
               Ce canal est non-intrusif et visible pendant 24h par vos contacts enregistrés ({{ st_tot }} Statuts/jour : {{ st_matin }} matin + {{ st_soir }} soir).
             </p>
             <div style="font-size:0.75rem;font-weight:700;color:#059669;">
@@ -820,16 +1042,16 @@
           </label>
 
           <!-- Canal 2 : Groupes -->
-          <div class="channel-choice-card {% if ps.get('groups_enabled', True) %}is-selected{% endif %}">
+          <div class="channel-choice-card {% if ps.get('groups_enabled', True) %}is-selected{% endif %}" id="cardGroupsChoice">
             <div class="channel-choice-header">
               <label class="channel-choice-title" for="chGroupsChoice" style="cursor:pointer;margin:0;">
                 <i class="bi bi-people-fill text-primary fs-5"></i>
                 <span>Mes Groupes de Vente</span>
               </label>
-              <input class="form-check-input" type="checkbox" id="chGroupsChoice" name="groups_enabled" value="1" {% if ps.get('groups_enabled', True) %}checked{% endif %} style="width:1.25rem;height:1.25rem;">
+              <input class="form-check-input js-instant-toggle" type="checkbox" id="chGroupsChoice" name="groups_enabled" value="1" {% if ps.get('groups_enabled', True) %}checked{% endif %} style="width:1.25rem;height:1.25rem;">
             </div>
             <p class="channel-choice-desc">
-              Envoie l'offre avec la photo directement dans vos groupes WhatsApp dédiés à la vente.
+              Alterne automatiquement chaque offre avec photo entre vos groupes WhatsApp dédiés à la vente.
             </p>
             <div style="display:flex;align-items:center;justify-content:space-between;margin-top:0.5rem;">
               {% if groups_list|length > 0 %}
@@ -846,86 +1068,134 @@
               </button>
             </div>
           </div>
-
-
         </div>
 
-        <!-- Mode de diffusion : Automatique ou Manuel -->
-        <div class="broadcast-action-bar">
+        <!-- Mode de diffusion : Automatique + Réglages renforcés -->
+        <div class="broadcast-action-bar" style="flex-direction:column;align-items:stretch;gap:1rem;">
           <div>
-            <div class="form-check form-switch mb-1">
-              <input class="form-check-input" type="checkbox" role="switch" id="settingEnabled" name="enabled" value="1" {% if ps.get('enabled') %}checked{% endif %} style="width:2.5em;height:1.25em;">
-              <label class="form-check-label fw-bold ms-2" for="settingEnabled" style="font-size:0.95rem;color:#0f172a;">
-                ⏰ Publier automatiquement 2 fois par jour
-              </label>
-            </div>
-            <div style="font-size:0.8rem;color:#64748b;margin-left:3.2em;display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;margin-top:0.35rem;">
-              <span class="fw-bold">☀️ Envoi 1 (Matin) :</span>
-              <select name="schedule_time" class="form-select form-select-sm" style="width:auto;font-weight:700;display:inline-block;">
-                <option value="10:30" {% if ps.get('schedule_time', '10:30') == '10:30' %}selected{% endif %}>10:30 (Matinée)</option>
-                <option value="11:45" {% if ps.get('schedule_time') == '11:45' %}selected{% endif %}>11:45 (Avant-déjeuner)</option>
-                <option value="12:30" {% if ps.get('schedule_time') == '12:30' %}selected{% endif %}>12:30 (Midi)</option>
-                <option value="14:00" {% if ps.get('schedule_time') == '14:00' %}selected{% endif %}>14:00 (Début d'après-midi)</option>
-              </select>
-
-              <span class="fw-bold ms-2">🌙 Envoi 2 (Soir) :</span>
-              <select name="schedule_time_2" class="form-select form-select-sm" style="width:auto;font-weight:700;display:inline-block;">
-                <option value="18:00" {% if ps.get('schedule_time_2') == '18:00' %}selected{% endif %}>18:00 (Fin de journée)</option>
-                <option value="18:30" {% if ps.get('schedule_time_2', '18:30') == '18:30' %}selected{% endif %}>18:30 (Forte audience)</option>
-                <option value="19:30" {% if ps.get('schedule_time_2') == '19:30' %}selected{% endif %}>19:30 (Soirée)</option>
-                <option value="20:30" {% if ps.get('schedule_time_2') == '20:30' %}selected{% endif %}>20:30 (Dîner & détente)</option>
-              </select>
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+              <div class="form-check form-switch m-0">
+                <input class="form-check-input js-instant-toggle" type="checkbox" role="switch" id="settingEnabled" name="enabled" value="1" {% if ps.get('enabled') %}checked{% endif %} style="width:2.5em;height:1.25em;">
+                <label class="form-check-label fw-bold ms-2" for="settingEnabled" style="font-size:0.98rem;color:#0f172a;">
+                  ⏰ Publier automatiquement 2 fois par jour
+                </label>
+              </div>
+              <span id="instantSaveBadge" aria-live="polite" class="badge bg-success-subtle text-success border border-success-subtle" style="display:none;font-size:0.76rem;">
+                <i class="bi bi-check2-circle me-1"></i> Synchronisé
+              </span>
             </div>
 
-            <!-- Réglage des 10 offres (5 Produits + 3 Services + 2 Locations), Statuts 24h et Fraîcheur -->
-            <div style="font-size:0.8rem;color:#475569;margin-left:3.2em;display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;margin-top:0.65rem;background:#f1f5f9;padding:0.45rem 0.85rem;border-radius:10px;">
-              <span class="fw-bold text-dark"><i class="bi bi-sliders me-1"></i> Répartition par envoi (10 offres) :</span>
+            <!-- Ligne 1 : Horaires précis des 2 vagues avec boutons rapides Changer l'heure -->
+            <div style="font-size:0.82rem;color:#334155;display:flex;align-items:center;gap:0.85rem;flex-wrap:wrap;background:#ffffff;border:1px solid #e2e8f0;padding:0.55rem 0.9rem;border-radius:10px;">
+              <div style="display:flex;align-items:center;gap:0.4rem;flex-wrap:wrap;">
+                <label for="inputSchedule1" class="fw-bold text-dark m-0">☀️ Vague 1 (Matin) :</label>
+                <input type="time" id="inputSchedule1" name="schedule_time" value="{{ ps.get('schedule_time', '10:30') }}" class="form-control form-control-sm fw-bold js-watch-setting" style="width:112px;">
+                <button type="button" class="wa-time-chip" data-time-target="inputSchedule1" data-time-val="09:30">09:30</button>
+                <button type="button" class="wa-time-chip" data-time-target="inputSchedule1" data-time-val="10:30">10:30</button>
+                <button type="button" class="wa-time-chip" data-time-target="inputSchedule1" data-time-val="12:00">12:00</button>
+              </div>
 
-              <span title="Nombre de produits physiques">🛍️ Produits :</span>
-              <input type="number" name="products_count" value="{{ ps.get('products_count', 5) }}" min="0" max="15" class="form-control form-control-sm text-center fw-bold" style="width:55px;">
-
-              <span title="Nombre de services professionnels">🛠️ Services :</span>
-              <input type="number" name="services_count" value="{{ ps.get('services_count', 3) }}" min="0" max="15" class="form-control form-control-sm text-center fw-bold" style="width:55px;">
-
-              <span title="Nombre de logements & locations">🏠 Locations :</span>
-              <input type="number" name="rentals_count" value="{{ ps.get('rentals_count', 2) }}" min="0" max="15" class="form-control form-control-sm text-center fw-bold" style="width:55px;">
-
-              <span class="ms-1" title="Total d'offres publiées en Statut WhatsApp sur la journée (ex: 12 = 6 matin + 6 soir)">📸 Statuts/jour (6+6) :</span>
-              <input type="number" name="status_products" value="{{ ps.get('status_products', 12) }}" min="1" max="24" class="form-control form-control-sm text-center fw-bold" style="width:55px;">
-
-              <span class="ms-1" title="Ancienneté prioritaire des logements proposés">⏱️ Fraîcheur locations :</span>
-              <select name="rental_max_age_hours" class="form-select form-select-sm" style="width:auto;font-weight:700;">
-                <option value="12" {% if ps.get('rental_max_age_hours') == 12 %}selected{% endif %}>Moins de 12h</option>
-                <option value="24" {% if ps.get('rental_max_age_hours', 24) == 24 %}selected{% endif %}>Moins de 24h (Prioritaire)</option>
-                <option value="48" {% if ps.get('rental_max_age_hours') == 48 %}selected{% endif %}>Moins de 48h</option>
-                <option value="72" {% if ps.get('rental_max_age_hours') == 72 %}selected{% endif %}>Moins de 72h</option>
-                <option value="168" {% if ps.get('rental_max_age_hours') == 168 %}selected{% endif %}>Toutes les récentes</option>
-              </select>
+              <div style="display:flex;align-items:center;gap:0.4rem;flex-wrap:wrap;" class="ms-md-3">
+                <label for="inputSchedule2" class="fw-bold text-dark m-0">🌙 Vague 2 (Soir) :</label>
+                <input type="time" id="inputSchedule2" name="schedule_time_2" value="{{ ps.get('schedule_time_2', '18:30') }}" class="form-control form-control-sm fw-bold js-watch-setting" style="width:112px;">
+                <button type="button" class="wa-time-chip" data-time-target="inputSchedule2" data-time-val="18:00">18:00</button>
+                <button type="button" class="wa-time-chip" data-time-target="inputSchedule2" data-time-val="18:30">18:30</button>
+                <button type="button" class="wa-time-chip" data-time-target="inputSchedule2" data-time-val="20:30">20:30</button>
+              </div>
             </div>
 
-            <!-- Réglage des délais anti-ban (45s - 90s) et rappel de persistance 2h -->
-            <div style="font-size:0.8rem;color:#475569;margin-left:3.2em;display:flex;align-items:center;gap:0.65rem;flex-wrap:wrap;margin-top:0.45rem;background:#f8fafc;border:1px solid #e2e8f0;padding:0.4rem 0.85rem;border-radius:10px;">
+            <!-- Ligne 2 : Répartition par vague avec boutons - / + renforcés -->
+            {% set tot_quota = ps.get('products_count', 5) + ps.get('services_count', 3) + ps.get('rentals_count', 2) %}
+            <div style="font-size:0.82rem;color:#334155;display:flex;align-items:center;gap:0.8rem;flex-wrap:wrap;margin-top:0.6rem;background:#f1f5f9;border:1px solid #cbd5e1;padding:0.6rem 0.9rem;border-radius:10px;">
+              <span class="fw-bold text-dark">
+                <i class="bi bi-sliders me-1 text-success"></i> Répartition par vague (<span id="liveTotalOffersLabel">{{ tot_quota }}</span> offres) :
+              </span>
+
+              <div class="d-inline-flex align-items-center gap-1" title="Nombre de produits physiques par vague">
+                <label for="inpProdCount" class="fw-semibold m-0">🛍️ Produits :</label>
+                <div class="wa-stepper">
+                  <button type="button" class="wa-stepper-btn" data-step-target="inpProdCount" data-step="-1" aria-label="Moins">−</button>
+                  <input type="number" id="inpProdCount" name="products_count" value="{{ ps.get('products_count', 5) }}" min="0" max="15" class="js-watch-setting js-quota-input">
+                  <button type="button" class="wa-stepper-btn" data-step-target="inpProdCount" data-step="1" aria-label="Plus">+</button>
+                </div>
+              </div>
+
+              <div class="d-inline-flex align-items-center gap-1" title="Nombre de services professionnels par vague">
+                <label for="inpServCount" class="fw-semibold m-0">🛠️ Services :</label>
+                <div class="wa-stepper">
+                  <button type="button" class="wa-stepper-btn" data-step-target="inpServCount" data-step="-1" aria-label="Moins">−</button>
+                  <input type="number" id="inpServCount" name="services_count" value="{{ ps.get('services_count', 3) }}" min="0" max="15" class="js-watch-setting js-quota-input">
+                  <button type="button" class="wa-stepper-btn" data-step-target="inpServCount" data-step="1" aria-label="Plus">+</button>
+                </div>
+              </div>
+
+              <div class="d-inline-flex align-items-center gap-1" title="Nombre de locations immobilières par vague">
+                <label for="inpRentCount" class="fw-semibold m-0">🏠 Locations :</label>
+                <div class="wa-stepper">
+                  <button type="button" class="wa-stepper-btn" data-step-target="inpRentCount" data-step="-1" aria-label="Moins">−</button>
+                  <input type="number" id="inpRentCount" name="rentals_count" value="{{ ps.get('rentals_count', 2) }}" min="0" max="15" class="js-watch-setting js-quota-input">
+                  <button type="button" class="wa-stepper-btn" data-step-target="inpRentCount" data-step="1" aria-label="Plus">+</button>
+                </div>
+              </div>
+
+              <div class="d-inline-flex align-items-center gap-1" title="Total d'offres publiées en Story 24h sur la journée (réparti moitié matin + moitié soir)">
+                <label for="inpStatusCount" class="fw-semibold m-0">📸 Statuts/jour (<span id="liveStatusSplitLabel">{{ st_matin }}+{{ st_soir }}</span>) :</label>
+                <div class="wa-stepper">
+                  <button type="button" class="wa-stepper-btn" data-step-target="inpStatusCount" data-step="-1" aria-label="Moins">−</button>
+                  <input type="number" id="inpStatusCount" name="status_products" value="{{ ps.get('status_products', 12) }}" min="1" max="24" class="js-watch-setting">
+                  <button type="button" class="wa-stepper-btn" data-step-target="inpStatusCount" data-step="1" aria-label="Plus">+</button>
+                </div>
+              </div>
+
+              <div class="d-inline-flex align-items-center gap-1" title="Ancienneté prioritaire des logements proposés">
+                <label for="inpRentalAge" class="fw-semibold m-0">⏱️ Fraîcheur locations :</label>
+                <select name="rental_max_age_hours" id="inpRentalAge" class="form-select form-select-sm fw-bold js-watch-setting" style="width:auto;">
+                  <option value="12" {% if ps.get('rental_max_age_hours') == 12 %}selected{% endif %}>Moins de 12h</option>
+                  <option value="24" {% if ps.get('rental_max_age_hours', 24) == 24 %}selected{% endif %}>Moins de 24h (Prioritaire)</option>
+                  <option value="48" {% if ps.get('rental_max_age_hours') == 48 %}selected{% endif %}>Moins de 48h</option>
+                  <option value="72" {% if ps.get('rental_max_age_hours') == 72 %}selected{% endif %}>Moins de 72h</option>
+                  <option value="168" {% if ps.get('rental_max_age_hours') == 168 %}selected{% endif %}>Toutes les récentes</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Ligne 3 : Délais anti-ban avec boutons - / + et aperçu dynamique du pas entre groupes -->
+            <div style="font-size:0.82rem;color:#334155;display:flex;align-items:center;gap:0.65rem;flex-wrap:wrap;margin-top:0.55rem;background:#ffffff;border:1px solid #e2e8f0;padding:0.5rem 0.9rem;border-radius:10px;">
               <span class="fw-bold text-dark"><i class="bi bi-shield-check text-success me-1"></i> Délais anti-ban :</span>
-              <span>Min</span>
-              <input type="number" name="min_delay" value="{{ ps.get('min_delay', 45) }}" min="20" max="300" class="form-control form-control-sm text-center fw-bold" style="width:60px;">
-              <span>sec — Max</span>
-              <input type="number" name="max_delay" value="{{ ps.get('max_delay', 90) }}" min="20" max="300" class="form-control form-control-sm text-center fw-bold" style="width:60px;">
+              <label for="inpMinDelay" class="m-0">Min</label>
+              <div class="wa-stepper">
+                <button type="button" class="wa-stepper-btn" data-step-target="inpMinDelay" data-step="-5" aria-label="Moins">−</button>
+                <input type="number" id="inpMinDelay" name="min_delay" value="{{ ps.get('min_delay', 45) }}" min="20" max="300" class="js-watch-setting">
+                <button type="button" class="wa-stepper-btn" data-step-target="inpMinDelay" data-step="5" aria-label="Plus">+</button>
+              </div>
+              <label for="inpMaxDelay" class="m-0">sec — Max</label>
+              <div class="wa-stepper">
+                <button type="button" class="wa-stepper-btn" data-step-target="inpMaxDelay" data-step="-5" aria-label="Moins">−</button>
+                <input type="number" id="inpMaxDelay" name="max_delay" value="{{ ps.get('max_delay', 90) }}" min="20" max="300" class="js-watch-setting">
+                <button type="button" class="wa-stepper-btn" data-step-target="inpMaxDelay" data-step="5" aria-label="Plus">+</button>
+              </div>
               <span>sec</span>
-              <span class="badge bg-secondary-subtle text-dark border ms-auto" style="font-weight:600;">
+              <span class="badge bg-secondary-subtle text-dark border ms-auto" style="font-weight:600;" id="liveDelayHintBadge">
                 <i class="bi bi-shuffle me-1"></i> Alternance auto selon nb de groupes • Persistance max 2h
               </span>
             </div>
           </div>
 
-          <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
-            <button type="submit" class="btn btn-light border fw-bold shadow-sm">
-              <i class="bi bi-check2 me-1"></i> Enregistrer ces choix
-            </button>
+          <!-- Barre d'actions bien visible et synchronisée -->
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:0.75rem;flex-wrap:wrap;padding-top:0.5rem;border-top:1px solid #e2e8f0;">
+            <div style="font-size:0.78rem;color:#64748b;" id="dirtySettingsHint" aria-live="polite">
+              <i class="bi bi-check-circle text-success me-1"></i> Les offres affichées à l'Étape 2 suivent automatiquement ces réglages.
+            </div>
+            <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
+              <button type="submit" id="btnApplySettings" class="btn btn-dark btn-apply-settings shadow-sm">
+                <i class="bi bi-sliders me-1"></i> Appliquer & Adapter les offres
+              </button>
 
-            <!-- Bouton pour diffuser tout de suite -->
-            <button type="button" class="btn-publish-now" data-bs-toggle="modal" data-bs-target="#sendConfirmModal" {% if st != 'connected' %}disabled title="Connectez d'abord votre WhatsApp à l'Étape 1"{% endif %}>
-              <i class="bi bi-rocket-takeoff-fill"></i> Publier maintenant 🚀
-            </button>
+              <!-- Bouton pour diffuser tout de suite -->
+              <button type="button" id="btnOpenPublishModal" class="btn-publish-now" data-bs-toggle="modal" data-bs-target="#sendConfirmModal" {% if st != 'connected' %}disabled title="Connectez d'abord votre WhatsApp à l'Étape 1"{% endif %}>
+                <i class="bi bi-rocket-takeoff-fill"></i> Publier maintenant ({{ wave_title }}) 🚀
+              </button>
+            </div>
           </div>
         </div>
 
@@ -943,21 +1213,7 @@
       <div class="modal-content border-0 shadow-lg" style="border-radius:16px;">
         <form method="POST" action="{{ url_for('admin.whatsapp_promo_settings') }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <!-- Conserver les autres réglages -->
-          <input type="hidden" name="enabled" value="{{ 1 if ps.get('enabled') else 0 }}">
-          <input type="hidden" name="status_enabled" value="{{ 1 if ps.get('status_enabled', True) else 0 }}">
-          <input type="hidden" name="groups_enabled" value="1">
-          <input type="hidden" name="schedule_time" value="{{ ps.get('schedule_time', '10:30') }}">
-          <input type="hidden" name="schedule_time_2" value="{{ ps.get('schedule_time_2', '18:30') }}">
-          <input type="hidden" name="products_count" value="{{ ps.get('products_count', 5) }}">
-          <input type="hidden" name="services_count" value="{{ ps.get('services_count', 3) }}">
-          <input type="hidden" name="rentals_count" value="{{ ps.get('rentals_count', 2) }}">
-          <input type="hidden" name="rental_max_age_hours" value="{{ ps.get('rental_max_age_hours', 24) }}">
-          <input type="hidden" name="status_products" value="{{ ps.get('status_products', 12) }}">
-          <input type="hidden" name="daily_message_limit" value="{{ ps.get('daily_message_limit', 50) }}">
-          <input type="hidden" name="min_delay" value="{{ ps.get('min_delay', 45) }}">
-          <input type="hidden" name="max_delay" value="{{ ps.get('max_delay', 90) }}">
-          <input type="hidden" name="cooldown_days" value="{{ ps.get('cooldown_days', 7) }}">
+          <input type="hidden" name="groups_only_modal" value="1">
 
           <div class="modal-header bg-light">
             <h5 class="modal-title fw-bold">
@@ -1027,30 +1283,32 @@
   <div class="modal fade" id="sendConfirmModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content border-0 shadow-lg" style="border-radius:16px;">
-        <form method="POST" action="{{ url_for('admin.whatsapp_promo_run') }}">
+        <form method="POST" action="{{ url_for('admin.whatsapp_promo_run') }}" id="formConfirmLiveSend">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="mode" value="live">
 
           <div class="modal-header bg-success text-white">
             <h5 class="modal-title fw-bold">
-              <i class="bi bi-send-check-fill me-2"></i> Confirmer la Publication
+              <i class="bi bi-send-check-fill me-2"></i> Confirmer la Publication ({{ wave_title }})
             </h5>
             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fermer"></button>
           </div>
 
           <div class="modal-body p-4">
             <p style="font-size:0.95rem;color:#0f172a;line-height:1.5;">
-              Vous êtes sur le point de publier l'offre du jour sur votre WhatsApp :
+              Vous êtes sur le point de diffuser <strong>{{ wave_title }}</strong> sur WhatsApp (la vague suivante sera préparée automatiquement juste après) :
             </p>
 
             <ul class="list-group list-group-flush mb-3" style="font-size:0.88rem;">
               <li class="list-group-item d-flex justify-content-between align-items-center px-0">
-                <span><i class="bi bi-box-seam me-2 text-secondary"></i> Produit à promouvoir</span>
-                <strong>{{ products|length }} produit(s)</strong>
+                <span><i class="bi bi-box-seam me-2 text-secondary"></i> Offres dans la vague</span>
+                <strong id="confirmOffersCount">{{ products|length }} offre(s)</strong>
               </li>
               <li class="list-group-item d-flex justify-content-between align-items-center px-0">
                 <span><i class="bi bi-camera me-2 text-success"></i> Mon Statut (Story 24h)</span>
-                <span class="badge {{ 'bg-success' if ps.get('status_enabled', True) else 'bg-secondary' }}">{{ 'Oui' if ps.get('status_enabled', True) else 'Non' }}</span>
+                <span id="confirmStatusBadge" class="badge {{ 'bg-success' if ps.get('status_enabled', True) else 'bg-secondary' }}">
+                  {{ ('Oui (' ~ count_story ~ ' stories)') if ps.get('status_enabled', True) else 'Non' }}
+                </span>
               </li>
               <li class="list-group-item d-flex justify-content-between align-items-center px-0">
                 <span><i class="bi bi-people me-2 text-primary"></i> Mes Groupes de vente</span>
@@ -1253,14 +1511,15 @@
     var pollTimer = null;
     var csrfToken = window.csrfToken || (document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').getAttribute("content") : "");
 
-    function refreshGatewayStatus() {
+    function refreshGatewayStatus(isBackground) {
       if (isFetching || !statusUrl) return;
       isFetching = true;
 
       fetch(statusUrl, {
         method: "GET",
         headers: { "Accept": "application/json", "X-Requested-With": "fetch" },
-        cache: "no-store"
+        cache: "no-store",
+        priority: isBackground ? "low" : "auto"
       })
         .then(function (resp) { return resp.json(); })
         .then(function (data) {
@@ -1271,7 +1530,9 @@
           if (st === "connected" && banner.classList.contains("is-qr_ready")) {
             // Recharger la page dès que le scan réussit
             window.location.reload();
+            return;
           }
+          checkWaveProgress(data);
         })
         .catch(function () {})
         .finally(function () {
@@ -1279,14 +1540,31 @@
         });
     }
 
-    // Auto-polling si en attente de scan
-    if (banner.classList.contains("is-qr_ready")) {
-      pollTimer = window.setInterval(refreshGatewayStatus, 4000);
+    var appContainer = document.querySelector(".wa-app-container");
+    var initialWaveNum = appContainer ? parseInt(appContainer.getAttribute("data-wave-number") || "1", 10) : 1;
+    var wasSending = appContainer && appContainer.getAttribute("data-is-sending") === "1";
+
+    function checkWaveProgress(data) {
+      if (!data || !data.promo_state) return;
+      var psState = data.promo_state;
+      var liveBanner = document.getElementById("liveSendBanner");
+      if (psState.is_sending) {
+        wasSending = true;
+        if (liveBanner) liveBanner.style.display = "";
+      } else if (wasSending || (psState.wave_number && psState.wave_number !== initialWaveNum)) {
+        // Dès que l'envoi du matin est fini -> rechargement auto pour afficher la vague du soir en place !
+        window.location.reload();
+      }
+    }
+
+    // Auto-polling si en attente de scan OU si une vague est en cours d'envoi
+    if (banner.classList.contains("is-qr_ready") || wasSending) {
+      pollTimer = window.setInterval(function () { refreshGatewayStatus(true); }, 4500);
     }
 
     refreshBtn.addEventListener("click", function (e) {
       e.preventDefault();
-      refreshGatewayStatus();
+      refreshGatewayStatus(false);
     });
 
     if (disconnectBtn && disconnectUrl) {
@@ -1390,8 +1668,9 @@
 
               var htmlStr = "";
               list.forEach(function(p) {
+                var kindTag = p.kind ? '<span class="badge bg-light text-dark border me-1">' + p.kind + '</span>' : '';
                 htmlStr += '<button type="button" class="list-group-item list-group-item-action d-flex align-items-center justify-content-between p-2 btn-pin-item" data-id="' + p.id + '">' +
-                  '<div><strong>' + p.name + '</strong> <span class="text-muted" style="font-size:0.75rem;">(' + p.shop + ')</span></div>' +
+                  '<div>' + kindTag + '<strong>' + p.name + '</strong> <span class="text-muted" style="font-size:0.75rem;">(' + p.shop + ')</span></div>' +
                   '<div class="badge bg-success-subtle text-success border border-success-subtle">' + p.price + ' DH</div>' +
                   '</button>';
               });
@@ -1426,6 +1705,214 @@
         }
       });
     }
+
+    // 4. Filtrage rapide par catégorie d'offre à l'Étape 2
+    document.querySelectorAll("#offerCategoryFilterBar .offer-filter-pill").forEach(function(pill) {
+      pill.addEventListener("click", function() {
+        document.querySelectorAll("#offerCategoryFilterBar .offer-filter-pill").forEach(function(b) { b.classList.remove("active"); });
+        this.classList.add("active");
+        var flt = this.getAttribute("data-offer-filter");
+        document.querySelectorAll(".promo-product-box").forEach(function(card) {
+          if (flt === "all") {
+            card.style.display = "";
+          } else if (flt === "story") {
+            card.style.display = card.getAttribute("data-in-story") === "1" ? "" : "none";
+          } else {
+            card.style.display = card.getAttribute("data-item-type") === flt ? "" : "none";
+          }
+        });
+      });
+    });
+
+    // 5. Contrôles renforcés de l'Étape 3 (Steppers +/-, Horaires rapides, Calcul temps réel & Sync auto)
+    var settingsForm = document.getElementById("promoSettingsForm");
+    var applyBtn = document.getElementById("btnApplySettings");
+    var dirtyHint = document.getElementById("dirtySettingsHint");
+    var instantBadge = document.getElementById("instantSaveBadge");
+    var settingsDirty = false;
+    var groupsCount = appContainer ? parseInt(appContainer.getAttribute("data-groups-count") || "0", 10) : 0;
+
+    function clampNum(el) {
+      if (!el) return 0;
+      var v = parseInt(el.value || "0", 10);
+      if (isNaN(v)) v = 0;
+      var mn = parseInt(el.getAttribute("min") || "0", 10);
+      var mx = parseInt(el.getAttribute("max") || "999", 10);
+      v = Math.max(mn, Math.min(mx, v));
+      el.value = v;
+      return v;
+    }
+
+    function refreshLiveMetrics(markDirty) {
+      var p = clampNum(document.getElementById("inpProdCount"));
+      var s = clampNum(document.getElementById("inpServCount"));
+      var r = clampNum(document.getElementById("inpRentCount"));
+      var stTot = clampNum(document.getElementById("inpStatusCount"));
+      var dMin = clampNum(document.getElementById("inpMinDelay"));
+      var dMax = clampNum(document.getElementById("inpMaxDelay"));
+      if (dMax < dMin) {
+        dMax = dMin;
+        var mxEl = document.getElementById("inpMaxDelay");
+        if (mxEl) mxEl.value = dMax;
+      }
+
+      var tot = p + s + r;
+      var totEl = document.getElementById("liveTotalOffersLabel");
+      if (totEl) totEl.textContent = String(tot);
+
+      var stMatin = stTot >= 4 ? Math.floor((stTot + 1) / 2) : stTot;
+      var stSoir = stTot >= 4 ? (stTot - stMatin) : 0;
+      var splitEl = document.getElementById("liveStatusSplitLabel");
+      if (splitEl) splitEl.textContent = stMatin + "+" + stSoir;
+
+      var descStatus = document.getElementById("descStatusQuota");
+      if (descStatus) {
+        descStatus.textContent = "Ce canal est non-intrusif et visible pendant 24h par vos contacts enregistrés (" + stTot + " Statuts/jour : " + stMatin + " matin + " + stSoir + " soir).";
+      }
+
+      var delayBadge = document.getElementById("liveDelayHintBadge");
+      if (delayBadge) {
+        var nGrps = Math.max(1, groupsCount);
+        if (nGrps === 1) {
+          delayBadge.innerHTML = '<i class="bi bi-shuffle me-1"></i> 1 groupe : ' + dMin + '–' + dMax + 's entre envois • Persistance max 2h';
+        } else {
+          var stepMin = Math.max(15, Math.round(dMin / nGrps));
+          var stepMax = Math.max(stepMin + 5, Math.round(dMax / nGrps));
+          delayBadge.innerHTML = '<i class="bi bi-shuffle me-1"></i> ' + nGrps + ' groupes alternés : ' + stepMin + '–' + stepMax + 's entre groupes • Persistance max 2h';
+        }
+      }
+
+      var confirmCountEl = document.getElementById("confirmOffersCount");
+      if (confirmCountEl) confirmCountEl.textContent = tot + " offre(s)";
+
+      var stCheck = document.getElementById("chStatusChoice");
+      var confirmStBadge = document.getElementById("confirmStatusBadge");
+      if (confirmStBadge && stCheck) {
+        var plannedWaveSt = Math.min(tot, stMatin);
+        confirmStBadge.className = "badge " + (stCheck.checked ? "bg-success" : "bg-secondary");
+        confirmStBadge.textContent = stCheck.checked ? ("Oui (" + plannedWaveSt + " stories)") : "Non";
+      }
+
+      var cardSt = document.getElementById("cardStatusChoice");
+      var cardGr = document.getElementById("cardGroupsChoice");
+      var grCheck = document.getElementById("chGroupsChoice");
+      if (cardSt && stCheck) cardSt.classList.toggle("is-selected", stCheck.checked);
+      if (cardGr && grCheck) cardGr.classList.toggle("is-selected", grCheck.checked);
+
+      // Marquer les puces d'heure actives
+      document.querySelectorAll(".wa-time-chip").forEach(function(chip) {
+        var tId = chip.getAttribute("data-time-target");
+        var inp = document.getElementById(tId);
+        chip.classList.toggle("is-active", Boolean(inp && inp.value === chip.getAttribute("data-time-val")));
+      });
+
+      if (markDirty) {
+        settingsDirty = true;
+        if (applyBtn) {
+          applyBtn.classList.add("is-dirty");
+          applyBtn.innerHTML = '<i class="bi bi-check2-circle me-1"></i> Appliquer maintenant (' + tot + ' offres)';
+        }
+        if (dirtyHint) {
+          dirtyHint.innerHTML = '<i class="bi bi-exclamation-circle-fill text-warning me-1"></i> <strong>Modification détectée :</strong> cliquez sur « Appliquer » pour mettre à jour les offres ci-dessus.';
+        }
+      }
+    }
+
+    // Boutons Steppers - / +
+    document.querySelectorAll(".wa-stepper-btn").forEach(function(btn) {
+      btn.addEventListener("click", function() {
+        var targetId = this.getAttribute("data-step-target");
+        var step = parseInt(this.getAttribute("data-step") || "1", 10);
+        var inp = document.getElementById(targetId);
+        if (!inp) return;
+        inp.value = (parseInt(inp.value || "0", 10) || 0) + step;
+        refreshLiveMetrics(true);
+      });
+    });
+
+    // Boutons rapides "Changer l'heure"
+    document.querySelectorAll(".wa-time-chip").forEach(function(chip) {
+      chip.addEventListener("click", function() {
+        var targetId = this.getAttribute("data-time-target");
+        var val = this.getAttribute("data-time-val");
+        var inp = document.getElementById(targetId);
+        if (!inp || !val) return;
+        inp.value = val;
+        refreshLiveMetrics(true);
+      });
+    });
+
+    document.querySelectorAll(".js-watch-setting").forEach(function(inp) {
+      inp.addEventListener("change", function() { refreshLiveMetrics(true); });
+      inp.addEventListener("input", function() { refreshLiveMetrics(true); });
+    });
+
+    // Sauvegarde instantanée quand on bascule un switch (Statut, Groupes, Auto 2x/jour)
+    function saveSettingsAjax() {
+      if (!settingsForm) return Promise.resolve();
+      var fd = new FormData(settingsForm);
+      return fetch(settingsForm.action, {
+        method: "POST",
+        headers: { "Accept": "application/json", "X-Requested-With": "fetch", "X-CSRFToken": csrfToken },
+        body: fd
+      }).then(function(r) { return r.json(); }).then(function(res) {
+        if (res && res.regenerated) {
+          window.location.reload();
+          return res;
+        }
+        if (instantBadge) {
+          instantBadge.style.display = "inline-block";
+          setTimeout(function() { instantBadge.style.display = "none"; }, 2500);
+        }
+        return res;
+      }).catch(function() {});
+    }
+
+    document.querySelectorAll(".js-instant-toggle").forEach(function(tg) {
+      tg.addEventListener("change", function() {
+        refreshLiveMetrics(false);
+        saveSettingsAjax();
+      });
+    });
+
+    // Si l'utilisateur clique sur "Changer ce lot (IA)" ou "Publier maintenant 🚀" alors que des réglages Étape 3 ont été modifiés, on synchronise d'abord !
+    var regenForm = document.getElementById("formRegenerateWave");
+    if (regenForm) {
+      regenForm.addEventListener("submit", function(e) {
+        if (!settingsDirty || !settingsForm) return;
+        e.preventDefault();
+        var btn = document.getElementById("btnRegenerateWave");
+        if (btn) btn.disabled = true;
+        var fd = new FormData(settingsForm);
+        fetch(settingsForm.action, {
+          method: "POST",
+          headers: { "Accept": "application/json", "X-Requested-With": "fetch", "X-CSRFToken": csrfToken },
+          body: fd
+        }).finally(function() {
+          settingsDirty = false;
+          regenForm.submit();
+        });
+      });
+    }
+
+    var confirmLiveForm = document.getElementById("formConfirmLiveSend");
+    if (confirmLiveForm) {
+      confirmLiveForm.addEventListener("submit", function(e) {
+        if (!settingsDirty || !settingsForm) return;
+        e.preventDefault();
+        var fd = new FormData(settingsForm);
+        fetch(settingsForm.action, {
+          method: "POST",
+          headers: { "Accept": "application/json", "X-Requested-With": "fetch", "X-CSRFToken": csrfToken },
+          body: fd
+        }).finally(function() {
+          settingsDirty = false;
+          confirmLiveForm.submit();
+        });
+      });
+    }
+
+    refreshLiveMetrics(false);
 
   })();
 </script>
