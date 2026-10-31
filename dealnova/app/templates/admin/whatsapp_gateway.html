@@ -1107,26 +1107,163 @@
     margin-block-end: 1rem;
   }
 
-  /* Choice cards sans décalage de mise en page (:has(:checked) + bordure 2px constante) */
+  /* Choice cards sans décalage de mise en page (:has(:checked) + relief 3D tactile) */
   .channel-choice-card {
+    position: relative;
     background: var(--wa-surface);
     border: 2px solid var(--wa-border);
-    border-radius: 14px;
-    padding: 0.95rem 1.05rem;
-    transition: border-color 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
+    border-radius: 16px;
+    padding: 1.1rem 1.25rem;
+    transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+                border-color 0.22s ease,
+                background 0.22s ease,
+                box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1);
     cursor: pointer;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
+    box-shadow: 0 2px 5px rgba(15, 23, 42, 0.04);
+    user-select: none;
   }
   .channel-choice-card:hover {
     border-color: var(--wa-border-strong);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 18px -4px rgba(15, 23, 42, 0.08);
   }
   .channel-choice-card.is-selected,
   .channel-choice-card:has(input[type="checkbox"]:checked) {
     border-color: #10b981;
-    background: rgba(16, 185, 129, 0.05);
-    box-shadow: 0 4px 14px rgba(16, 185, 129, 0.08);
+    background: linear-gradient(180deg, rgba(236, 253, 245, 0.8) 0%, var(--wa-surface) 100%);
+    box-shadow: 0 12px 26px -6px rgba(16, 185, 129, 0.2),
+                0 4px 10px -2px rgba(16, 185, 129, 0.12),
+                inset 0 1px 0 rgba(255, 255, 255, 0.95);
+    transform: translateY(-2px);
+  }
+  html[data-admin-theme="noc"] .channel-choice-card.is-selected,
+  html[data-admin-theme="noc"] .channel-choice-card:has(input[type="checkbox"]:checked) {
+    background: linear-gradient(180deg, rgba(6, 78, 59, 0.35) 0%, var(--wa-surface) 100%);
+    border-color: #059669;
+    box-shadow: 0 12px 26px -6px rgba(5, 150, 105, 0.32),
+                inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+  .channel-choice-card:not(.is-selected):not(:has(input[type="checkbox"]:checked)) {
+    background: var(--wa-surface-subtle);
+    opacity: 0.85;
+  }
+  .channel-choice-card:not(.is-selected):not(:has(input[type="checkbox"]:checked)):hover {
+    opacity: 1;
+  }
+
+  /* 3D Tactile Toggle Switch & Dynamic Badges */
+  .wa-toggle-3d-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.65rem;
+  }
+
+  .wa-switch-3d {
+    position: relative;
+    display: inline-block;
+    inline-size: 52px;
+    block-size: 28px;
+    flex-shrink: 0;
+    cursor: pointer;
+    margin: 0;
+    vertical-align: middle;
+  }
+
+  .wa-switch-3d input {
+    opacity: 0;
+    inline-size: 0;
+    block-size: 0;
+    position: absolute;
+    margin: 0;
+  }
+
+  .wa-switch-3d-slider {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, #cbd5e1 0%, #94a3b8 100%);
+    border-radius: 999px;
+    transition: all 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: inset 0 2px 4px rgba(15, 23, 42, 0.25),
+                0 1px 2px rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(15, 23, 42, 0.12);
+  }
+
+  .wa-switch-3d-slider::before {
+    position: absolute;
+    content: "";
+    block-size: 22px;
+    inline-size: 22px;
+    inset-inline-start: 2px;
+    inset-block-end: 2px;
+    background: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%);
+    border-radius: 50%;
+    transition: transform 0.24s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.24s ease;
+    box-shadow: 0 3px 6px rgba(15, 23, 42, 0.24),
+                0 1px 2px rgba(15, 23, 42, 0.14),
+                inset 0 1px 1px #ffffff;
+  }
+
+  .wa-switch-3d input:checked + .wa-switch-3d-slider {
+    background: linear-gradient(180deg, #10b981 0%, #059669 100%);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2),
+                0 4px 14px rgba(16, 185, 129, 0.42);
+    border-color: #047857;
+  }
+
+  .wa-switch-3d input:checked + .wa-switch-3d-slider::before {
+    transform: translateX(24px);
+    box-shadow: 0 4px 8px rgba(4, 120, 87, 0.32),
+                0 2px 3px rgba(0, 0, 0, 0.16),
+                inset 0 1px 1px #ffffff;
+  }
+
+  .wa-switch-3d input:focus-visible + .wa-switch-3d-slider {
+    outline: 2px solid #10b981;
+    outline-offset: 3px;
+  }
+
+  html[data-admin-theme="noc"] .wa-switch-3d-slider {
+    background: linear-gradient(180deg, #475569 0%, #334155 100%);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5),
+                0 1px 1px rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+
+  html[data-admin-theme="noc"] .wa-switch-3d-slider::before {
+    background: linear-gradient(180deg, #f8fafc 0%, #cbd5e1 100%);
+  }
+
+  /* 3D State Badges */
+  .wa-state-badge-3d {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.38rem;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    padding: 0.28rem 0.65rem;
+    border-radius: 999px;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    user-select: none;
+    text-transform: uppercase;
+  }
+
+  .wa-state-badge-3d.is-active {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.38),
+                inset 0 1px 1px rgba(255, 255, 255, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+  }
+
+  .wa-state-badge-3d.is-inactive {
+    background: var(--wa-surface-muted);
+    color: var(--wa-ink-muted);
+    border: 1px solid var(--wa-border-strong);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
   }
 
   .channel-choice-header {
@@ -1968,14 +2105,22 @@
 
         <!-- 1. Choix des canaux -->
         <div class="channels-selection-grid">
-          <label class="channel-choice-card {% if ps.get('status_enabled', True) %}is-selected{% endif %}" id="cardStatusChoice">
+          <label class="channel-choice-card {% if ps.get('status_enabled', True) %}is-selected{% endif %}" id="cardStatusChoice" for="chStatusChoice">
             <div>
               <div class="channel-choice-header">
                 <div class="channel-choice-title">
                   <i class="bi bi-camera-fill text-success fs-5"></i>
                   <span>Mon Statut WhatsApp (Story 24h)</span>
                 </div>
-                <input class="form-check-input js-instant-toggle" type="checkbox" id="chStatusChoice" name="status_enabled" value="1" {% if ps.get('status_enabled', True) %}checked{% endif %} style="inline-size:1.2rem;block-size:1.2rem;">
+                <div class="wa-toggle-3d-wrap">
+                  <span id="badgeStatusChoice" class="wa-state-badge-3d {% if ps.get('status_enabled', True) %}is-active{% else %}is-inactive{% endif %}">
+                    {% if ps.get('status_enabled', True) %}<i class="bi bi-check-circle-fill"></i> ACTIF{% else %}<i class="bi bi-dash-circle"></i> INACTIF{% endif %}
+                  </span>
+                  <span class="wa-switch-3d">
+                    <input class="js-instant-toggle" type="checkbox" role="switch" id="chStatusChoice" name="status_enabled" value="1" {% if ps.get('status_enabled', True) %}checked{% endif %}>
+                    <span class="wa-switch-3d-slider"></span>
+                  </span>
+                </div>
               </div>
               {% set st_tot = ps.get('status_products', 12) %}
               {% set st_matin = (st_tot + 1) // 2 if st_tot >= 4 else st_tot %}
@@ -1989,14 +2134,22 @@
             </div>
           </label>
 
-          <div class="channel-choice-card {% if ps.get('groups_enabled', True) %}is-selected{% endif %}" id="cardGroupsChoice">
+          <label class="channel-choice-card {% if ps.get('groups_enabled', True) %}is-selected{% endif %}" id="cardGroupsChoice" for="chGroupsChoice">
             <div>
               <div class="channel-choice-header">
-                <label class="channel-choice-title" for="chGroupsChoice" style="cursor:pointer;margin:0;">
+                <div class="channel-choice-title">
                   <i class="bi bi-people-fill text-primary fs-5"></i>
                   <span>Mes Groupes de Vente</span>
-                </label>
-                <input class="form-check-input js-instant-toggle" type="checkbox" id="chGroupsChoice" name="groups_enabled" value="1" {% if ps.get('groups_enabled', True) %}checked{% endif %} style="inline-size:1.2rem;block-size:1.2rem;">
+                </div>
+                <div class="wa-toggle-3d-wrap">
+                  <span id="badgeGroupsChoice" class="wa-state-badge-3d {% if ps.get('groups_enabled', True) %}is-active{% else %}is-inactive{% endif %}">
+                    {% if ps.get('groups_enabled', True) %}<i class="bi bi-check-circle-fill"></i> ACTIF{% else %}<i class="bi bi-dash-circle"></i> INACTIF{% endif %}
+                  </span>
+                  <span class="wa-switch-3d">
+                    <input class="js-instant-toggle" type="checkbox" role="switch" id="chGroupsChoice" name="groups_enabled" value="1" {% if ps.get('groups_enabled', True) %}checked{% endif %}>
+                    <span class="wa-switch-3d-slider"></span>
+                  </span>
+                </div>
               </div>
               <p class="channel-choice-desc">
                 Alterne automatiquement les offres avec photo entre vos groupes WhatsApp enregistrés.
@@ -2016,7 +2169,7 @@
                 <i class="bi bi-gear-fill" aria-hidden="true"></i> Gérer mes groupes
               </button>
             </div>
-          </div>
+          </label>
         </div>
 
         <!-- 2. Bento 2 Colonnes : Automatisation Horaires + Quotas par catégorie -->
@@ -2025,12 +2178,18 @@
           <!-- Colonne A : Programmation automatique -->
           <div class="wa-bento-panel">
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-              <div class="form-check form-switch m-0 d-flex align-items-center gap-2">
-                <input class="form-check-input js-instant-toggle m-0" type="checkbox" role="switch" id="settingEnabled" name="enabled" value="1" {% if ps.get('enabled') %}checked{% endif %} style="inline-size:2.4em;block-size:1.25em;cursor:pointer;">
-                <label class="form-check-label fw-bold" for="settingEnabled" style="font-size:0.9rem;color:var(--wa-ink);cursor:pointer;">
+              <label class="wa-toggle-3d-wrap m-0" for="settingEnabled" style="cursor:pointer;">
+                <span class="wa-switch-3d">
+                  <input class="js-instant-toggle" type="checkbox" role="switch" id="settingEnabled" name="enabled" value="1" {% if ps.get('enabled') %}checked{% endif %}>
+                  <span class="wa-switch-3d-slider"></span>
+                </span>
+                <span class="fw-bold" style="font-size:0.9rem;color:var(--wa-ink);user-select:none;">
                   ⏰ Publier automatiquement 2 fois / jour
-                </label>
-              </div>
+                </span>
+              </label>
+              <span id="badgeAutoSchedule" class="wa-state-badge-3d {% if ps.get('enabled') %}is-active{% else %}is-inactive{% endif %}">
+                {% if ps.get('enabled') %}<i class="bi bi-clock-fill"></i> PLANIFIÉ{% else %}<i class="bi bi-pause-fill"></i> EN PAUSE{% endif %}
+              </span>
             </div>
 
             <div class="wa-schedule-row">
@@ -2822,6 +2981,25 @@
       if (cardSt && stCheck) cardSt.classList.toggle("is-selected", stCheck.checked);
       if (cardGr && grCheck) cardGr.classList.toggle("is-selected", grCheck.checked);
 
+      var badgeSt = document.getElementById("badgeStatusChoice");
+      if (badgeSt && stCheck) {
+        badgeSt.className = "wa-state-badge-3d " + (stCheck.checked ? "is-active" : "is-inactive");
+        badgeSt.innerHTML = stCheck.checked ? '<i class="bi bi-check-circle-fill"></i> ACTIF' : '<i class="bi bi-dash-circle"></i> INACTIF';
+      }
+
+      var badgeGr = document.getElementById("badgeGroupsChoice");
+      if (badgeGr && grCheck) {
+        badgeGr.className = "wa-state-badge-3d " + (grCheck.checked ? "is-active" : "is-inactive");
+        badgeGr.innerHTML = grCheck.checked ? '<i class="bi bi-check-circle-fill"></i> ACTIF' : '<i class="bi bi-dash-circle"></i> INACTIF';
+      }
+
+      var autoCheck = document.getElementById("settingEnabled");
+      var badgeAuto = document.getElementById("badgeAutoSchedule");
+      if (badgeAuto && autoCheck) {
+        badgeAuto.className = "wa-state-badge-3d " + (autoCheck.checked ? "is-active" : "is-inactive");
+        badgeAuto.innerHTML = autoCheck.checked ? '<i class="bi bi-clock-fill"></i> PLANIFIÉ' : '<i class="bi bi-pause-fill"></i> EN PAUSE';
+      }
+
       document.querySelectorAll(".wa-time-chip").forEach(function(chip) {
         var tId = chip.getAttribute("data-time-target");
         var inp = document.getElementById(tId);
@@ -2885,6 +3063,13 @@
         }
         return res;
       }).catch(function() {});
+    }
+
+    var btnManage = document.querySelector(".btn-manage-groups");
+    if (btnManage) {
+      btnManage.addEventListener("click", function(e) {
+        e.stopPropagation();
+      });
     }
 
     document.querySelectorAll(".js-instant-toggle").forEach(function(tg) {

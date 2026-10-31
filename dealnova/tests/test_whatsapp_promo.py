@@ -1178,7 +1178,8 @@ def test_wave_1_to_wave_2_auto_transition_and_reinforced_controls(app, tmp_path)
         assert '/photo/0/download"' not in html_1
         assert 'data-wave-number="1"' in html_1
         assert "#10/10" in html_1
-        assert "6 en Statut 24h" in html_1
+        assert "📸 Story 24h" in html_1
+        assert '<span class="pill-count">6</span>' in html_1
 
         with app.app_context():
             lg_morning = whatsapp_promo.get_log()["last_generated"]
