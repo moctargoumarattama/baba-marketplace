@@ -1,6 +1,6 @@
 {% extends "admin/base.html" %}
 
-{% block title %}Audience & Trafic{% endblock %}
+{% block title %}Audience & Trafic Live — Baba Market{% endblock %}
 {% block page_title %}Audience{% endblock %}
 
 {% block head %}
@@ -9,43 +9,46 @@
   :root {
     --aud-bg: #f8fafc;
     --aud-surface: #ffffff;
-    --aud-surface-muted: #f1f5f9;
-    --aud-surface-subtle: #f8fafc;
-    --aud-border: rgba(226, 232, 240, 0.9);
+    --aud-surface-muted: #f8fafc;
+    --aud-surface-subtle: #f1f5f9;
+    --aud-border: rgba(226, 232, 240, 0.95);
     --aud-border-strong: #cbd5e1;
     --aud-ink: #0f172a;
     --aud-ink-secondary: #334155;
     --aud-ink-muted: #64748b;
     --aud-primary: #0f766e;
     --aud-emerald: #10b981;
+    --aud-emerald-dark: #059669;
+    --aud-emerald-subtle: rgba(16, 185, 129, 0.12);
     --aud-radius-lg: 20px;
     --aud-radius-md: 14px;
     --aud-radius-sm: 10px;
-    --aud-shadow-3d: 0 6px 16px -3px rgba(15, 23, 42, 0.05), 0 2px 4px -1px rgba(15, 23, 42, 0.03), inset 0 1px 0 rgba(255, 255, 255, 0.95);
-    --aud-shadow-3d-hover: 0 12px 26px -4px rgba(15, 23, 42, 0.1), 0 4px 8px -2px rgba(15, 23, 42, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.95);
+    --aud-shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.04), 0 1px 2px rgba(15, 23, 42, 0.03);
+    --aud-shadow-3d: 0 10px 25px -5px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.95);
+    --aud-shadow-3d-hover: 0 16px 32px -6px rgba(15, 23, 42, 0.1), 0 4px 8px -2px rgba(15, 23, 42, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.95);
   }
 
   html[data-admin-theme="noc"] {
     --aud-bg: #0b1120;
     --aud-surface: #0f172a;
-    --aud-surface-muted: #1e293b;
-    --aud-surface-subtle: #141f32;
+    --aud-surface-muted: #141f32;
+    --aud-surface-subtle: #1e293b;
     --aud-border: #334155;
     --aud-border-strong: #475569;
     --aud-ink: #f8fafc;
     --aud-ink-secondary: #cbd5e1;
     --aud-ink-muted: #94a3b8;
-    --aud-shadow-3d: 0 6px 20px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.06);
-    --aud-shadow-3d-hover: 0 14px 28px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    --aud-shadow-3d: 0 10px 25px -5px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    --aud-shadow-3d-hover: 0 16px 36px -6px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.1);
   }
 
   .aud-page {
     display: flex;
     flex-direction: column;
-    gap: 0.9rem;
+    gap: 1.1rem;
     max-inline-size: 1440px;
     margin-inline: auto;
-    padding-block-end: 2rem;
+    padding-block-end: 2.5rem;
     color: var(--aud-ink);
   }
 
@@ -55,19 +58,19 @@
     box-sizing: border-box;
   }
 
-  /* 3D Glass Hero */
+  /* 3D Glass Hero Executive Bar */
   .aud-hero {
     position: relative;
     border-radius: var(--aud-radius-lg);
-    background: radial-gradient(circle at 85% 15%, rgba(20, 184, 166, 0.25), transparent 40%),
-                linear-gradient(135deg, #0b1329 0%, #0f243a 52%, #064e3b 100%);
+    background: radial-gradient(circle at 90% 10%, rgba(20, 184, 166, 0.28), transparent 42%),
+                linear-gradient(135deg, #091322 0%, #0d2238 50%, #064e3b 100%);
     color: #ffffff;
-    padding: 1.15rem 1.35rem;
-    box-shadow: 0 16px 36px -6px rgba(11, 19, 41, 0.35), inset 0 1px 1px rgba(255, 255, 255, 0.18);
+    padding: 1.25rem 1.5rem;
+    box-shadow: 0 20px 40px -10px rgba(9, 19, 34, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.2);
     border: 1px solid rgba(255, 255, 255, 0.12);
     display: flex;
     flex-direction: column;
-    gap: 0.9rem;
+    gap: 1rem;
   }
 
   .aud-hero-top {
@@ -75,64 +78,65 @@
     align-items: center;
     justify-content: space-between;
     flex-wrap: wrap;
-    gap: 0.9rem;
+    gap: 1rem;
   }
 
   .aud-hero-copy h1 {
-    font-size: clamp(1.2rem, 0.95rem + 1vw, 1.55rem);
+    font-size: clamp(1.25rem, 1rem + 1vw, 1.65rem);
     font-weight: 900;
-    letter-spacing: -0.02em;
-    margin: 0 0 0.2rem 0;
+    letter-spacing: -0.025em;
+    margin: 0 0 0.25rem 0;
     display: flex;
     align-items: center;
-    gap: 0.55rem;
+    gap: 0.6rem;
   }
 
   .aud-hero-copy p {
     margin: 0;
-    font-size: 0.83rem;
-    color: rgba(255, 255, 255, 0.84);
+    font-size: 0.86rem;
+    color: rgba(255, 255, 255, 0.85);
     max-inline-size: 680px;
-    line-height: 1.42;
+    line-height: 1.45;
   }
 
   .aud-hero-meta {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 0.45rem;
+    gap: 0.5rem;
   }
 
   .aud-pill {
     display: inline-flex;
     align-items: center;
-    gap: 0.38rem;
-    padding: 0.32rem 0.68rem;
+    gap: 0.4rem;
+    padding: 0.36rem 0.75rem;
     border-radius: 999px;
-    font-size: 0.74rem;
-    font-weight: 700;
+    font-size: 0.76rem;
+    font-weight: 800;
     background: rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(8px);
-    border: 1px solid rgba(255, 255, 255, 0.14);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.16);
     color: #ffffff;
     user-select: none;
   }
 
   .aud-pill.is-live-ok {
-    background: rgba(16, 185, 129, 0.22);
+    background: rgba(16, 185, 129, 0.25);
     color: #a7f3d0;
-    border-color: rgba(16, 185, 129, 0.42);
+    border-color: rgba(16, 185, 129, 0.5);
+    box-shadow: 0 0 14px rgba(16, 185, 129, 0.2);
   }
 
   .aud-pill.is-live-down {
-    background: rgba(239, 68, 68, 0.22);
+    background: rgba(239, 68, 68, 0.25);
     color: #fecaca;
-    border-color: rgba(239, 68, 68, 0.4);
+    border-color: rgba(239, 68, 68, 0.5);
   }
 
   @keyframes aud-pulse {
-    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
-    70% { transform: scale(1); box-shadow: 0 0 0 5px rgba(16, 185, 129, 0); }
+    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.8); }
+    70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
     100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
   }
 
@@ -145,30 +149,31 @@
     flex-shrink: 0;
   }
 
-  /* Segmented 3D Switch for Scope */
+  /* 3D Segmented Scope Switch */
   .aud-filters {
     display: inline-flex;
     align-items: center;
-    padding: 0.24rem;
-    border-radius: 12px;
-    background: rgba(15, 23, 42, 0.4);
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    gap: 0.25rem;
+    padding: 0.28rem;
+    border-radius: 14px;
+    background: rgba(15, 23, 42, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.35);
+    gap: 0.3rem;
   }
 
   .aud-filter-btn {
     border: none;
     background: transparent;
-    color: rgba(255, 255, 255, 0.76);
-    font-size: 0.78rem;
+    color: rgba(255, 255, 255, 0.78);
+    font-size: 0.8rem;
     font-weight: 800;
-    padding: 0.42rem 0.85rem;
-    border-radius: 9px;
+    padding: 0.45rem 0.95rem;
+    border-radius: 10px;
     cursor: pointer;
     transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     display: inline-flex;
     align-items: center;
-    gap: 0.35rem;
+    gap: 0.4rem;
     user-select: none;
   }
 
@@ -180,44 +185,44 @@
   .aud-filter-btn.active {
     background: linear-gradient(135deg, #10b981 0%, #059669 100%);
     color: #ffffff;
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    box-shadow: 0 4px 14px rgba(16, 185, 129, 0.48), inset 0 1px 0 rgba(255, 255, 255, 0.4);
   }
 
-  /* Navigation Chips */
+  /* Quick Navigation Chips */
   .aud-section-nav {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.45rem;
+    gap: 0.5rem;
   }
 
   .aud-nav-chip {
     display: inline-flex;
     align-items: center;
-    gap: 0.38rem;
-    padding: 0.42rem 0.82rem;
+    gap: 0.4rem;
+    padding: 0.42rem 0.85rem;
     border-radius: 999px;
     background: var(--aud-surface);
     border: 1px solid var(--aud-border);
     color: var(--aud-ink-secondary);
-    font-size: 0.77rem;
+    font-size: 0.78rem;
     font-weight: 800;
     text-decoration: none;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.03);
+    box-shadow: var(--aud-shadow-sm);
     transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   .aud-nav-chip:hover {
     border-color: var(--aud-primary);
     transform: translateY(-1px);
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.06);
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.07);
     color: var(--aud-primary);
   }
 
-  /* 3D Bento Layout & Panels */
+  /* Main Balanced 2-Column Bento Layout */
   .aud-shell {
     display: grid;
-    grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.95fr);
-    gap: 0.9rem;
+    grid-template-columns: minmax(0, 1.45fr) minmax(340px, 1fr);
+    gap: 1.1rem;
     align-items: start;
   }
 
@@ -225,201 +230,399 @@
     background: var(--aud-surface);
     border: 1px solid var(--aud-border);
     border-radius: var(--aud-radius-lg);
-    padding: 1rem 1.15rem;
+    padding: 1.15rem 1.25rem;
     box-shadow: var(--aud-shadow-3d);
     position: relative;
-  }
-
-  .aud-sticky-panel {
-    position: sticky;
-    inset-block-start: 1rem;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
   }
 
   .aud-panel-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 0.75rem;
-    margin-block-end: 0.75rem;
-    padding-block-end: 0.45rem;
+    gap: 0.85rem;
+    margin-block-end: 0.95rem;
+    padding-block-end: 0.55rem;
     border-block-end: 1px solid var(--aud-border);
   }
 
   .aud-panel-head h2 {
-    font-size: 0.94rem;
+    font-size: 0.98rem;
     font-weight: 900;
     color: var(--aud-ink);
     margin: 0;
     display: flex;
     align-items: center;
-    gap: 0.45rem;
+    gap: 0.5rem;
   }
 
   .aud-panel-note {
-    font-size: 0.74rem;
+    font-size: 0.76rem;
     color: var(--aud-ink-muted);
-    line-height: 1.25;
+    line-height: 1.3;
   }
 
-  /* 3D Card Grids */
+  /* 3D Bento KPI Master Grid */
   .aud-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 155px), 1fr));
-    gap: 0.65rem;
-  }
-
-  .aud-grid-small {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr));
-    gap: 0.65rem;
-  }
-
-  .aud-grid-panels {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.9rem;
-  }
-
-  .aud-grid-panels .aud-wide {
-    grid-column: 1 / -1;
-  }
-
-  .aud-detail-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.85rem;
   }
 
-  .aud-card {
+  @media (max-width: 640px) {
+    .aud-grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  /* Modern 3D Bento Card */
+  .aud-bento-card {
     background: var(--aud-surface);
     border: 1px solid var(--aud-border);
     border-radius: var(--aud-radius-md);
-    padding: 0.78rem 0.85rem;
+    padding: 1rem 1.1rem;
     box-shadow: var(--aud-shadow-3d);
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    min-block-size: 98px;
+    min-block-size: 135px;
     transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s ease, border-color 0.22s ease;
     user-select: none;
+    position: relative;
+    overflow: hidden;
   }
 
-  .aud-card:hover {
+  .aud-bento-card::before {
+    content: "";
+    position: absolute;
+    inset-block-start: 0;
+    inset-inline: 0;
+    block-size: 3px;
+    background: linear-gradient(90deg, var(--aud-accent, #10b981), transparent);
+    opacity: 0.85;
+  }
+
+  .aud-bento-card:hover {
     transform: translateY(-2px);
     box-shadow: var(--aud-shadow-3d-hover);
     border-color: var(--aud-border-strong);
   }
 
-  .aud-card.is-priority {
-    background: linear-gradient(180deg, rgba(236, 253, 245, 0.75) 0%, var(--aud-surface) 100%);
-    border-color: rgba(16, 185, 129, 0.38);
-    box-shadow: 0 6px 18px -2px rgba(16, 185, 129, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  .aud-bento-card.is-priority {
+    background: linear-gradient(180deg, rgba(236, 253, 245, 0.8) 0%, var(--aud-surface) 100%);
+    border-color: rgba(16, 185, 129, 0.35);
   }
 
-  html[data-admin-theme="noc"] .aud-card.is-priority {
+  html[data-admin-theme="noc"] .aud-bento-card.is-priority {
     background: linear-gradient(180deg, rgba(6, 78, 59, 0.35) 0%, var(--aud-surface) 100%);
     border-color: #059669;
-    box-shadow: 0 8px 20px -2px rgba(5, 150, 105, 0.28);
   }
 
-  .aud-label {
-    font-size: 0.69rem;
+  .aud-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-block-end: 0.4rem;
+  }
+
+  .aud-card-label {
+    font-size: 0.72rem;
     font-weight: 800;
     color: var(--aud-ink-muted);
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    line-height: 1.25;
   }
 
-  .aud-value {
-    font-size: 1.55rem;
+  .aud-card-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.7rem;
+    font-weight: 800;
+    padding: 0.18rem 0.5rem;
+    border-radius: 999px;
+    background: var(--aud-surface-subtle);
+    color: var(--aud-ink-secondary);
+  }
+
+  .aud-card-badge.is-live {
+    background: rgba(16, 185, 129, 0.15);
+    color: #059669;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+  }
+
+  .aud-card-hero-val {
+    font-size: 2.2rem;
     font-weight: 900;
     color: var(--aud-ink);
-    letter-spacing: -0.02em;
-    line-height: 1.1;
-    margin-block: 0.2rem 0.15rem;
+    letter-spacing: -0.03em;
+    line-height: 1;
+    margin-block: 0.2rem 0.45rem;
+    font-variant-numeric: tabular-nums;
   }
 
-  .aud-help {
-    font-size: 0.73rem;
-    color: var(--aud-ink-muted);
-    line-height: 1.32;
+  .aud-card-submetrics {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.45rem;
+    padding-block-start: 0.5rem;
+    border-block-start: 1px dashed var(--aud-border);
+    margin-block-start: auto;
   }
 
-  /* List & Items */
-  .aud-list {
+  .aud-sub-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--aud-ink-secondary);
+    background: var(--aud-surface-muted);
+    padding: 0.22rem 0.55rem;
+    border-radius: 8px;
+    border: 1px solid var(--aud-border);
+  }
+
+  .aud-sub-chip strong {
+    font-weight: 900;
+    color: var(--aud-ink);
+  }
+
+  /* Conversion Funnel Strip */
+  .aud-grid-small {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+
+  @media (max-width: 640px) {
+    .aud-grid-small {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  .aud-conv-card {
+    background: var(--aud-surface);
+    border: 1px solid var(--aud-border);
+    border-radius: var(--aud-radius-md);
+    padding: 0.85rem 1rem;
+    box-shadow: var(--aud-shadow-3d);
     display: flex;
     flex-direction: column;
-    gap: 0.38rem;
+    justify-content: space-between;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    user-select: none;
+    position: relative;
   }
 
+  .aud-conv-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--aud-shadow-3d-hover);
+    border-color: var(--aud-border-strong);
+  }
+
+  .aud-conv-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.4rem;
+  }
+
+  .aud-conv-icon {
+    inline-size: 30px;
+    block-size: 30px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.95rem;
+    background: var(--aud-surface-muted);
+    color: var(--aud-primary);
+  }
+
+  .aud-conv-val {
+    font-size: 1.75rem;
+    font-weight: 900;
+    color: var(--aud-ink);
+    margin-block: 0.25rem 0.2rem;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .aud-conv-pct {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: #059669;
+    background: rgba(16, 185, 129, 0.12);
+    padding: 0.15rem 0.45rem;
+    border-radius: 6px;
+    inline-size: fit-content;
+  }
+
+  /* Dual Panel Grid (Pages & Sources) */
+  .aud-grid-panels {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.85rem;
+  }
+
+  @media (max-width: 640px) {
+    .aud-grid-panels {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  /* Ranked Leaderboard Rows */
   .aud-scroll-panel {
-    max-block-size: 260px;
+    max-block-size: 245px;
     overflow-y: auto;
     scrollbar-gutter: stable;
     overscroll-behavior: contain;
     padding-inline-end: 0.2rem;
   }
 
-  .aud-item {
+  .aud-rank-row {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 0.75rem;
-    padding: 0.52rem 0.7rem;
-    border-radius: var(--aud-radius-sm);
+    padding: 0.55rem 0.8rem;
+    border-radius: 10px;
     background: var(--aud-surface-muted);
-    border: 1px solid transparent;
+    border: 1px solid var(--aud-border);
+    overflow: hidden;
+    margin-block-end: 0.38rem;
     transition: all 0.16s ease;
   }
 
-  .aud-item:hover {
-    border-color: var(--aud-border-strong);
+  .aud-rank-row::before {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: 0;
+    inline-size: var(--bar-pct, 0%);
+    background: linear-gradient(90deg, rgba(16, 185, 129, 0.15) 0%, rgba(16, 185, 129, 0.04) 100%);
+    pointer-events: none;
+    transition: inline-size 0.4s ease;
+  }
+
+  .aud-rank-row:hover {
+    border-color: #10b981;
+    transform: translateX(2px);
+  }
+
+  .aud-rank-num {
+    font-size: 0.72rem;
+    font-weight: 900;
+    color: var(--aud-ink-muted);
+    inline-size: 18px;
+    flex-shrink: 0;
+    text-align: center;
+  }
+
+  .aud-rank-info {
+    min-inline-size: 0;
+    flex-grow: 1;
+    position: relative;
+    z-index: 1;
+  }
+
+  .aud-rank-title {
+    font-size: 0.82rem;
+    font-weight: 800;
+    color: var(--aud-ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+  }
+
+  .aud-rank-meta {
+    font-size: 0.7rem;
+    color: var(--aud-ink-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+  }
+
+  .aud-rank-count {
+    font-size: 0.88rem;
+    font-weight: 900;
+    color: var(--aud-primary);
+    flex-shrink: 0;
+    position: relative;
+    z-index: 1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Live Connected Users List */
+  .aud-user-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.58rem 0.8rem;
+    border-radius: var(--aud-radius-sm);
+    background: var(--aud-surface-muted);
+    border: 1px solid var(--aud-border);
+    margin-block-end: 0.4rem;
+    transition: all 0.16s ease;
+  }
+
+  .aud-user-card:hover {
+    border-color: #10b981;
     background: var(--aud-surface);
     transform: translateX(2px);
   }
 
-  .aud-item-title {
-    font-size: 0.81rem;
-    font-weight: 800;
-    color: var(--aud-ink);
-    line-height: 1.25;
-  }
-
-  .aud-item-meta {
-    font-size: 0.71rem;
-    color: var(--aud-ink-muted);
-    margin-block-start: 0.15rem;
-    line-height: 1.25;
-  }
-
-  .aud-item-side {
-    text-align: end;
+  .aud-user-avatar {
+    inline-size: 32px;
+    block-size: 32px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    position: relative;
     flex-shrink: 0;
-    font-size: 0.88rem;
-    font-weight: 900;
-    color: var(--aud-primary);
   }
 
-  .aud-item-side small {
-    display: block;
-    font-size: 0.67rem;
-    font-weight: 700;
-    color: var(--aud-ink-muted);
+  .aud-user-avatar.is-internal {
+    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  }
+
+  .aud-user-pulse {
+    position: absolute;
+    inset-block-end: 0;
+    inset-inline-end: 0;
+    inline-size: 8px;
+    block-size: 8px;
+    border-radius: 50%;
+    background: #22c55e;
+    border: 2px solid var(--aud-surface);
   }
 
   .aud-badges {
     display: flex;
     flex-wrap: wrap;
     gap: 0.3rem;
-    margin-block-start: 0.22rem;
+    margin-block-start: 0.2rem;
   }
 
   .aud-badge {
     display: inline-flex;
     align-items: center;
-    gap: 0.28rem;
-    padding: 0.18rem 0.45rem;
+    gap: 0.25rem;
+    padding: 0.16rem 0.45rem;
     border-radius: 999px;
     font-size: 0.68rem;
     font-weight: 800;
@@ -440,67 +643,72 @@
     border-color: #bfdbfe;
   }
 
-  .aud-subtle {
-    font-size: 0.71rem;
-    color: var(--aud-ink-muted);
-    font-weight: 600;
-    margin-block-start: 0.2rem;
-  }
-
-  .aud-empty {
-    padding: 0.85rem 1rem;
-    border-radius: var(--aud-radius-sm);
-    background: var(--aud-surface-muted);
-    color: var(--aud-ink-muted);
-    font-size: 0.78rem;
-    text-align: center;
-  }
-
-  /* 3D Heatmap */
+  /* 24-Hour Visual Heatmap */
   .aud-heatmap {
     display: grid;
-    grid-template-columns: repeat(12, minmax(0, 1fr));
-    gap: 0.45rem;
+    grid-template-columns: repeat(24, minmax(0, 1fr));
+    gap: 0.25rem;
+    align-items: end;
+    block-size: 90px;
+    padding-block-end: 1.4rem;
+    position: relative;
   }
 
-  .aud-heat {
-    padding: 0.52rem 0.3rem;
-    text-align: center;
-    border-radius: var(--aud-radius-sm);
-    background: var(--aud-surface-muted);
+  @media (max-width: 768px) {
+    .aud-heatmap {
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      block-size: auto;
+      gap: 0.35rem;
+    }
+  }
+
+  .aud-heat-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    block-size: 100%;
+    position: relative;
+  }
+
+  .aud-heat-bar {
+    inline-size: 100%;
+    border-radius: 4px;
+    background: var(--aud-surface-subtle);
     border: 1px solid var(--aud-border);
-    transition: transform 0.18s ease, box-shadow 0.18s ease;
+    min-block-size: 6px;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    position: relative;
+    cursor: pointer;
   }
 
-  .aud-heat:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+  .aud-heat-bar:hover {
+    filter: brightness(1.15);
+    transform: scaleY(1.08);
+  }
+
+  .aud-heat-bar.is-active {
+    background: linear-gradient(180deg, #10b981 0%, #059669 100%);
+    border-color: #059669;
+    box-shadow: 0 2px 6px rgba(16, 185, 129, 0.35);
+  }
+
+  .aud-heat-bar.is-peak {
+    background: linear-gradient(180deg, #34d399 0%, #059669 100%);
+    border-color: #047857;
+    box-shadow: 0 4px 10px rgba(16, 185, 129, 0.5);
   }
 
   .aud-heat-hour {
-    font-size: 0.68rem;
+    position: absolute;
+    inset-block-end: -1.35rem;
+    font-size: 0.65rem;
     font-weight: 700;
     color: var(--aud-ink-muted);
+    white-space: nowrap;
   }
 
-  .aud-heat-value {
-    font-size: 0.92rem;
-    font-weight: 900;
-    color: var(--aud-ink);
-    margin-block-start: 0.12rem;
-  }
-
-  .aud-heat.is-peak {
-    background: linear-gradient(180deg, #ecfdf5 0%, #d1fae5 100%);
-    border-color: #10b981;
-    box-shadow: 0 3px 8px rgba(16, 185, 129, 0.2);
-  }
-
-  .aud-heat.is-peak .aud-heat-value {
-    color: #065f46;
-  }
-
-  /* Collapsible Details */
+  /* Collapsible Technical Details */
   .aud-detail {
     background: var(--aud-surface);
     border: 1px solid var(--aud-border);
@@ -516,10 +724,10 @@
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    padding: 0.9rem 1.15rem;
+    padding: 0.95rem 1.25rem;
     font-weight: 900;
     color: var(--aud-ink);
-    font-size: 0.92rem;
+    font-size: 0.94rem;
     user-select: none;
     transition: background 0.18s ease;
   }
@@ -537,12 +745,24 @@
     font-size: 0.75rem;
     font-weight: 600;
     color: var(--aud-ink-muted);
-    margin-block-start: 0.12rem;
+    margin-block-start: 0.15rem;
   }
 
   .aud-detail-body {
-    padding: 0.85rem 1.15rem 1.15rem;
+    padding: 0.95rem 1.25rem 1.25rem;
     border-block-start: 1px solid var(--aud-border);
+  }
+
+  .aud-detail-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.95rem;
+  }
+
+  @media (max-width: 768px) {
+    .aud-detail-grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
   }
 
   .aud-code {
@@ -556,39 +776,18 @@
     word-break: break-all;
   }
 
+  .aud-empty {
+    padding: 1.1rem;
+    border-radius: var(--aud-radius-sm);
+    background: var(--aud-surface-muted);
+    color: var(--aud-ink-muted);
+    font-size: 0.8rem;
+    text-align: center;
+  }
+
   @media (max-width: 1024px) {
     .aud-shell {
       grid-template-columns: minmax(0, 1fr);
-    }
-    .aud-grid-panels,
-    .aud-detail-grid {
-      grid-template-columns: minmax(0, 1fr);
-    }
-    .aud-sticky-panel {
-      position: static;
-    }
-  }
-
-  @media (max-width: 768px) {
-    .aud-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-    .aud-heatmap {
-      grid-template-columns: repeat(6, minmax(0, 1fr));
-    }
-    .aud-filters {
-      inline-size: 100%;
-      justify-content: stretch;
-    }
-    .aud-filter-btn {
-      flex: 1 1 0;
-      justify-content: center;
-    }
-  }
-
-  @media (max-width: 480px) {
-    .aud-heatmap {
-      grid-template-columns: repeat(4, minmax(0, 1fr));
     }
   }
 </style>
@@ -596,25 +795,25 @@
 
 {% block content %}
 <div class="aud-page aud-monitor-polish" id="audiencePage" data-live-url="{{ url_for('admin_users.audience_dashboard_live') }}">
-  <!-- 3D Glass Hero -->
+  <!-- 3D Glass Hero Executive Bar -->
   <section class="aud-hero">
     <div class="aud-hero-top">
       <div class="aud-hero-copy">
-        <h1><i class="bi bi-broadcast-pin me-2 text-emerald"></i>Audience et trafic en direct</h1>
+        <h1><i class="bi bi-broadcast-pin text-emerald"></i>Audience et trafic en direct</h1>
         <p>
           Surveillance en temps réel de l'activité des acheteurs, de la conversion et des sessions actives.
         </p>
       </div>
-      <!-- Segmented 3D Switch Scope -->
+      <!-- 3D Segmented Scope Switch -->
       <div class="aud-filters" id="audFilters" role="tablist" aria-label="Portée de l'audience">
         <button type="button" class="aud-filter-btn active" data-scope="clients">
-          <i class="bi bi-people-fill me-1"></i>Clients réels
+          <i class="bi bi-people-fill"></i>Clients réels
         </button>
         <button type="button" class="aud-filter-btn" data-scope="internal">
-          <i class="bi bi-shield-lock me-1"></i>Équipe Baba
+          <i class="bi bi-shield-lock"></i>Équipe Baba
         </button>
         <button type="button" class="aud-filter-btn" data-scope="all">
-          <i class="bi bi-grid-fill me-1"></i>Tout voir
+          <i class="bi bi-grid-fill"></i>Tout voir
         </button>
       </div>
     </div>
@@ -636,21 +835,22 @@
     <a class="aud-nav-chip" href="#audDetails"><i class="bi bi-sliders"></i> Détails</a>
   </nav>
 
-  <!-- 3D Bento Main Shell (Left: Traffic KPIs + Conversions | Right: Live Users Feed) -->
+  <!-- Balanced 2-Column Bento Layout -->
   <section class="aud-shell" id="audResume">
+    <!-- Left Column: Master KPIs, Conversions & Leaderboards -->
     <div class="d-flex flex-column gap-3">
-      <!-- Main Metric Cards -->
+      <!-- 3D Master Metric Bento Grid -->
       <article class="aud-panel">
         <div class="aud-panel-head">
           <div>
-            <h2><i class="bi bi-activity text-primary"></i> Résumé en direct</h2>
+            <h2><i class="bi bi-speedometer2 text-emerald"></i> Résumé en direct</h2>
             <div class="aud-panel-note">Indicateurs clés d'activité et volumes réels d'acheteurs</div>
           </div>
         </div>
         <div class="aud-grid" id="audMainCards"></div>
       </article>
 
-      <!-- Conversions & Commerce Impact -->
+      <!-- Conversion Funnel & Commercial Impact -->
       <article class="aud-panel" id="audConversions">
         <div class="aud-panel-head">
           <div>
@@ -661,7 +861,7 @@
         <div class="aud-grid-small" id="audConversionCards"></div>
       </article>
 
-      <!-- Top Pages & Acquisition Sources -->
+      <!-- Dual Leaderboards (Pages & Sources) -->
       <div class="aud-grid-panels">
         <article class="aud-panel">
           <div class="aud-panel-head">
@@ -670,7 +870,7 @@
               <div class="aud-panel-note">Pages les plus consultées aujourd’hui</div>
             </div>
           </div>
-          <div class="aud-list aud-scroll-panel" id="audTopPages"></div>
+          <div class="aud-scroll-panel" id="audTopPages"></div>
         </article>
 
         <article class="aud-panel">
@@ -680,46 +880,47 @@
               <div class="aud-panel-note">Canaux et provenances des visites</div>
             </div>
           </div>
-          <div class="aud-list aud-scroll-panel" id="audTopSources"></div>
+          <div class="aud-scroll-panel" id="audTopSources"></div>
         </article>
       </div>
     </div>
 
-    <!-- Right Column: Live Feed of Connected Users -->
-    <article class="aud-panel aud-sticky-panel">
-      <div class="aud-panel-head">
-        <div>
-          <h2><i class="bi bi-broadcast text-success"></i> Qui est en ligne maintenant</h2>
-          <div class="aud-panel-note">Comptes actifs sur les 5 dernières minutes</div>
+    <!-- Right Column: Live Feed, User Roles & 24h Heatmap -->
+    <div class="d-flex flex-column gap-3">
+      <!-- Live Feed of Connected Users -->
+      <article class="aud-panel">
+        <div class="aud-panel-head">
+          <div>
+            <h2><i class="bi bi-broadcast text-success"></i> Qui est en ligne maintenant</h2>
+            <div class="aud-panel-note">Comptes actifs sur les 5 dernières minutes</div>
+          </div>
         </div>
-      </div>
-      <div class="aud-list aud-scroll-panel" id="audConnectedList"></div>
+        <div class="aud-scroll-panel" id="audConnectedList"></div>
 
-      <div class="aud-panel-head mt-3">
-        <div>
-          <h2><i class="bi bi-pie-chart-fill text-primary"></i> Types d'utilisateurs</h2>
-          <div class="aud-panel-note">Répartition des sessions actives</div>
+        <div class="aud-panel-head mt-3">
+          <div>
+            <h2><i class="bi bi-pie-chart-fill text-primary"></i> Types d'utilisateurs</h2>
+            <div class="aud-panel-note">Répartition des sessions actives</div>
+          </div>
         </div>
-      </div>
-      <div class="aud-list" id="audRoles"></div>
-    </article>
+        <div class="aud-list" id="audRoles"></div>
+      </article>
+
+      <!-- 24-Hour Affluence Heatmap -->
+      <article class="aud-panel">
+        <div class="aud-panel-head">
+          <div>
+            <h2><i class="bi bi-clock-history text-primary"></i> Heures les plus actives</h2>
+            <div class="aud-panel-note">Intensité et pics de fréquentation aujourd’hui</div>
+          </div>
+        </div>
+        <div class="aud-heatmap" id="audHeatmap"></div>
+      </article>
+    </div>
   </section>
 
-  <!-- Technical Details & Affluence Accordions -->
+  <!-- Bottom Collapsible: Technical Network Details -->
   <section class="aud-page" id="audDetails">
-    <details class="aud-detail" open>
-      <summary>
-        <div>
-          <i class="bi bi-clock-history me-1 text-primary"></i> Heures les plus actives
-          <span>Affluence et intensité des visites tout au long de la journée</span>
-        </div>
-        <i class="bi bi-chevron-down"></i>
-      </summary>
-      <div class="aud-detail-body">
-        <div class="aud-heatmap" id="audHeatmap"></div>
-      </div>
-    </details>
-
     <details class="aud-detail">
       <summary>
         <div>
@@ -737,7 +938,7 @@
                 <div class="aud-panel-note">Localisation géographique estimée</div>
               </div>
             </div>
-            <div class="aud-list aud-scroll-panel" id="audCities"></div>
+            <div class="aud-scroll-panel" id="audCities"></div>
           </article>
 
           <article class="aud-panel">
@@ -747,7 +948,7 @@
                 <div class="aud-panel-note">En-têtes réseau et sécurité transmises</div>
               </div>
             </div>
-            <div class="aud-list aud-scroll-panel" id="audHeaderDebug"></div>
+            <div class="aud-scroll-panel" id="audHeaderDebug"></div>
           </article>
         </div>
       </div>
@@ -787,18 +988,6 @@
 
     function empty(text) {
       return '<div class="aud-empty">' + text + '</div>';
-    }
-
-    function itemRow(title, meta, side, sideSmall) {
-      return (
-        '<div class="aud-item">' +
-          '<div style="min-width:0;">' +
-            '<div class="aud-item-title">' + title + '</div>' +
-            (meta ? '<div class="aud-item-meta">' + meta + '</div>' : '') +
-          '</div>' +
-          '<div class="aud-item-side">' + side + (sideSmall ? '<small>' + sideSmall + '</small>' : '') + '</div>' +
-        '</div>'
-      );
     }
 
     function setHtml(id, html) {
@@ -897,74 +1086,86 @@
     function renderCards(data) {
       const scoped = scopeData(data);
       const isClientScope = currentScope === "clients";
-      // Exclusion complète des métriques robots / crawlers conformément à la demande utilisateur
-      const cards = [
-        [
-          "En ligne maintenant",
-          scoped.activeNow,
-          isClientScope ? "Clients réels actifs ces 2 dernières minutes" : currentScope === "internal" ? "Membres de l'équipe actifs ces 2 dernières minutes" : "Personnes actives sur les 2 dernières minutes",
-          true
-        ],
-        ["Avec compte", number(data.active_authenticated_5m), "Utilisateurs connectés à leur compte", true],
-        ["Sans compte", number(data.active_guests_5m), "Clients qui naviguent sans connexion", true],
-        ["Record aujourd'hui", number(data.peak_active_today), "Plus grand nombre d'humains en ligne simultané", true],
-        ["Activité par minute", number(data.rpm), "Requêtes clients par minute sur le serveur", true],
-        ["Pages ouvertes", number(data.page_views_today), "Pages vues par des acheteurs aujourd'hui", false],
-        [
-          isClientScope ? "Clients uniques vus" : "Personnes différentes",
-          scoped.uniqueToday,
-          isClientScope ? "Clients uniques réels vus aujourd'hui" : currentScope === "internal" ? "Comptes de l'équipe vus aujourd'hui" : "Nombre total de personnes aujourd'hui",
-          false
-        ],
-        ["Clients en ligne", number(data.active_clients_5m), "Clients réels actifs en ce moment", false],
-        ["Équipe en ligne", number(data.active_internal_5m), "Admin et vendeurs actifs en ce moment", false],
-        ["Installations app aujourd'hui", number(data.pwa_installs_today), "Installations de l'application aujourd'hui", false],
-        ["Installations app total", number(data.pwa_installs_total), "Total des installations détectées", false],
-        ["Nouveaux clients", number(data.new_visitors_today), "Première visite aujourd'hui", false],
-        ["Clients de retour", number(data.returning_visitors_today), "Personnes déjà venues avant", false]
-      ];
-      const html = cards.map(function (entry) {
-        return (
-          '<article class="aud-card' + (entry[3] ? ' is-priority' : '') + '">' +
-            '<div class="aud-label">' + entry[0] + '</div>' +
-            '<div class="aud-value">' + entry[1] + '</div>' +
-            '<div class="aud-help">' + entry[2] + '</div>' +
-          '</article>'
-        );
-      }).join("");
-      setHtml("audMainCards", html);
+
+      // Card 1: Live Users (En direct)
+      const c1 = 
+        '<article class="aud-bento-card is-priority" style="--aud-accent:#10b981;">' +
+          '<div class="aud-card-header">' +
+            '<span class="aud-card-label">En ligne maintenant</span>' +
+            '<span class="aud-card-badge is-live"><span class="aud-dot"></span> Live</span>' +
+          '</div>' +
+          '<div class="aud-card-hero-val">' + scoped.activeNow + '</div>' +
+          '<div class="aud-card-submetrics">' +
+            '<span class="aud-sub-chip">Avec compte : <strong>' + number(data.active_authenticated_5m) + '</strong></span>' +
+            '<span class="aud-sub-chip">Sans compte : <strong>' + number(data.active_guests_5m) + '</strong></span>' +
+            '<span class="aud-sub-chip">Record aujourd\'hui : <strong>' + number(data.peak_active_today) + '</strong></span>' +
+          '</div>' +
+        '</article>';
+
+      // Card 2: Portée Quotidienne & Uniques
+      const c2 = 
+        '<article class="aud-bento-card" style="--aud-accent:#3b82f6;">' +
+          '<div class="aud-card-header">' +
+            '<span class="aud-card-label">' + (isClientScope ? "Clients uniques vus" : "Personnes différentes") + '</span>' +
+            '<span class="aud-card-badge"><i class="bi bi-people-fill text-primary"></i> Aujourd\'hui</span>' +
+          '</div>' +
+          '<div class="aud-card-hero-val">' + scoped.uniqueToday + '</div>' +
+          '<div class="aud-card-submetrics">' +
+            '<span class="aud-sub-chip">Nouveaux clients : <strong>' + number(data.new_visitors_today) + '</strong></span>' +
+            '<span class="aud-sub-chip">Clients de retour : <strong>' + number(data.returning_visitors_today) + '</strong></span>' +
+          '</div>' +
+        '</article>';
+
+      // Card 3: Pages & Débit Serveur
+      const c3 = 
+        '<article class="aud-bento-card" style="--aud-accent:#8b5cf6;">' +
+          '<div class="aud-card-header">' +
+            '<span class="aud-card-label">Pages ouvertes</span>' +
+            '<span class="aud-card-badge"><i class="bi bi-speedometer text-secondary"></i> ' + number(data.rpm) + ' req/min</span>' +
+          '</div>' +
+          '<div class="aud-card-hero-val">' + number(data.page_views_today) + '</div>' +
+          '<div class="aud-card-submetrics">' +
+            '<span class="aud-sub-chip">Activité par minute : <strong>' + number(data.rpm) + '</strong></span>' +
+            '<span class="aud-sub-chip">Clients en ligne : <strong>' + number(data.active_clients_5m) + '</strong></span>' +
+            '<span class="aud-sub-chip">Équipe en ligne : <strong>' + number(data.active_internal_5m) + '</strong></span>' +
+          '</div>' +
+        '</article>';
+
+      // Card 4: Application Mobile PWA
+      const c4 = 
+        '<article class="aud-bento-card" style="--aud-accent:#f59e0b;">' +
+          '<div class="aud-card-header">' +
+            '<span class="aud-card-label">Installations app total</span>' +
+            '<span class="aud-card-badge"><i class="bi bi-phone text-warning"></i> PWA</span>' +
+          '</div>' +
+          '<div class="aud-card-hero-val">' + number(data.pwa_installs_total) + '</div>' +
+          '<div class="aud-card-submetrics">' +
+            '<span class="aud-sub-chip">Installations app aujourd\'hui : <strong>' + number(data.pwa_installs_today) + '</strong></span>' +
+          '</div>' +
+        '</article>';
+
+      setHtml("audMainCards", c1 + c2 + c3 + c4);
     }
 
     function renderConversions(data) {
       const conversions = data.conversions || {};
       const html = [
-        ["Ajouts au panier", number(conversions.add_to_cart), (Number(conversions.add_to_cart_rate_pct || 0)).toFixed(1) + "% des visiteurs"],
-        ["Demandes", number(conversions.orders), (Number(conversions.order_rate_pct || 0)).toFixed(1) + "% des visiteurs"],
-        ["WhatsApp ouverts", number(conversions.whatsapp), (Number(conversions.whatsapp_rate_pct || 0)).toFixed(1) + "% des visiteurs"]
+        ["Ajouts au panier", number(conversions.add_to_cart), (Number(conversions.add_to_cart_rate_pct || 0)).toFixed(1) + "% des visiteurs", "bi-cart-plus-fill", "#f59e0b"],
+        ["Demandes", number(conversions.orders), (Number(conversions.order_rate_pct || 0)).toFixed(1) + "% des visiteurs", "bi-bag-check-fill", "#10b981"],
+        ["WhatsApp ouverts", number(conversions.whatsapp), (Number(conversions.whatsapp_rate_pct || 0)).toFixed(1) + "% des visiteurs", "bi-whatsapp", "#25d366"]
       ].map(function (entry) {
         return (
-          '<article class="aud-card is-priority">' +
-            '<div class="aud-label">' + entry[0] + '</div>' +
-            '<div class="aud-value" style="color:#059669;">' + entry[1] + '</div>' +
-            '<div class="aud-help">' + entry[2] + '</div>' +
-          '</article>'
+          '<div class="aud-conv-card">' +
+            '<div class="aud-conv-header">' +
+              '<span class="aud-card-label">' + entry[0] + '</span>' +
+              '<div class="aud-conv-icon" style="color:' + entry[4] + ';"><i class="bi ' + entry[3] + '"></i></div>' +
+            '</div>' +
+            '<div class="aud-conv-val">' + entry[1] + '</div>' +
+            '<div class="aud-conv-pct"><i class="bi bi-arrow-up-right"></i> ' + entry[2] + '</div>' +
+          '</div>'
         );
       }).join("");
       setHtml("audConversionCards", html);
-    }
-
-    function renderList(targetId, items, emptyText, metaBuilder) {
-      if (!Array.isArray(items) || !items.length) {
-        setHtml(targetId, empty(emptyText));
-        return;
-      }
-      const html = items.map(function (item) {
-        const title = String(item.label || item.hour || "-");
-        const count = number(item.count);
-        const meta = typeof metaBuilder === "function" ? metaBuilder(item) : "";
-        return itemRow(title, meta, String(count), "");
-      }).join("");
-      setHtml(targetId, html);
     }
 
     function renderTopPages(items) {
@@ -972,10 +1173,49 @@
         setHtml("audTopPages", empty("Aucune page dominante pour le moment."));
         return;
       }
-      const html = items.map(function (item) {
-        return itemRow(pageLabel(item.label), "", String(number(item.count)), "");
+      let max = 1;
+      items.forEach(function (it) { if (number(it.count) > max) max = number(it.count); });
+
+      const html = items.map(function (item, idx) {
+        const c = number(item.count);
+        const pct = Math.min(100, Math.round((c / max) * 100));
+        return (
+          '<div class="aud-rank-row" style="--bar-pct:' + pct + '%;">' +
+            '<span class="aud-rank-num">' + (idx + 1) + '</span>' +
+            '<div class="aud-rank-info">' +
+              '<span class="aud-rank-title">' + pageLabel(item.label) + '</span>' +
+              '<span class="aud-rank-meta">' + String(item.label || "/") + '</span>' +
+            '</div>' +
+            '<span class="aud-rank-count">' + c + '</span>' +
+          '</div>'
+        );
       }).join("");
       setHtml("audTopPages", html);
+    }
+
+    function renderTopSources(items) {
+      if (!Array.isArray(items) || !items.length) {
+        setHtml("audTopSources", empty("Aucune source détectée pour le moment."));
+        return;
+      }
+      let max = 1;
+      items.forEach(function (it) { if (number(it.count) > max) max = number(it.count); });
+
+      const html = items.map(function (item, idx) {
+        const c = number(item.count);
+        const pct = Math.min(100, Math.round((c / max) * 100));
+        return (
+          '<div class="aud-rank-row" style="--bar-pct:' + pct + '%;">' +
+            '<span class="aud-rank-num">' + (idx + 1) + '</span>' +
+            '<div class="aud-rank-info">' +
+              '<span class="aud-rank-title">' + String(item.label || "Direct") + '</span>' +
+              '<span class="aud-rank-meta">Canal d\'acquisition</span>' +
+            '</div>' +
+            '<span class="aud-rank-count">' + c + '</span>' +
+          '</div>'
+        );
+      }).join("");
+      setHtml("audTopSources", html);
     }
 
     function renderConnectedUsers(data) {
@@ -991,25 +1231,54 @@
       }
 
       const html = items.map(function (item) {
-        const scopeBadge = item.audience_scope === "interne"
+        const isInt = item.audience_scope === "interne";
+        const scopeBadge = isInt
           ? '<span class="aud-badge is-internal"><i class="bi bi-shield-check"></i> Équipe</span>'
           : '<span class="aud-badge is-client"><i class="bi bi-person"></i> Client</span>';
         const roleBadge = item.role ? '<span class="aud-badge"><i class="bi bi-person-badge"></i> ' + roleLabel(item.role) + '</span>' : "";
         const deviceBadge = item.device ? '<span class="aud-badge"><i class="bi bi-phone"></i> ' + deviceLabel(item.device) + '</span>' : "";
         const cityBadge = item.city ? '<span class="aud-badge"><i class="bi bi-geo-alt"></i> ' + String(item.city) + '</span>' : "";
         const pathText = item.path ? "Page active : " + String(item.path) : "Page active non détectée";
+
         return (
-          '<div class="aud-item">' +
-            '<div style="min-width:0;">' +
-              '<div class="aud-item-title">' + String(item.label || "Compte") + '</div>' +
-              '<div class="aud-badges">' + scopeBadge + roleBadge + deviceBadge + cityBadge + '</div>' +
-              '<div class="aud-subtle">' + pathText + '</div>' +
+          '<div class="aud-user-card">' +
+            '<div class="d-flex align-items-center gap-2" style="min-width:0;">' +
+              '<div class="aud-user-avatar ' + (isInt ? 'is-internal' : '') + '">' +
+                '<i class="bi ' + (isInt ? 'bi-shield' : 'bi-person') + '"></i>' +
+                '<span class="aud-user-pulse"></span>' +
+              '</div>' +
+              '<div style="min-width:0;">' +
+                '<div class="aud-item-title" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + String(item.label || "Compte") + '</div>' +
+                '<div class="aud-badges">' + scopeBadge + roleBadge + deviceBadge + cityBadge + '</div>' +
+                '<div class="aud-rank-meta mt-1">' + pathText + '</div>' +
+              '</div>' +
             '</div>' +
             '<div class="aud-item-side">' + String(number(item.last_seen_seconds_ago)) + 's<small>Dernière activité</small></div>' +
           '</div>'
         );
       }).join("");
       setHtml("audConnectedList", html);
+    }
+
+    function renderRoles(data) {
+      const items = scopeData(data).roles || [];
+      if (!items.length) {
+        setHtml("audRoles", empty("Pas encore de sessions catégorisées."));
+        return;
+      }
+      const html = items.map(function (item) {
+        return (
+          '<div class="aud-rank-row">' +
+            '<span class="aud-rank-num"><i class="bi bi-pie-chart"></i></span>' +
+            '<div class="aud-rank-info">' +
+              '<span class="aud-rank-title">' + roleLabel(item.label) + '</span>' +
+              '<span class="aud-rank-meta">Profil de session</span>' +
+            '</div>' +
+            '<span class="aud-rank-count">' + number(item.count) + '</span>' +
+          '</div>'
+        );
+      }).join("");
+      setHtml("audRoles", html);
     }
 
     function renderHeatmap(data) {
@@ -1022,15 +1291,42 @@
 
       const html = items.map(function (item) {
         const c = number(item.count);
+        const pct = Math.max(8, Math.round((c / maxCount) * 100));
         const isPeak = c > 0 && c >= (maxCount * 0.7);
+        const isAct = c > 0;
         return (
-          '<div class="aud-heat' + (isPeak ? ' is-peak' : '') + '">' +
-            '<div class="aud-heat-hour">' + String(item.hour || "--") + '</div>' +
-            '<div class="aud-heat-value">' + c + '</div>' +
+          '<div class="aud-heat-col" title="' + String(item.hour || "--") + ' : ' + c + ' visite(s)">' +
+            '<div class="aud-heat-bar ' + (isPeak ? 'is-peak' : isAct ? 'is-active' : '') + '" style="block-size:' + pct + '%;"></div>' +
+            '<span class="aud-heat-hour">' + String(item.hour || "--") + '</span>' +
           '</div>'
         );
       }).join("");
       setHtml("audHeatmap", html || empty("Aucune donnée horaire."));
+    }
+
+    function renderCities(items) {
+      if (!Array.isArray(items) || !items.length) {
+        setHtml("audCities", empty("Aucune ville disponible pour le moment."));
+        return;
+      }
+      let max = 1;
+      items.forEach(function (it) { if (number(it.count) > max) max = number(it.count); });
+
+      const html = items.map(function (item, idx) {
+        const c = number(item.count);
+        const pct = Math.min(100, Math.round((c / max) * 100));
+        return (
+          '<div class="aud-rank-row" style="--bar-pct:' + pct + '%;">' +
+            '<span class="aud-rank-num">' + (idx + 1) + '</span>' +
+            '<div class="aud-rank-info">' +
+              '<span class="aud-rank-title">' + String(item.label || "Ville") + '</span>' +
+              '<span class="aud-rank-meta">Origine estimée</span>' +
+            '</div>' +
+            '<span class="aud-rank-count">' + c + '</span>' +
+          '</div>'
+        );
+      }).join("");
+      setHtml("audCities", html);
     }
 
     function renderHeaderDebug(data) {
@@ -1049,7 +1345,15 @@
         const sideSmall = detectedCity && value && detectedCity.toLowerCase() === value.toLowerCase()
           ? "Utilisé pour la ville"
           : "";
-        return itemRow(String(item.label || "Information"), meta, status, sideSmall);
+        return (
+          '<div class="aud-rank-row">' +
+            '<div class="aud-rank-info">' +
+              '<span class="aud-rank-title">' + String(item.label || "Information") + '</span>' +
+              '<span class="aud-rank-meta">' + meta + '</span>' +
+            '</div>' +
+            '<div class="aud-item-side">' + status + (sideSmall ? '<small>' + sideSmall + '</small>' : '') + '</div>' +
+          '</div>'
+        );
       }).join("");
       setHtml("audHeaderDebug", html);
     }
@@ -1067,15 +1371,9 @@
       renderConversions(latestData);
       renderConnectedUsers(latestData);
       renderTopPages(latestData.top_pages);
-      renderList("audTopSources", latestData.top_sources, "Aucune source détectée pour le moment.", function () {
-        return "Arrivées observées aujourd’hui";
-      });
-      renderList("audRoles", scopeData(latestData).roles, "Pas encore de sessions catégorisées.", function () {
-        return "Pour distinguer clients et équipe";
-      });
-      renderList("audCities", latestData.city_breakdown, "Aucune ville disponible pour le moment.", function () {
-        return "Ville transmise au site";
-      });
+      renderTopSources(latestData.top_sources);
+      renderRoles(latestData);
+      renderCities(latestData.city_breakdown);
       renderHeaderDebug(latestData);
       renderHeatmap(latestData);
       renderUpdatedAt();
