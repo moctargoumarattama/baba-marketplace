@@ -1271,3 +1271,160 @@ def test_wave_1_to_wave_2_auto_transition_and_reinforced_controls(app, tmp_path)
         with app.app_context():
             lg_adapted = whatsapp_promo.get_log()["last_generated"]
             assert len(lg_adapted["items"]) == 7
+
+
+def test_offer_photo_video_preview_and_short_rental_visit(app, tmp_path):
+    """Vérifie :
+    - Extraction de toutes les photos (gallery_urls), de la vidéo (video_url) et du lien direct (public_url)
+      aussi bien pour un produit/service que pour une location immobilière, y compris par backfill sur un lot déjà en cache.
+    - Rendu de la visionneuse native <dialog id="offerMediaDialog"> + boutons 'Voir photos (2)', 'Voir la vidéo' et 'Visiter l'annonce'.
+    - Résolution propre du lien court /l/<id> vers /location/<slug> et respect de ?preview=1 (sans gonfler les clics WhatsApp).
+    """
+    from dealnova.app.models.rental import RentalListing, RentalMedia
+
+    upload_dir = tmp_path / "uploads"
+    rentals_dir = upload_dir / "rentals"
+    videos_dir = upload_dir / "product_videos"
+    upload_dir.mkdir(exist_ok=True)
+    rentals_dir.mkdir(exist_ok=True)
+    videos_dir.mkdir(exist_ok=True)
+    app.config["UPLOAD_FOLDER"] = str(upload_dir)
+    app.config["WTF_CSRF_ENABLED"] = False
+
+    with app.app_context():
+        app.config["GEMINI_API_KEY"] = ""
+        admin_user = User.query.filter_by(username="wa_media_admin").first()
+        if not admin_user:
+            admin_user = User(
+                username="wa_media_admin",
+                email="wa_media_admin@babamarket.ma",
+                role="admin",
+                is_active=True,
+            )
+            admin_user.set_password("AdminMedia123!")
+            db.session.add(admin_user)
+
+        vendor = User.query.filter_by(username="wa_media_vendor").first()
+        if not vendor:
+            vendor = User(
+                username="wa_media_vendor",
+                email="wa_media_vendor@babamarket.ma",
+                role="vendor",
+                is_active=True,
+            )
+            vendor.set_password("VendorMedia123!")
+            db.session.add(vendor)
+        db.session.flush()
+
+        shop = Shop.query.filter_by(slug="wa-media-shop").first()
+        if not shop:
+            shop = Shop(name="Boutique Média", slug="wa-media-shop", vendor_id=vendor.id, is_active=True)
+            db.session.add(shop)
+            db.session.flush()
+
+        for old_r in RentalListing.query.filter_by(shop_id=shop.id).all():
+            db.session.delete(old_r)
+        for old_p in Product.query.filter_by(shop_id=shop.id).all():
+            db.session.delete(old_p)
+        db.session.flush()
+
+        Image.new("RGB", (300, 300), (20, 120, 90)).save(upload_dir / "p_gal_1.jpg")
+        Image.new("RGB", (300, 300), (40, 140, 110)).save(upload_dir / "p_gal_2.jpg")
+        (videos_dir / "demo_prod.mp4").write_bytes(b"fake-mp4")
+
+        prod = Product(
+            name="Robot Cuisine Vidéo",
+            description="Avec 2 photos et 1 vidéo",
+            price=450.0,
+            stock=5,
+            kind="physical",
+            shop_id=shop.id,
+            vendor_id=vendor.id,
+            is_active=True,
+            image_file="p_gal_1.jpg|p_gal_2.jpg",
+            video_file="uploads/product_videos/demo_prod.mp4",
+        )
+        db.session.add(prod)
+
+        Image.new("RGB", (320, 320), (90, 90, 180)).save(rentals_dir / "r_gal_1.jpg")
+        Image.new("RGB", (320, 320), (110, 90, 180)).save(rentals_dir / "r_gal_2.jpg")
+        (rentals_dir / "visite_appart.mp4").write_bytes(b"fake-rental-mp4")
+
+        rent = RentalListing(
+            owner_id=vendor.id,
+            shop_id=shop.id,
+            title="Studio Moderne Visite Vidéo",
+            slug="studio-moderne-visite-video",
+            description="Studio meublé calme",
+            listing_type="monthly",
+            property_type="studio",
+            city="Rabat",
+            area="Agdal",
+            rent_cents=350000,
+            status="active",
+            is_active=True,
+            created_at=datetime.utcnow() - timedelta(hours=1),
+        )
+        db.session.add(rent)
+        db.session.flush()
+        db.session.add(RentalMedia(listing_id=rent.id, kind="image", file_path="uploads/rentals/r_gal_1.jpg"))
+        db.session.add(RentalMedia(listing_id=rent.id, kind="image", file_path="uploads/rentals/r_gal_2.jpg"))
+        db.session.add(RentalMedia(listing_id=rent.id, kind="video", file_path="uploads/rentals/visite_appart.mp4"))
+        db.session.commit()
+
+        prod_id = prod.id
+        rent_id = rent.id
+        admin_id = admin_user.id
+
+        p_card = whatsapp_promo.build_product_card(prod, include_base64=False)
+        assert len(p_card["gallery_urls"]) == 2
+        assert p_card["video_url"] == "/static/uploads/product_videos/demo_prod.mp4"
+        assert p_card["public_url"] == f"/shop/product/{prod_id}"
+
+        r_card = whatsapp_promo.build_rental_card(rent, include_base64=False)
+        assert len(r_card["gallery_urls"]) == 2
+        assert r_card["video_url"] == "/static/uploads/rentals/visite_appart.mp4"
+        assert r_card["public_url"] == "/location/studio-moderne-visite-video"
+
+        whatsapp_promo._persist_json_state(whatsapp_promo.LOG_KEY, {"history_date": whatsapp_promo._today()})
+        whatsapp_promo.save_settings({
+            "enabled": True,
+            "status_enabled": True,
+            "groups_enabled": True,
+            "products_count": 1,
+            "services_count": 0,
+            "rentals_count": 1,
+            "pinned_product_ids": [prod_id, f"rental_{rent_id}"],
+        })
+
+    client = app.test_client()
+    with client.session_transaction() as sess:
+        sess["_user_id"] = str(admin_id)
+        sess["_fresh"] = True
+
+    with patch("dealnova.app.services.whatsapp_promo.get_whatsapp_gateway_status", return_value={"status": "connected"}):
+        resp = client.get("/admin/whatsapp-gateway")
+        assert resp.status_code == 200
+        html = resp.get_data(as_text=True)
+        assert 'id="offerMediaDialog"' in html
+        assert 'id="offerMediaVideo"' in html
+        assert "Voir photos (2)" in html
+        assert "Voir la vidéo" in html
+        assert "Visiter l&#39;annonce" in html or "Visiter l'annonce" in html
+        assert "/static/uploads/product_videos/demo_prod.mp4" in html
+        assert "/static/uploads/rentals/visite_appart.mp4" in html
+        assert f"/shop/product/{prod_id}" in html
+        assert "/location/studio-moderne-visite-video" in html
+
+    # Test du lien court /l/<id> -> redirige vers /location/<slug> (et ?preview=1 n'incrémente pas les clics)
+    r_prev = client.get(f"/l/{rent_id}?preview=1", follow_redirects=False)
+    assert r_prev.status_code == 302
+    assert "/location/studio-moderne-visite-video" in r_prev.headers["Location"]
+    with app.app_context():
+        assert whatsapp_promo.get_today_clicks().get(f"rental_{rent_id}", 0) == 0
+
+    r_real = client.get(f"/l/{rent_id}", follow_redirects=False)
+    assert r_real.status_code == 302
+    assert "/location/studio-moderne-visite-video" in r_real.headers["Location"]
+    with app.app_context():
+        assert whatsapp_promo.get_today_clicks().get(f"rental_{rent_id}", 0) == 1

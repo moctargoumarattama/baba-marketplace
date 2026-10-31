@@ -530,6 +530,115 @@ def _rental_static_thumb_url(img_filename: str) -> str:
     return f"/static/uploads/{clean}"
 
 
+def _product_static_large_url(img_name: str, root_path: Path | None = None) -> str:
+    """URL statique grand format (variant large si disponible, sinon fichier original) servie par Nginx."""
+    clean = str(img_name or "").strip().replace("\\", "/").lstrip("/")
+    if not clean or ".." in clean:
+        return ""
+    if clean.startswith("static/"):
+        clean = clean[7:]
+    if clean.startswith("uploads/"):
+        clean = clean[8:]
+    base = root_path or _resolved_upload_root()
+    try:
+        from .image import image_variant
+        large_rel = image_variant(clean, "large")
+        if large_rel and (base / large_rel).is_file():
+            return f"/static/uploads/{large_rel}"
+    except Exception:
+        pass
+    return f"/static/uploads/{clean}"
+
+
+def _product_gallery_urls(product: Product | None, root_path: Path | None = None) -> list[str]:
+    if not product:
+        return []
+    base = root_path or _resolved_upload_root()
+    urls: list[str] = []
+    seen: set[str] = set()
+    for name in (product.image_file or "").split("|"):
+        fn = name.strip()
+        if not fn or not _fast_image_exists(fn, base):
+            continue
+        u = _product_static_large_url(fn, base)
+        if u and u not in seen:
+            seen.add(u)
+            urls.append(u)
+    return urls
+
+
+def _product_static_video_url(raw_video: Any) -> str:
+    """Normalise sécuritairement Product.video_file vers /static/uploads/product_videos/<nom>."""
+    path = str(raw_video or "").strip().replace("\\", "/")
+    if (
+        not path
+        or len(path) > 512
+        or path.startswith("//")
+        or any(ord(ch) < 32 for ch in path)
+        or any(ch in path for ch in ":%?#")
+        or any(part in ("", ".", "..") for part in path.lstrip("/").split("/"))
+    ):
+        return ""
+    static_prefixed = path.startswith(("/static/", "static/"))
+    if path.startswith("/static/"):
+        path = path[8:]
+    elif path.startswith("static/"):
+        path = path[7:]
+    elif path.startswith("/"):
+        return ""
+    if path.startswith("uploads/product_videos/"):
+        filename = path[len("uploads/product_videos/"):]
+    elif path.startswith("product_videos/"):
+        filename = path[len("product_videos/"):]
+    elif "/" not in path and not static_prefixed:
+        filename = path
+    else:
+        return ""
+    if not filename or "/" in filename:
+        return ""
+    return f"/static/uploads/product_videos/{filename}"
+
+
+def _rental_gallery_urls(listing: Any) -> list[str]:
+    if not listing:
+        return []
+    roots = _rental_upload_roots()
+    urls: list[str] = []
+    seen: set[str] = set()
+    media_items = sorted(getattr(listing, "media", []) or [], key=lambda m: getattr(m, "id", 0))
+    for m in media_items:
+        if getattr(m, "kind", "") != "image" or not getattr(m, "file_path", ""):
+            continue
+        rel = (m.file_path or "").replace("\\", "/")
+        prefix = "uploads/rentals/"
+        filename = rel[len(prefix):] if rel.startswith(prefix) else rel
+        exists_on_disk = False
+        for upload_root in roots:
+            try:
+                cand = (upload_root / filename).resolve()
+                if cand.is_relative_to(upload_root) and cand.is_file():
+                    exists_on_disk = True
+                    break
+            except (OSError, ValueError):
+                continue
+        if exists_on_disk:
+            u = _rental_static_thumb_url(filename)
+            if u and u not in seen:
+                seen.add(u)
+                urls.append(u)
+    return urls
+
+
+def _rental_static_video_url(listing: Any) -> str:
+    if not listing:
+        return ""
+    media_items = sorted(getattr(listing, "media", []) or [], key=lambda m: getattr(m, "id", 0))
+    for m in media_items:
+        if getattr(m, "kind", "") == "video" and getattr(m, "file_path", ""):
+            return _rental_static_thumb_url(m.file_path)
+    return ""
+
+
 def _get_product_image_base64(product: Product | None) -> str:
     """Génère l'image avec filigrane en base64 (calibrée 1280px WhatsApp) uniquement au moment de l'envoi."""
     if not product:
@@ -1002,6 +1111,12 @@ def build_rental_card(listing: Any, *, include_base64: bool = True) -> dict[str,
     has_image = bool(media_id and img_filename)
     image_url = f"{base}/location/{listing.slug}/photo/{media_id}/download" if has_image else ""
     thumb_url = _rental_static_thumb_url(img_filename) if has_image else ""
+    gallery_urls = _rental_gallery_urls(listing)
+    if not gallery_urls and thumb_url:
+        gallery_urls = [thumb_url]
+    video_url = _rental_static_video_url(listing)
+    slug_val = getattr(listing, "slug", "") or ""
+    public_url = f"/location/{slug_val}" if slug_val else f"/l/{listing.id}?preview=1"
     image_b64 = _get_rental_image_base64(listing) if (has_image and include_base64) else ""
 
     shop_name = getattr(getattr(listing, "shop", None), "name", "") or "Baba Market Immo"
@@ -1031,8 +1146,12 @@ def build_rental_card(listing: Any, *, include_base64: bool = True) -> dict[str,
         "old_price": None,
         "price_line": price_line,
         "page_url": page,
+        "public_url": public_url,
         "image_url": image_url,
         "thumb_url": thumb_url,
+        "gallery_urls": gallery_urls,
+        "video_url": video_url,
+        "has_video": bool(video_url),
         "image_base64": image_b64,
         "has_image": has_image,
     }
@@ -1048,6 +1167,11 @@ def build_product_card(product: Product, promo=None, *, include_base64: bool = T
     has_image = bool(first_img and _fast_image_exists(first_img, up_root))
     image = f"{base}/shop/product/{product.id}/photo/0/download" if has_image else ""
     thumb_url = _product_static_thumb_url(first_img, up_root) if has_image else ""
+    gallery_urls = _product_gallery_urls(product, up_root) if has_image else []
+    if not gallery_urls and thumb_url:
+        gallery_urls = [thumb_url]
+    video_url = _product_static_video_url(getattr(product, "video_file", ""))
+    public_url = f"/shop/product/{product.id}"
     image_b64 = _get_product_image_base64(product) if (has_image and include_base64) else ""
     shop_name = getattr(product.shop, "name", "") or ""
     category = getattr(getattr(product, "category", None), "name", "") or ""
@@ -1066,8 +1190,12 @@ def build_product_card(product: Product, promo=None, *, include_base64: bool = T
             if final < base_price else f"💰 {_format_dh(final)} DH"
         ),
         "page_url": page,
+        "public_url": public_url,
         "image_url": image,
         "thumb_url": thumb_url,
+        "gallery_urls": gallery_urls,
+        "video_url": video_url,
+        "has_video": bool(video_url),
         "image_base64": image_b64,
         "has_image": has_image,
     }
@@ -1838,8 +1966,12 @@ def _build_wave_items_and_meta(
             "price_line": c["price_line"],
             "image_url": c["image_url"],
             "thumb_url": c.get("thumb_url") or "",
+            "gallery_urls": list(c.get("gallery_urls") or ([c["thumb_url"]] if c.get("thumb_url") else [])),
+            "video_url": c.get("video_url") or "",
+            "has_video": bool(c.get("video_url")),
             "has_image": bool(c.get("has_image", bool(c.get("image_url")))),
             "page_url": c["page_url"],
+            "public_url": c.get("public_url") or c["page_url"],
             "product_url": c["page_url"],
             "in_status": in_status,
             "in_groups": bool(settings.get("groups_enabled", True)),
@@ -1877,12 +2009,20 @@ def _build_wave_items_and_meta(
 
 
 def _backfill_missing_thumb_urls(items: list[dict[str, Any]]) -> bool:
-    """Complète instantanément thumb_url (/static/uploads/...) sur les lots déjà en cache pour éviter tout appel /download."""
-    missing_pids = [int(it["id"]) for it in items if not it.get("thumb_url") and str(it.get("id", "")).isdigit()]
+    """Complète instantanément thumb_url, gallery_urls, video_url et public_url sur les lots déjà en cache."""
+    def _needs_enrich(entry: dict[str, Any]) -> bool:
+        return (
+            not entry.get("thumb_url")
+            or "gallery_urls" not in entry
+            or "video_url" not in entry
+            or not entry.get("public_url")
+        )
+
+    missing_pids = [int(it["id"]) for it in items if _needs_enrich(it) and str(it.get("id", "")).isdigit()]
     missing_rids = [
         int(str(it["id"])[7:])
         for it in items
-        if not it.get("thumb_url") and str(it.get("id", "")).startswith("rental_") and str(it["id"])[7:].isdigit()
+        if _needs_enrich(it) and str(it.get("id", "")).startswith("rental_") and str(it["id"])[7:].isdigit()
     ]
     if not missing_pids and not missing_rids:
         return False
@@ -1898,19 +2038,38 @@ def _backfill_missing_thumb_urls(items: list[dict[str, Any]]) -> bool:
                 for r in RentalListing.query.options(selectinload(RentalListing.media)).filter(RentalListing.id.in_(missing_rids)).all()
             }
         for it in items:
-            if it.get("thumb_url"):
+            if not _needs_enrich(it):
                 continue
             sid = str(it.get("id") or "")
             if sid.isdigit() and int(sid) in prod_map:
-                fn = _first_image(prod_map[int(sid)])
-                if fn:
+                prod_obj = prod_map[int(sid)]
+                fn = _first_image(prod_obj)
+                if fn and not it.get("thumb_url"):
                     it["thumb_url"] = _product_static_thumb_url(fn, up_root)
-                    changed = True
+                gal = _product_gallery_urls(prod_obj, up_root)
+                if not gal and it.get("thumb_url"):
+                    gal = [it["thumb_url"]]
+                it["gallery_urls"] = gal
+                vid = _product_static_video_url(getattr(prod_obj, "video_file", ""))
+                it["video_url"] = vid
+                it["has_video"] = bool(vid)
+                it["public_url"] = f"/shop/product/{prod_obj.id}"
+                changed = True
             elif sid.startswith("rental_") and sid[7:].isdigit() and int(sid[7:]) in rent_map:
-                _, r_fn = _first_rental_image(rent_map[int(sid[7:])])
-                if r_fn:
+                rent_obj = rent_map[int(sid[7:])]
+                _, r_fn = _first_rental_image(rent_obj)
+                if r_fn and not it.get("thumb_url"):
                     it["thumb_url"] = _rental_static_thumb_url(r_fn)
-                    changed = True
+                gal = _rental_gallery_urls(rent_obj)
+                if not gal and it.get("thumb_url"):
+                    gal = [it["thumb_url"]]
+                it["gallery_urls"] = gal
+                vid = _rental_static_video_url(rent_obj)
+                it["video_url"] = vid
+                it["has_video"] = bool(vid)
+                slug_val = getattr(rent_obj, "slug", "") or ""
+                it["public_url"] = f"/location/{slug_val}" if slug_val else f"/l/{rent_obj.id}?preview=1"
+                changed = True
     except Exception:
         safe_session_rollback()
     return changed

@@ -1,0 +1,25 @@
+[Unit]
+Description=Baba Market Gunicorn (Multi-thread gthread optimisé)
+After=network.target redis-server.service mysql.service
+
+[Service]
+User=moctar
+Group=moctar
+WorkingDirectory=/home/moctar/baba-marketplace/dealnova
+EnvironmentFile=-/etc/babamarket.env
+ExecStart=/home/moctar/baba-marketplace/venv/bin/gunicorn \
+    --bind 127.0.0.1:5002 \
+    --worker-class gthread \
+    --workers 4 \
+    --threads 4 \
+    --timeout 60 \
+    --graceful-timeout 30 \
+    --keep-alive 5 \
+    --max-requests 2000 \
+    --max-requests-jitter 200 \
+    run:app
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

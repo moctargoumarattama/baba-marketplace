@@ -420,7 +420,7 @@ def _redis_snapshot_daily_stats(client, now: datetime | None = None) -> dict[str
         roles = _redis_hash_snapshot(client, f"{stats_key}:roles")
         hourly_requests = _redis_hash_snapshot(client, f"{stats_key}:hourly_requests")
         events = _redis_hash_snapshot(client, f"{stats_key}:events")
-        visitor_history = _redis_sorted_set_snapshot(client, _REDIS_VISITOR_HISTORY_KEY)
+        visitor_history = _redis_sorted_set_snapshot(client, _REDIS_VISITOR_HISTORY_KEY, limit=250)
         lifetime_events = _redis_hash_snapshot(client, _REDIS_LIFETIME_EVENTS_KEY)
         active_snapshot = _redis_snapshot_active_visitors(client)
         page_views_total = _safe_int(raw_stats.get("page_views_total"), default=0)
@@ -549,30 +549,37 @@ def _redis_record_page_view(now: datetime | None = None) -> bool:
             "path": current_path,
         }
         active_total = _redis_track_active_visitor(client, visitor_id, active_entry, now_ts)
+        pipe = client.pipeline(transaction=False)
         if first_seen_today:
-            _redis_incr_bucket(client, daily_key, "unique_visitors_today", DAILY_STATS_TTL_SECONDS)
-            if is_new_visitor:
-                _redis_incr_bucket(client, daily_key, "new_visitors_today", DAILY_STATS_TTL_SECONDS)
-            else:
-                _redis_incr_bucket(client, daily_key, "returning_visitors_today", DAILY_STATS_TTL_SECONDS)
-        _redis_incr_bucket(client, daily_key, "page_views_total", DAILY_STATS_TTL_SECONDS)
-        _redis_incr_bucket(client, f"{daily_key}:top_pages", current_path, DAILY_STATS_TTL_SECONDS, MAX_BUCKET_ENTRIES)
-        _redis_incr_bucket(client, f"{daily_key}:top_sources", source, DAILY_STATS_TTL_SECONDS, MAX_BUCKET_ENTRIES)
-        _redis_incr_bucket(client, f"{daily_key}:devices", device, DAILY_STATS_TTL_SECONDS, MAX_BUCKET_ENTRIES)
-        _redis_incr_bucket(client, f"{daily_key}:roles", role, DAILY_STATS_TTL_SECONDS, MAX_BUCKET_ENTRIES)
+            pipe.hincrby(daily_key, "unique_visitors_today", 1)
+            pipe.hincrby(daily_key, "new_visitors_today" if is_new_visitor else "returning_visitors_today", 1)
+        pipe.hincrby(daily_key, "page_views_total", 1)
+        pipe.expire(daily_key, int(DAILY_STATS_TTL_SECONDS))
+        for sub_suffix, field_val in (
+            ("top_pages", current_path),
+            ("top_sources", source),
+            ("devices", device),
+            ("roles", role),
+            ("hourly_requests", hour_key),
+            ("events", "page_view"),
+        ):
+            sub_k = f"{daily_key}:{sub_suffix}"
+            pipe.hincrby(sub_k, field_val, 1)
+            pipe.expire(sub_k, int(DAILY_STATS_TTL_SECONDS))
         if city:
-            _redis_incr_bucket(client, f"{daily_key}:cities", city, DAILY_STATS_TTL_SECONDS, MAX_BUCKET_ENTRIES)
-        _redis_incr_bucket(client, f"{daily_key}:hourly_requests", hour_key, DAILY_STATS_TTL_SECONDS, 24)
-        _redis_incr_bucket(client, f"{daily_key}:events", "page_view", DAILY_STATS_TTL_SECONDS, len(ALLOWED_EVENTS))
-        peak_key = "peak_active_today"
+            city_k = f"{daily_key}:cities"
+            pipe.hincrby(city_k, city, 1)
+            pipe.expire(city_k, int(DAILY_STATS_TTL_SECONDS))
+        pipe.hincrby(_REDIS_LIFETIME_EVENTS_KEY, "page_view", 1)
+        pipe.expire(_REDIS_LIFETIME_EVENTS_KEY, int(LIFETIME_STATS_TTL_SECONDS))
+        pipe.hget(daily_key, "peak_active_today")
+        results = pipe.execute() or []
         try:
-            current_peak = _safe_int(client.hget(daily_key, peak_key), default=0)
+            current_peak = _safe_int(results[-1] if results else 0, default=0)
             if active_total > current_peak:
-                client.hset(daily_key, peak_key, active_total)
-            client.expire(daily_key, DAILY_STATS_TTL_SECONDS)
+                client.hset(daily_key, "peak_active_today", active_total)
         except Exception:
             pass
-        _redis_incr_bucket(client, _REDIS_LIFETIME_EVENTS_KEY, "page_view", LIFETIME_STATS_TTL_SECONDS, len(ALLOWED_EVENTS))
         return True
     except Exception:
         return False
@@ -624,7 +631,7 @@ def _redis_collect_sql_documents(now: datetime | None = None) -> dict[str, dict[
         REQUESTS_BUCKETS_KEY: _redis_hash_snapshot(client, _REDIS_REQUESTS_BUCKETS_KEY),
         ORDERS_BUCKETS_KEY: _redis_hash_snapshot(client, _REDIS_ORDERS_BUCKETS_KEY),
         ACTIVE_VISITORS_KEY: _redis_active_visitors_map(client),
-        VISITOR_HISTORY_KEY: _redis_sorted_set_snapshot(client, _REDIS_VISITOR_HISTORY_KEY),
+        VISITOR_HISTORY_KEY: _redis_sorted_set_snapshot(client, _REDIS_VISITOR_HISTORY_KEY, limit=600),
         LIFETIME_EVENTS_KEY: _redis_hash_snapshot(client, _REDIS_LIFETIME_EVENTS_KEY),
         stats_key: _redis_snapshot_daily_stats(client, current_dt),
     }
@@ -816,46 +823,149 @@ def _load_cache_dict(key: str, default_factory) -> dict[str, Any]:
     return _default_dict(default_factory)
 
 
+_MEM_FALLBACK_DICTS: dict[str, dict[str, Any]] = {}
+_DIRTY_SQL_KEYS: set[str] = set()
+_LAST_SQL_BUFFER_FLUSH_MONO: float = 0.0
+_SQL_BUFFER_FLUSH_INTERVAL_SECONDS: float = 30.0
+_MAX_SQL_JSON_MAP_ENTRIES = 600
+
+
+def _compact_for_sql_column(key: str, value: Any) -> Any:
+    """Garantit que les blobs JSON analytiques tiennent toujours dans RuntimeState.value_json (64 Ko MySQL TEXT) sans latence."""
+    if not isinstance(value, dict):
+        return value
+    if key == VISITOR_HISTORY_KEY or key.startswith(DAILY_SEEN_PREFIX):
+        if len(value) > _MAX_SQL_JSON_MAP_ENTRIES:
+            ordered = sorted(value.items(), key=lambda it: _safe_int(it[1]), reverse=True)[:_MAX_SQL_JSON_MAP_ENTRIES]
+            return dict(ordered)
+    elif key == ACTIVE_VISITORS_KEY and len(value) > 200:
+        ordered = sorted(
+            value.items(),
+            key=lambda it: _safe_int((it[1] or {}).get("last_seen_ts") if isinstance(it[1], dict) else 0),
+            reverse=True,
+        )[:200]
+        return dict(ordered)
+    return value
+
+
+def _persist_sql_dicts_nonlocking(payloads_by_key: dict[str, Any]) -> None:
+    """Sauvegarde groupée dans RuntimeState SANS SELECT ... FOR UPDATE (zéro blocage inter-workers)."""
+    if not payloads_by_key:
+        return
+    from ..extensions import db
+    from ..models.runtime_state import RuntimeState
+    from .db_session import safe_session_rollback
+
+    clean_keys = [str(k).strip() for k in payloads_by_key.keys() if str(k).strip()]
+    if not clean_keys:
+        return
+    try:
+        existing = {
+            row.state_key: row
+            for row in RuntimeState.query.filter(RuntimeState.state_key.in_(clean_keys)).all()
+        }
+        now = datetime.utcnow()
+        for key in clean_keys:
+            compact_val = _compact_for_sql_column(key, payloads_by_key[key])
+            encoded = json.dumps(compact_val, ensure_ascii=True, separators=(",", ":"))
+            row = existing.get(key)
+            if row is None:
+                db.session.add(
+                    RuntimeState(
+                        state_key=key,
+                        value_json=encoded,
+                        created_at=now,
+                        updated_at=now,
+                    )
+                )
+            else:
+                row.value_json = encoded
+                row.updated_at = now
+        db.session.commit()
+    except Exception:
+        safe_session_rollback()
+
+
 def _load_durable_dict(key: str, default_factory) -> dict[str, Any]:
+    with _ANALYTICS_LOCK:
+        mem_val = _MEM_FALLBACK_DICTS.get(key)
+        if isinstance(mem_val, dict):
+            return dict(mem_val)
+    cached_val = cache.get(key)
+    if isinstance(cached_val, dict):
+        return cached_val
     try:
         payload = get_json_state(key, default_factory)
         if isinstance(payload, dict):
+            with _ANALYTICS_LOCK:
+                _MEM_FALLBACK_DICTS.setdefault(key, dict(payload))
             return payload
     except Exception:
         pass
-    return _load_cache_dict(key, default_factory)
+    return _default_dict(default_factory)
 
 
 def _store_durable_dict(key: str, value: dict[str, Any], ttl_seconds: int) -> None:
-    try:
-        set_json_state(key, value)
-        return
-    except Exception:
-        pass
+    with _ANALYTICS_LOCK:
+        _MEM_FALLBACK_DICTS[key] = dict(value) if isinstance(value, dict) else {}
     cache.set(key, value, timeout=int(ttl_seconds))
+    _persist_sql_dicts_nonlocking({key: value})
 
 
 def _mutate_durable_dicts(
     specs: dict[str, Any],
     ttl_seconds_by_key: dict[str, int],
     mutator,
+    *,
+    immediate_sql: bool = False,
 ) -> dict[str, dict[str, Any]]:
-    try:
-        return mutate_json_states(specs, mutator)
-    except Exception:
-        with _ANALYTICS_LOCK:
-            payloads = {
-                key: _load_cache_dict(key, default_factory)
-                for key, default_factory in (specs or {}).items()
-            }
-            mutator(payloads)
-            for key, value in payloads.items():
-                cache.set(
-                    key,
-                    value,
-                    timeout=int(ttl_seconds_by_key.get(key, DAILY_STATS_TTL_SECONDS)),
-                )
-            return payloads
+    global _LAST_SQL_BUFFER_FLUSH_MONO
+    to_flush: dict[str, Any] | None = None
+    seed_needed: list[tuple[str, Any]] = []
+
+    with _ANALYTICS_LOCK:
+        for key, default_factory in (specs or {}).items():
+            if key not in _MEM_FALLBACK_DICTS:
+                seed_needed.append((key, default_factory))
+
+    seeded: dict[str, dict[str, Any]] = {}
+    for key, default_factory in seed_needed:
+        cached_val = cache.get(key)
+        if isinstance(cached_val, dict):
+            seeded[key] = dict(cached_val)
+        else:
+            try:
+                loaded = get_json_state(key, default_factory)
+                seeded[key] = dict(loaded) if isinstance(loaded, dict) else _default_dict(default_factory)
+            except Exception:
+                seeded[key] = _default_dict(default_factory)
+
+    with _ANALYTICS_LOCK:
+        for key, val in seeded.items():
+            _MEM_FALLBACK_DICTS.setdefault(key, val)
+        payloads = {
+            key: dict(_MEM_FALLBACK_DICTS.get(key) or _default_dict(default_factory))
+            for key, default_factory in (specs or {}).items()
+        }
+        mutator(payloads)
+        for key, value in payloads.items():
+            _MEM_FALLBACK_DICTS[key] = dict(value) if isinstance(value, dict) else {}
+            _DIRTY_SQL_KEYS.add(key)
+            cache.set(
+                key,
+                value,
+                timeout=int(ttl_seconds_by_key.get(key, DAILY_STATS_TTL_SECONDS)),
+            )
+
+        now_mono = time.monotonic()
+        if immediate_sql or (now_mono - _LAST_SQL_BUFFER_FLUSH_MONO) >= _SQL_BUFFER_FLUSH_INTERVAL_SECONDS:
+            to_flush = {k: _MEM_FALLBACK_DICTS[k] for k in list(_DIRTY_SQL_KEYS) if k in _MEM_FALLBACK_DICTS}
+            _DIRTY_SQL_KEYS.clear()
+            _LAST_SQL_BUFFER_FLUSH_MONO = now_mono
+
+    if to_flush:
+        _persist_sql_dicts_nonlocking(to_flush)
+    return payloads
 
 
 def _now_ts(now: datetime | None = None) -> int:
@@ -1598,7 +1708,7 @@ def flush_traffic_analytics_to_sql(force: bool = False, now: datetime | None = N
             for key, value in docs.items():
                 payloads[key] = value
 
-        _mutate_durable_dicts(specs, ttl_seconds_by_key, _mutate)
+        _mutate_durable_dicts(specs, ttl_seconds_by_key, _mutate, immediate_sql=True)
         client.set(_ANALYTICS_LAST_FLUSH_KEY, str(now_ts), ex=max(min_interval * 2, lock_seconds * 2))
         _live_metrics_cache_invalidate()
         return {"flushed": True, "keys": sorted(docs.keys())}

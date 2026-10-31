@@ -2360,13 +2360,22 @@ def whatsapp_promo_search_products():
     rentals = (
         RentalListing.query
         .outerjoin(Shop, Shop.id == RentalListing.shop_id)
-        .options(selectinload(RentalListing.shop))
+        .options(selectinload(RentalListing.shop), selectinload(RentalListing.media))
         .filter(RentalListing.is_active.is_(True), RentalListing.status == "active")
         .filter(RentalListing.title.ilike(f"%{q}%"))
         .limit(4)
         .all()
     )
 
+    from ..services.whatsapp_promo import (
+        _first_rental_image,
+        _product_static_thumb_url,
+        _product_static_video_url,
+        _rental_static_thumb_url,
+        _rental_static_video_url,
+        _resolved_upload_root,
+    )
+    up_root = _resolved_upload_root()
     results = []
     for p in products:
         first_img = next((img.strip() for img in (p.image_file or "").split("|") if img.strip()), "")
@@ -2377,15 +2386,22 @@ def whatsapp_promo_search_products():
             "price": float(p.price or 0),
             "shop": getattr(p.shop, "name", "") or "Baba Market",
             "image": first_img,
+            "thumb_url": _product_static_thumb_url(first_img, up_root) if first_img else "",
+            "video_url": _product_static_video_url(getattr(p, "video_file", "")),
+            "public_url": url_for("shop.product_detail", pid=p.id),
         })
     for r in rentals:
+        _, r_img = _first_rental_image(r)
         results.append({
             "id": f"rental_{r.id}",
             "kind": "Location",
             "name": r.title,
             "price": float(r.rent_cents or 0) / 100.0,
             "shop": getattr(r.shop, "name", "") or (r.city or "Baba Market Immo"),
-            "image": "",
+            "image": r_img,
+            "thumb_url": _rental_static_thumb_url(r_img) if r_img else "",
+            "video_url": _rental_static_video_url(r),
+            "public_url": url_for("rentals.location_detail", slug=r.slug) if r.slug else f"/l/{r.id}?preview=1",
         })
     return jsonify(results=results)
 

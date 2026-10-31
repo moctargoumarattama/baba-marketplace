@@ -580,23 +580,26 @@ def shop_detail_alias(shop_slug):
 @bp.route("/p/<int:pid>")
 def short_product_link(pid):
     """Lien court et propre pour les partages WhatsApp / SMS avec suivi des clics."""
-    try:
-        from ..services.whatsapp_promo import record_link_click
-        record_link_click(pid)
-    except Exception:
-        pass
+    if request.args.get("preview") != "1":
+        try:
+            from ..services.whatsapp_promo import record_link_click
+            record_link_click(pid)
+        except Exception:
+            pass
     return redirect(url_for("shop.product_detail", pid=pid), code=302)
+
 
 @bp.route("/l/<int:lid>")
 def short_rental_link(lid):
     """Lien court et propre pour les locations immobilières partagées sur WhatsApp avec suivi des clics."""
     try:
         from ..models.rental import RentalListing
-        from ..services.whatsapp_promo import record_link_click
-        record_link_click(f"rental_{lid}")
+        if request.args.get("preview") != "1":
+            from ..services.whatsapp_promo import record_link_click
+            record_link_click(f"rental_{lid}")
         listing = db.session.get(RentalListing, lid)
-        if listing and listing.slug and listing.is_active:
-            return redirect(url_for("rentals.rental_detail", slug=listing.slug), code=302)
+        if listing and listing.slug:
+            return redirect(url_for("rentals.location_detail", slug=listing.slug), code=302)
     except Exception:
         pass
     return redirect(url_for("rentals.locations_home"), code=302)
