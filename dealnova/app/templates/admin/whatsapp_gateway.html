@@ -425,6 +425,352 @@
     overflow-x: auto;
     margin: 0.5rem 0;
   }
+
+  /* =====================================================================
+     Automatisation WhatsApp Quotidienne : Styles Modernes & Pédagogiques
+     ===================================================================== */
+  .wa-promo-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.25rem 0.65rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+  }
+  .wa-promo-badge.is-on {
+    background: #ecfdf5;
+    color: #065f46;
+    border: 1px solid #a7f3d0;
+  }
+  .wa-promo-badge.is-off {
+    background: #fef2f2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+  }
+  .wa-promo-badge.is-dry {
+    background: #fffbeb;
+    color: #92400e;
+    border: 1px solid #fde68a;
+  }
+  html[data-admin-theme="noc"] .wa-promo-badge.is-on {
+    background: rgba(16, 185, 129, 0.2);
+    color: #6ee7b7;
+    border-color: rgba(16, 185, 129, 0.35);
+  }
+  html[data-admin-theme="noc"] .wa-promo-badge.is-off {
+    background: rgba(239, 68, 68, 0.2);
+    color: #fca5a5;
+    border-color: rgba(239, 68, 68, 0.35);
+  }
+  html[data-admin-theme="noc"] .wa-promo-badge.is-dry {
+    background: rgba(245, 158, 11, 0.2);
+    color: #fcd34d;
+    border-color: rgba(245, 158, 11, 0.35);
+  }
+
+  /* Cartes explicatives des 3 canaux */
+  .wa-channels-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 0.85rem;
+  }
+  .wa-channel-box {
+    background: #f8fafc;
+    border: 1px solid var(--line, #e2e8f0);
+    border-radius: 0.85rem;
+    padding: 0.95rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+  }
+  html[data-admin-theme="noc"] .wa-channel-box {
+    background: rgba(15, 23, 42, 0.5);
+    border-color: #334155;
+  }
+  .wa-channel-head {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+  .wa-channel-icon {
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 0.65rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.15rem;
+    flex-shrink: 0;
+  }
+  .wa-channel-icon.c-statut {
+    background: #eff6ff;
+    color: #2563eb;
+    border: 1px solid #bfdbfe;
+  }
+  .wa-channel-icon.c-groupe {
+    background: #ecfdf5;
+    color: #059669;
+    border: 1px solid #a7f3d0;
+  }
+  .wa-channel-icon.c-direct {
+    background: #f5f3ff;
+    color: #7c3aed;
+    border: 1px solid #ddd6fe;
+  }
+  .wa-channel-title {
+    font-size: 0.88rem;
+    font-weight: 800;
+    color: var(--dark, #0f172a);
+    margin: 0;
+  }
+  .wa-channel-text {
+    font-size: 0.77rem;
+    color: #64748b;
+    line-height: 1.45;
+    margin: 0;
+  }
+  html[data-admin-theme="noc"] .wa-channel-text {
+    color: #94a3b8;
+  }
+
+  /* Panneau des Interrupteurs & Activation */
+  .wa-switches-box {
+    background: rgba(248, 250, 252, 0.9);
+    border: 1px solid var(--line, #e2e8f0);
+    border-radius: 0.85rem;
+    padding: 1.15rem;
+    display: grid;
+    gap: 0.85rem;
+  }
+  html[data-admin-theme="noc"] .wa-switches-box {
+    background: rgba(30, 41, 59, 0.55);
+    border-color: #334155;
+  }
+  .wa-master-switch {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.85rem;
+    padding: 0.85rem 1rem;
+    border-radius: 0.75rem;
+    border: 2px solid;
+    transition: all 0.2s ease;
+    cursor: pointer;
+  }
+  .wa-master-switch.is-enabled {
+    background: #f0fdf4;
+    border-color: #86efac;
+    color: #166534;
+  }
+  .wa-master-switch.is-disabled {
+    background: #fef2f2;
+    border-color: #fca5a5;
+    color: #991b1b;
+  }
+  html[data-admin-theme="noc"] .wa-master-switch.is-enabled {
+    background: rgba(16, 185, 129, 0.15);
+    border-color: rgba(16, 185, 129, 0.4);
+    color: #86efac;
+  }
+  html[data-admin-theme="noc"] .wa-master-switch.is-disabled {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.4);
+    color: #fca5a5;
+  }
+  .wa-channels-toggles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+  .wa-channel-toggle-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.55rem 0.9rem;
+    border-radius: 0.65rem;
+    background: #ffffff;
+    border: 1px solid var(--line, #cbd5e1);
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+  html[data-admin-theme="noc"] .wa-channel-toggle-label {
+    background: #0f172a;
+    border-color: #334155;
+    color: #f1f5f9;
+  }
+  .wa-channel-toggle-label:hover {
+    border-color: #94a3b8;
+  }
+
+  /* Aperçu WhatsApp Chat Bubble */
+  .wa-chat-preview-wrap {
+    background: #eef2f6;
+    border: 1px solid #cbd5e1;
+    border-radius: 0.95rem;
+    padding: 1.15rem;
+    background-image: radial-gradient(#cbd5e1 1px, transparent 1px);
+    background-size: 16px 16px;
+  }
+  html[data-admin-theme="noc"] .wa-chat-preview-wrap {
+    background: #0f172a;
+    border-color: #334155;
+    background-image: radial-gradient(#334155 1px, transparent 1px);
+  }
+  .wa-product-preview-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.85rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
+  }
+  html[data-admin-theme="noc"] .wa-product-preview-card {
+    background: #1e293b;
+    border-color: #334155;
+  }
+  .wa-product-header {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid #e2e8f0;
+    margin-bottom: 0.85rem;
+  }
+  html[data-admin-theme="noc"] .wa-product-header {
+    border-bottom-color: #334155;
+  }
+  .wa-bubble-img {
+    width: 64px;
+    height: 64px;
+    border-radius: 0.5rem;
+    object-fit: cover;
+    background: #cbd5e1;
+    flex-shrink: 0;
+  }
+  .wa-bubbles-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 0.85rem;
+  }
+  .wa-chat-bubble {
+    background: #f8fafc;
+    border-radius: 0.75rem;
+    border: 1px solid #e2e8f0;
+    padding: 0.85rem;
+    font-size: 0.82rem;
+    color: #1f2937;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  html[data-admin-theme="noc"] .wa-chat-bubble {
+    background: rgba(15, 23, 42, 0.6);
+    color: #f8fafc;
+    border-color: #334155;
+  }
+  .wa-bubble-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.2rem 0.55rem;
+    border-radius: 0.35rem;
+    font-size: 0.72rem;
+    font-weight: 800;
+    width: fit-content;
+  }
+  .wa-bubble-badge.is-story {
+    background: #eff6ff;
+    color: #1d4ed8;
+  }
+  .wa-bubble-badge.is-group {
+    background: #ecfdf5;
+    color: #047857;
+  }
+  .wa-bubble-badge.is-direct {
+    background: #f5f3ff;
+    color: #6d28d9;
+  }
+  .wa-bubble-text {
+    white-space: pre-wrap;
+    font-family: inherit;
+    line-height: 1.45;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    padding: 0.65rem;
+    margin: 0;
+  }
+  html[data-admin-theme="noc"] .wa-bubble-text {
+    background: #0f172a;
+    border-color: #334155;
+    color: #e2e8f0;
+  }
+
+  /* Table des logs */
+  .wa-logs-scroll {
+    overflow-x: auto;
+    border: 1px solid var(--line, #e2e8f0);
+    border-radius: 0.75rem;
+    background: #ffffff;
+    max-height: 420px;
+    overflow-y: auto;
+  }
+  html[data-admin-theme="noc"] .wa-logs-scroll {
+    background: #0f172a;
+    border-color: #334155;
+  }
+  .wa-logs-tbl {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.79rem;
+  }
+  .wa-logs-tbl th {
+    position: sticky;
+    top: 0;
+    background: #f8fafc;
+    color: #475569;
+    font-weight: 700;
+    padding: 0.6rem 0.75rem;
+    border-bottom: 2px solid #e2e8f0;
+    z-index: 2;
+    white-space: nowrap;
+  }
+  html[data-admin-theme="noc"] .wa-logs-tbl th {
+    background: #1e293b;
+    color: #94a3b8;
+    border-color: #334155;
+  }
+  .wa-logs-tbl td {
+    padding: 0.55rem 0.75rem;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: top;
+  }
+  html[data-admin-theme="noc"] .wa-logs-tbl td {
+    border-color: #1e293b;
+  }
+  .wa-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.18rem 0.5rem;
+    border-radius: 0.35rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .wa-pill.p-statut { background: #eff6ff; color: #1e40af; }
+  .wa-pill.p-groupe { background: #ecfdf5; color: #065f46; }
+  .wa-pill.p-direct { background: #f5f3ff; color: #5b21b6; }
+  .wa-pill.p-ok { background: #dcfce7; color: #166534; }
+  .wa-pill.p-err { background: #fee2e2; color: #991b1b; }
+  .wa-pill.p-skip { background: #f1f5f9; color: #475569; }
 </style>
 
 <div class="wa-gw-shell">
@@ -564,6 +910,11 @@ pm2 restart baba-whatsapp</pre>
 
   {% set ps = promo_settings if promo_settings is defined and promo_settings else {} %}
   {% set pl = promo_log if promo_log is defined and promo_log else {} %}
+  {% set lg = last_generated if last_generated is defined and last_generated else (pl.get('last_generated') or {}) %}
+  {% set rlogs = recent_logs if recent_logs is defined and recent_logs else (pl.get('recent_logs') or []) %}
+  {% set groups_list = ps.get('groups', []) %}
+  {% set recipients_list = ps.get('recipients', []) %}
+
   <section class="wa-gw-card" aria-labelledby="waPromoHeading">
     <div class="wa-gw-header">
       <div class="wa-gw-title-group">
@@ -571,8 +922,18 @@ pm2 restart baba-whatsapp</pre>
           <i class="bi bi-megaphone-fill"></i>
         </div>
         <div>
-          <h2 class="wa-gw-heading" id="waPromoHeading">Automatisation Promotionnelle Quotidienne (Statut 24h + Messages Opt-in)</h2>
-          <p class="wa-gw-subtitle">Sélection de produits en stock + rédaction Gemini + protection anti-ban (30–90 s, STOP automatique)</p>
+          <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+            <h2 class="wa-gw-heading" id="waPromoHeading">Diffusion & Promotion WhatsApp Quotidienne</h2>
+            {% if ps.get('enabled') %}
+              <span class="wa-promo-badge is-on"><i class="bi bi-check-circle-fill"></i> Activé</span>
+            {% else %}
+              <span class="wa-promo-badge is-off"><i class="bi bi-pause-circle-fill"></i> En Pause</span>
+            {% endif %}
+            {% if ps.get('dry_run', True) %}
+              <span class="wa-promo-badge is-dry"><i class="bi bi-shield-check"></i> Mode Simulation (Dry-Run)</span>
+            {% endif %}
+          </div>
+          <p class="wa-gw-subtitle">Sélection de produits en stock • Rédaction Gemini IA • Statuts 24h • Groupes WhatsApp • Messages privés avec anti-ban</p>
         </div>
       </div>
 
@@ -580,13 +941,13 @@ pm2 restart baba-whatsapp</pre>
         <form method="POST" action="{{ url_for('admin.whatsapp_promo_run') }}" style="display:inline;">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="mode" value="dry_run">
-          <button type="submit" class="wa-btn wa-btn-refresh" title="Générer un aperçu complet sans envoyer sur WhatsApp">
-            <i class="bi bi-eye" aria-hidden="true"></i>
+          <button type="submit" class="wa-btn wa-btn-refresh" title="Générer un aperçu complet des textes avec Gemini et tester sans envoyer sur WhatsApp">
+            <i class="bi bi-eye-fill" aria-hidden="true"></i>
             <span>Aperçu à blanc (Dry-run)</span>
           </button>
         </form>
 
-        <form method="POST" action="{{ url_for('admin.whatsapp_promo_run') }}" style="display:inline;">
+        <form method="POST" action="{{ url_for('admin.whatsapp_promo_run') }}" style="display:inline;" onsubmit="return confirm('Confirmez-vous le lancement de l\'envoi réel sur WhatsApp ? Les délais anti-ban seront respectés.');">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="mode" value="live">
           <button type="submit" class="wa-btn wa-btn-reconnect" {% if not ps.get('enabled') %}disabled title="Activez d'abord l'interrupteur général ci-dessous"{% else %}title="Lancer immédiatement l'envoi réel en arrière-plan"{% endif %}>
@@ -598,97 +959,386 @@ pm2 restart baba-whatsapp</pre>
     </div>
 
     <div class="wa-gw-body">
-      <form method="POST" action="{{ url_for('admin.whatsapp_promo_settings') }}" style="display:grid;gap:1rem;">
+      <!-- Pédagogie des 3 canaux -->
+      <div class="wa-channels-grid">
+        <div class="wa-channel-box">
+          <div class="wa-channel-head">
+            <div class="wa-channel-icon c-statut"><i class="bi bi-camera-fill"></i></div>
+            <div>
+              <h3 class="wa-channel-title">1. Statut 24h (Story)</h3>
+              {% if ps.get('status_enabled', True) %}
+                <span class="wa-pill p-ok">Activé</span>
+              {% else %}
+                <span class="wa-pill p-skip">Désactivé</span>
+              {% endif %}
+            </div>
+          </div>
+          <p class="wa-channel-text">Publie la photo du produit avec une courte légende. <strong>Visible pendant 24h par tous vos contacts enregistrés</strong>. Canal non-intrusif à fort impact.</p>
+        </div>
+
+        <div class="wa-channel-box">
+          <div class="wa-channel-head">
+            <div class="wa-channel-icon c-groupe"><i class="bi bi-people-fill"></i></div>
+            <div>
+              <h3 class="wa-channel-title">2. Groupes de Vente</h3>
+              {% if ps.get('groups_enabled', True) %}
+                <span class="wa-pill p-ok">{{ groups_list|length }} groupe(s)</span>
+              {% else %}
+                <span class="wa-pill p-skip">Désactivé</span>
+              {% endif %}
+            </div>
+          </div>
+          <p class="wa-channel-text">Diffuse l'offre complète (photo + argumentaire vendeur Gemini + lien de commande) dans vos <strong>groupes de vente WhatsApp</strong>.</p>
+        </div>
+
+        <div class="wa-channel-box">
+          <div class="wa-channel-head">
+            <div class="wa-channel-icon c-direct"><i class="bi bi-chat-heart-fill"></i></div>
+            <div>
+              <h3 class="wa-channel-title">3. Messages Privés VIP</h3>
+              {% if ps.get('direct_messages_enabled', False) %}
+                <span class="wa-pill p-ok">{{ recipients_list|length }} client(s)</span>
+              {% else %}
+                <span class="wa-pill p-skip">Désactivé</span>
+              {% endif %}
+            </div>
+          </div>
+          <p class="wa-channel-text">Envoi individuel aux clients ayant donné leur accord. Respect strict des <strong>délais anti-ban (30–90 s)</strong> et désinscription si réponse STOP.</p>
+        </div>
+      </div>
+
+      <!-- Formulaire de configuration & interrupteurs -->
+      <form method="POST" action="{{ url_for('admin.whatsapp_promo_settings') }}" style="display:grid;gap:1.25rem;">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-        <div style="display:flex;flex-wrap:wrap;gap:1.25rem;padding:0.9rem 1rem;border-radius:0.75rem;border:1px solid var(--line,#e2e8f0);background:rgba(248,250,252,0.7);">
-          <label style="display:inline-flex;align-items:center;gap:0.5rem;font-weight:700;cursor:pointer;">
-            <input type="checkbox" name="enabled" value="1" {% if ps.get('enabled') %}checked{% endif %}>
-            <span>Interrupteur général actif (Kill-switch : décocher coupe tout envoi immédiatement)</span>
+        <!-- Panneau des Interrupteurs -->
+        <div class="wa-switches-box">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.75rem;">
+            <strong style="font-size:0.9rem;color:var(--dark,#0f172a);"><i class="bi bi-sliders"></i> Interrupteurs d'activation</strong>
+            <span style="font-size:0.78rem;color:#64748b;">Gérez facilement ce qui part automatiquement chaque jour</span>
+          </div>
+
+          <!-- Interrupteur Général -->
+          <label class="wa-master-switch {% if ps.get('enabled') %}is-enabled{% else %}is-disabled{% endif %}">
+            <div style="display:flex;align-items:center;gap:0.75rem;">
+              <input type="checkbox" name="enabled" value="1" {% if ps.get('enabled') %}checked{% endif %} style="width:1.2rem;height:1.2rem;cursor:pointer;">
+              <div>
+                <div style="font-weight:800;font-size:0.92rem;">
+                  {% if ps.get('enabled') %}
+                    <i class="bi bi-check-circle-fill"></i> Automatisation générale ACTIVE
+                  {% else %}
+                    <i class="bi bi-pause-circle-fill"></i> Automatisation générale EN PAUSE (Kill-Switch)
+                  {% endif %}
+                </div>
+                <div style="font-size:0.76rem;opacity:0.85;">
+                  {% if ps.get('enabled') %}
+                    Le cron quotidien et les planifications exécutent la sélection de produits et les diffusions activées ci-dessous.
+                  {% else %}
+                    Tout envoi automatique quotidien est totalement suspendu jusqu'à réactivation.
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+            <div>
+              {% if ps.get('enabled') %}
+                <span class="wa-pill p-ok">ON</span>
+              {% else %}
+                <span class="wa-pill p-err">OFF</span>
+              {% endif %}
+            </div>
           </label>
-          <label style="display:inline-flex;align-items:center;gap:0.5rem;font-weight:700;cursor:pointer;">
-            <input type="checkbox" name="dry_run" value="1" {% if ps.get('dry_run', True) %}checked{% endif %}>
-            <span>Mode Dry-Run par défaut (aucun envoi réel lors du cron quotidien)</span>
-          </label>
+
+          <!-- Interrupteur Mode Simulation -->
+          <div style="padding:0.75rem 1rem;background:rgba(254,243,199,0.5);border:1px solid #fde68a;border-radius:0.75rem;display:flex;align-items:center;gap:0.65rem;">
+            <input type="checkbox" id="promoDryRun" name="dry_run" value="1" {% if ps.get('dry_run', True) %}checked{% endif %} style="width:1.15rem;height:1.15rem;cursor:pointer;">
+            <label for="promoDryRun" style="font-size:0.82rem;font-weight:700;color:#92400e;cursor:pointer;margin:0;">
+              Mode Dry-Run par défaut (Sécurité : prépare les textes Gemini et les logs mais n'envoie rien sur WhatsApp lors du cron)
+            </label>
+          </div>
+
+          <!-- Sélection granulaire des canaux -->
+          <div>
+            <div style="font-size:0.8rem;font-weight:700;color:#475569;margin-bottom:0.4rem;">Canaux autorisés pour la diffusion automatique :</div>
+            <div class="wa-channels-toggles">
+              <label class="wa-channel-toggle-label">
+                <input type="checkbox" name="status_enabled" value="1" {% if ps.get('status_enabled', True) %}checked{% endif %}>
+                <span>📸 Diffuser en Statut 24h (Story)</span>
+              </label>
+
+              <label class="wa-channel-toggle-label">
+                <input type="checkbox" name="groups_enabled" value="1" {% if ps.get('groups_enabled', True) %}checked{% endif %}>
+                <span>👥 Diffuser dans les Groupes WhatsApp</span>
+              </label>
+
+              <label class="wa-channel-toggle-label">
+                <input type="checkbox" name="direct_messages_enabled" value="1" {% if ps.get('direct_messages_enabled', False) %}checked{% endif %}>
+                <span>💬 Diffuser en Messages Privés (VIP)</span>
+              </label>
+            </div>
+          </div>
         </div>
 
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.85rem;">
-          <div>
-            <label for="promoAdminPhone" style="display:block;font-size:0.8rem;font-weight:700;margin-bottom:0.25rem;">Numéro Admin / Test (servi en 1er)</label>
-            <input type="text" id="promoAdminPhone" name="admin_phone" class="form-control form-control-sm"
-                   placeholder="212612345678" value="{{ ps.get('admin_phone') or '' }}">
+        <!-- Gestionnaire des Groupes WhatsApp -->
+        <div style="background:#ffffff;border:1px solid var(--line,#e2e8f0);border-radius:0.85rem;padding:1.15rem;">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.4rem;">
+            <label for="promoGroupsText" style="font-size:0.88rem;font-weight:800;color:var(--dark,#0f172a);margin:0;">
+              <i class="bi bi-people-fill" style="color:#059669;"></i> Groupes WhatsApp de vente (1 par ligne)
+            </label>
+            <span class="wa-pill p-groupe">{{ groups_list|length }} groupe(s) actif(s)</span>
           </div>
-          <div>
-            <label for="promoStatusProducts" style="display:block;font-size:0.8rem;font-weight:700;margin-bottom:0.25rem;">Produits en Statut / jour (1–5)</label>
-            <input type="number" id="promoStatusProducts" name="status_products" min="1" max="5" class="form-control form-control-sm"
-                   value="{{ ps.get('status_products', 4) }}">
-          </div>
-          <div>
-            <label for="promoDailyLimit" style="display:block;font-size:0.8rem;font-weight:700;margin-bottom:0.25rem;">Plafond messages / jour (max 50)</label>
-            <input type="number" id="promoDailyLimit" name="daily_message_limit" min="0" max="50" class="form-control form-control-sm"
-                   value="{{ ps.get('daily_message_limit', 20) }}">
-          </div>
-          <div>
-            <label for="promoCooldown" style="display:block;font-size:0.8rem;font-weight:700;margin-bottom:0.25rem;">Cooldown produit (jours)</label>
-            <input type="number" id="promoCooldown" name="cooldown_days" min="0" max="60" class="form-control form-control-sm"
-                   value="{{ ps.get('cooldown_days', 7) }}">
-          </div>
-          <div>
-            <label for="promoMinDelay" style="display:block;font-size:0.8rem;font-weight:700;margin-bottom:0.25rem;">Délai min anti-ban (s)</label>
-            <input type="number" id="promoMinDelay" name="min_delay" min="20" max="300" class="form-control form-control-sm"
-                   value="{{ ps.get('min_delay', 30) }}">
-          </div>
-          <div>
-            <label for="promoMaxDelay" style="display:block;font-size:0.8rem;font-weight:700;margin-bottom:0.25rem;">Délai max anti-ban (s)</label>
-            <input type="number" id="promoMaxDelay" name="max_delay" min="20" max="300" class="form-control form-control-sm"
-                   value="{{ ps.get('max_delay', 90) }}">
-          </div>
-        </div>
-
-        <div>
-          <label for="promoRecipientsText" style="display:block;font-size:0.82rem;font-weight:700;margin-bottom:0.25rem;">
-            Destinataires Opt-in autorisés (1 par ligne : <code>212612345678, Prénom</code>)
-          </label>
-          <textarea id="promoRecipientsText" name="recipients_text" rows="5" class="form-control form-control-sm"
-                    placeholder="212612345678, Youssef&#10;0712345678, Salma">{{ promo_recipients_text if promo_recipients_text is defined else '' }}</textarea>
-          <small style="color:#64748b;font-size:0.76rem;">
-            Seuls les contacts ayant consenti doivent figurer ici. Les personnes qui répondent <strong>STOP</strong> sur WhatsApp sont automatiquement désinscrites.
+          <p style="font-size:0.77rem;color:#64748b;margin:0 0 0.5rem 0;line-height:1.45;">
+            Collez directement les <strong>liens d'invitation</strong> de vos groupes WhatsApp (ex : <code>https://chat.whatsapp.com/CodeInvitation, Nom du groupe</code>) ou les identifiants de groupes (ex : <code>120363028394829@g.us, Nom du groupe</code>).
+          </p>
+          <textarea id="promoGroupsText" name="groups_text" rows="4" class="form-control form-control-sm"
+                    style="font-family:monospace;font-size:0.82rem;"
+                    placeholder="https://chat.whatsapp.com/AbCdEf12345, Groupe Ventes Casablanca&#10;https://chat.whatsapp.com/XyZ67890, Groupe Bons Plans Rabat&#10;120363028394829@g.us, Groupe VIP Marché">{{ promo_groups_text if promo_groups_text is defined else '' }}</textarea>
+          <small style="color:#64748b;font-size:0.75rem;margin-top:0.35rem;display:block;">
+            <i class="bi bi-info-circle"></i> Le micro-service rejoint automatiquement le groupe via son lien d'invitation s'il n'en fait pas encore partie.
           </small>
         </div>
+
+        <!-- Destinataires Privés Opt-in & Admin Test -->
+        <div style="background:#ffffff;border:1px solid var(--line,#e2e8f0);border-radius:0.85rem;padding:1.15rem;">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.4rem;">
+            <label for="promoRecipientsText" style="font-size:0.88rem;font-weight:800;color:var(--dark,#0f172a);margin:0;">
+              <i class="bi bi-person-lines-fill" style="color:#7c3aed;"></i> Clients VIP autorisés (Messages Privés, 1 par ligne)
+            </label>
+            <span class="wa-pill p-direct">{{ recipients_list|length }} contact(s)</span>
+          </div>
+          <textarea id="promoRecipientsText" name="recipients_text" rows="3" class="form-control form-control-sm"
+                    style="font-family:monospace;font-size:0.82rem;"
+                    placeholder="212612345678, Youssef&#10;0612345678, Salma">{{ promo_recipients_text if promo_recipients_text is defined else '' }}</textarea>
+          <small style="color:#64748b;font-size:0.75rem;margin-top:0.35rem;display:block;">
+            <i class="bi bi-shield-check"></i> Seuls les contacts ayant explicitement consenti doivent figurer ici. Un client qui répond <strong>STOP</strong> est automatiquement radié.
+          </small>
+        </div>
+
+        <!-- Paramètres Avancés & Protection Anti-Ban -->
+        <details class="wa-help-details">
+          <summary><i class="bi bi-gear-fill"></i> Paramètres avancés & Délais de protection anti-ban</summary>
+          <div class="wa-help-content" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.85rem;margin-top:0.75rem;">
+            <div>
+              <label for="promoAdminPhone" style="display:block;font-size:0.8rem;font-weight:700;margin-bottom:0.25rem;">Numéro Admin / Test (servi en 1er)</label>
+              <input type="text" id="promoAdminPhone" name="admin_phone" class="form-control form-control-sm"
+                     placeholder="212612345678" value="{{ ps.get('admin_phone') or '' }}">
+              <small style="color:#64748b;font-size:0.72rem;">Reçoit en priorité le 1er message direct pour vérification.</small>
+            </div>
+            <div>
+              <label for="promoStatusProducts" style="display:block;font-size:0.8rem;font-weight:700;margin-bottom:0.25rem;">Produits par jour (1–5)</label>
+              <input type="number" id="promoStatusProducts" name="status_products" min="1" max="5" class="form-control form-control-sm"
+                     value="{{ ps.get('status_products', 4) }}">
+              <small style="color:#64748b;font-size:0.72rem;">Nombre de produits sélectionnés pour la promo quotidienne.</small>
+            </div>
+            <div>
+              <label for="promoDailyLimit" style="display:block;font-size:0.8rem;font-weight:700;margin-bottom:0.25rem;">Plafond messages privés / jour</label>
+              <input type="number" id="promoDailyLimit" name="daily_message_limit" min="0" max="50" class="form-control form-control-sm"
+                     value="{{ ps.get('daily_message_limit', 20) }}">
+              <small style="color:#64748b;font-size:0.72rem;">Protection anti-ban (max conseillé : 30).</small>
+            </div>
+            <div>
+              <label for="promoCooldown" style="display:block;font-size:0.8rem;font-weight:700;margin-bottom:0.25rem;">Cooldown produit (jours)</label>
+              <input type="number" id="promoCooldown" name="cooldown_days" min="0" max="60" class="form-control form-control-sm"
+                     value="{{ ps.get('cooldown_days', 7) }}">
+              <small style="color:#64748b;font-size:0.72rem;">Jours avant de reproposer le même produit.</small>
+            </div>
+            <div>
+              <label for="promoMinDelay" style="display:block;font-size:0.8rem;font-weight:700;margin-bottom:0.25rem;">Délai min anti-ban (s)</label>
+              <input type="number" id="promoMinDelay" name="min_delay" min="10" max="300" class="form-control form-control-sm"
+                     value="{{ ps.get('min_delay', 30) }}">
+              <small style="color:#64748b;font-size:0.72rem;">Pause minimale entre 2 messages.</small>
+            </div>
+            <div>
+              <label for="promoMaxDelay" style="display:block;font-size:0.8rem;font-weight:700;margin-bottom:0.25rem;">Délai max anti-ban (s)</label>
+              <input type="number" id="promoMaxDelay" name="max_delay" min="20" max="300" class="form-control form-control-sm"
+                     value="{{ ps.get('max_delay', 90) }}">
+              <small style="color:#64748b;font-size:0.72rem;">Pause maximale aléatoire.</small>
+            </div>
+          </div>
+        </details>
 
         <div>
           <button type="submit" class="wa-btn wa-btn-refresh">
             <i class="bi bi-check2-circle" aria-hidden="true"></i>
-            <span>Enregistrer les réglages</span>
+            <span>Enregistrer tous les réglages</span>
           </button>
         </div>
       </form>
 
-      {% set last_preview = pl.get('last_preview') %}
-      {% if last_preview and last_preview.get('details') %}
-      <details class="wa-help-details" open>
-        <summary><i class="bi bi-eye"></i> Dernier aperçu généré ({{ last_preview.get('started_at') }} — source : {{ last_preview.get('copy_source') }})</summary>
-        <div class="wa-help-content">
-          {% for d in last_preview.get('details', [])[:8] %}
-            <div style="margin-bottom:0.65rem;">
-              <strong>Cible : <code>{{ d.get('target') }}</code> (Produit #{{ d.get('product_id') }})</strong>
-              <pre style="white-space:pre-wrap;">{{ d.get('text') }}</pre>
+      <!-- Aperçu en direct du dernier message généré par Gemini -->
+      <div class="wa-chat-preview-wrap">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.75rem;margin-bottom:1rem;">
+          <div>
+            <h3 style="margin:0;font-size:0.95rem;font-weight:800;color:var(--dark,#0f172a);display:flex;align-items:center;gap:0.5rem;">
+              <i class="bi bi-magic" style="color:#059669;"></i> Aperçu en Direct : Textes Générés par Gemini IA
+            </h3>
+            {% if lg and lg.get('products') %}
+              <div style="font-size:0.77rem;color:#64748b;margin-top:0.2rem;">
+                Généré le <strong>{{ lg.get('generated_at') }}</strong> •
+                Rédacteur : <span class="wa-pill p-ok">{{ lg.get('copy_source', 'gemini') }}</span> •
+                Mode : {% if lg.get('dry_run') %}<span class="wa-pill p-skip">Simulation (Dry-Run)</span>{% else %}<span class="wa-pill p-ok">Réel</span>{% endif %}
+              </div>
+            {% endif %}
+          </div>
+          {% if not (lg and lg.get('products')) %}
+            <form method="POST" action="{{ url_for('admin.whatsapp_promo_run') }}" style="display:inline;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="mode" value="dry_run">
+              <button type="submit" class="wa-btn wa-btn-refresh" style="font-size:0.8rem;padding:0.45rem 0.85rem;">
+                <i class="bi bi-play-circle-fill"></i> Générer un premier aperçu
+              </button>
+            </form>
+          {% endif %}
+        </div>
+
+        {% if lg and lg.get('products') %}
+          {% for prod in lg.get('products', []) %}
+            <div class="wa-product-preview-card">
+              <div class="wa-product-header">
+                <img src="{{ prod.get('image_url') or url_for('static', filename='images/placeholder-product.svg') }}"
+                     alt="{{ prod.get('title') }}"
+                     class="wa-bubble-img"
+                     onerror="this.src='/static/images/placeholder-product.svg';">
+                <div style="flex:1;min-width:0;">
+                  <div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;flex-wrap:wrap;">
+                    <strong style="font-size:0.95rem;color:var(--dark,#0f172a);">{{ prod.get('title') }}</strong>
+                    <div>
+                      {% if prod.get('old_price_dh') %}
+                        <span style="text-decoration:line-through;color:#94a3b8;font-size:0.82rem;margin-right:0.35rem;">{{ prod.get('old_price_dh') }} DH</span>
+                      {% endif %}
+                      <span style="font-weight:800;color:#059669;font-size:1rem;">{{ prod.get('price_dh') }} DH</span>
+                    </div>
+                  </div>
+                  <div style="font-size:0.78rem;color:#64748b;margin-top:0.15rem;">
+                    Boutique : <strong>{{ prod.get('shop_name') }}</strong> ({{ prod.get('shop_city') }}) •
+                    <a href="{{ prod.get('product_url') }}" target="_blank" rel="noopener" style="color:#0f766e;text-decoration:underline;">
+                      Voir la fiche produit <i class="bi bi-box-arrow-up-right"></i>
+                    </a>
+                  </div>
+                </div>
+              </div>
+
+              <div class="wa-bubbles-grid">
+                <!-- Statut WhatsApp -->
+                <div class="wa-chat-bubble">
+                  <div class="wa-bubble-badge is-story"><i class="bi bi-camera-fill"></i> Légende Statut 24h (Story)</div>
+                  <pre class="wa-bubble-text">{{ prod.get('status_caption') or 'Aucune légende statut générée' }}</pre>
+                  <small style="color:#64748b;font-size:0.72rem;"><i class="bi bi-eye"></i> Publié avec l'image sur <code>status@broadcast</code></small>
+                </div>
+
+                <!-- Message Groupe WhatsApp -->
+                <div class="wa-chat-bubble">
+                  <div class="wa-bubble-badge is-group"><i class="bi bi-people-fill"></i> Message Groupe WhatsApp</div>
+                  <pre class="wa-bubble-text">{{ prod.get('group_message_sample') or prod.get('direct_message') or 'Aucun message de groupe généré' }}</pre>
+                  <small style="color:#64748b;font-size:0.72rem;"><i class="bi bi-send"></i> Envoyé avec l'image dans tous les groupes configurés</small>
+                </div>
+
+                <!-- Message Privé VIP -->
+                <div class="wa-chat-bubble">
+                  <div class="wa-bubble-badge is-direct"><i class="bi bi-chat-heart-fill"></i> Message Privé (Client VIP)</div>
+                  <pre class="wa-bubble-text">{{ prod.get('direct_message') or 'Aucun message privé généré' }}</pre>
+                  <small style="color:#64748b;font-size:0.72rem;"><i class="bi bi-person-check"></i> Envoyé individuellement avec délai anti-ban</small>
+                </div>
+              </div>
             </div>
           {% endfor %}
-        </div>
-      </details>
-      {% endif %}
+        {% else %}
+          <div style="text-align:center;padding:1.5rem 1rem;background:#ffffff;border:1px dashed #cbd5e1;border-radius:0.75rem;">
+            <i class="bi bi-chat-dots" style="font-size:2.5rem;color:#94a3b8;display:block;margin-bottom:0.5rem;"></i>
+            <h4 style="margin:0 0 0.35rem 0;font-size:0.95rem;color:var(--dark,#0f172a);">Aucun aperçu n'a encore été généré</h4>
+            <p style="font-size:0.8rem;color:#64748b;max-width:440px;margin:0 auto 1rem auto;">
+              Cliquez sur le bouton <strong>« Aperçu à blanc (Dry-run) »</strong> en haut à droite pour demander à l'IA Gemini de rédiger les textes du jour et les prévisualiser ici sans envoyer de messages réels.
+            </p>
+          </div>
+        {% endif %}
+      </div>
 
+      <!-- Journal des Envois et Logs Récents -->
+      <div style="display:grid;gap:0.75rem;">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;">
+          <div>
+            <h3 style="margin:0;font-size:0.95rem;font-weight:800;color:var(--dark,#0f172a);display:flex;align-items:center;gap:0.5rem;">
+              <i class="bi bi-journal-text" style="color:#0f766e;"></i> Journal des Envois Récents & Transparence
+            </h3>
+            <p style="margin:0.15rem 0 0;font-size:0.78rem;color:#64748b;">Historique précis de chaque tentative d'envoi (Statuts, Groupes, Contacts VIP, STOP)</p>
+          </div>
+          <span class="wa-pill p-groupe">{{ rlogs|length }} log(s) récent(s)</span>
+        </div>
+
+        {% if rlogs %}
+          <div class="wa-logs-scroll">
+            <table class="wa-logs-tbl">
+              <thead>
+                <tr>
+                  <th>Date & Heure</th>
+                  <th>Canal</th>
+                  <th>Produit</th>
+                  <th>Cible / Groupe</th>
+                  <th>Statut</th>
+                  <th>Détails & Réponse</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for log in rlogs %}
+                  <tr>
+                    <td style="white-space:nowrap;font-family:monospace;font-size:0.75rem;">
+                      {{ log.get('timestamp') }}
+                    </td>
+                    <td>
+                      {% set ch = log.get('channel') %}
+                      {% if ch == 'statut' %}
+                        <span class="wa-pill p-statut"><i class="bi bi-camera"></i> Statut 24h</span>
+                      {% elif ch == 'groupe' %}
+                        <span class="wa-pill p-groupe"><i class="bi bi-people"></i> Groupe</span>
+                      {% else %}
+                        <span class="wa-pill p-direct"><i class="bi bi-chat"></i> Privé VIP</span>
+                      {% endif %}
+                    </td>
+                    <td>
+                      <strong>{{ log.get('product_title') or ('#' ~ log.get('product_id')) }}</strong>
+                    </td>
+                    <td style="font-family:monospace;font-size:0.75rem;">
+                      {{ log.get('target') }}
+                    </td>
+                    <td>
+                      {% set st = log.get('status') %}
+                      {% if st == 'success' %}
+                        <span class="wa-pill p-ok"><i class="bi bi-check-lg"></i> Succès</span>
+                      {% elif st == 'failed' %}
+                        <span class="wa-pill p-err"><i class="bi bi-x-lg"></i> Échec</span>
+                      {% else %}
+                        <span class="wa-pill p-skip"><i class="bi bi-dash-circle"></i> Simulation</span>
+                      {% endif %}
+                    </td>
+                    <td style="color:#475569;font-size:0.76rem;line-height:1.4;">
+                      {{ log.get('detail') }}
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:0.75rem;padding:1rem;text-align:center;color:#64748b;font-size:0.8rem;">
+            <i class="bi bi-inbox" style="font-size:1.5rem;display:block;margin-bottom:0.25rem;"></i>
+            Aucun log d'envoi récent pour le moment. Lancez un aperçu à blanc ou attendez la prochaine exécution planifiée.
+          </div>
+        {% endif %}
+      </div>
+
+      <!-- Historique des résumés de runs cron -->
       {% set runs = pl.get('runs') or [] %}
       {% if runs %}
       <details class="wa-help-details">
-        <summary><i class="bi bi-journal-text"></i> Historique des dernières exécutions ({{ runs|length }})</summary>
+        <summary><i class="bi bi-clock-history"></i> Historique global des exécutions quotidiennes ({{ runs|length }})</summary>
         <div class="wa-help-content">
           <ul style="margin:0;padding-left:1.2rem;font-size:0.82rem;">
-            {% for r in runs[:5] %}
-              <li>
-                <strong>{{ r.get('started_at') }}</strong> — Statuts : {{ r.get('statuses_ok', 0) }} OK / {{ r.get('statuses_failed', 0) }} échec —
-                Messages : {{ r.get('messages_ok', 0) }} OK / {{ r.get('messages_failed', 0) }} échec ({{ r.get('skipped', 0) }} ignorés)
+            {% for r in runs[:6] %}
+              <li style="margin-bottom:0.35rem;">
+                <strong>{{ r.get('started_at') }}</strong> —
+                Statuts : <span class="wa-pill p-ok">{{ r.get('statuses_ok', 0) }} OK</span> / <span class="wa-pill p-err">{{ r.get('statuses_failed', 0) }} échec</span> —
+                Groupes : <span class="wa-pill p-ok">{{ r.get('groups_ok', 0) }} OK</span> / <span class="wa-pill p-err">{{ r.get('groups_failed', 0) }} échec</span> —
+                Messages VIP : <span class="wa-pill p-ok">{{ r.get('messages_ok', 0) }} OK</span> / <span class="wa-pill p-err">{{ r.get('messages_failed', 0) }} échec</span>
+                ({{ r.get('skipped', 0) }} ignorés)
                 {% if r.get('aborted') %} — <em>Arrêt : {{ r.get('aborted') }}</em>{% endif %}
               </li>
             {% endfor %}

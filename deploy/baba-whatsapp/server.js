@@ -90,6 +90,51 @@ function toJid(phone) {
   return digits ? `${digits}@s.whatsapp.net` : "";
 }
 
+function extractInviteCode(urlOrText) {
+  if (!urlOrText) return null;
+  const match = String(urlOrText).match(/(?:chat\.whatsapp\.com\/|invite\/)([A-Za-z0-9_-]+)/i);
+  return match ? match[1] : null;
+}
+
+async function resolveTargetJid(rawTarget) {
+  const str = String(rawTarget || "").trim();
+  if (!str) return null;
+
+  // 1. Déjà un JID de groupe WhatsApp (ex: 120363024888888888@g.us)
+  if (str.endsWith("@g.us")) {
+    return { jid: str, isGroup: true, label: str };
+  }
+
+  // 2. Lien d'invitation de groupe (ex: https://chat.whatsapp.com/AbCdEf...)
+  const inviteCode = extractInviteCode(str);
+  if (inviteCode && sock) {
+    try {
+      const info = await sock.groupGetInviteInfo(inviteCode);
+      if (info && info.id) {
+        return { jid: info.id, isGroup: true, label: info.subject || info.id };
+      }
+    } catch (_err) {
+      try {
+        const joinedId = await sock.groupAcceptInvite(inviteCode);
+        if (joinedId) {
+          const jid = joinedId.endsWith("@g.us") ? joinedId : `${joinedId}@g.us`;
+          return { jid, isGroup: true, label: jid };
+        }
+      } catch (_joinErr) {
+        logger.warn({ inviteCode }, "Impossible de résoudre le groupe via le lien d'invitation");
+      }
+    }
+  }
+
+  // 3. Numéro de téléphone individuel (contact opt-in)
+  const digits = normalizePhone(str);
+  if (digits) {
+    return { jid: `${digits}@s.whatsapp.net`, isGroup: false, phone: digits, label: digits };
+  }
+
+  return null;
+}
+
 function isStopKeyword(text) {
   const cleaned = String(text || "")
     .trim()
@@ -321,29 +366,38 @@ async function reconnectHandler(_req, res) {
 app.post(["/api/reconnect", "/reconnect", "/api/qr/refresh"], requireApiKey, reconnectHandler);
 
 // ---------------------------------------------------------------------------
-// Nouveaux endpoints : Statut 24h & Message Média avec anti-ban
+// Nouveaux endpoints : Statut 24h & Diffusion (Groupes & Clients)
 // ---------------------------------------------------------------------------
+app.post("/api/groups/resolve", requireApiKey, async (req, res) => {
+  if (!sock || connectionStatus !== "connected") {
+    return res.status(503).json({ ok: false, error: "not_connected" });
+  }
+  const linkOrJid = String(req.body.link || req.body.target || "").trim();
+  const info = await resolveTargetJid(linkOrJid);
+  if (!info || !info.isGroup) {
+    return res.status(400).json({ ok: false, error: "not_a_valid_group" });
+  }
+  return res.json({ ok: true, jid: info.jid, name: info.label });
+});
+
 app.post("/api/promo/status", requireApiKey, async (req, res) => {
   if (!sock || connectionStatus !== "connected") {
     return res.status(503).json({ ok: false, error: "not_connected" });
   }
   const imageUrl = String(req.body.image_url || "").trim();
   const caption = String(req.body.caption || "").trim();
+  if (!imageUrl || !caption) {
+    return res.status(400).json({ ok: false, error: "invalid_status_payload" });
+  }
   const rawList = Array.isArray(req.body.status_jid_list) ? req.body.status_jid_list : [];
   const statusJidList = [...new Set(rawList.map(toJid).filter(Boolean))];
   if (connectedPhone) {
     statusJidList.push(`${connectedPhone}@s.whatsapp.net`);
   }
-  if (!imageUrl || !caption || statusJidList.length === 0) {
-    return res.status(400).json({ ok: false, error: "invalid_status_payload" });
-  }
   try {
     const buffer = await fetchImageBuffer(imageUrl);
-    await sock.sendMessage(
-      "status@broadcast",
-      { image: buffer, caption },
-      { statusJidList: [...new Set(statusJidList)] }
-    );
+    const options = statusJidList.length > 0 ? { statusJidList: [...new Set(statusJidList)] } : {};
+    await sock.sendMessage("status@broadcast", { image: buffer, caption }, options);
     return res.json({ ok: true, recipients: statusJidList.length });
   } catch (err) {
     return res.status(500).json({ ok: false, error: String(err && err.message ? err.message : err) });
@@ -354,33 +408,52 @@ app.post("/api/promo/send-media", requireApiKey, async (req, res) => {
   if (!sock || connectionStatus !== "connected") {
     return res.status(503).json({ ok: false, error: "not_connected" });
   }
-  const phone = normalizePhone(req.body.phone);
+  const target = req.body.target || req.body.phone || req.body.group;
   const imageUrl = String(req.body.image_url || "").trim();
   const caption = String(req.body.caption || "").trim();
-  if (!phone || !imageUrl || !caption) {
+  if (!target || !imageUrl || !caption) {
     return res.status(400).json({ ok: false, error: "invalid_media_payload" });
   }
-  if (optedOutPhones.has(phone)) {
-    return res.status(409).json({ ok: false, error: "opted_out" });
+
+  const targetInfo = await resolveTargetJid(target);
+  if (!targetInfo) {
+    return res.status(400).json({ ok: false, error: "invalid_target" });
   }
-  const jid = toJid(phone);
-  try {
-    const check = await sock.onWhatsApp(jid);
-    const exists = Array.isArray(check) && check[0] && check[0].exists;
-    if (!exists) {
-      return res.status(404).json({ ok: false, error: "not_on_whatsapp" });
+
+  // Si c'est un message direct vers un client
+  if (!targetInfo.isGroup) {
+    if (optedOutPhones.has(targetInfo.phone)) {
+      return res.status(409).json({ ok: false, error: "opted_out", phone: targetInfo.phone });
     }
-    const buffer = await fetchImageBuffer(imageUrl);
-    // Simulation de présence humaine (anti-ban)
     try {
-      await sock.sendPresenceUpdate("composing", jid);
+      const check = await sock.onWhatsApp(targetInfo.jid);
+      const exists = Array.isArray(check) && check[0] && check[0].exists;
+      if (!exists) {
+        return res.status(404).json({ ok: false, error: "not_on_whatsapp", phone: targetInfo.phone });
+      }
+    } catch (_checkErr) {
+      // ignore
+    }
+  }
+
+  try {
+    const buffer = await fetchImageBuffer(imageUrl);
+    // Simulation présence humaine (anti-ban)
+    try {
+      await sock.sendPresenceUpdate("composing", targetInfo.jid);
       await sleep(1200 + Math.floor(Math.random() * 1300));
-      await sock.sendPresenceUpdate("paused", jid);
+      await sock.sendPresenceUpdate("paused", targetInfo.jid);
     } catch (_err) {
       // ignore
     }
-    await sock.sendMessage(jid, { image: buffer, caption });
-    return res.json({ ok: true, phone });
+
+    await sock.sendMessage(targetInfo.jid, { image: buffer, caption });
+    return res.json({
+      ok: true,
+      target: targetInfo.jid,
+      isGroup: targetInfo.isGroup,
+      label: targetInfo.label,
+    });
   } catch (err) {
     return res.status(500).json({ ok: false, error: String(err && err.message ? err.message : err) });
   }

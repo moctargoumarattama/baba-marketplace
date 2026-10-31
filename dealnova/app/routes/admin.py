@@ -1996,16 +1996,21 @@ def whatsapp_gateway():
         get_log as get_promo_log,
         get_settings as get_promo_settings,
         recipients_to_text,
+        groups_to_text,
     )
 
     promo_settings = get_promo_settings()
+    promo_log = get_promo_log()
     response = current_app.make_response(
         render_template(
             "admin/whatsapp_gateway.html",
             gateway=gateway_state,
             promo_settings=promo_settings,
-            promo_log=get_promo_log(),
+            promo_log=promo_log,
             promo_recipients_text=recipients_to_text(promo_settings.get("recipients", [])),
+            promo_groups_text=groups_to_text(promo_settings.get("groups", [])),
+            last_generated=promo_log.get("last_generated"),
+            recent_logs=promo_log.get("recent_logs", []),
         )
     )
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
@@ -2056,16 +2061,25 @@ def whatsapp_promo_settings():
     from ..services.whatsapp_promo import (
         get_settings as get_promo_settings,
         parse_recipients_text,
+        parse_groups_text,
         save_settings as save_promo_settings,
     )
 
     current = get_promo_settings()
     data = request.get_json(silent=True) if request.is_json else request.form
+
     raw_recipients = data.get("recipients_text")
     recipients = (
         parse_recipients_text(raw_recipients, existing=current.get("recipients"))
         if raw_recipients is not None
         else current.get("recipients", [])
+    )
+
+    raw_groups = data.get("groups_text")
+    groups = (
+        parse_groups_text(raw_groups, existing=current.get("groups"))
+        if raw_groups is not None
+        else current.get("groups", [])
     )
 
     def _bool_field(name: str, default: bool) -> bool:
@@ -2077,7 +2091,11 @@ def whatsapp_promo_settings():
     updated = save_promo_settings({
         "enabled": _bool_field("enabled", current.get("enabled", False)),
         "dry_run": _bool_field("dry_run", current.get("dry_run", True)),
+        "status_enabled": _bool_field("status_enabled", current.get("status_enabled", True)),
+        "groups_enabled": _bool_field("groups_enabled", current.get("groups_enabled", True)),
+        "direct_messages_enabled": _bool_field("direct_messages_enabled", current.get("direct_messages_enabled", True)),
         "admin_phone": data.get("admin_phone", current.get("admin_phone", "")),
+        "groups": groups,
         "recipients": recipients,
         "status_products": data.get("status_products", current.get("status_products", 4)),
         "daily_message_limit": data.get("daily_message_limit", current.get("daily_message_limit", 20)),
@@ -2089,7 +2107,7 @@ def whatsapp_promo_settings():
     if _is_ajax_request() or request.is_json:
         return jsonify(success=True, settings=updated)
 
-    flash("Réglages de l'automatisation promotionnelle WhatsApp enregistrés.", "success")
+    flash("Réglages de promotion WhatsApp enregistrés avec succès.", "success")
     return redirect(url_for("admin.whatsapp_gateway"))
 
 
@@ -2104,6 +2122,7 @@ def whatsapp_promo_run():
     mode = str(data.get("mode") or "dry_run").strip().lower()
     scope = str(data.get("scope") or "all").strip().lower()
     include_status = scope in ("all", "status")
+    include_groups = scope in ("all", "groups")
     include_messages = scope in ("all", "messages")
 
     if mode == "live":
@@ -2113,6 +2132,7 @@ def whatsapp_promo_run():
             force=True,
             dry_run=False,
             include_status=include_status,
+            include_groups=include_groups,
             include_messages=include_messages,
         )
         if _is_ajax_request() or request.is_json:
@@ -2120,22 +2140,23 @@ def whatsapp_promo_run():
                 success=True,
                 mode="live",
                 started=True,
-                message="Exécution réelle lancée en arrière-plan (avec délais anti-ban).",
+                message="Envoi réel lancé en arrière-plan (avec délais anti-ban).",
             )
-        flash("Exécution réelle lancée en arrière-plan (avec délais anti-ban 30–90 s).", "info")
+        flash("Envoi réel lancé en arrière-plan (respect des délais anti-ban 30–90 s).", "info")
         return redirect(url_for("admin.whatsapp_gateway"))
 
     summary = run_daily_promo(
         force=True,
         dry_run=True,
         include_status=include_status,
+        include_groups=include_groups,
         include_messages=include_messages,
     )
     if _is_ajax_request() or request.is_json:
         return jsonify(success=True, mode="dry_run", summary=summary)
 
     flash(
-        f"Aperçu à blanc généré ({len(summary.get('products', []))} produits, source : {summary.get('copy_source') or 'n/a'}).",
+        f"Aperçu généré ({len(summary.get('products', []))} produits, source IA : {summary.get('copy_source') or 'n/a'}).",
         "success",
     )
     return redirect(url_for("admin.whatsapp_gateway"))

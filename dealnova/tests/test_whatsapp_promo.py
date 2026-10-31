@@ -185,6 +185,11 @@ def test_dry_run_and_live_execution_with_opt_out_and_kill_switch(app, tmp_path):
 
     with app.app_context():
         app.config["GEMINI_API_KEY"] = ""
+        # Réinitialisation de l'état log pour un test propre et déterministe
+        whatsapp_promo.mutate_json_states(
+            {whatsapp_promo.LOG_KEY: dict},
+            lambda p: p.update({whatsapp_promo.LOG_KEY: {}})
+        )
         whatsapp_promo.save_settings({
             "enabled": False,
             "dry_run": False,
@@ -337,3 +342,79 @@ def test_admin_promo_routes_and_cli_commands(app, tmp_path):
     cli_run = runner.invoke(args=["whatsapp-promo", "run", "--dry-run"])
     assert cli_run.exit_code == 0
     assert '"mode": "dry_run"' in cli_run.output
+
+
+def test_whatsapp_groups_and_granular_switches(app, tmp_path):
+    _seed_catalog(app, tmp_path)
+
+    with app.app_context():
+        # 1. Test du parsing et de la sérialisation des groupes
+        raw_text = """
+        https://chat.whatsapp.com/AbCdEf12345, Groupe Ventes Casablanca
+        120363028394829@g.us, Groupe VIP Rabat
+        # Ligne de commentaire
+        https://chat.whatsapp.com/XyZ67890, Groupe Bons Plans
+        """
+        groups = whatsapp_promo.parse_groups_text(raw_text)
+        assert len(groups) == 3
+        assert groups[0]["target"] == "https://chat.whatsapp.com/AbCdEf12345"
+        assert groups[0]["label"] == "Groupe Ventes Casablanca"
+        assert groups[1]["target"] == "120363028394829@g.us"
+        assert groups[1]["label"] == "Groupe VIP Rabat"
+
+        serialized = whatsapp_promo.groups_to_text(groups)
+        assert "https://chat.whatsapp.com/AbCdEf12345, Groupe Ventes Casablanca" in serialized
+        assert "120363028394829@g.us, Groupe VIP Rabat" in serialized
+
+        # 2. Test composition de message pour groupe
+        card = {
+            "id": 99,
+            "name": "Huile d'Argan Premium",
+            "price_line": "💰 99 DH au lieu de 130 DH",
+            "page_url": "https://babamarket.ma/shop/product/99",
+            "shop": "Boutique Bio",
+        }
+        copy = {"group_message": "🔥 Offre spéciale membres du groupe ! Commandez directement en ligne."}
+        group_msg = whatsapp_promo.compose_group_message(card, copy, "Groupe Ventes Casablanca")
+        assert "Groupe Ventes Casablanca" in group_msg
+        assert "Huile d'Argan Premium" in group_msg
+        assert "99 DH au lieu de 130 DH" in group_msg
+        assert "utm_medium=group" in group_msg
+
+        # 3. Test de l'exécution avec interrupteurs granulaires
+        whatsapp_promo.mutate_json_states(
+            {whatsapp_promo.LOG_KEY: dict},
+            lambda p: p.update({whatsapp_promo.LOG_KEY: {}})
+        )
+        whatsapp_promo.save_settings({
+            "enabled": True,
+            "dry_run": True,
+            "status_enabled": False,     # Statut désactivé
+            "groups_enabled": True,      # Groupes activés
+            "direct_messages_enabled": False, # Privés désactivés
+            "groups": groups,
+            "recipients": whatsapp_promo.parse_recipients_text("0611223344, Test"),
+            "status_products": 2,
+            "daily_message_limit": 10,
+            "min_delay": 20,
+            "max_delay": 30,
+            "cooldown_days": 7,
+        })
+
+        summary = whatsapp_promo.run_daily_promo(force=True, dry_run=True)
+        assert summary["mode"] == "dry_run"
+        assert summary["aborted"] is None
+
+        # Statuts et messages directs ne doivent avoir aucun événement
+        channels_present = {d.get("channel") for d in summary["details"]}
+        assert "status" not in channels_present
+        assert "direct" not in channels_present
+        assert "group" in channels_present
+
+        # Vérification du stockage de recent_logs et last_generated dans le log
+        log_state = whatsapp_promo.get_log()
+        assert "last_generated" in log_state
+        assert "recent_logs" in log_state
+        assert len(log_state["recent_logs"]) > 0
+        assert any(l.get("channel") == "group" for l in log_state["recent_logs"])
+
