@@ -298,17 +298,37 @@ def test_admin_promo_routes_and_cli_commands(app, tmp_path):
             )
             manager_user.set_password("ManagerPass123!")
             db.session.add(manager_user)
+        vendor_user = User.query.filter_by(username="wa_promo_vendor").first()
+        if not vendor_user:
+            vendor_user = User(
+                username="wa_promo_vendor",
+                email="wa_promo_vendor@babamarket.ma",
+                role="vendor",
+                is_active=True,
+            )
+            vendor_user.set_password("VendorPass123!")
+            db.session.add(vendor_user)
         db.session.commit()
         admin_id = admin_user.id
         manager_id = manager_user.id
+        vendor_id = vendor_user.id
 
-    # Manager must be blocked (403/302)
+    # Vendor (non-staff) must be blocked (403/302)
+    vnd_client = app.test_client()
+    with vnd_client.session_transaction() as sess:
+        sess["_user_id"] = str(vendor_id)
+        sess["_fresh"] = True
+    assert vnd_client.post("/admin/whatsapp-gateway/promo/settings").status_code in (302, 403)
+    assert vnd_client.post("/admin/whatsapp-gateway/promo/run").status_code in (302, 403)
+
+    # Manager has full access to /admin/whatsapp-gateway and promo actions
     mgr_client = app.test_client()
     with mgr_client.session_transaction() as sess:
         sess["_user_id"] = str(manager_id)
         sess["_fresh"] = True
-    assert mgr_client.post("/admin/whatsapp-gateway/promo/settings").status_code in (302, 403)
-    assert mgr_client.post("/admin/whatsapp-gateway/promo/run").status_code in (302, 403)
+    assert mgr_client.get("/admin/whatsapp-gateway").status_code == 200
+    assert mgr_client.post("/admin/whatsapp-gateway/promo/settings", json={"enabled": True, "dry_run": True}).status_code == 200
+    assert mgr_client.post("/admin/whatsapp-gateway/promo/run", json={"mode": "dry_run"}).status_code == 200
 
     # Admin can save settings and trigger dry-run preview
     adm_client = app.test_client()

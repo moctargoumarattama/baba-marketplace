@@ -104,12 +104,6 @@ MANAGER_BLOCKED_ADMIN_ENDPOINTS = {
     "admin.maintenance_backup_download",
     "admin.maintenance_backup_restore",
     "admin.maintenance_reset_data",
-    "admin.whatsapp_gateway",
-    "admin.whatsapp_gateway_disconnect",
-    "admin.whatsapp_gateway_reconnect",
-    "admin.whatsapp_promo_settings",
-    "admin.whatsapp_promo_run",
-    "admin.whatsapp_promo_edit_copy",
 }
 
 
@@ -1983,7 +1977,7 @@ def maintenance_reset_data():
 # ======================
 @bp.route("/whatsapp-gateway", methods=["GET"])
 def whatsapp_gateway():
-    if _current_admin_role() != ADMIN_ROLE:
+    if _current_admin_role() not in {ADMIN_ROLE, MANAGER_ROLE}:
         return _sensitive_admin_forbidden_response()
 
     gateway_state = get_whatsapp_gateway_status()
@@ -2041,7 +2035,7 @@ def whatsapp_gateway():
 
 @bp.route("/whatsapp-gateway/disconnect", methods=["POST"])
 def whatsapp_gateway_disconnect():
-    if _current_admin_role() != ADMIN_ROLE:
+    if _current_admin_role() not in {ADMIN_ROLE, MANAGER_ROLE}:
         return _sensitive_admin_forbidden_response()
 
     result = disconnect_whatsapp_gateway()
@@ -2059,7 +2053,7 @@ def whatsapp_gateway_disconnect():
 
 @bp.route("/whatsapp-gateway/reconnect", methods=["POST"])
 def whatsapp_gateway_reconnect():
-    if _current_admin_role() != ADMIN_ROLE:
+    if _current_admin_role() not in {ADMIN_ROLE, MANAGER_ROLE}:
         return _sensitive_admin_forbidden_response()
 
     result = reconnect_whatsapp_gateway()
@@ -2077,7 +2071,7 @@ def whatsapp_gateway_reconnect():
 
 @bp.route("/whatsapp-gateway/promo/settings", methods=["POST"])
 def whatsapp_promo_settings():
-    if _current_admin_role() != ADMIN_ROLE:
+    if _current_admin_role() not in {ADMIN_ROLE, MANAGER_ROLE}:
         return _sensitive_admin_forbidden_response()
 
     from ..services.whatsapp_promo import (
@@ -2134,7 +2128,7 @@ def whatsapp_promo_settings():
 
 @bp.route("/whatsapp-gateway/promo/run", methods=["POST"])
 def whatsapp_promo_run():
-    if _current_admin_role() != ADMIN_ROLE:
+    if _current_admin_role() not in {ADMIN_ROLE, MANAGER_ROLE}:
         return _sensitive_admin_forbidden_response()
 
     from ..services.whatsapp_promo import run_daily_promo, run_in_background
@@ -2197,7 +2191,7 @@ def whatsapp_promo_run():
 
 @bp.route("/whatsapp-gateway/promo/edit-copy", methods=["POST"])
 def whatsapp_promo_edit_copy():
-    if _current_admin_role() != ADMIN_ROLE:
+    if _current_admin_role() not in {ADMIN_ROLE, MANAGER_ROLE}:
         return _sensitive_admin_forbidden_response()
 
     from ..services.whatsapp_promo import update_product_copy
@@ -2232,7 +2226,7 @@ def whatsapp_promo_edit_copy():
 
 @bp.route("/whatsapp-gateway/promo/retry-failed", methods=["POST"])
 def whatsapp_promo_retry_failed():
-    if _current_admin_role() != ADMIN_ROLE:
+    if _current_admin_role() not in {ADMIN_ROLE, MANAGER_ROLE}:
         return _sensitive_admin_forbidden_response()
 
     from ..services.whatsapp_promo import run_retry_in_background
@@ -2252,7 +2246,7 @@ def whatsapp_promo_retry_failed():
 
 @bp.route("/whatsapp-gateway/promo/send-test", methods=["POST"])
 def whatsapp_promo_send_test():
-    if _current_admin_role() != ADMIN_ROLE:
+    if _current_admin_role() not in {ADMIN_ROLE, MANAGER_ROLE}:
         return _sensitive_admin_forbidden_response()
 
     from ..services.whatsapp_promo import send_test_to_admin
@@ -2280,7 +2274,7 @@ def whatsapp_promo_send_test():
 
 @bp.route("/whatsapp-gateway/promo/search-products")
 def whatsapp_promo_search_products():
-    if _current_admin_role() != ADMIN_ROLE:
+    if _current_admin_role() not in {ADMIN_ROLE, MANAGER_ROLE}:
         return _sensitive_admin_forbidden_response()
 
     q = (request.args.get("q") or "").strip()
@@ -2317,7 +2311,7 @@ def whatsapp_promo_search_products():
 
 @bp.route("/whatsapp-gateway/promo/pin-product", methods=["POST"])
 def whatsapp_promo_pin_product():
-    if _current_admin_role() != ADMIN_ROLE:
+    if _current_admin_role() not in {ADMIN_ROLE, MANAGER_ROLE}:
         return _sensitive_admin_forbidden_response()
 
     from ..services.whatsapp_promo import get_settings, save_settings, run_daily_promo

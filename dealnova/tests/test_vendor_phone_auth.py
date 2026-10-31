@@ -214,17 +214,37 @@ def test_admin_whatsapp_gateway_route_and_qr_rendering(app):
             )
             manager_user.set_password("ManagerPass123!")
             db.session.add(manager_user)
+        vendor_user = User.query.filter_by(username="wa_test_vendor").first()
+        if not vendor_user:
+            vendor_user = User(
+                username="wa_test_vendor",
+                email="wa_test_vendor@babamarket.ma",
+                role="vendor",
+                is_active=True,
+            )
+            vendor_user.set_password("VendorPass123!")
+            db.session.add(vendor_user)
         db.session.commit()
         admin_id = admin_user.id
         manager_id = manager_user.id
+        vendor_id = vendor_user.id
 
-    # 1. Manager should be blocked from /admin/whatsapp-gateway
+    # 1. Vendor (non-staff) must be blocked from /admin/whatsapp-gateway, while Manager has full access
+    vnd_client = app.test_client()
+    with vnd_client.session_transaction() as sess:
+        sess["_user_id"] = str(vendor_id)
+        sess["_fresh"] = True
+    vnd_resp = vnd_client.get("/admin/whatsapp-gateway", follow_redirects=False)
+    assert vnd_resp.status_code in (302, 403)
+
     mgr_client = app.test_client()
     with mgr_client.session_transaction() as sess:
         sess["_user_id"] = str(manager_id)
         sess["_fresh"] = True
-    mgr_resp = mgr_client.get("/admin/whatsapp-gateway", follow_redirects=False)
-    assert mgr_resp.status_code in (302, 403)
+    with patch("dealnova.app.routes.admin.get_whatsapp_gateway_status") as mock_mgr_status:
+        mock_mgr_status.return_value = {"status": "qr_ready", "status_label": "En attente de scan", "qr": sample_qr}
+        mgr_resp = mgr_client.get("/admin/whatsapp-gateway", follow_redirects=False)
+        assert mgr_resp.status_code == 200
 
     # 2. Admin can access /admin/whatsapp-gateway when qr_ready and sees the QR image
     adm_client = app.test_client()
@@ -246,9 +266,9 @@ def test_admin_whatsapp_gateway_route_and_qr_rendering(app):
         resp_qr = adm_client.get("/admin/whatsapp-gateway")
         assert resp_qr.status_code == 200
         html = resp_qr.get_data(as_text=True)
-        assert "En attente de scan" in html
+        assert "Connexion en attente de scan" in html
         assert sample_qr in html
-        assert "Rafraîchir le statut" in html
+        assert "Actualiser la connexion" in html
 
         # JSON refresh check
         resp_json = adm_client.get("/admin/whatsapp-gateway?format=json")

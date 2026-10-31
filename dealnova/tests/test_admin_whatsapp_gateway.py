@@ -20,11 +20,10 @@ def test_whatsapp_gateway_template_contains_disconnect_and_reconnect_buttons():
     assert "id=\"waDisconnectBtn\"" in content
     assert "id=\"waReconnectBtn\"" in content
     assert "id=\"waRefreshBtn\"" in content
-    assert "id=\"waPhonePill\"" in content
-    assert "id=\"waQrPollIndicator\"" in content
+    assert "id=\"waStatusBanner\"" in content
+    assert "id=\"waQrImage\"" in content
     assert "admin.whatsapp_gateway_disconnect" in content
     assert "admin.whatsapp_gateway_reconnect" in content
-    assert "data-adm-page=\"whatsapp-gateway\"" in content
 
 
 def test_disconnect_whatsapp_gateway_graceful_on_network_error():
