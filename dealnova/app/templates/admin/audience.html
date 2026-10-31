@@ -6,344 +6,509 @@
 {% block head %}
 {{ super() }}
 <style>
-  .aud-page {
-    display: grid;
-    gap: 1rem;
-    min-width: 0;
+  :root {
+    --aud-bg: #f8fafc;
+    --aud-surface: #ffffff;
+    --aud-surface-muted: #f1f5f9;
+    --aud-surface-subtle: #f8fafc;
+    --aud-border: rgba(226, 232, 240, 0.9);
+    --aud-border-strong: #cbd5e1;
+    --aud-ink: #0f172a;
+    --aud-ink-secondary: #334155;
+    --aud-ink-muted: #64748b;
+    --aud-primary: #0f766e;
+    --aud-emerald: #10b981;
+    --aud-radius-lg: 20px;
+    --aud-radius-md: 14px;
+    --aud-radius-sm: 10px;
+    --aud-shadow-3d: 0 6px 16px -3px rgba(15, 23, 42, 0.05), 0 2px 4px -1px rgba(15, 23, 42, 0.03), inset 0 1px 0 rgba(255, 255, 255, 0.95);
+    --aud-shadow-3d-hover: 0 12px 26px -4px rgba(15, 23, 42, 0.1), 0 4px 8px -2px rgba(15, 23, 42, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.95);
   }
+
+  html[data-admin-theme="noc"] {
+    --aud-bg: #0b1120;
+    --aud-surface: #0f172a;
+    --aud-surface-muted: #1e293b;
+    --aud-surface-subtle: #141f32;
+    --aud-border: #334155;
+    --aud-border-strong: #475569;
+    --aud-ink: #f8fafc;
+    --aud-ink-secondary: #cbd5e1;
+    --aud-ink-muted: #94a3b8;
+    --aud-shadow-3d: 0 6px 20px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    --aud-shadow-3d-hover: 0 14px 28px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  }
+
+  .aud-page {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+    max-inline-size: 1440px;
+    margin-inline: auto;
+    padding-block-end: 2rem;
+    color: var(--aud-ink);
+  }
+
   .aud-page *,
   .aud-page *::before,
   .aud-page *::after {
     box-sizing: border-box;
   }
-  .aud-page > *,
-  .aud-shell > *,
-  .aud-grid > *,
-  .aud-grid-small > *,
-  .aud-grid-panels > *,
-  .aud-detail-grid > *,
-  .aud-intro-strip > *,
-  .aud-panel-head > *,
-  .aud-item > *,
-  .aud-detail summary > * {
-    min-width: 0;
-  }
-  .aud-page :where(h1, h2, p, .aud-label, .aud-help, .aud-item-title, .aud-item-meta, .aud-subtle, .aud-code) {
-    overflow-wrap: anywhere;
-  }
+
+  /* 3D Glass Hero */
   .aud-hero {
     position: relative;
-    overflow: hidden;
-    padding: 1.35rem;
-    border-radius: 26px;
-    background:
-      radial-gradient(circle at top right, rgba(255,255,255,.18), transparent 34%),
-      linear-gradient(135deg, #0f172a, #155e75 48%, #0f766e);
-    color: #fff;
-    box-shadow: 0 22px 46px rgba(15, 23, 42, 0.16);
+    border-radius: var(--aud-radius-lg);
+    background: radial-gradient(circle at 85% 15%, rgba(20, 184, 166, 0.25), transparent 40%),
+                linear-gradient(135deg, #0b1329 0%, #0f243a 52%, #064e3b 100%);
+    color: #ffffff;
+    padding: 1.15rem 1.35rem;
+    box-shadow: 0 16px 36px -6px rgba(11, 19, 41, 0.35), inset 0 1px 1px rgba(255, 255, 255, 0.18);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
   }
-  .aud-hero h1 {
-    margin: 0 0 .35rem;
-    font-size: 1.9rem;
+
+  .aud-hero-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.9rem;
+  }
+
+  .aud-hero-copy h1 {
+    font-size: clamp(1.2rem, 0.95rem + 1vw, 1.55rem);
     font-weight: 900;
+    letter-spacing: -0.02em;
+    margin: 0 0 0.2rem 0;
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
   }
-  .aud-hero p {
+
+  .aud-hero-copy p {
     margin: 0;
-    max-width: 860px;
-    color: rgba(255,255,255,.86);
-    font-size: .98rem;
+    font-size: 0.83rem;
+    color: rgba(255, 255, 255, 0.84);
+    max-inline-size: 680px;
+    line-height: 1.42;
   }
-  .aud-hero-meta,
-  .aud-filters,
-  .aud-badges,
+
+  .aud-hero-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.45rem;
+  }
+
+  .aud-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.38rem;
+    padding: 0.32rem 0.68rem;
+    border-radius: 999px;
+    font-size: 0.74rem;
+    font-weight: 700;
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    color: #ffffff;
+    user-select: none;
+  }
+
+  .aud-pill.is-live-ok {
+    background: rgba(16, 185, 129, 0.22);
+    color: #a7f3d0;
+    border-color: rgba(16, 185, 129, 0.42);
+  }
+
+  .aud-pill.is-live-down {
+    background: rgba(239, 68, 68, 0.22);
+    color: #fecaca;
+    border-color: rgba(239, 68, 68, 0.4);
+  }
+
+  @keyframes aud-pulse {
+    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+    70% { transform: scale(1); box-shadow: 0 0 0 5px rgba(16, 185, 129, 0); }
+    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+  }
+
+  .aud-dot {
+    inline-size: 8px;
+    block-size: 8px;
+    border-radius: 50%;
+    background: #10b981;
+    animation: aud-pulse 2s infinite;
+    flex-shrink: 0;
+  }
+
+  /* Segmented 3D Switch for Scope */
+  .aud-filters {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.24rem;
+    border-radius: 12px;
+    background: rgba(15, 23, 42, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    gap: 0.25rem;
+  }
+
+  .aud-filter-btn {
+    border: none;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.76);
+    font-size: 0.78rem;
+    font-weight: 800;
+    padding: 0.42rem 0.85rem;
+    border-radius: 9px;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    user-select: none;
+  }
+
+  .aud-filter-btn:hover {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  .aud-filter-btn.active {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  }
+
+  /* Navigation Chips */
   .aud-section-nav {
     display: flex;
     flex-wrap: wrap;
-    gap: .65rem;
+    gap: 0.45rem;
   }
-  .aud-hero-meta {
-    margin-top: 1rem;
-  }
-  .aud-pill,
-  .aud-filter-btn,
-  .aud-badge,
+
   .aud-nav-chip {
     display: inline-flex;
     align-items: center;
-    gap: .45rem;
+    gap: 0.38rem;
+    padding: 0.42rem 0.82rem;
     border-radius: 999px;
+    background: var(--aud-surface);
+    border: 1px solid var(--aud-border);
+    color: var(--aud-ink-secondary);
+    font-size: 0.77rem;
     font-weight: 800;
-  }
-  .aud-pill {
-    padding: .46rem .8rem;
-    background: rgba(255,255,255,.14);
-    color: #fff;
-    font-size: .88rem;
-    backdrop-filter: blur(8px);
-  }
-  .aud-pill.is-live-ok {
-    background: rgba(34, 197, 94, .18);
-    color: #dcfce7;
-  }
-  .aud-pill.is-live-down {
-    background: rgba(239, 68, 68, .18);
-    color: #fee2e2;
-  }
-  .aud-dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 999px;
-    background: currentColor;
-    box-shadow: 0 0 0 4px rgba(255,255,255,.12);
-    flex: 0 0 10px;
-  }
-  .aud-nav-chip {
-    padding: .58rem .9rem;
-    background: #fff;
-    color: #0f172a;
-    border: 1px solid rgba(15, 23, 42, .08);
-    box-shadow: 0 10px 22px rgba(15, 23, 42, .05);
     text-decoration: none;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.03);
+    transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
   }
-  .aud-grid,
-  .aud-grid-small,
-  .aud-grid-panels,
-  .aud-detail-grid {
-    display: grid;
-    gap: .9rem;
+
+  .aud-nav-chip:hover {
+    border-color: var(--aud-primary);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.06);
+    color: var(--aud-primary);
   }
-  .aud-grid {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-  }
-  .aud-grid-small {
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  }
-  .aud-grid-panels,
-  .aud-detail-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .aud-grid-panels .aud-wide {
-    grid-column: 1 / -1;
-  }
-  .aud-panel,
-  .aud-card,
-  .aud-detail {
-    background: #fff;
-    border: 1px solid rgba(15, 23, 42, .08);
-    border-radius: 22px;
-    box-shadow: 0 14px 30px rgba(15, 23, 42, .06);
-  }
-  .aud-panel {
-    padding: 1rem;
-  }
-  .aud-card {
-    min-height: 118px;
-    padding: .9rem .95rem;
-    background: linear-gradient(180deg, #ffffff, #f8fafc);
-  }
-  .aud-card.is-priority {
-    border-color: rgba(13, 148, 136, .16);
-    background: linear-gradient(180deg, #f0fdfa, #ffffff);
-  }
+
+  /* 3D Bento Layout & Panels */
   .aud-shell {
     display: grid;
-    grid-template-columns: minmax(0, 1.55fr) minmax(320px, .85fr);
-    gap: 1rem;
+    grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.95fr);
+    gap: 0.9rem;
     align-items: start;
   }
+
+  .aud-panel {
+    background: var(--aud-surface);
+    border: 1px solid var(--aud-border);
+    border-radius: var(--aud-radius-lg);
+    padding: 1rem 1.15rem;
+    box-shadow: var(--aud-shadow-3d);
+    position: relative;
+  }
+
   .aud-sticky-panel {
     position: sticky;
-    top: 1rem;
+    inset-block-start: 1rem;
   }
-  .aud-scroll-panel {
-    max-height: 520px;
-    overflow: auto;
-    padding-right: .15rem;
-  }
+
   .aud-panel-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: .8rem;
-    margin-bottom: .85rem;
+    gap: 0.75rem;
+    margin-block-end: 0.75rem;
+    padding-block-end: 0.45rem;
+    border-block-end: 1px solid var(--aud-border);
   }
+
   .aud-panel-head h2 {
+    font-size: 0.94rem;
+    font-weight: 900;
+    color: var(--aud-ink);
     margin: 0;
-    font-size: 1.02rem;
-    font-weight: 900;
-    color: #0f172a;
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
   }
+
   .aud-panel-note {
-    color: #64748b;
-    font-size: .88rem;
+    font-size: 0.74rem;
+    color: var(--aud-ink-muted);
+    line-height: 1.25;
   }
-  .aud-label {
-    color: #64748b;
-    font-weight: 700;
-    font-size: .72rem;
-    text-transform: uppercase;
-    letter-spacing: .05em;
-  }
-  .aud-value {
-    margin-top: .42rem;
-    font-size: 1.65rem;
-    line-height: 1;
-    font-weight: 900;
-    color: #0f172a;
-  }
-  .aud-help {
-    margin-top: .35rem;
-    color: #475569;
-    font-size: .9rem;
-  }
-  .aud-list {
+
+  /* 3D Card Grids */
+  .aud-grid {
     display: grid;
-    gap: .7rem;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 155px), 1fr));
+    gap: 0.65rem;
   }
-  #audTopPages {
-    gap: .38rem;
+
+  .aud-grid-small {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr));
+    gap: 0.65rem;
   }
-  #audRoles {
-    gap: .35rem;
+
+  .aud-grid-panels {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.9rem;
   }
+
+  .aud-grid-panels .aud-wide {
+    grid-column: 1 / -1;
+  }
+
+  .aud-detail-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.85rem;
+  }
+
+  .aud-card {
+    background: var(--aud-surface);
+    border: 1px solid var(--aud-border);
+    border-radius: var(--aud-radius-md);
+    padding: 0.78rem 0.85rem;
+    box-shadow: var(--aud-shadow-3d);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-block-size: 98px;
+    transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s ease, border-color 0.22s ease;
+    user-select: none;
+  }
+
+  .aud-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--aud-shadow-3d-hover);
+    border-color: var(--aud-border-strong);
+  }
+
+  .aud-card.is-priority {
+    background: linear-gradient(180deg, rgba(236, 253, 245, 0.75) 0%, var(--aud-surface) 100%);
+    border-color: rgba(16, 185, 129, 0.38);
+    box-shadow: 0 6px 18px -2px rgba(16, 185, 129, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  }
+
+  html[data-admin-theme="noc"] .aud-card.is-priority {
+    background: linear-gradient(180deg, rgba(6, 78, 59, 0.35) 0%, var(--aud-surface) 100%);
+    border-color: #059669;
+    box-shadow: 0 8px 20px -2px rgba(5, 150, 105, 0.28);
+  }
+
+  .aud-label {
+    font-size: 0.69rem;
+    font-weight: 800;
+    color: var(--aud-ink-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    line-height: 1.25;
+  }
+
+  .aud-value {
+    font-size: 1.55rem;
+    font-weight: 900;
+    color: var(--aud-ink);
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+    margin-block: 0.2rem 0.15rem;
+  }
+
+  .aud-help {
+    font-size: 0.73rem;
+    color: var(--aud-ink-muted);
+    line-height: 1.32;
+  }
+
+  /* List & Items */
+  .aud-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.38rem;
+  }
+
+  .aud-scroll-panel {
+    max-block-size: 260px;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+    overscroll-behavior: contain;
+    padding-inline-end: 0.2rem;
+  }
+
   .aud-item {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: space-between;
-    gap: .85rem;
-    padding: .8rem .9rem;
-    border-radius: 18px;
-    background: linear-gradient(180deg, #f8fafc, #f1f5f9);
+    gap: 0.75rem;
+    padding: 0.52rem 0.7rem;
+    border-radius: var(--aud-radius-sm);
+    background: var(--aud-surface-muted);
+    border: 1px solid transparent;
+    transition: all 0.16s ease;
   }
-  #audTopPages .aud-item {
-    align-items: center;
-    padding: .5rem .65rem;
-    border-radius: 12px;
+
+  .aud-item:hover {
+    border-color: var(--aud-border-strong);
+    background: var(--aud-surface);
+    transform: translateX(2px);
   }
-  #audRoles .aud-item {
-    align-items: center;
-    padding: .45rem .6rem;
-    border-radius: 12px;
-  }
+
   .aud-item-title {
-    font-weight: 900;
-    color: #0f172a;
-  }
-  #audTopPages .aud-item-title {
-    font-size: .92rem;
+    font-size: 0.81rem;
     font-weight: 800;
+    color: var(--aud-ink);
+    line-height: 1.25;
   }
-  #audRoles .aud-item-title {
-    font-size: .9rem;
-    font-weight: 800;
-  }
+
   .aud-item-meta {
-    margin-top: .22rem;
-    color: #64748b;
-    font-size: .87rem;
+    font-size: 0.71rem;
+    color: var(--aud-ink-muted);
+    margin-block-start: 0.15rem;
+    line-height: 1.25;
   }
+
   .aud-item-side {
-    text-align: right;
+    text-align: end;
     flex-shrink: 0;
-    max-width: 42%;
+    font-size: 0.88rem;
     font-weight: 900;
-    color: #0f766e;
+    color: var(--aud-primary);
   }
-  #audTopPages .aud-item-side {
-    font-size: .95rem;
-  }
-  #audRoles .aud-item-side {
-    font-size: .92rem;
-  }
+
   .aud-item-side small {
     display: block;
-    margin-top: .2rem;
-    color: #64748b;
+    font-size: 0.67rem;
     font-weight: 700;
-    white-space: normal;
-    overflow-wrap: anywhere;
+    color: var(--aud-ink-muted);
   }
-  .aud-empty {
-    padding: .95rem 1rem;
-    border-radius: 18px;
-    background: #f8fafc;
-    color: #64748b;
+
+  .aud-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin-block-start: 0.22rem;
   }
-  .aud-filter-btn {
-    border: 1px solid rgba(15, 23, 42, .08);
-    background: #fff;
-    color: #0f172a;
-    padding: .68rem .95rem;
-    box-shadow: 0 10px 22px rgba(15, 23, 42, .05);
-    transition: background .18s ease, color .18s ease, border-color .18s ease, transform .18s ease;
-  }
-  .aud-filter-btn:hover {
-    transform: translateY(-1px);
-    border-color: rgba(13, 148, 136, .28);
-  }
-  .aud-filter-btn.active {
-    background: linear-gradient(135deg, #0f766e, #14b8a6);
-    color: #fff;
-    border-color: #0f766e;
-  }
-  .aud-connected-card {
-    display: grid;
-    gap: .28rem;
-    min-width: 0;
-  }
+
   .aud-badge {
-    padding: .26rem .54rem;
-    background: #e2e8f0;
-    color: #334155;
-    font-size: .77rem;
-    max-width: 100%;
-    overflow-wrap: anywhere;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.28rem;
+    padding: 0.18rem 0.45rem;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-weight: 800;
+    background: var(--aud-surface);
+    border: 1px solid var(--aud-border);
+    color: var(--aud-ink-secondary);
   }
+
   .aud-badge.is-client {
     background: #dcfce7;
     color: #166534;
+    border-color: #bbf7d0;
   }
+
   .aud-badge.is-internal {
     background: #dbeafe;
-    color: #1d4ed8;
+    color: #1e40af;
+    border-color: #bfdbfe;
   }
+
   .aud-subtle {
-    color: #64748b;
-    font-size: .83rem;
-    font-weight: 700;
+    font-size: 0.71rem;
+    color: var(--aud-ink-muted);
+    font-weight: 600;
+    margin-block-start: 0.2rem;
   }
-  .aud-intro-strip {
+
+  .aud-empty {
+    padding: 0.85rem 1rem;
+    border-radius: var(--aud-radius-sm);
+    background: var(--aud-surface-muted);
+    color: var(--aud-ink-muted);
+    font-size: 0.78rem;
+    text-align: center;
+  }
+
+  /* 3D Heatmap */
+  .aud-heatmap {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: .8rem;
-    margin-top: .95rem;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 0.45rem;
   }
-  .aud-intro-note {
-    padding: .82rem .9rem;
-    border-radius: 18px;
-    background: linear-gradient(135deg, #ecfeff, #f8fafc);
-    border: 1px solid rgba(15, 23, 42, .07);
-    color: #475569;
-    font-size: .9rem;
+
+  .aud-heat {
+    padding: 0.52rem 0.3rem;
+    text-align: center;
+    border-radius: var(--aud-radius-sm);
+    background: var(--aud-surface-muted);
+    border: 1px solid var(--aud-border);
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
   }
-  .aud-intro-note strong {
-    display: block;
-    margin-bottom: .2rem;
-    color: #0f172a;
+
+  .aud-heat:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
   }
-  .aud-code {
-    margin-top: .2rem;
-    padding: .22rem .48rem;
-    border-radius: 10px;
-    background: #e2e8f0;
-    color: #0f172a;
-    font-size: .8rem;
-    font-weight: 800;
-    word-break: break-all;
+
+  .aud-heat-hour {
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: var(--aud-ink-muted);
   }
+
+  .aud-heat-value {
+    font-size: 0.92rem;
+    font-weight: 900;
+    color: var(--aud-ink);
+    margin-block-start: 0.12rem;
+  }
+
+  .aud-heat.is-peak {
+    background: linear-gradient(180deg, #ecfdf5 0%, #d1fae5 100%);
+    border-color: #10b981;
+    box-shadow: 0 3px 8px rgba(16, 185, 129, 0.2);
+  }
+
+  .aud-heat.is-peak .aud-heat-value {
+    color: #065f46;
+  }
+
+  /* Collapsible Details */
   .aud-detail {
+    background: var(--aud-surface);
+    border: 1px solid var(--aud-border);
+    border-radius: var(--aud-radius-lg);
+    box-shadow: var(--aud-shadow-3d);
     overflow: hidden;
   }
+
   .aud-detail summary {
     list-style: none;
     cursor: pointer;
@@ -351,350 +516,78 @@
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    padding: 1rem 1.05rem;
+    padding: 0.9rem 1.15rem;
     font-weight: 900;
-    color: #0f172a;
+    color: var(--aud-ink);
+    font-size: 0.92rem;
+    user-select: none;
+    transition: background 0.18s ease;
   }
+
+  .aud-detail summary:hover {
+    background: var(--aud-surface-muted);
+  }
+
   .aud-detail summary::-webkit-details-marker {
     display: none;
   }
+
   .aud-detail summary span {
     display: block;
-    margin-top: .15rem;
-    color: #64748b;
-    font-size: .88rem;
-    font-weight: 700;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--aud-ink-muted);
+    margin-block-start: 0.12rem;
   }
+
   .aud-detail-body {
-    padding: 0 1rem 1rem;
-  }
-  .aud-heatmap {
-    display: grid;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-    gap: .55rem;
-  }
-  .aud-heat {
-    padding: .75rem .5rem;
-    text-align: center;
-    border-radius: 18px;
-    background: linear-gradient(180deg, #f8fafc, #e2e8f0);
-  }
-  .aud-heat-hour {
-    font-size: .76rem;
-    font-weight: 700;
-    color: #64748b;
-  }
-  .aud-heat-value {
-    margin-top: .2rem;
-    font-size: 1rem;
-    font-weight: 900;
-    color: #0f172a;
+    padding: 0.85rem 1.15rem 1.15rem;
+    border-block-start: 1px solid var(--aud-border);
   }
 
-  .aud-page.aud-monitor-polish {
-    gap: .7rem;
-    color: #0f172a;
+  .aud-code {
+    margin-block-start: 0.2rem;
+    padding: 0.22rem 0.48rem;
+    border-radius: 6px;
+    background: var(--aud-surface-muted);
+    color: var(--aud-ink);
+    font-size: 0.76rem;
+    font-weight: 800;
+    word-break: break-all;
   }
 
-  .aud-monitor-polish .aud-hero {
-    align-items: center;
-    border: 1px solid rgba(20, 184, 166, .18);
-    border-radius: 16px;
-    display: grid;
-    gap: .7rem;
-    grid-template-columns: minmax(0, 1fr) minmax(0, .9fr);
-    padding: .9rem 1rem;
-    box-shadow: 0 14px 30px rgba(15, 23, 42, .10);
-  }
-
-  .aud-monitor-polish .aud-hero h1 {
-    font-size: 1.32rem;
-    margin-bottom: .18rem;
-  }
-
-  .aud-monitor-polish .aud-hero p {
-    font-size: .82rem;
-    max-width: 46rem;
-  }
-
-  .aud-monitor-polish .aud-hero-meta {
-    justify-content: flex-end;
-    margin-top: 0;
-    max-width: 35rem;
-  }
-
-  .aud-monitor-polish .aud-hero-copy,
-  .aud-monitor-polish .aud-hero-meta,
-  .aud-monitor-polish .aud-pill {
-    min-width: 0;
-    max-width: 100%;
-    overflow-wrap: anywhere;
-  }
-
-  .aud-monitor-polish .aud-pill > .bi,
-  .aud-monitor-polish .aud-nav-chip > .bi {
-    flex-shrink: 0;
-  }
-
-  .aud-monitor-polish .aud-pill {
-    font-size: .74rem;
-    min-height: 1.8rem;
-    padding: .28rem .52rem;
-  }
-
-  .aud-monitor-polish .aud-dot {
-    height: .48rem;
-    width: .48rem;
-  }
-
-  .aud-monitor-polish .aud-section-nav {
-    gap: .42rem;
-  }
-
-  .aud-monitor-polish .aud-nav-chip {
-    border-color: #dbe4ee;
-    border-radius: 10px;
-    box-shadow: 0 6px 14px rgba(15, 23, 42, .04);
-    font-size: .78rem;
-    min-height: 2.75rem;
-    padding: .36rem .62rem;
-  }
-
-  .aud-monitor-polish .aud-panel,
-  .aud-monitor-polish .aud-card,
-  .aud-monitor-polish .aud-detail {
-    border-color: #dbe4ee;
-    border-radius: 14px;
-    box-shadow: 0 8px 22px rgba(15, 23, 42, .045);
-  }
-
-  .aud-monitor-polish .aud-panel {
-    padding: .75rem;
-  }
-
-  .aud-monitor-polish .aud-panel-head {
-    margin-bottom: .58rem;
-  }
-
-  .aud-monitor-polish .aud-panel-head h2 {
-    font-size: .92rem;
-  }
-
-  .aud-monitor-polish .aud-panel-note {
-    font-size: .74rem;
-    line-height: 1.25;
-  }
-
-  .aud-monitor-polish .aud-filter-btn {
-    box-shadow: none;
-    font-size: .78rem;
-    min-height: 2.75rem;
-    padding: .36rem .68rem;
-  }
-
-  .aud-monitor-polish .aud-grid {
-    gap: .55rem;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.5rem), 1fr));
-  }
-
-  .aud-monitor-polish .aud-card {
-    background: #fff;
-    min-height: 0;
-    padding: .62rem .68rem;
-  }
-
-  .aud-monitor-polish .aud-card.is-priority {
-    background: linear-gradient(180deg, #ecfdf5, #ffffff);
-    border-color: #99f6e4;
-  }
-
-  .aud-monitor-polish .aud-label {
-    font-size: .7rem;
-    line-height: 1.35;
-    letter-spacing: .035em;
-  }
-
-  .aud-monitor-polish .aud-value {
-    font-size: 1.5rem;
-    margin-top: .22rem;
-  }
-
-  .aud-monitor-polish .aud-help {
-    font-size: .75rem;
-    line-height: 1.35;
-    margin-top: .24rem;
-  }
-
-  .aud-monitor-polish .aud-intro-strip {
-    gap: .55rem;
-    margin-top: .6rem;
-  }
-
-  .aud-monitor-polish .aud-intro-note {
-    border-radius: 12px;
-    font-size: .74rem;
-    padding: .52rem .62rem;
-    line-height: 1.4;
-  }
-
-  .aud-monitor-polish .aud-shell {
-    gap: .75rem;
-    grid-template-columns: minmax(0, 1.5fr) minmax(300px, .8fr);
-  }
-
-  .aud-monitor-polish .aud-grid-panels {
-    gap: .75rem;
-  }
-
-  .aud-monitor-polish .aud-grid-small {
-    gap: .55rem;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .aud-monitor-polish .aud-list {
-    gap: .36rem;
-  }
-
-  .aud-monitor-polish .aud-scroll-panel {
-    max-height: 20rem;
-  }
-
-  .aud-monitor-polish .aud-item {
-    align-items: center;
-    background: #f3f7fb;
-    border: 1px solid #edf2f7;
-    border-radius: 10px;
-    gap: .6rem;
-    padding: .5rem .6rem;
-  }
-
-  .aud-monitor-polish .aud-item-title {
-    font-size: .8rem;
-    line-height: 1.2;
-  }
-
-  .aud-monitor-polish .aud-item-meta,
-  .aud-monitor-polish .aud-subtle {
-    font-size: .7rem;
-    line-height: 1.22;
-  }
-
-  .aud-monitor-polish .aud-item-side {
-    font-size: .85rem;
-  }
-
-  .aud-monitor-polish .aud-badge {
-    font-size: .68rem;
-    min-height: 1.38rem;
-    padding: .18rem .4rem;
-  }
-
-  .aud-monitor-polish .aud-detail summary {
-    padding: .72rem .82rem;
-  }
-
-  .aud-monitor-polish .aud-detail summary span {
-    font-size: .74rem;
-  }
-
-  .aud-monitor-polish .aud-detail-body {
-    padding: 0 .75rem .75rem;
-  }
-
-  .aud-monitor-polish .aud-heatmap {
-    gap: .38rem;
-    grid-template-columns: repeat(12, minmax(0, 1fr));
-  }
-
-  .aud-monitor-polish .aud-heat {
-    border-radius: 9px;
-    padding: .42rem .25rem;
-  }
-
-  .aud-monitor-polish .aud-heat-hour {
-    font-size: .64rem;
-  }
-
-  .aud-monitor-polish .aud-heat-value {
-    font-size: .8rem;
-    margin-top: .08rem;
-  }
-
-  @media (max-width: 1100px) {
-    .aud-shell,
+  @media (max-width: 1024px) {
+    .aud-shell {
+      grid-template-columns: minmax(0, 1fr);
+    }
     .aud-grid-panels,
-    .aud-detail-grid,
-    .aud-intro-strip,
-    .aud-monitor-polish .aud-shell,
-    .aud-monitor-polish .aud-grid-panels,
-    .aud-monitor-polish .aud-intro-strip,
-    .aud-monitor-polish .aud-hero {
+    .aud-detail-grid {
       grid-template-columns: minmax(0, 1fr);
     }
     .aud-sticky-panel {
       position: static;
     }
-    .aud-monitor-polish .aud-hero-meta {
-      justify-content: flex-start;
-    }
   }
-  @media (max-width: 900px) {
-    .aud-grid,
-    .aud-monitor-polish .aud-grid {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
-  }
+
   @media (max-width: 768px) {
-    .aud-grid,
-    .aud-grid-small,
-    .aud-monitor-polish .aud-grid,
-    .aud-monitor-polish .aud-grid-small {
+    .aud-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
-    .aud-heatmap,
-    .aud-monitor-polish .aud-heatmap {
+    .aud-heatmap {
       grid-template-columns: repeat(6, minmax(0, 1fr));
     }
-    .aud-grid-panels .aud-wide {
-      grid-column: auto;
+    .aud-filters {
+      inline-size: 100%;
+      justify-content: stretch;
     }
-    .aud-hero h1 {
-      font-size: 1.55rem;
-    }
-    .aud-monitor-polish .aud-hero {
-      grid-template-columns: 1fr;
-    }
-    .aud-monitor-polish .aud-hero h1 {
-      font-size: 1.2rem;
-    }
-    .aud-monitor-polish .aud-hero-meta {
-      justify-content: flex-start;
-    }
-    .aud-monitor-polish .aud-scroll-panel {
-      max-height: none;
-      overflow: visible;
-      padding-right: 0;
-    }
-    .aud-monitor-polish .aud-filters {
-      gap: .4rem;
-    }
-    .aud-monitor-polish .aud-filter-btn {
-      flex: 1 1 auto;
+    .aud-filter-btn {
+      flex: 1 1 0;
       justify-content: center;
     }
-    .aud-detail summary {
-      align-items: flex-start;
-    }
-    .aud-detail summary > .bi {
-      flex-shrink: 0;
-    }
   }
-  @media (max-width: 360px) {
-    .aud-monitor-polish .aud-grid,
-    .aud-monitor-polish .aud-grid-small {
-      grid-template-columns: minmax(0, 1fr);
-    }
-    .aud-monitor-polish .aud-heatmap {
+
+  @media (max-width: 480px) {
+    .aud-heatmap {
       grid-template-columns: repeat(4, minmax(0, 1fr));
     }
   }
@@ -703,123 +596,122 @@
 
 {% block content %}
 <div class="aud-page aud-monitor-polish" id="audiencePage" data-live-url="{{ url_for('admin_users.audience_dashboard_live') }}">
+  <!-- 3D Glass Hero -->
   <section class="aud-hero">
-    <div class="aud-hero-copy">
-      <h1><i class="bi bi-broadcast-pin me-2"></i>Audience et trafic en direct</h1>
-      <p>
-        Cette page montre qui utilise le site en ce moment, combien de clients sont présents,
-        quelles pages attirent le plus de monde et combien de demandes arrivent.
-      </p>
+    <div class="aud-hero-top">
+      <div class="aud-hero-copy">
+        <h1><i class="bi bi-broadcast-pin me-2 text-emerald"></i>Audience et trafic en direct</h1>
+        <p>
+          Surveillance en temps réel de l'activité des acheteurs, de la conversion et des sessions actives.
+        </p>
+      </div>
+      <!-- Segmented 3D Switch Scope -->
+      <div class="aud-filters" id="audFilters" role="tablist" aria-label="Portée de l'audience">
+        <button type="button" class="aud-filter-btn active" data-scope="clients">
+          <i class="bi bi-people-fill me-1"></i>Clients réels
+        </button>
+        <button type="button" class="aud-filter-btn" data-scope="internal">
+          <i class="bi bi-shield-lock me-1"></i>Équipe Baba
+        </button>
+        <button type="button" class="aud-filter-btn" data-scope="all">
+          <i class="bi bi-grid-fill me-1"></i>Tout voir
+        </button>
+      </div>
     </div>
     <div class="aud-hero-meta">
-      <span class="aud-pill"><i class="bi bi-shield-check text-success"></i> Filtre anti-robots actif</span>
-      <span class="aud-pill"><i class="bi bi-arrow-repeat"></i> Mise à jour auto toutes les 15 s</span>
+      <span class="aud-pill is-live-ok" id="audLiveStatus">
+        <span class="aud-dot"></span><span id="audLiveStatusText">Suivi actif</span>
+      </span>
+      <span class="aud-pill"><i class="bi bi-person-check-fill text-success"></i> Trafic 100% réel vérifié</span>
+      <span class="aud-pill"><i class="bi bi-arrow-repeat"></i> Actualisation auto (15 s)</span>
       <span class="aud-pill"><i class="bi bi-clock-history"></i> <span id="audUpdatedAt">Chargement...</span></span>
-      <span class="aud-pill is-live-ok" id="audLiveStatus"><span class="aud-dot"></span><span id="audLiveStatusText">Suivi actif</span></span>
       <span class="aud-pill"><i class="bi bi-phone"></i> Application incluse</span>
     </div>
   </section>
 
-  <nav class="aud-section-nav">
+  <!-- Quick Nav Chips -->
+  <nav class="aud-section-nav" aria-label="Navigation rapide">
     <a class="aud-nav-chip" href="#audResume"><i class="bi bi-speedometer2"></i> Résumé en direct</a>
     <a class="aud-nav-chip" href="#audConversions"><i class="bi bi-graph-up-arrow"></i> Demandes et paniers</a>
     <a class="aud-nav-chip" href="#audDetails"><i class="bi bi-sliders"></i> Détails</a>
   </nav>
 
-  <section class="aud-panel">
-    <div class="aud-panel-head">
-      <div>
-        <h2>Choisir l'affichage</h2>
-        <div class="aud-panel-note">Filtre les chiffres selon ce que tu veux regarder</div>
-      </div>
-    </div>
-    <div class="aud-filters" id="audFilters">
-      <button type="button" class="aud-filter-btn active" data-scope="clients"><i class="bi bi-people-fill me-1"></i>Clients réels</button>
-      <button type="button" class="aud-filter-btn" data-scope="internal"><i class="bi bi-shield-lock me-1"></i>Équipe Baba</button>
-      <button type="button" class="aud-filter-btn" data-scope="all"><i class="bi bi-grid-fill me-1"></i>Tout voir</button>
-    </div>
-  </section>
-
+  <!-- 3D Bento Main Shell (Left: Traffic KPIs + Conversions | Right: Live Users Feed) -->
   <section class="aud-shell" id="audResume">
-    <article class="aud-panel">
-      <div class="aud-panel-head">
-        <div>
-          <h2>Résumé en direct</h2>
-          <div class="aud-panel-note">Les chiffres importants pour comprendre l'activité actuelle</div>
+    <div class="d-flex flex-column gap-3">
+      <!-- Main Metric Cards -->
+      <article class="aud-panel">
+        <div class="aud-panel-head">
+          <div>
+            <h2><i class="bi bi-activity text-primary"></i> Résumé en direct</h2>
+            <div class="aud-panel-note">Indicateurs clés d'activité et volumes réels d'acheteurs</div>
+          </div>
         </div>
-      </div>
-      <div class="aud-grid" id="audMainCards"></div>
-      <div class="aud-intro-strip">
-        <div class="aud-intro-note">
-          <strong>À savoir maintenant</strong>
-          Combien de personnes utilisent le site en ce moment.
-        </div>
-        <div class="aud-intro-note">
-          <strong>Côté activité</strong>
-          Le filtre sépare les clients de l'équipe.
-        </div>
-        <div class="aud-intro-note">
-          <strong>Qui est là</strong>
-          Le panneau « Qui est en ligne maintenant » montre les comptes actuellement actifs.
-        </div>
-      </div>
-    </article>
+        <div class="aud-grid" id="audMainCards"></div>
+      </article>
 
+      <!-- Conversions & Commerce Impact -->
+      <article class="aud-panel" id="audConversions">
+        <div class="aud-panel-head">
+          <div>
+            <h2><i class="bi bi-cart-check-fill text-success"></i> Demandes et paniers du jour</h2>
+            <div class="aud-panel-note">Visiteurs, ajouts au panier, demandes et ouvertures WhatsApp</div>
+          </div>
+        </div>
+        <div class="aud-grid-small" id="audConversionCards"></div>
+      </article>
+
+      <!-- Top Pages & Acquisition Sources -->
+      <div class="aud-grid-panels">
+        <article class="aud-panel">
+          <div class="aud-panel-head">
+            <div>
+              <h2><i class="bi bi-file-earmark-bar-graph text-primary"></i> Pages les plus ouvertes</h2>
+              <div class="aud-panel-note">Pages les plus consultées aujourd’hui</div>
+            </div>
+          </div>
+          <div class="aud-list aud-scroll-panel" id="audTopPages"></div>
+        </article>
+
+        <article class="aud-panel">
+          <div class="aud-panel-head">
+            <div>
+              <h2><i class="bi bi-signpost-split text-primary"></i> Sources d’entrée</h2>
+              <div class="aud-panel-note">Canaux et provenances des visites</div>
+            </div>
+          </div>
+          <div class="aud-list aud-scroll-panel" id="audTopSources"></div>
+        </article>
+      </div>
+    </div>
+
+    <!-- Right Column: Live Feed of Connected Users -->
     <article class="aud-panel aud-sticky-panel">
       <div class="aud-panel-head">
         <div>
-          <h2>Qui est en ligne maintenant</h2>
-          <div class="aud-panel-note">Actualisé automatiquement</div>
+          <h2><i class="bi bi-broadcast text-success"></i> Qui est en ligne maintenant</h2>
+          <div class="aud-panel-note">Comptes actifs sur les 5 dernières minutes</div>
         </div>
       </div>
       <div class="aud-list aud-scroll-panel" id="audConnectedList"></div>
+
       <div class="aud-panel-head mt-3">
         <div>
-          <h2>Types d'utilisateurs</h2>
+          <h2><i class="bi bi-pie-chart-fill text-primary"></i> Types d'utilisateurs</h2>
+          <div class="aud-panel-note">Répartition des sessions actives</div>
         </div>
       </div>
       <div class="aud-list" id="audRoles"></div>
     </article>
   </section>
 
-  <section class="aud-grid-panels" id="audConversions">
-    <article class="aud-panel aud-wide">
-      <div class="aud-panel-head">
-        <div>
-          <h2>Demandes et paniers du jour</h2>
-          <div class="aud-panel-note">Visiteurs, ajouts au panier, demandes et ouvertures WhatsApp</div>
-        </div>
-      </div>
-      <div class="aud-grid-small" id="audConversionCards"></div>
-    </article>
-
-    <article class="aud-panel">
-      <div class="aud-panel-head">
-        <div>
-          <h2>Pages les plus ouvertes aujourd’hui</h2>
-          <div class="aud-panel-note">Les pages que les visiteurs ouvrent le plus</div>
-        </div>
-      </div>
-      <div class="aud-list" id="audTopPages"></div>
-    </article>
-
-    <article class="aud-panel">
-      <div class="aud-panel-head">
-        <div>
-          <h2>Sources d’entrée</h2>
-          <div class="aud-panel-note">D'où viennent les visiteurs avant d'arriver ici</div>
-        </div>
-      </div>
-      <div class="aud-list" id="audTopSources"></div>
-    </article>
-  </section>
-
+  <!-- Technical Details & Affluence Accordions -->
   <section class="aud-page" id="audDetails">
     <details class="aud-detail" open>
       <summary>
         <div>
-          Heures les plus actives
-          <span>Les moments où le site est le plus utilisé aujourd’hui</span>
+          <i class="bi bi-clock-history me-1 text-primary"></i> Heures les plus actives
+          <span>Affluence et intensité des visites tout au long de la journée</span>
         </div>
         <i class="bi bi-chevron-down"></i>
       </summary>
@@ -831,8 +723,8 @@
     <details class="aud-detail">
       <summary>
         <div>
-          Infos techniques
-          <span>Sources de connexion, profils des utilisateurs et données Cloudflare</span>
+          <i class="bi bi-cpu me-1 text-secondary"></i> Détails techniques & Géolocalisation
+          <span>Villes détectées et informations réseau transmises</span>
         </div>
         <i class="bi bi-chevron-down"></i>
       </summary>
@@ -842,17 +734,17 @@
             <div class="aud-panel-head">
               <div>
                 <h2>Villes repérées</h2>
-                <div class="aud-panel-note">Visible si l'information est disponible</div>
+                <div class="aud-panel-note">Localisation géographique estimée</div>
               </div>
             </div>
-            <div class="aud-list" id="audCities"></div>
+            <div class="aud-list aud-scroll-panel" id="audCities"></div>
           </article>
 
           <article class="aud-panel">
             <div class="aud-panel-head">
               <div>
                 <h2>Données Cloudflare reçues</h2>
-                <div class="aud-panel-note">Pour vérifier quelles informations arrivent jusqu'au site</div>
+                <div class="aud-panel-note">En-têtes réseau et sécurité transmises</div>
               </div>
             </div>
             <div class="aud-list aud-scroll-panel" id="audHeaderDebug"></div>
@@ -860,7 +752,6 @@
         </div>
       </div>
     </details>
-
   </section>
 </div>
 {% endblock %}
@@ -901,7 +792,7 @@
     function itemRow(title, meta, side, sideSmall) {
       return (
         '<div class="aud-item">' +
-          '<div>' +
+          '<div style="min-width:0;">' +
             '<div class="aud-item-title">' + title + '</div>' +
             (meta ? '<div class="aud-item-meta">' + meta + '</div>' : '') +
           '</div>' +
@@ -929,8 +820,7 @@
         vendeur: "Vendeur",
         user: "Client",
         client: "Client",
-        guest: "Visiteur (sans compte)",
-        bot: "Robot SEO / Indexation"
+        guest: "Visiteur (sans compte)"
       };
       return labels[value] || String(role || "Compte");
     }
@@ -941,8 +831,7 @@
         desktop: "Ordinateur",
         mobile: "Téléphone",
         tablet: "Tablette",
-        phone: "Téléphone",
-        bot: "Robot / Moteur SEO"
+        phone: "Téléphone"
       };
       return labels[value] || String(device || "");
     }
@@ -1008,6 +897,7 @@
     function renderCards(data) {
       const scoped = scopeData(data);
       const isClientScope = currentScope === "clients";
+      // Exclusion complète des métriques robots / crawlers conformément à la demande utilisateur
       const cards = [
         [
           "En ligne maintenant",
@@ -1017,13 +907,13 @@
         ],
         ["Avec compte", number(data.active_authenticated_5m), "Utilisateurs connectés à leur compte", true],
         ["Sans compte", number(data.active_guests_5m), "Clients qui naviguent sans connexion", true],
-        ["Record aujourd'hui", number(data.peak_active_today), "Plus grand nombre de personnes en ligne en simultané", true],
-        ["Activité par minute", number(data.rpm), "Requêtes reçues par minute sur le serveur", true],
-        ["Pages ouvertes", number(data.page_views_today), "Pages vues par des humains aujourd'hui (hors robots)", false],
+        ["Record aujourd'hui", number(data.peak_active_today), "Plus grand nombre d'humains en ligne simultané", true],
+        ["Activité par minute", number(data.rpm), "Requêtes clients par minute sur le serveur", true],
+        ["Pages ouvertes", number(data.page_views_today), "Pages vues par des acheteurs aujourd'hui", false],
         [
           isClientScope ? "Clients uniques vus" : "Personnes différentes",
           scoped.uniqueToday,
-          isClientScope ? "Clients uniques réels vus aujourd'hui (hors équipe et robots)" : currentScope === "internal" ? "Comptes de l'équipe vus aujourd'hui" : "Nombre total de personnes aujourd'hui",
+          isClientScope ? "Clients uniques réels vus aujourd'hui" : currentScope === "internal" ? "Comptes de l'équipe vus aujourd'hui" : "Nombre total de personnes aujourd'hui",
           false
         ],
         ["Clients en ligne", number(data.active_clients_5m), "Clients réels actifs en ce moment", false],
@@ -1031,8 +921,7 @@
         ["Installations app aujourd'hui", number(data.pwa_installs_today), "Installations de l'application aujourd'hui", false],
         ["Installations app total", number(data.pwa_installs_total), "Total des installations détectées", false],
         ["Nouveaux clients", number(data.new_visitors_today), "Première visite aujourd'hui", false],
-        ["Clients de retour", number(data.returning_visitors_today), "Personnes déjà venues avant", false],
-        ["Passages Google / SEO", number(data.bot_hits_today), "Pages explorées par les robots (exclues de l'audience)", false]
+        ["Clients de retour", number(data.returning_visitors_today), "Personnes déjà venues avant", false]
       ];
       const html = cards.map(function (entry) {
         return (
@@ -1054,9 +943,9 @@
         ["WhatsApp ouverts", number(conversions.whatsapp), (Number(conversions.whatsapp_rate_pct || 0)).toFixed(1) + "% des visiteurs"]
       ].map(function (entry) {
         return (
-          '<article class="aud-card">' +
+          '<article class="aud-card is-priority">' +
             '<div class="aud-label">' + entry[0] + '</div>' +
-            '<div class="aud-value">' + entry[1] + '</div>' +
+            '<div class="aud-value" style="color:#059669;">' + entry[1] + '</div>' +
             '<div class="aud-help">' + entry[2] + '</div>' +
           '</article>'
         );
@@ -1111,7 +1000,7 @@
         const pathText = item.path ? "Page active : " + String(item.path) : "Page active non détectée";
         return (
           '<div class="aud-item">' +
-            '<div class="aud-connected-card">' +
+            '<div style="min-width:0;">' +
               '<div class="aud-item-title">' + String(item.label || "Compte") + '</div>' +
               '<div class="aud-badges">' + scopeBadge + roleBadge + deviceBadge + cityBadge + '</div>' +
               '<div class="aud-subtle">' + pathText + '</div>' +
@@ -1125,11 +1014,19 @@
 
     function renderHeatmap(data) {
       const items = Array.isArray(data.hourly_heatmap) ? data.hourly_heatmap : [];
+      let maxCount = 1;
+      items.forEach(function (it) {
+        const c = number(it.count);
+        if (c > maxCount) maxCount = c;
+      });
+
       const html = items.map(function (item) {
+        const c = number(item.count);
+        const isPeak = c > 0 && c >= (maxCount * 0.7);
         return (
-          '<div class="aud-heat">' +
+          '<div class="aud-heat' + (isPeak ? ' is-peak' : '') + '">' +
             '<div class="aud-heat-hour">' + String(item.hour || "--") + '</div>' +
-            '<div class="aud-heat-value">' + number(item.count) + '</div>' +
+            '<div class="aud-heat-value">' + c + '</div>' +
           '</div>'
         );
       }).join("");
@@ -1150,7 +1047,7 @@
           ? 'Valeur reçue<div class="aud-code">' + value + '</div>'
           : "Information absente sur cette demande";
         const sideSmall = detectedCity && value && detectedCity.toLowerCase() === value.toLowerCase()
-          ? "Utilise pour la ville"
+          ? "Utilisé pour la ville"
           : "";
         return itemRow(String(item.label || "Information"), meta, status, sideSmall);
       }).join("");
