@@ -1,397 +1,348 @@
 {% extends "admin/base.html" %}
 
-{% block title %}Passerelle WhatsApp & Promotion Quotidienne | BABA MARKET{% endblock %}
+{% block title %}Promotions WhatsApp | BABA MARKET{% endblock %}
 
 {% block content %}
 <style>
-  /* Base & Container */
-  .wa-dashboard {
-    display: flex;
-    flex-direction: column;
-    gap: 1.25rem;
-    max-width: 1400px;
-    margin: 0 auto;
-    padding-bottom: 2rem;
+  :root {
+    --wa-green: #25d366;
+    --wa-green-dark: #128c7e;
+    --wa-teal: #075e54;
+    --wa-chat-bg: #efeae2;
+    --wa-bubble-bg: #d9fdd3;
+    --card-radius: 16px;
   }
 
-  /* Compact Cards */
-  .wa-card {
+  /* Conteneur principal */
+  .wa-app-container {
+    max-width: 1100px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    padding-bottom: 3rem;
+  }
+
+  /* Cartes d'étapes */
+  .step-card {
     background: #ffffff;
     border: 1px solid #e2e8f0;
-    border-radius: 16px;
-    box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.05);
+    border-radius: var(--card-radius);
+    box-shadow: 0 4px 16px -2px rgba(15, 23, 42, 0.04);
     overflow: hidden;
   }
 
-  .wa-card-header {
+  .step-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 0.75rem;
     padding: 1rem 1.25rem;
     background: #f8fafc;
-    border-bottom: 1px solid #e2e8f0;
+    border-bottom: 1px solid #f1f5f9;
+    flex-wrap: wrap;
+    gap: 0.75rem;
   }
 
-  .wa-card-body {
+  .step-badge-num {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: #0f172a;
+    color: #ffffff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.82rem;
+    font-weight: 800;
+    margin-right: 0.5rem;
+  }
+
+  .step-title {
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: #0f172a;
+    margin: 0;
+    display: flex;
+    align-items: center;
+  }
+
+  .step-subtitle {
+    font-size: 0.8rem;
+    color: #64748b;
+    margin: 0.2rem 0 0 0;
+  }
+
+  .step-body {
     padding: 1.25rem;
   }
 
-  /* Gateway Mini Bar */
-  .wa-gw-bar {
+  /* Étape 1 : Téléphone */
+  .phone-status-box {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    flex-wrap: wrap;
     gap: 1rem;
-    padding: 0.85rem 1.25rem;
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
-    border-radius: 14px;
+    flex-wrap: wrap;
   }
 
-  .wa-gw-info {
+  .phone-info-left {
     display: flex;
     align-items: center;
-    gap: 0.85rem;
-    flex-wrap: wrap;
+    gap: 1rem;
   }
 
-  .wa-gw-icon-circle {
-    width: 40px;
-    height: 40px;
+  .phone-icon-circle {
+    width: 48px;
+    height: 48px;
     border-radius: 50%;
-    background: #dcfce7;
-    color: #15803d;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.35rem;
+    font-size: 1.6rem;
   }
-
-  /* Status Badges */
-  .wa-status-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.45rem;
-    padding: 0.35rem 0.75rem;
-    border-radius: 9999px;
-    font-size: 0.82rem;
-    font-weight: 700;
-  }
-  .wa-status-badge.is-connected {
+  .phone-icon-circle.is-connected {
     background: #dcfce7;
     color: #166534;
-    border: 1px solid #bbf7d0;
   }
-  .wa-status-badge.is-qr_ready {
+  .phone-icon-circle.is-qr {
     background: #fef3c7;
-    color: #92400e;
-    border: 1px solid #fde68a;
+    color: #b45309;
   }
-  .wa-status-badge.is-disconnected {
+  .phone-icon-circle.is-disconnected {
     background: #fee2e2;
     color: #991b1b;
-    border: 1px solid #fecaca;
   }
 
-  .wa-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: currentColor;
-    display: inline-block;
-  }
-  .is-qr_ready .wa-dot {
-    animation: waPulse 1.4s infinite;
-  }
-  @keyframes waPulse {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.4; transform: scale(1.3); }
-  }
-
-  /* Promo Control Strip */
-  .wa-promo-hero {
-    background: linear-gradient(135deg, #064e3b 0%, #047857 50%, #059669 100%);
-    color: #ffffff;
-    border-radius: 16px;
-    padding: 1.25rem 1.5rem;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 1rem;
-    box-shadow: 0 10px 25px -5px rgba(5, 150, 105, 0.3);
-  }
-
-  .wa-promo-hero-left h1 {
-    font-size: 1.25rem;
-    font-weight: 800;
-    margin: 0 0 0.25rem 0;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
-  .wa-promo-hero-left p {
-    font-size: 0.85rem;
-    color: #d1fae5;
-    margin: 0;
-  }
-
-  .wa-promo-pills-row {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-    margin-top: 0.65rem;
-  }
-
-  .wa-hero-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-    font-size: 0.75rem;
-    font-weight: 700;
-    padding: 0.25rem 0.65rem;
-    border-radius: 9999px;
-    background: rgba(255, 255, 255, 0.18);
-    backdrop-filter: blur(4px);
-    border: 1px solid rgba(255, 255, 255, 0.25);
-    color: #ffffff;
-  }
-  .wa-hero-pill.is-active {
-    background: #ffffff;
-    color: #065f46;
-  }
-
-  .wa-hero-actions {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-  }
-
-  .btn-wa-live {
-    background: #25d366;
-    color: #0f172a;
-    font-weight: 800;
-    border: none;
-    box-shadow: 0 4px 14px rgba(37, 211, 102, 0.4);
-    transition: all 0.2s ease;
-  }
-  .btn-wa-live:hover {
-    background: #22c55e;
-    color: #0f172a;
-    transform: translateY(-1px);
-    box-shadow: 0 6px 18px rgba(37, 211, 102, 0.5);
-  }
-
-  /* Product Showcase Grid */
-  .wa-products-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(460px, 1fr));
-    gap: 1.25rem;
-  }
-  @media (max-width: 768px) {
-    .wa-products-grid {
-      grid-template-columns: 1fr;
-    }
-  }
-
-  .wa-product-card {
-    background: #ffffff;
+  /* Étape 2 : L'Offre du Jour */
+  .promo-product-box {
+    background: #f8fafc;
     border: 1px solid #e2e8f0;
     border-radius: 14px;
-    box-shadow: 0 2px 12px rgba(15, 23, 42, 0.04);
-    display: flex;
-    flex-direction: column;
     overflow: hidden;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-  }
-  .wa-product-card:hover {
-    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+    margin-bottom: 1.25rem;
   }
 
-  .wa-product-top {
+  .promo-product-top {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 0.85rem;
-    padding: 0.85rem 1rem;
-    background: #f8fafc;
+    gap: 1rem;
+    padding: 1rem;
+    background: #ffffff;
     border-bottom: 1px solid #f1f5f9;
-  }
-
-  .wa-product-thumb {
-    width: 68px;
-    height: 68px;
-    border-radius: 10px;
-    object-fit: cover;
-    border: 1px solid #e2e8f0;
-    background: #f1f5f9;
-    flex-shrink: 0;
-  }
-
-  .wa-product-details {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .wa-product-title {
-    font-size: 0.95rem;
-    font-weight: 800;
-    color: #0f172a;
-    margin: 0 0 0.2rem 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .wa-product-meta {
-    font-size: 0.76rem;
-    color: #64748b;
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
     flex-wrap: wrap;
   }
 
-  .wa-product-pricing {
-    text-align: right;
-    flex-shrink: 0;
+  .promo-product-img {
+    width: 80px;
+    height: 80px;
+    border-radius: 12px;
+    object-fit: cover;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
   }
-  .wa-price-current {
-    font-size: 1.05rem;
+
+  .promo-product-info {
+    flex: 1;
+    min-width: 220px;
+  }
+
+  .promo-product-name {
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: #0f172a;
+    margin: 0 0 0.25rem 0;
+  }
+
+  .promo-product-shop {
+    font-size: 0.8rem;
+    color: #64748b;
+  }
+
+  .promo-product-price {
+    text-align: right;
+  }
+  .price-promo {
+    font-size: 1.25rem;
     font-weight: 900;
     color: #059669;
   }
-  .wa-price-old {
-    font-size: 0.78rem;
+  .price-old {
+    font-size: 0.85rem;
     text-decoration: line-through;
     color: #94a3b8;
-    margin-right: 0.25rem;
+    margin-right: 0.35rem;
   }
 
-  /* Segmented Navigation Tabs */
-  .wa-tabs-nav {
+  /* Navigation Onglets Canaux */
+  .channel-tabs-bar {
     display: flex;
-    background: #f1f5f9;
+    background: #e2e8f0;
     padding: 4px;
     border-radius: 10px;
-    margin: 0.85rem 1rem 0 1rem;
+    margin: 1rem 1rem 0 1rem;
     gap: 4px;
   }
 
-  .wa-tab-btn {
+  .channel-tab-btn {
     flex: 1;
     border: none;
     background: transparent;
-    padding: 0.45rem 0.5rem;
-    font-size: 0.76rem;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.82rem;
     font-weight: 700;
-    color: #64748b;
+    color: #475569;
     border-radius: 8px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.35rem;
-    transition: all 0.15s ease;
+    gap: 0.45rem;
+    transition: all 0.2s ease;
   }
-  .wa-tab-btn:hover {
-    color: #0f172a;
-  }
-  .wa-tab-btn.active {
+  .channel-tab-btn.active {
     background: #ffffff;
-    color: #059669;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+    color: #0f172a;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.06);
   }
 
-  /* WhatsApp Message Bubble Simulation */
-  .wa-bubble-box {
-    margin: 0.85rem 1rem 1rem 1rem;
-    background: #e7fce3;
-    border: 1px solid #bbf7d0;
+  /* Simulation WhatsApp */
+  .wa-mockup-wrapper {
+    padding: 1rem;
+  }
+
+  .wa-chat-window {
+    background: var(--wa-chat-bg);
     border-radius: 12px;
-    padding: 0.85rem 1rem;
-    position: relative;
-    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding: 1.25rem;
+    border: 1px solid #cbd5e1;
   }
 
-  .wa-bubble-channel-tag {
-    font-size: 0.68rem;
+  .wa-chat-bubble {
+    background: var(--wa-bubble-bg);
+    border-radius: 10px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.12);
+    padding: 0.85rem 1rem;
+    max-width: 580px;
+    position: relative;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  .wa-bubble-badge {
+    font-size: 0.72rem;
     font-weight: 800;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: #15803d;
+    color: var(--wa-teal);
     margin-bottom: 0.4rem;
     display: flex;
     align-items: center;
-    gap: 0.3rem;
+    gap: 0.35rem;
   }
 
-  .wa-bubble-body {
-    font-size: 0.82rem;
-    line-height: 1.5;
-    color: #1e293b;
+  .wa-bubble-text {
+    font-size: 0.9rem;
+    line-height: 1.45;
+    color: #111827;
     white-space: pre-wrap;
     word-break: break-word;
     margin: 0;
   }
 
-  .wa-bubble-footer {
+  .wa-bubble-time {
+    font-size: 0.7rem;
+    color: #64748b;
+    text-align: right;
+    margin-top: 0.35rem;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    margin-top: 0.65rem;
-    padding-top: 0.45rem;
-    border-top: 1px dashed rgba(22, 101, 52, 0.2);
-    font-size: 0.72rem;
-    color: #166534;
+    justify-content: flex-end;
+    gap: 0.25rem;
   }
 
-  /* Card Action Footer */
-  .wa-product-footer {
-    padding: 0.65rem 1rem;
-    background: #fafafa;
-    border-top: 1px solid #f1f5f9;
+  /* Étape 3 : Canaux de diffusion */
+  .channels-selection-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .channel-choice-card {
+    background: #ffffff;
+    border: 2px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 1.1rem;
+    transition: all 0.2s ease;
+    cursor: pointer;
+  }
+  .channel-choice-card:hover {
+    border-color: #94a3b8;
+  }
+  .channel-choice-card.is-selected {
+    border-color: #10b981;
+    background: #f0fdf4;
+  }
+
+  .channel-choice-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    margin-bottom: 0.4rem;
+  }
+
+  .channel-choice-title {
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: #0f172a;
+    display: flex;
+    align-items: center;
     gap: 0.5rem;
   }
 
-  /* Empty State */
-  .wa-empty-box {
-    padding: 3rem 1.5rem;
-    text-align: center;
-    background: #ffffff;
-    border: 2px dashed #cbd5e1;
-    border-radius: 16px;
+  .channel-choice-desc {
+    font-size: 0.78rem;
+    color: #64748b;
+    line-height: 1.4;
+    margin: 0 0 0.75rem 0;
   }
 
-  .wa-empty-icon {
-    font-size: 3rem;
-    color: #10b981;
-    margin-bottom: 0.75rem;
-  }
-
-  /* Modal Form Controls */
-  .wa-field-label {
-    font-weight: 700;
-    font-size: 0.85rem;
-    color: #0f172a;
-    margin-bottom: 0.3rem;
+  /* Envoi automatique & Bouton d'action */
+  .broadcast-action-bar {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 1.25rem;
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
   }
-  .wa-field-hint {
-    font-size: 0.75rem;
-    color: #64748b;
-    margin-top: 0.25rem;
+
+  .btn-publish-now {
+    background: var(--wa-green);
+    color: #064e3b;
+    font-size: 1.05rem;
+    font-weight: 800;
+    padding: 0.75rem 1.75rem;
+    border-radius: 12px;
+    border: none;
+    box-shadow: 0 4px 14px rgba(37, 211, 102, 0.4);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .btn-publish-now:hover {
+    background: #22c55e;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px rgba(37, 211, 102, 0.5);
+    color: #064e3b;
+  }
+  .btn-publish-now:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
   }
 </style>
 
@@ -402,272 +353,227 @@
 {% set groups_list = ps.get('groups', []) %}
 {% set recipients_list = ps.get('recipients', []) %}
 {% set st = gateway.status or 'disconnected' %}
+{% set products = lg.get('products') or lg.get('items') or [] %}
 
-<div class="wa-dashboard">
+<div class="wa-app-container">
 
-  <!-- TOP BAR: PASSERELLE WHATSAPP (NODE.JS PORT 3002) -->
-  <div class="wa-gw-bar" id="waStatusBanner" class="is-{{ st }}">
-    <div class="wa-gw-info">
-      <div class="wa-gw-icon-circle" aria-hidden="true">
-        <i class="bi bi-whatsapp"></i>
-      </div>
-      <div>
-        <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
-          <strong style="font-size:0.92rem;color:#0f172a;">Passerelle WhatsApp Baileys</strong>
-          
-          <span class="wa-status-badge is-{{ st }}" id="waStatusLabel">
-            <span class="wa-dot"></span>
-            {% if st == 'connected' %}
-              Connecté
-            {% elif st == 'qr_ready' %}
-              En attente de scan QR
-            {% else %}
-              Déconnecté
-            {% endif %}
-          </span>
-
-          <span id="waPhonePill" class="badge bg-dark-subtle text-dark border" style="{% if not gateway.phone %}display:none;{% endif %}font-size:0.78rem;">
-            <i class="bi bi-telephone-fill text-success me-1"></i>
-            <span id="waPhoneNumber">+{{ gateway.phone or '' }}</span>
-          </span>
-        </div>
-        <div style="font-size:0.76rem;color:#64748b;margin-top:0.15rem;" id="waStatusDesc">
-          {% if st == 'connected' %}
-            Prêt pour la diffusion automatique et les notifications système.
-          {% elif st == 'qr_ready' %}
-            Un QR Code frais est prêt pour lier votre compte WhatsApp.
-          {% else %}
-            Non connecté actuellement. Générez un QR Code pour relier le compte.
-          {% endif %}
-        </div>
-      </div>
-    </div>
-
-    <!-- Quick Gateway Controls -->
-    <div style="display:flex;align-items:center;gap:0.4rem;flex-wrap:wrap;">
-      {% if st == 'qr_ready' %}
-        <button type="button" class="btn btn-sm btn-warning fw-bold" data-bs-toggle="modal" data-bs-target="#qrModal">
-          <i class="bi bi-qr-code me-1"></i> Scanner le QR Code
-        </button>
-      {% endif %}
-
-      <button type="button" id="waReconnectBtn" class="btn btn-sm btn-outline-secondary" data-reconnect-url="{{ url_for('admin.whatsapp_gateway_reconnect') }}" title="Générer un QR Code frais">
-        <i class="bi bi-arrow-repeat me-1"></i> Nouveau QR
-      </button>
-
-      {% if st == 'connected' %}
-        <button type="button" id="waDisconnectBtn" class="btn btn-sm btn-outline-danger" data-disconnect-url="{{ url_for('admin.whatsapp_gateway_disconnect') }}" title="Déconnecter la session">
-          <i class="bi bi-power me-1"></i> Déconnecter
-        </button>
-      {% endif %}
-
-      <a href="{{ url_for('admin.whatsapp_gateway') }}" id="waRefreshBtn" class="btn btn-sm btn-light border" data-status-url="{{ url_for('admin.whatsapp_gateway', format='json') }}" title="Rafraîchir le statut">
-        <i class="bi bi-arrow-clockwise"></i>
-      </a>
-    </div>
-  </div>
-
-  <!-- HERO SECTION: PILOTAGE DE LA PROMOTION QUOTIDIENNE -->
-  <div class="wa-promo-hero">
-    <div class="wa-promo-hero-left">
-      <h1>
-        <i class="bi bi-megaphone-fill"></i> Diffusion & Promotion WhatsApp Quotidienne
+  <!-- EN-TÊTE DE LA PAGE -->
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-top:0.5rem;">
+    <div>
+      <h1 style="font-size:1.45rem;font-weight:900;color:#0f172a;margin:0 0 0.25rem 0;display:flex;align-items:center;gap:0.5rem;">
+        <i class="bi bi-whatsapp text-success"></i> Mes Promotions WhatsApp Quotidiennes
       </h1>
-      <p>Sélection automatique de produits en stock • Rédaction Gemini IA courte et punchy • Statuts 24h & Groupes</p>
-
-      <div class="wa-promo-pills-row">
-        <!-- Interrupteur global -->
-        {% if ps.get('enabled') %}
-          <span class="wa-hero-pill is-active"><i class="bi bi-check-circle-fill"></i> Auto Active</span>
-        {% else %}
-          <span class="wa-hero-pill" style="background:#ef4444;border-color:#f87171;"><i class="bi bi-pause-circle-fill"></i> En Pause (Kill-Switch)</span>
-        {% endif %}
-
-        <!-- Mode Dry Run -->
-        {% if ps.get('dry_run', True) %}
-          <span class="wa-hero-pill" style="background:rgba(245,158,11,0.25);border-color:#f59e0b;"><i class="bi bi-shield-check"></i> Simulation (Dry-Run)</span>
-        {% else %}
-          <span class="wa-hero-pill is-active"><i class="bi bi-broadcast"></i> Mode Réel</span>
-        {% endif %}
-
-        <!-- Canaux autorisés -->
-        <span class="wa-hero-pill">
-          <i class="bi bi-camera"></i> Statut 24h: <strong>{{ 'OUI' if ps.get('status_enabled', True) else 'NON' }}</strong>
-        </span>
-
-        <span class="wa-hero-pill">
-          <i class="bi bi-people"></i> Groupes: <strong>{{ groups_list|length }}</strong>
-        </span>
-
-        <span class="wa-hero-pill">
-          <i class="bi bi-person-check"></i> Clients VIP: <strong>{{ recipients_list|length }}</strong>
-        </span>
-      </div>
+      <p style="font-size:0.85rem;color:#64748b;margin:0;">
+        Diffusez facilement vos produits du jour sur votre Statut WhatsApp (Story) et dans vos groupes de vente.
+      </p>
     </div>
 
-    <!-- Actions Bar -->
-    <div class="wa-hero-actions">
-      <!-- Bouton Réglages & Groupes Modal -->
-      <button type="button" class="btn btn-light fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#settingsModal">
-        <i class="bi bi-sliders me-1 text-success"></i> Configurer (Groupes & Délais)
-      </button>
-
-      <!-- Bouton Logs Modal -->
-      <button type="button" class="btn btn-outline-light fw-semibold" data-bs-toggle="modal" data-bs-target="#logsModal">
-        <i class="bi bi-journal-text me-1"></i> Logs ({{ rlogs|length }})
-      </button>
-
-      <!-- Régénérer avec l'IA -->
-      <form method="POST" action="{{ url_for('admin.whatsapp_promo_run') }}" style="display:inline;">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="mode" value="dry_run">
-        <button type="submit" class="btn btn-outline-light fw-semibold" title="Régénérer de nouveaux textes avec l'IA Gemini">
-          <i class="bi bi-magic me-1"></i> Régénérer l'offre (IA)
-        </button>
-      </form>
-
-      <!-- Diffuser en Réel (avec modal de confirmation) -->
-      <button type="button" class="btn btn-wa-live" data-bs-toggle="modal" data-bs-target="#sendConfirmModal" {% if not ps.get('enabled') %}disabled title="Activez l'automatisation dans les réglages d'abord"{% endif %}>
-        <i class="bi bi-send-fill me-1"></i> Diffuser en Réel 🚀
+    <div>
+      <button type="button" class="btn btn-outline-secondary btn-sm fw-bold" data-bs-toggle="modal" data-bs-target="#logsModal">
+        <i class="bi bi-clock-history me-1"></i> Historique des envois ({{ rlogs|length }})
       </button>
     </div>
   </div>
 
-  <!-- MAIN CANVAS: PRODUITS DU JOUR & TEXTES EXACTS À DIFFUSER -->
-  <div>
-    {% set products = lg.get('products') or lg.get('items') or [] %}
+  <!-- ÉTAPE 1 : ÉTAT DE MON TÉLÉPHONE WHATSAPP -->
+  <div class="step-card" id="waStatusBanner" class="is-{{ st }}">
+    <div class="step-body">
+      <div class="phone-status-box">
+        <div class="phone-info-left">
+          <div class="phone-icon-circle is-{{ st }}">
+            <i class="bi bi-whatsapp"></i>
+          </div>
+          <div>
+            <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+              <span style="font-size:1.05rem;font-weight:800;color:#0f172a;">
+                {% if st == 'connected' %}
+                  Votre compte WhatsApp est connecté et prêt
+                {% elif st == 'qr_ready' %}
+                  Connexion en attente de scan
+                {% else %}
+                  WhatsApp non connecté
+                {% endif %}
+              </span>
 
-    {% if products %}
-      <!-- Info Bar -->
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.75rem;margin-bottom:1rem;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;padding:0.75rem 1rem;">
-        <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
-          <span style="font-weight:800;font-size:0.88rem;color:#0f172a;">
-            <i class="bi bi-calendar-check text-success me-1"></i> Offre du jour prête à diffuser ({{ products|length }} produit{{ 's' if products|length > 1 else '' }})
-          </span>
-          <span class="badge bg-light text-secondary border" style="font-size:0.74rem;">
-            Généré à {{ lg.get('time') or lg.get('generated_at') or "aujourd'hui" }}
-          </span>
-          {% if lg.get('manually_edited') %}
-            <span class="badge bg-warning-subtle text-warning border border-warning-subtle" style="font-size:0.74rem;">
-              <i class="bi bi-pencil-fill me-1"></i> Textes personnalisés à la main
-            </span>
-          {% else %}
-            <span class="badge bg-success-subtle text-success border border-success-subtle" style="font-size:0.74rem;">
-              <i class="bi bi-stars me-1"></i> IA Gemini : Ultra-court & Vendeur
-            </span>
-          {% endif %}
+              {% if st == 'connected' and gateway.phone %}
+                <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1" style="font-size:0.82rem;">
+                  <i class="bi bi-telephone-fill me-1"></i> +{{ gateway.phone }}
+                </span>
+              {% endif %}
+            </div>
+
+            <div style="font-size:0.78rem;color:#64748b;margin-top:0.15rem;" id="waStatusDesc">
+              {% if st == 'connected' %}
+                Vos messages et statuts seront publiés avec ce numéro de téléphone.
+              {% elif st == 'qr_ready' %}
+                Scannez le QR Code avec votre smartphone pour commencer à diffuser.
+              {% else %}
+                Pour pouvoir publier sur WhatsApp, connectez votre téléphone une première fois.
+              {% endif %}
+            </div>
+          </div>
         </div>
 
-        <span style="font-size:0.78rem;color:#64748b;">
-          <i class="bi bi-info-circle me-1"></i> Cliquez sur <strong>Modifier</strong> pour retoucher un texte avant envoi.
-        </span>
+        <!-- Boutons d'action Étape 1 -->
+        <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+          {% if st == 'qr_ready' or st == 'disconnected' %}
+            <button type="button" class="btn btn-warning fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#qrModal">
+              <i class="bi bi-qr-code me-1"></i> Scanner le QR Code
+            </button>
+          {% endif %}
+
+          <button type="button" id="waReconnectBtn" class="btn btn-light border btn-sm fw-semibold" data-reconnect-url="{{ url_for('admin.whatsapp_gateway_reconnect') }}" title="Générer un nouveau QR Code">
+            <i class="bi bi-arrow-repeat me-1"></i> Nouveau QR
+          </button>
+
+          {% if st == 'connected' %}
+            <button type="button" id="waDisconnectBtn" class="btn btn-outline-danger btn-sm" data-disconnect-url="{{ url_for('admin.whatsapp_gateway_disconnect') }}" title="Déconnecter ce téléphone">
+              <i class="bi bi-power me-1"></i> Changer de téléphone
+            </button>
+          {% endif %}
+
+          <a href="{{ url_for('admin.whatsapp_gateway') }}" id="waRefreshBtn" class="btn btn-light border btn-sm" data-status-url="{{ url_for('admin.whatsapp_gateway', format='json') }}" title="Actualiser la connexion">
+            <i class="bi bi-arrow-clockwise"></i>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ÉTAPE 2 : CE QUE VOS CLIENTS VONT VOIR (L'OFFRE DU JOUR) -->
+  <div class="step-card">
+    <div class="step-header">
+      <div>
+        <h2 class="step-title">
+          <span class="step-badge-num">2</span> L'Offre du Jour (Ce que vos clients vont voir)
+        </h2>
+        <p class="step-subtitle">
+          Voici le produit sélectionné aujourd'hui et le message préparé pour vos clients.
+        </p>
       </div>
 
-      <!-- Products Grid -->
-      <div class="wa-products-grid">
+      <div style="display:flex;align-items:center;gap:0.5rem;">
+        <!-- Bouton Régénérer avec l'IA -->
+        <form method="POST" action="{{ url_for('admin.whatsapp_promo_run') }}" style="display:inline;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="mode" value="dry_run">
+          <button type="submit" class="btn btn-outline-success btn-sm fw-bold shadow-sm" title="Demander à l'IA de proposer un autre produit ou d'autres phrases">
+            <i class="bi bi-magic me-1"></i> Proposer un autre produit (IA)
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <div class="step-body">
+      {% if products %}
         {% for prod in products %}
           {% set pid = prod.get('id') or prod.get('product_id') %}
-          <div class="wa-product-card" id="card_prod_{{ pid }}">
-            <!-- Header: Photo & Details -->
-            <div class="wa-product-top">
+          <div class="promo-product-box">
+            <!-- Haut : Produit -->
+            <div class="promo-product-top">
               <img src="{{ prod.get('image_url') or url_for('static', filename='images/placeholder-product.svg') }}"
                    alt="{{ prod.get('title') or prod.get('name') }}"
-                   class="wa-product-thumb"
+                   class="promo-product-img"
                    onerror="this.src='/static/images/placeholder-product.svg';">
 
-              <div class="wa-product-details">
-                <div class="wa-product-title" title="{{ prod.get('title') or prod.get('name') }}">
-                  {{ prod.get('title') or prod.get('name') }}
+              <div class="promo-product-info">
+                <h3 class="promo-product-name">{{ prod.get('title') or prod.get('name') }}</h3>
+                <div class="promo-product-shop">
+                  <i class="bi bi-shop me-1 text-secondary"></i> Vendeur : <strong>{{ prod.get('shop_name') or prod.get('shop') }}</strong>
+                  {% if prod.get('shop_city') %} • {{ prod.get('shop_city') }}{% endif %}
                 </div>
-                <div class="wa-product-meta">
-                  <span><i class="bi bi-shop text-secondary"></i> {{ prod.get('shop_name') or prod.get('shop') }}</span>
-                  {% if prod.get('shop_city') %}
-                    <span>• {{ prod.get('shop_city') }}</span>
-                  {% endif %}
-                </div>
-                <div style="margin-top:0.25rem;">
-                  <a href="{{ prod.get('page_url') or prod.get('product_url') }}" target="_blank" rel="noopener" style="font-size:0.72rem;color:#0f766e;text-decoration:none;">
-                    Voir la fiche produit <i class="bi bi-box-arrow-up-right"></i>
+                <div style="margin-top:0.35rem;">
+                  <a href="{{ prod.get('page_url') or prod.get('product_url') }}" target="_blank" rel="noopener" style="font-size:0.75rem;color:#0f766e;text-decoration:none;">
+                    Voir la fiche produit sur le site <i class="bi bi-box-arrow-up-right"></i>
                   </a>
                 </div>
               </div>
 
-              <div class="wa-product-pricing">
+              <div class="promo-product-price">
                 {% if prod.get('old_price_dh') %}
-                  <div class="wa-price-old">{{ prod.get('old_price_dh') }} DH</div>
+                  <span class="price-old">{{ prod.get('old_price_dh') }} DH</span>
                 {% endif %}
-                <div class="wa-price-current">{{ prod.get('price_dh') or prod.get('price') }} DH</div>
+                <span class="price-promo">{{ prod.get('price_dh') or prod.get('price') }} DH</span>
               </div>
             </div>
 
-            <!-- Segmented Tabs Selector -->
-            <div class="wa-tabs-nav" role="tablist">
-              <button class="wa-tab-btn active" data-target="tab_status_{{ pid }}" type="button" role="tab">
-                <i class="bi bi-camera-fill"></i> Statut 24h
+            <!-- Onglets de prévisualisation : Statut / Groupes / VIP -->
+            <div class="channel-tabs-bar" role="tablist">
+              <button class="channel-tab-btn active" data-target="msg_status_{{ pid }}" type="button">
+                <i class="bi bi-camera-fill text-success"></i> 1. Mon Statut WhatsApp (Story)
               </button>
-              <button class="wa-tab-btn" data-target="tab_group_{{ pid }}" type="button" role="tab">
-                <i class="bi bi-people-fill"></i> Groupe
+              <button class="channel-tab-btn" data-target="msg_group_{{ pid }}" type="button">
+                <i class="bi bi-people-fill text-primary"></i> 2. Mes Groupes de Vente
               </button>
-              <button class="wa-tab-btn" data-target="tab_vip_{{ pid }}" type="button" role="tab">
-                <i class="bi bi-chat-heart-fill"></i> Privé VIP
+              <button class="channel-tab-btn" data-target="msg_vip_{{ pid }}" type="button">
+                <i class="bi bi-chat-heart-fill text-purple" style="color:#7e22ce;"></i> 3. Mes Meilleurs Clients (VIP)
               </button>
             </div>
 
-            <!-- Tab 1: Statut 24h Preview -->
-            <div id="tab_status_{{ pid }}" class="wa-tab-content">
-              <div class="wa-bubble-box">
-                <div class="wa-bubble-channel-tag">
-                  <i class="bi bi-camera"></i> Légende Statut 24h (Photo + Court texte)
+            <div class="wa-mockup-wrapper">
+              <div class="wa-chat-window">
+                <!-- Vue Statut -->
+                <div id="msg_status_{{ pid }}" class="wa-tab-view">
+                  <div class="wa-chat-bubble">
+                    <div class="wa-bubble-badge">
+                      <i class="bi bi-camera-fill"></i> Statut WhatsApp (Photo + Légende)
+                    </div>
+                    <p class="wa-bubble-text">{{ prod.get('status_caption') or 'Aucune légende' }}</p>
+                    <div class="wa-bubble-time">
+                      <span>Visible 24h par tous vos contacts</span>
+                      <i class="bi bi-check2-all text-primary"></i>
+                    </div>
+                  </div>
                 </div>
-                <p class="wa-bubble-body">{{ prod.get('status_caption') or 'Aucune légende' }}</p>
-                <div class="wa-bubble-footer">
-                  <span><i class="bi bi-broadcast"></i> Diffusé sur <code>status@broadcast</code></span>
-                  <span>Visible 24h</span>
+
+                <!-- Vue Groupe -->
+                <div id="msg_group_{{ pid }}" class="wa-tab-view" style="display:none;">
+                  <div class="wa-chat-bubble">
+                    <div class="wa-bubble-badge" style="color:#0284c7;">
+                      <i class="bi bi-people-fill"></i> Message pour vos Groupes de Vente
+                    </div>
+                    <p class="wa-bubble-text">{{ prod.get('group_message') or prod.get('group_message_sample') or prod.get('direct_message') or 'Aucun message de groupe' }}</p>
+                    <div class="wa-bubble-time">
+                      <span>Envoyé dans vos groupes</span>
+                      <i class="bi bi-check2-all text-primary"></i>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Vue VIP -->
+                <div id="msg_vip_{{ pid }}" class="wa-tab-view" style="display:none;">
+                  <div class="wa-chat-bubble">
+                    <div class="wa-bubble-badge" style="color:#7e22ce;">
+                      <i class="bi bi-chat-heart-fill"></i> Message Privé (1 client à la fois)
+                    </div>
+                    <p class="wa-bubble-text">{{ prod.get('direct_message') or 'Aucun message privé' }}</p>
+                    <div class="wa-bubble-time">
+                      <span>Message individuel discret</span>
+                      <i class="bi bi-check2-all text-primary"></i>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <!-- Tab 2: Groupe WhatsApp Preview -->
-            <div id="tab_group_{{ pid }}" class="wa-tab-content" style="display:none;">
-              <div class="wa-bubble-box" style="background:#ffffff;border-color:#cbd5e1;">
-                <div class="wa-bubble-channel-tag" style="color:#0369a1;">
-                  <i class="bi bi-people"></i> Message pour les Groupes de Vente
-                </div>
-                <p class="wa-bubble-body">{{ prod.get('group_message') or prod.get('group_message_sample') or prod.get('direct_message') or 'Aucun message groupe' }}</p>
-                <div class="wa-bubble-footer" style="color:#0369a1;border-color:rgba(3,105,161,0.2);">
-                  <span><i class="bi bi-people-fill"></i> Rejoint et diffuse dans vos groupes</span>
-                  <span>Anti-ban actif</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- Tab 3: Privé VIP Preview -->
-            <div id="tab_vip_{{ pid }}" class="wa-tab-content" style="display:none;">
-              <div class="wa-bubble-box" style="background:#faf5ff;border-color:#e9d5ff;">
-                <div class="wa-bubble-channel-tag" style="color:#7e22ce;">
-                  <i class="bi bi-person-check"></i> Message Privé 1-à-1 (Clients VIP)
-                </div>
-                <p class="wa-bubble-body">{{ prod.get('direct_message') or 'Aucun message privé' }}</p>
-                <div class="wa-bubble-footer" style="color:#7e22ce;border-color:rgba(126,34,206,0.2);">
-                  <span><i class="bi bi-shield-check"></i> Respect strict délai 30–90s</span>
-                  <span>Désinscription STOP auto</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- Card Bottom Bar: Modifier ce texte -->
-            <div class="wa-product-footer">
-              <span style="font-size:0.75rem;color:#64748b;">
-                ID #{{ pid }} • Prêt à envoyer
+            <!-- Bouton Modifier le texte -->
+            <div style="padding:0.75rem 1rem;background:#ffffff;border-top:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;">
+              <span style="font-size:0.78rem;color:#64748b;">
+                {% if lg.get('manually_edited') %}
+                  <i class="bi bi-check-circle-fill text-success me-1"></i> Texte personnalisé par vos soins
+                {% else %}
+                  <i class="bi bi-stars text-success me-1"></i> Rédigé automatiquement par l'IA (court et percutant)
+                {% endif %}
               </span>
-              <button type="button" class="btn btn-sm btn-outline-success fw-bold" data-bs-toggle="modal" data-bs-target="#editModal_{{ pid }}">
-                <i class="bi bi-pencil-square me-1"></i> Modifier les textes
+
+              <button type="button" class="btn btn-outline-dark btn-sm fw-bold" data-bs-toggle="modal" data-bs-target="#editModal_{{ pid }}">
+                <i class="bi bi-pencil-square me-1 text-success"></i> Modifier le texte à ma façon
               </button>
             </div>
           </div>
 
-          <!-- MODAL EDITION POUR CE PRODUIT -->
-          <div class="modal fade" id="editModal_{{ pid }}" tabindex="-1" aria-labelledby="editModalLabel_{{ pid }}" aria-hidden="true">
+          <!-- MODAL FACILE DE MODIFICATION DU TEXTE -->
+          <div class="modal fade" id="editModal_{{ pid }}" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-lg modal-dialog-centered">
               <div class="modal-content border-0 shadow-lg" style="border-radius:16px;">
                 <form method="POST" action="{{ url_for('admin.whatsapp_promo_edit_copy') }}">
@@ -675,48 +581,42 @@
                   <input type="hidden" name="product_id" value="{{ pid }}">
 
                   <div class="modal-header bg-light">
-                    <h5 class="modal-title fw-bold" id="editModalLabel_{{ pid }}">
-                      <i class="bi bi-pencil-fill text-success me-2"></i> Personnaliser les textes — {{ prod.get('title') or prod.get('name') }}
+                    <h5 class="modal-title fw-bold">
+                      <i class="bi bi-pencil-fill text-success me-2"></i> Retoucher les textes de : {{ prod.get('title') or prod.get('name') }}
                     </h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
                   </div>
 
                   <div class="modal-body p-4" style="display:grid;gap:1.25rem;">
-                    <!-- Statut 24h -->
                     <div>
-                      <label class="wa-field-label">
-                        <span><i class="bi bi-camera-fill text-success me-1"></i> 1. Légende Statut WhatsApp 24h</span>
-                        <small class="text-muted">Courte, punchy avec prix et lien</small>
+                      <label class="form-label fw-bold" style="font-size:0.88rem;">
+                        <i class="bi bi-camera text-success me-1"></i> 1. Légende pour votre Statut (Story WhatsApp 24h)
                       </label>
-                      <textarea name="status_caption" rows="3" class="form-control" style="font-family:monospace;font-size:0.85rem;" required>{{ prod.get('status_caption') or '' }}</textarea>
-                      <div class="wa-field-hint">Visible sous la photo dans votre Story WhatsApp pendant 24 heures.</div>
+                      <textarea name="status_caption" rows="3" class="form-control" style="font-size:0.88rem;" required>{{ prod.get('status_caption') or '' }}</textarea>
+                      <small class="text-muted">Conseil : gardez une phrase courte et attrayante avec le prix et le lien.</small>
                     </div>
 
-                    <!-- Groupe WhatsApp -->
                     <div>
-                      <label class="wa-field-label">
-                        <span><i class="bi bi-people-fill text-primary me-1"></i> 2. Message pour les Groupes WhatsApp</span>
-                        <small class="text-muted">Argumentaire vendeur + lien</small>
+                      <label class="form-label fw-bold" style="font-size:0.88rem;">
+                        <i class="bi bi-people text-primary me-1"></i> 2. Message pour vos Groupes de Vente
                       </label>
-                      <textarea name="group_message" rows="5" class="form-control" style="font-family:monospace;font-size:0.85rem;" required>{{ prod.get('group_message') or prod.get('group_message_sample') or prod.get('direct_message') or '' }}</textarea>
-                      <div class="wa-field-hint">Diffusé avec la photo dans tous les groupes configurés.</div>
+                      <textarea name="group_message" rows="5" class="form-control" style="font-size:0.88rem;" required>{{ prod.get('group_message') or prod.get('group_message_sample') or prod.get('direct_message') or '' }}</textarea>
+                      <small class="text-muted">Ce texte sera envoyé avec la photo dans chacun de vos groupes enregistrés.</small>
                     </div>
 
-                    <!-- Message Privé VIP -->
                     <div>
-                      <label class="wa-field-label">
-                        <span><i class="bi bi-chat-heart-fill text-purple me-1" style="color:#7e22ce;"></i> 3. Message Privé VIP (1-à-1)</span>
-                        <small class="text-muted">Inclut toujours la mention légale STOP</small>
+                      <label class="form-label fw-bold" style="font-size:0.88rem;">
+                        <i class="bi bi-chat-heart text-purple me-1" style="color:#7e22ce;"></i> 3. Message Privé pour vos Clients VIP
                       </label>
-                      <textarea name="direct_message" rows="5" class="form-control" style="font-family:monospace;font-size:0.85rem;" required>{{ prod.get('direct_message') or '' }}</textarea>
-                      <div class="wa-field-hint">Envoyé individuellement avec délai anti-ban de 30 à 90 s.</div>
+                      <textarea name="direct_message" rows="5" class="form-control" style="font-size:0.88rem;" required>{{ prod.get('direct_message') or '' }}</textarea>
+                      <small class="text-muted">Envoyé individuellement. La mention légale STOP est toujours incluse.</small>
                     </div>
                   </div>
 
                   <div class="modal-footer bg-light">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
                     <button type="submit" class="btn btn-success fw-bold">
-                      <i class="bi bi-check-lg me-1"></i> Enregistrer ces textes
+                      <i class="bi bi-check-lg me-1"></i> Enregistrer mes textes
                     </button>
                   </div>
                 </form>
@@ -724,140 +624,196 @@
             </div>
           </div>
         {% endfor %}
-      </div>
 
-    {% else %}
-      <!-- EMPTY STATE -->
-      <div class="wa-empty-box">
-        <div class="wa-empty-icon">
-          <i class="bi bi-magic"></i>
+      {% else %}
+        <!-- État vide : invitation à préparer la première promo -->
+        <div style="text-align:center;padding:3rem 1.5rem;background:#ffffff;border:2px dashed #cbd5e1;border-radius:14px;">
+          <div style="font-size:3rem;color:#10b981;margin-bottom:0.75rem;">
+            <i class="bi bi-bag-check-fill"></i>
+          </div>
+          <h3 style="font-size:1.15rem;font-weight:800;color:#0f172a;margin-bottom:0.4rem;">
+            Aucune offre préparée pour le moment
+          </h3>
+          <p style="font-size:0.85rem;color:#64748b;max-width:480px;margin:0 auto 1.5rem auto;">
+            Cliquez sur le bouton vert ci-dessous. Le système va choisir automatiquement les meilleurs produits en stock et rédiger des textes vendeurs percutants.
+          </p>
+
+          <form method="POST" action="{{ url_for('admin.whatsapp_promo_run') }}" style="display:inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="mode" value="dry_run">
+            <button type="submit" class="btn btn-success btn-lg fw-bold px-4 py-2 shadow-sm">
+              <i class="bi bi-magic me-2"></i> Préparer l'Offre du Jour avec l'IA
+            </button>
+          </form>
         </div>
-        <h3 style="font-size:1.15rem;font-weight:800;color:#0f172a;margin-bottom:0.4rem;">
-          Aucun aperçu n'a encore été généré pour aujourd'hui
-        </h3>
-        <p style="font-size:0.85rem;color:#64748b;max-width:500px;margin:0 auto 1.5rem auto;">
-          Cliquez sur le bouton ci-dessous pour sélectionner automatiquement les meilleurs produits en stock et générer des textes percutants avec l'IA Gemini.
-        </p>
-
-        <form method="POST" action="{{ url_for('admin.whatsapp_promo_run') }}" style="display:inline;">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <input type="hidden" name="mode" value="dry_run">
-          <button type="submit" class="btn btn-success btn-lg fw-bold px-4 py-2 shadow-sm">
-            <i class="bi bi-stars me-2"></i> Générer l'offre du jour avec l'IA
-          </button>
-        </form>
-      </div>
-    {% endif %}
+      {% endif %}
+    </div>
   </div>
 
-  <!-- MODAL 1: REGLAGES & GROUPES WHATSAPP -->
-  <div class="modal fade" id="settingsModal" tabindex="-1" aria-labelledby="settingsModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+  <!-- ÉTAPE 3 : OÙ ET COMMENT DIFFUSER ? -->
+  <div class="step-card">
+    <div class="step-header">
+      <div>
+        <h2 class="step-title">
+          <span class="step-badge-num">3</span> Où et Comment diffuser ?
+        </h2>
+        <p class="step-subtitle">
+          Choisissez où vous souhaitez que vos promotions soient publiées.
+        </p>
+      </div>
+    </div>
+
+    <div class="step-body">
+      <form method="POST" action="{{ url_for('admin.whatsapp_promo_settings') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <!-- Les 3 canaux de diffusion (grandes cartes simples) -->
+        <div class="channels-selection-grid">
+          <!-- Canal 1 : Statut -->
+          <label class="channel-choice-card {% if ps.get('status_enabled', True) %}is-selected{% endif %}">
+            <div class="channel-choice-header">
+              <div class="channel-choice-title">
+                <i class="bi bi-camera-fill text-success fs-5"></i>
+                <span>Mon Statut (Story)</span>
+              </div>
+              <input class="form-check-input" type="checkbox" name="status_enabled" value="1" {% if ps.get('status_enabled', True) %}checked{% endif %} style="width:1.25rem;height:1.25rem;">
+            </div>
+            <p class="channel-choice-desc">
+              Publie la photo et la légende dans votre Story WhatsApp. Visible pendant 24h par tous vos contacts enregistrés.
+            </p>
+            <div style="font-size:0.75rem;font-weight:700;color:#059669;">
+              <i class="bi bi-check-circle me-1"></i> Recommandé pour la visibilité
+            </div>
+          </label>
+
+          <!-- Canal 2 : Groupes -->
+          <div class="channel-choice-card {% if ps.get('groups_enabled', True) %}is-selected{% endif %}">
+            <div class="channel-choice-header">
+              <label class="channel-choice-title" for="chGroupsChoice" style="cursor:pointer;margin:0;">
+                <i class="bi bi-people-fill text-primary fs-5"></i>
+                <span>Mes Groupes de Vente</span>
+              </label>
+              <input class="form-check-input" type="checkbox" id="chGroupsChoice" name="groups_enabled" value="1" {% if ps.get('groups_enabled', True) %}checked{% endif %} style="width:1.25rem;height:1.25rem;">
+            </div>
+            <p class="channel-choice-desc">
+              Envoie l'offre avec la photo directement dans vos groupes WhatsApp dédiés à la vente.
+            </p>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-top:0.5rem;">
+              <span class="badge bg-light text-dark border">
+                {{ groups_list|length }} groupe(s) actif(s)
+              </span>
+              <button type="button" class="btn btn-outline-primary btn-sm fw-bold" data-bs-toggle="modal" data-bs-target="#groupsModal">
+                <i class="bi bi-plus-circle me-1"></i> Gérer mes groupes
+              </button>
+            </div>
+          </div>
+
+          <!-- Canal 3 : VIP -->
+          <div class="channel-choice-card {% if ps.get('direct_messages_enabled', False) %}is-selected{% endif %}">
+            <div class="channel-choice-header">
+              <label class="channel-choice-title" for="chDirectChoice" style="cursor:pointer;margin:0;">
+                <i class="bi bi-chat-heart-fill text-purple fs-5" style="color:#7e22ce;"></i>
+                <span>Mes Clients VIP</span>
+              </label>
+              <input class="form-check-input" type="checkbox" id="chDirectChoice" name="direct_messages_enabled" value="1" {% if ps.get('direct_messages_enabled', False) %}checked{% endif %} style="width:1.25rem;height:1.25rem;">
+            </div>
+            <p class="channel-choice-desc">
+              Envoie un message privé individuel à vos meilleurs clients réguliers (avec désinscription STOP).
+            </p>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-top:0.5rem;">
+              <span class="badge bg-light text-dark border">
+                {{ recipients_list|length }} client(s)
+              </span>
+              <button type="button" class="btn btn-outline-secondary btn-sm fw-bold" data-bs-toggle="modal" data-bs-target="#vipModal">
+                <i class="bi bi-pencil me-1"></i> Gérer ma liste VIP
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mode de diffusion : Automatique ou Manuel -->
+        <div class="broadcast-action-bar">
+          <div>
+            <div class="form-check form-switch mb-1">
+              <input class="form-check-input" type="checkbox" role="switch" id="settingEnabled" name="enabled" value="1" {% if ps.get('enabled') %}checked{% endif %} style="width:2.5em;height:1.25em;">
+              <label class="form-check-label fw-bold ms-2" for="settingEnabled" style="font-size:0.95rem;color:#0f172a;">
+                ⏰ Publier automatiquement chaque matin à 10h00
+              </label>
+            </div>
+            <div style="font-size:0.78rem;color:#64748b;margin-left:3.2em;">
+              Si cette option est activée, vos offres partent toutes seules chaque matin sans aucune intervention.
+            </div>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
+            <button type="submit" class="btn btn-light border fw-bold">
+              <i class="bi bi-check2 me-1"></i> Enregistrer ces choix
+            </button>
+
+            <!-- Bouton pour diffuser tout de suite -->
+            <button type="button" class="btn-publish-now" data-bs-toggle="modal" data-bs-target="#sendConfirmModal" {% if st != 'connected' %}disabled title="Connectez d'abord votre WhatsApp à l'Étape 1"{% endif %}>
+              <i class="bi bi-rocket-takeoff-fill"></i> Publier maintenant 🚀
+            </button>
+          </div>
+        </div>
+
+        <!-- Champ caché pour garder le dry_run et les options par défaut sans embêter l'utilisateur -->
+        <input type="hidden" name="dry_run" value="0">
+        <input type="hidden" name="groups_text" value="{{ promo_groups_text if promo_groups_text is defined else '' }}">
+        <input type="hidden" name="recipients_text" value="{{ promo_recipients_text if promo_recipients_text is defined else '' }}">
+        <input type="hidden" name="status_products" value="{{ ps.get('status_products', 2) }}">
+        <input type="hidden" name="daily_message_limit" value="{{ ps.get('daily_message_limit', 20) }}">
+        <input type="hidden" name="min_delay" value="{{ ps.get('min_delay', 30) }}">
+        <input type="hidden" name="max_delay" value="{{ ps.get('max_delay', 90) }}">
+        <input type="hidden" name="cooldown_days" value="{{ ps.get('cooldown_days', 7) }}">
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL : GÉRER MES GROUPES DE VENTE -->
+  <div class="modal fade" id="groupsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
       <div class="modal-content border-0 shadow-lg" style="border-radius:16px;">
         <form method="POST" action="{{ url_for('admin.whatsapp_promo_settings') }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <!-- Conserver les autres réglages -->
+          <input type="hidden" name="enabled" value="{{ 1 if ps.get('enabled') else 0 }}">
+          <input type="hidden" name="status_enabled" value="{{ 1 if ps.get('status_enabled', True) else 0 }}">
+          <input type="hidden" name="groups_enabled" value="1">
+          <input type="hidden" name="direct_messages_enabled" value="{{ 1 if ps.get('direct_messages_enabled') else 0 }}">
+          <input type="hidden" name="recipients_text" value="{{ promo_recipients_text if promo_recipients_text is defined else '' }}">
+          <input type="hidden" name="status_products" value="{{ ps.get('status_products', 2) }}">
+          <input type="hidden" name="daily_message_limit" value="{{ ps.get('daily_message_limit', 20) }}">
+          <input type="hidden" name="min_delay" value="{{ ps.get('min_delay', 30) }}">
+          <input type="hidden" name="max_delay" value="{{ ps.get('max_delay', 90) }}">
+          <input type="hidden" name="cooldown_days" value="{{ ps.get('cooldown_days', 7) }}">
 
           <div class="modal-header bg-light">
-            <h5 class="modal-title fw-bold" id="settingsModalLabel">
-              <i class="bi bi-sliders text-success me-2"></i> Configuration & Canaux WhatsApp
+            <h5 class="modal-title fw-bold">
+              <i class="bi bi-people-fill text-primary me-2"></i> Mes Groupes WhatsApp de Vente
             </h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
           </div>
 
-          <div class="modal-body p-4" style="display:grid;gap:1.5rem;">
-            <!-- Interrupteurs principaux -->
-            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:1rem;">
-              <div class="form-check form-switch mb-3">
-                <input class="form-check-input" type="checkbox" role="switch" id="settingEnabled" name="enabled" value="1" {% if ps.get('enabled') %}checked{% endif %} style="width:2.5em;height:1.25em;">
-                <label class="form-check-label fw-bold ms-2" for="settingEnabled">
-                  Automatisation générale ACTIVE
-                  <div class="text-muted fw-normal" style="font-size:0.75rem;">Si désactivé (Kill-switch), aucun envoi automatique quotidien n'est déclenché.</div>
-                </label>
-              </div>
+          <div class="modal-body p-4">
+            <p style="font-size:0.85rem;color:#475569;margin-bottom:1rem;line-height:1.5;">
+              Collez simplement les <strong>liens d'invitation de vos groupes WhatsApp</strong> (1 lien par ligne).<br>
+              <em>Exemple : <code>https://chat.whatsapp.com/CodeDuGroupe, Groupe Bons Plans Casablanca</code></em>
+            </p>
 
-              <div class="form-check form-switch mb-3">
-                <input class="form-check-input" type="checkbox" role="switch" id="settingDryRun" name="dry_run" value="1" {% if ps.get('dry_run', True) %}checked{% endif %} style="width:2.5em;height:1.25em;">
-                <label class="form-check-label fw-bold ms-2 text-warning" for="settingDryRun" style="color:#b45309 !important;">
-                  Mode Dry-Run par défaut (Sécurité)
-                  <div class="text-muted fw-normal" style="font-size:0.75rem;">Prépare les textes et simule les envois sans jamais contacter WhatsApp lors du cron quotidien.</div>
-                </label>
-              </div>
+            <label class="form-label fw-bold" style="font-size:0.85rem;">Liens de vos groupes (1 par ligne) :</label>
+            <textarea name="groups_text" rows="6" class="form-control" style="font-family:monospace;font-size:0.85rem;"
+                      placeholder="https://chat.whatsapp.com/Exemple123, Groupe Marché Central&#10;https://chat.whatsapp.com/Exemple456, Groupe Bons Plans Rabat">{{ promo_groups_text if promo_groups_text is defined else '' }}</textarea>
 
-              <div style="border-top:1px solid #e2e8f0;padding-top:0.75rem;">
-                <span class="d-block fw-bold text-secondary mb-2" style="font-size:0.8rem;">Canaux autorisés pour la diffusion :</span>
-                <div class="d-flex flex-wrap gap-3">
-                  <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="chStatus" name="status_enabled" value="1" {% if ps.get('status_enabled', True) %}checked{% endif %}>
-                    <label class="form-check-label fw-semibold" for="chStatus">Statut 24h (Story)</label>
-                  </div>
-                  <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="chGroups" name="groups_enabled" value="1" {% if ps.get('groups_enabled', True) %}checked{% endif %}>
-                    <label class="form-check-label fw-semibold" for="chGroups">Groupes WhatsApp</label>
-                  </div>
-                  <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="chDirect" name="direct_messages_enabled" value="1" {% if ps.get('direct_messages_enabled', False) %}checked{% endif %}>
-                    <label class="form-check-label fw-semibold" for="chDirect">Messages Privés VIP</label>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Groupes WhatsApp -->
-            <div>
-              <label class="wa-field-label" for="promoGroupsText">
-                <span><i class="bi bi-people-fill text-success me-1"></i> Groupes WhatsApp de vente (1 par ligne)</span>
-                <span class="badge bg-success-subtle text-success border">{{ groups_list|length }} groupe(s)</span>
-              </label>
-              <textarea id="promoGroupsText" name="groups_text" rows="4" class="form-control" style="font-family:monospace;font-size:0.82rem;"
-                        placeholder="https://chat.whatsapp.com/AbCdEf12345, Groupe Ventes Casablanca&#10;https://chat.whatsapp.com/XyZ67890, Groupe Bons Plans Rabat&#10;120363028394829@g.us, Groupe VIP Marché">{{ promo_groups_text if promo_groups_text is defined else '' }}</textarea>
-              <div class="wa-field-hint">
-                <i class="bi bi-info-circle text-primary me-1"></i> Collez directement les <strong>liens d'invitation</strong> de vos groupes ou leurs JIDs <code>...@g.us</code>. Le bot rejoint le groupe automatiquement si besoin.
-              </div>
-            </div>
-
-            <!-- Contacts VIP -->
-            <div>
-              <label class="wa-field-label" for="promoRecipientsText">
-                <span><i class="bi bi-person-lines-fill text-purple me-1" style="color:#7e22ce;"></i> Contacts VIP autorisés (Messages Privés, 1 par ligne)</span>
-                <span class="badge bg-purple-subtle text-dark border">{{ recipients_list|length }} contact(s)</span>
-              </label>
-              <textarea id="promoRecipientsText" name="recipients_text" rows="3" class="form-control" style="font-family:monospace;font-size:0.82rem;"
-                        placeholder="212612345678, Youssef Casablanca&#10;212700000000, Sara Rabat">{{ promo_recipients_text if promo_recipients_text is defined else '' }}</textarea>
-              <div class="wa-field-hint">
-                <i class="bi bi-shield-lock me-1"></i> Un client qui répond "STOP" est immédiatement et automatiquement désinscrit.
-              </div>
-            </div>
-
-            <!-- Paramètres Anti-ban & Délais -->
-            <div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;padding:1rem;">
-              <strong style="display:block;font-size:0.85rem;color:#0f172a;margin-bottom:0.75rem;">
-                <i class="bi bi-shield-check text-success me-1"></i> Paramètres Anti-ban & Rythme de Diffusion
-              </strong>
-              <div class="row g-3">
-                <div class="col-6 col-md-3">
-                  <label class="form-label" style="font-size:0.75rem;font-weight:700;">Produits / jour</label>
-                  <input type="number" name="status_products" min="1" max="10" class="form-control form-control-sm" value="{{ ps.get('status_products', 2) }}">
-                </div>
-                <div class="col-6 col-md-3">
-                  <label class="form-label" style="font-size:0.75rem;font-weight:700;">Max messages VIP / j</label>
-                  <input type="number" name="daily_message_limit" min="0" max="50" class="form-control form-control-sm" value="{{ ps.get('daily_message_limit', 20) }}">
-                </div>
-                <div class="col-6 col-md-3">
-                  <label class="form-label" style="font-size:0.75rem;font-weight:700;">Délai min (sec)</label>
-                  <input type="number" name="min_delay" min="10" max="300" class="form-control form-control-sm" value="{{ ps.get('min_delay', 30) }}">
-                </div>
-                <div class="col-6 col-md-3">
-                  <label class="form-label" style="font-size:0.75rem;font-weight:700;">Délai max (sec)</label>
-                  <input type="number" name="max_delay" min="20" max="300" class="form-control form-control-sm" value="{{ ps.get('max_delay', 90) }}">
-                </div>
-              </div>
+            <div class="alert alert-info py-2 px-3 mt-3 mb-0" style="font-size:0.78rem;">
+              <i class="bi bi-info-circle me-1"></i> Le système rejoint automatiquement le groupe grâce au lien d'invitation si votre compte n'en fait pas encore partie.
             </div>
           </div>
 
           <div class="modal-footer bg-light">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
-            <button type="submit" class="btn btn-success fw-bold">
-              <i class="bi bi-check2-circle me-1"></i> Enregistrer tous les réglages
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+            <button type="submit" class="btn btn-primary fw-bold">
+              <i class="bi bi-check2-circle me-1"></i> Enregistrer mes groupes
             </button>
           </div>
         </form>
@@ -865,13 +821,150 @@
     </div>
   </div>
 
-  <!-- MODAL 2: JOURNAL DES ENVOIS (LOGS) -->
-  <div class="modal fade" id="logsModal" tabindex="-1" aria-labelledby="logsModalLabel" aria-hidden="true">
+  <!-- MODAL : GÉRER MA LISTE VIP -->
+  <div class="modal fade" id="vipModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content border-0 shadow-lg" style="border-radius:16px;">
+        <form method="POST" action="{{ url_for('admin.whatsapp_promo_settings') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <!-- Conserver les autres réglages -->
+          <input type="hidden" name="enabled" value="{{ 1 if ps.get('enabled') else 0 }}">
+          <input type="hidden" name="status_enabled" value="{{ 1 if ps.get('status_enabled', True) else 0 }}">
+          <input type="hidden" name="groups_enabled" value="{{ 1 if ps.get('groups_enabled', True) else 0 }}">
+          <input type="hidden" name="direct_messages_enabled" value="1">
+          <input type="hidden" name="groups_text" value="{{ promo_groups_text if promo_groups_text is defined else '' }}">
+          <input type="hidden" name="status_products" value="{{ ps.get('status_products', 2) }}">
+          <input type="hidden" name="daily_message_limit" value="{{ ps.get('daily_message_limit', 20) }}">
+          <input type="hidden" name="min_delay" value="{{ ps.get('min_delay', 30) }}">
+          <input type="hidden" name="max_delay" value="{{ ps.get('max_delay', 90) }}">
+          <input type="hidden" name="cooldown_days" value="{{ ps.get('cooldown_days', 7) }}">
+
+          <div class="modal-header bg-light">
+            <h5 class="modal-title fw-bold">
+              <i class="bi bi-chat-heart-fill text-purple me-2" style="color:#7e22ce;"></i> Mes Clients VIP (Messages privés)
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+          </div>
+
+          <div class="modal-body p-4">
+            <p style="font-size:0.85rem;color:#475569;margin-bottom:1rem;line-height:1.5;">
+              Entrez les numéros de vos clients réguliers (1 numéro par ligne avec leur nom).<br>
+              <em>Exemple : <code>0612345678, Youssef Casablanca</code></em>
+            </p>
+
+            <label class="form-label fw-bold" style="font-size:0.85rem;">Numéros autorisés (1 par ligne) :</label>
+            <textarea name="recipients_text" rows="5" class="form-control" style="font-family:monospace;font-size:0.85rem;"
+                      placeholder="0612345678, Salma Rabat&#10;0698765432, Karim Casablanca">{{ promo_recipients_text if promo_recipients_text is defined else '' }}</textarea>
+
+            <div class="alert alert-warning py-2 px-3 mt-3 mb-0" style="font-size:0.78rem;">
+              <i class="bi bi-shield-check me-1"></i> Vos clients reçoivent un message sécurisé. S'ils répondent « STOP », ils sont automatiquement retirés de la liste pour ne plus être dérangés.
+            </div>
+          </div>
+
+          <div class="modal-footer bg-light">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+            <button type="submit" class="btn btn-success fw-bold">
+              <i class="bi bi-check2-circle me-1"></i> Enregistrer ma liste VIP
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL : SCANNER LE QR CODE WHATSAPP -->
+  <div class="modal fade" id="qrModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content border-0 shadow-lg" style="border-radius:16px;">
+        <div class="modal-header bg-light">
+          <h5 class="modal-title fw-bold">
+            <i class="bi bi-qr-code text-success me-2"></i> Lier votre téléphone WhatsApp
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+        </div>
+
+        <div class="modal-body text-center p-4">
+          <div style="display:inline-block;padding:12px;background:#ffffff;border:2px solid #e2e8f0;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,0.06);">
+            <img id="waQrImage" src="{{ gateway.qr if gateway.qr else '' }}" alt="QR Code WhatsApp" style="width:250px;height:250px;object-fit:contain;display:block;">
+          </div>
+
+          <div class="mt-3 text-start bg-light p-3 rounded" style="font-size:0.85rem;line-height:1.6;">
+            <strong>Comment faire :</strong><br>
+            1. Ouvrez <strong>WhatsApp</strong> sur votre téléphone.<br>
+            2. Allez dans <strong>Réglages</strong> &gt; <strong>Appareils connectés</strong>.<br>
+            3. Appuyez sur <strong>Connecter un appareil</strong> et visez cet écran.
+          </div>
+        </div>
+
+        <div class="modal-footer bg-light">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL : CONFIRMER LA PUBLICATION IMMÉDIATE -->
+  <div class="modal fade" id="sendConfirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content border-0 shadow-lg" style="border-radius:16px;">
+        <form method="POST" action="{{ url_for('admin.whatsapp_promo_run') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="mode" value="live">
+
+          <div class="modal-header bg-success text-white">
+            <h5 class="modal-title fw-bold">
+              <i class="bi bi-send-check-fill me-2"></i> Confirmer la Publication
+            </h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fermer"></button>
+          </div>
+
+          <div class="modal-body p-4">
+            <p style="font-size:0.95rem;color:#0f172a;line-height:1.5;">
+              Vous êtes sur le point de publier l'offre du jour sur votre WhatsApp :
+            </p>
+
+            <ul class="list-group list-group-flush mb-3" style="font-size:0.88rem;">
+              <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                <span><i class="bi bi-box-seam me-2 text-secondary"></i> Produit à promouvoir</span>
+                <strong>{{ products|length }} produit(s)</strong>
+              </li>
+              <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                <span><i class="bi bi-camera me-2 text-success"></i> Mon Statut (Story 24h)</span>
+                <span class="badge {{ 'bg-success' if ps.get('status_enabled', True) else 'bg-secondary' }}">{{ 'Oui' if ps.get('status_enabled', True) else 'Non' }}</span>
+              </li>
+              <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                <span><i class="bi bi-people me-2 text-primary"></i> Mes Groupes de vente</span>
+                <strong>{{ groups_list|length }} groupe(s)</strong>
+              </li>
+              <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                <span><i class="bi bi-chat-heart me-2 text-purple" style="color:#7e22ce;"></i> Clients VIP</span>
+                <strong>{{ recipients_list|length }} contact(s)</strong>
+              </li>
+            </ul>
+
+            <div class="alert alert-info py-2 px-3 mb-0" style="font-size:0.8rem;">
+              <i class="bi bi-shield-check me-1"></i> La diffusion se fait en arrière-plan en espaçant les messages de quelques secondes pour protéger votre compte.
+            </div>
+          </div>
+
+          <div class="modal-footer bg-light">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+            <button type="submit" class="btn btn-success fw-bold shadow-sm">
+              <i class="bi bi-rocket-takeoff-fill me-1"></i> Oui, Publier Maintenant 🚀
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL : HISTORIQUE DES PUBLICATIONS -->
+  <div class="modal fade" id="logsModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
       <div class="modal-content border-0 shadow-lg" style="border-radius:16px;">
         <div class="modal-header bg-light">
-          <h5 class="modal-title fw-bold" id="logsModalLabel">
-            <i class="bi bi-journal-text text-success me-2"></i> Journal des Envois & Transparence ({{ rlogs|length }} logs récents)
+          <h5 class="modal-title fw-bold">
+            <i class="bi bi-clock-history text-secondary me-2"></i> Historique des Publications Récentes
           </h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
         </div>
@@ -879,15 +972,15 @@
         <div class="modal-body p-3">
           {% if rlogs %}
             <div class="table-responsive">
-              <table class="table table-hover table-sm align-middle mb-0" style="font-size:0.8rem;">
+              <table class="table table-hover table-sm align-middle mb-0" style="font-size:0.85rem;">
                 <thead class="table-light">
                   <tr>
                     <th>Date & Heure</th>
-                    <th>Canal</th>
+                    <th>Destination</th>
                     <th>Produit</th>
-                    <th>Cible / Destinataire</th>
-                    <th>Statut</th>
-                    <th>Détails & Diagnostic</th>
+                    <th>Cible</th>
+                    <th>Résultat</th>
+                    <th>Détails</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -901,7 +994,7 @@
                         {% elif ch == 'groupe' %}
                           <span class="badge bg-primary-subtle text-primary border border-primary-subtle"><i class="bi bi-people"></i> Groupe</span>
                         {% else %}
-                          <span class="badge bg-purple-subtle text-purple border"><i class="bi bi-chat"></i> Privé VIP</span>
+                          <span class="badge bg-purple-subtle text-dark border"><i class="bi bi-chat"></i> Privé VIP</span>
                         {% endif %}
                       </td>
                       <td><strong>{{ log.get('product_title') or ('#' ~ log.get('product_id')) }}</strong></td>
@@ -909,14 +1002,14 @@
                       <td>
                         {% set lst = log.get('status') %}
                         {% if lst == 'ok' or lst == 'success' %}
-                          <span class="badge bg-success"><i class="bi bi-check-lg"></i> Succès</span>
+                          <span class="badge bg-success"><i class="bi bi-check-lg"></i> Publié</span>
                         {% elif lst == 'failed' %}
-                          <span class="badge bg-danger"><i class="bi bi-x-lg"></i> Échec</span>
+                          <span class="badge bg-danger"><i class="bi bi-x-lg"></i> Erreur</span>
                         {% else %}
-                          <span class="badge bg-secondary"><i class="bi bi-dash-circle"></i> Simulation</span>
+                          <span class="badge bg-secondary"><i class="bi bi-dash-circle"></i> Essai</span>
                         {% endif %}
                       </td>
-                      <td class="text-muted">{{ log.get('detail') or log.get('details') or '-' }}</td>
+                      <td class="text-muted" style="font-size:0.8rem;">{{ log.get('detail') or log.get('details') or '-' }}</td>
                     </tr>
                   {% endfor %}
                 </tbody>
@@ -925,7 +1018,7 @@
           {% else %}
             <div class="text-center py-5 text-muted">
               <i class="bi bi-inbox fs-1 d-block mb-2 text-secondary"></i>
-              Aucun log d'envoi récent disponible pour le moment.
+              Aucun envoi récent enregistré.
             </div>
           {% endif %}
         </div>
@@ -937,130 +1030,35 @@
     </div>
   </div>
 
-  <!-- MODAL 3: SCAN QR CODE -->
-  <div class="modal fade" id="qrModal" tabindex="-1" aria-labelledby="qrModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content border-0 shadow-lg" style="border-radius:16px;">
-        <div class="modal-header bg-light">
-          <h5 class="modal-title fw-bold" id="qrModalLabel">
-            <i class="bi bi-qr-code text-success me-2"></i> Scanner le QR Code WhatsApp
-          </h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
-        </div>
-
-        <div class="modal-body text-center p-4">
-          <div id="waQrContainer" style="display:inline-block;padding:12px;background:#ffffff;border:2px solid #e2e8f0;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,0.06);">
-            <img id="waQrImage" src="{{ gateway.qr if gateway.qr else '' }}" alt="QR Code WhatsApp" style="width:260px;height:260px;object-fit:contain;display:block;">
-          </div>
-
-          <div class="mt-3 text-start bg-light p-3 rounded" style="font-size:0.82rem;line-height:1.6;">
-            <strong>Instructions :</strong><br>
-            1. Ouvrez <strong>WhatsApp</strong> sur votre téléphone.<br>
-            2. Allez dans <strong>Réglages</strong> &gt; <strong>Appareils connectés</strong>.<br>
-            3. Appuyez sur <strong>Connecter un appareil</strong> et pointez la caméra vers ce code.
-          </div>
-        </div>
-
-        <div class="modal-footer bg-light">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- MODAL 4: CONFIRMATION ENVOI REEL -->
-  <div class="modal fade" id="sendConfirmModal" tabindex="-1" aria-labelledby="sendConfirmModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content border-0 shadow-lg" style="border-radius:16px;">
-        <form method="POST" action="{{ url_for('admin.whatsapp_promo_run') }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <input type="hidden" name="mode" value="live">
-
-          <div class="modal-header bg-success text-white">
-            <h5 class="modal-title fw-bold" id="sendConfirmModalLabel">
-              <i class="bi bi-send-check-fill me-2"></i> Confirmer la Diffusion Réelle
-            </h5>
-            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fermer"></button>
-          </div>
-
-          <div class="modal-body p-4">
-            <p style="font-size:0.92rem;color:#0f172a;line-height:1.5;">
-              Vous êtes sur le point de lancer la diffusion <strong>RÉELLE</strong> sur WhatsApp pour les produits présentés dans l'aperçu :
-            </p>
-
-            <ul class="list-group list-group-flush mb-3" style="font-size:0.85rem;">
-              <li class="list-group-item d-flex justify-content-between align-items-center px-0">
-                <span><i class="bi bi-box-seam text-secondary me-2"></i> Produits à promouvoir</span>
-                <strong>{{ products|length }} produit(s)</strong>
-              </li>
-              <li class="list-group-item d-flex justify-content-between align-items-center px-0">
-                <span><i class="bi bi-camera text-success me-2"></i> Statut 24h (Story)</span>
-                <span class="badge {{ 'bg-success' if ps.get('status_enabled', True) else 'bg-secondary' }}">{{ 'Actif' if ps.get('status_enabled', True) else 'Désactivé' }}</span>
-              </li>
-              <li class="list-group-item d-flex justify-content-between align-items-center px-0">
-                <span><i class="bi bi-people text-primary me-2"></i> Groupes WhatsApp ciblés</span>
-                <strong>{{ groups_list|length }} groupe(s)</strong>
-              </li>
-              <li class="list-group-item d-flex justify-content-between align-items-center px-0">
-                <span><i class="bi bi-person-check text-purple me-2"></i> Clients VIP autorisés</span>
-                <strong>{{ recipients_list|length }} contact(s)</strong>
-              </li>
-            </ul>
-
-            <div class="alert alert-info py-2 px-3 mb-0" style="font-size:0.78rem;">
-              <i class="bi bi-shield-check me-1"></i> L'envoi s'effectue en tâche de fond avec des <strong>délais aléatoires de 30 à 90 secondes</strong> entre chaque message pour protéger votre numéro contre les blocages.
-            </div>
-          </div>
-
-          <div class="modal-footer bg-light">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-            <button type="submit" class="btn btn-success fw-bold shadow-sm">
-              <i class="bi bi-rocket-takeoff-fill me-1"></i> Oui, Diffuser Maintenant 🚀
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
-
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
   (function () {
-    // 1. Tab switching for product cards
-    document.querySelectorAll(".wa-tab-btn").forEach(function (btn) {
+    // 1. Changement d'onglets pour les aperçus WhatsApp
+    document.querySelectorAll(".channel-tab-btn").forEach(function (btn) {
       btn.addEventListener("click", function () {
-        var card = this.closest(".wa-product-card");
-        if (!card) return;
+        var box = this.closest(".promo-product-box");
+        if (!box) return;
 
-        // update active button
-        card.querySelectorAll(".wa-tab-btn").forEach(function (b) { b.classList.remove("active"); });
+        box.querySelectorAll(".channel-tab-btn").forEach(function (b) { b.classList.remove("active"); });
         this.classList.add("active");
 
-        // hide all tab contents in this card
-        card.querySelectorAll(".wa-tab-content").forEach(function (content) {
-          content.style.display = "none";
-        });
+        box.querySelectorAll(".wa-tab-view").forEach(function (v) { v.style.display = "none"; });
 
-        // show target
         var targetId = this.getAttribute("data-target");
         var targetEl = document.getElementById(targetId);
         if (targetEl) targetEl.style.display = "block";
       });
     });
 
-    // 2. Gateway Polling and Status
+    // 2. Gestion de la connexion WhatsApp & QR Code
     var refreshBtn = document.getElementById("waRefreshBtn");
     var disconnectBtn = document.getElementById("waDisconnectBtn");
     var reconnectBtn = document.getElementById("waReconnectBtn");
     var banner = document.getElementById("waStatusBanner");
-    var labelEl = document.getElementById("waStatusLabel");
-    var descEl = document.getElementById("waStatusDesc");
     var qrImage = document.getElementById("waQrImage");
-    var phonePill = document.getElementById("waPhonePill");
-    var phoneNumber = document.getElementById("waPhoneNumber");
 
     if (!refreshBtn || !banner) return;
 
@@ -1071,57 +1069,9 @@
     var pollTimer = null;
     var csrfToken = window.csrfToken || (document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').getAttribute("content") : "");
 
-    function setBtnLoading(btn, active) {
-      if (!btn) return;
-      btn.disabled = !!active;
-      if (active) btn.classList.add("disabled");
-      else btn.classList.remove("disabled");
-    }
-
-    function applyGatewayState(data) {
-      var st = (data && data.status) || "disconnected";
-      if (labelEl) {
-        labelEl.className = "wa-status-badge is-" + st;
-        var text = (st === "connected") ? "Connecté" : (st === "qr_ready") ? "En attente de scan QR" : "Déconnecté";
-        labelEl.innerHTML = '<span class="wa-dot"></span> ' + text;
-      }
-
-      if (descEl) {
-        if (st === "connected") {
-          descEl.textContent = "Prêt pour la diffusion automatique et les notifications système.";
-        } else if (st === "qr_ready") {
-          descEl.textContent = "Un QR Code frais est prêt pour lier votre compte WhatsApp.";
-        } else {
-          descEl.textContent = (data && data.error) ? data.error : "Non connecté actuellement. Générez un QR Code pour relier le compte.";
-        }
-      }
-
-      if (phonePill && phoneNumber) {
-        if (st === "connected" && data && data.phone) {
-          phoneNumber.textContent = "+" + String(data.phone).replace(/^\+/, "");
-          phonePill.style.display = "inline-flex";
-        } else {
-          phonePill.style.display = "none";
-        }
-      }
-
-      if (qrImage) {
-        if (st === "qr_ready" && data && data.qr) {
-          qrImage.setAttribute("src", data.qr);
-        }
-      }
-
-      if (st === "qr_ready") {
-        startPolling();
-      } else {
-        stopPolling();
-      }
-    }
-
-    function refreshGatewayStatus(callback) {
+    function refreshGatewayStatus() {
       if (isFetching || !statusUrl) return;
       isFetching = true;
-      setBtnLoading(refreshBtn, true);
 
       fetch(statusUrl, {
         method: "GET",
@@ -1130,30 +1080,24 @@
       })
         .then(function (resp) { return resp.json(); })
         .then(function (data) {
-          applyGatewayState(data);
-          if (typeof callback === "function") callback(null, data);
+          var st = (data && data.status) || "disconnected";
+          if (qrImage && st === "qr_ready" && data && data.qr) {
+            qrImage.setAttribute("src", data.qr);
+          }
+          if (st === "connected" && banner.classList.contains("is-qr_ready")) {
+            // Recharger la page dès que le scan réussit
+            window.location.reload();
+          }
         })
-        .catch(function (err) {
-          if (typeof callback === "function") callback(err);
-        })
+        .catch(function () {})
         .finally(function () {
           isFetching = false;
-          setBtnLoading(refreshBtn, false);
         });
     }
 
-    function startPolling() {
-      if (pollTimer) return;
-      pollTimer = window.setInterval(function () {
-        refreshGatewayStatus();
-      }, 4000);
-    }
-
-    function stopPolling() {
-      if (pollTimer) {
-        window.clearInterval(pollTimer);
-        pollTimer = null;
-      }
+    // Auto-polling si en attente de scan
+    if (banner.classList.contains("is-qr_ready")) {
+      pollTimer = window.setInterval(refreshGatewayStatus, 4000);
     }
 
     refreshBtn.addEventListener("click", function (e) {
@@ -1164,8 +1108,7 @@
     if (disconnectBtn && disconnectUrl) {
       disconnectBtn.addEventListener("click", function (e) {
         e.preventDefault();
-        if (!window.confirm("Voulez-vous déconnecter la session WhatsApp actuelle et générer un nouveau QR Code ?")) return;
-        setBtnLoading(disconnectBtn, true);
+        if (!window.confirm("Voulez-vous déconnecter ce compte WhatsApp pour en associer un autre ?")) return;
 
         fetch(disconnectUrl, {
           method: "POST",
@@ -1177,17 +1120,14 @@
           },
           body: JSON.stringify({ action: "disconnect" })
         })
-          .then(function () { refreshGatewayStatus(); })
-          .catch(function () { window.location.reload(); })
-          .finally(function () { setBtnLoading(disconnectBtn, false); });
+          .then(function () { window.location.reload(); })
+          .catch(function () { window.location.reload(); });
       });
     }
 
     if (reconnectBtn && reconnectUrl) {
       reconnectBtn.addEventListener("click", function (e) {
         e.preventDefault();
-        setBtnLoading(reconnectBtn, true);
-
         fetch(reconnectUrl, {
           method: "POST",
           headers: {
@@ -1198,15 +1138,10 @@
           },
           body: JSON.stringify({ action: "reconnect" })
         })
-          .then(function () { refreshGatewayStatus(); })
-          .catch(function () { refreshGatewayStatus(); })
-          .finally(function () { setBtnLoading(reconnectBtn, false); });
+          .then(function () { window.location.reload(); })
+          .catch(function () { window.location.reload(); });
       });
     }
-
-    {% if st == 'qr_ready' %}
-      startPolling();
-    {% endif %}
   })();
 </script>
 {% endblock %}
