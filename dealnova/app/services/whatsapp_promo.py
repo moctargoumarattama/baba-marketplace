@@ -677,19 +677,25 @@ def send_promo_media(target: str, card: dict[str, Any], text: str) -> tuple[str,
     """Envoie une photo + texte vers un numéro client ou un groupe WhatsApp.
     Retourne (résultat, détail) : sent | opted_out | not_on_whatsapp | failed
     """
-    code, body = _gateway_post("/api/promo/send-media", {
+    payload = {
         "target": target,
         "phone": target,
-        "image_url": card["image_url"],
+        "image_url": card.get("image_url", ""),
         "caption": text,
-    })
+    }
+    code, body = _gateway_post("/api/promo/send-media", payload)
     if code in (200, 201):
         return "sent", "ok"
+    err_msg = str(body.get("error") or code)
+    current_app.logger.warning(
+        "whatsapp_promo.send_promo_media_failed target=%s code=%s error=%s body=%s",
+        target, code, err_msg, body
+    )
     if code == 409:
-        return "opted_out", str(body.get("error") or "opted_out")
+        return "opted_out", err_msg
     if code == 404 and body.get("error") == "not_on_whatsapp":
         return "not_on_whatsapp", "not_on_whatsapp"
-    return "failed", str(body.get("error") or code)
+    return "failed", err_msg
 
 
 # Pour rétro-compatibilité
@@ -1116,6 +1122,7 @@ def run_daily_promo(
                     if not still_enabled():
                         return finish("stopped_by_admin", [c["id"] for c in cards], last_generated_data)
 
+                    current_app.logger.info("whatsapp_promo.attempting_group_send target=%s label=%s card_id=%s", grp["target"], group_label, card["id"])
                     result, reason, attempts = send_promo_media_with_retry(grp["target"], card, group_text)
                     event["attempts"] = attempts
                     if result == "sent":
@@ -1123,11 +1130,13 @@ def run_daily_promo(
                         consecutive_failures = 0
                         event["status"] = "ok"
                         event["details"] = "Envoyé dans le groupe" if attempts == 1 else f"Envoyé dans le groupe (après {attempts} tentatives)"
+                        current_app.logger.info("whatsapp_promo.group_sent_ok target=%s label=%s", grp["target"], group_label)
                     else:
                         summary["groups_failed"] += 1
                         consecutive_failures += 1
                         event["status"] = "failed"
                         event["details"] = f"Erreur après {attempts} tentatives: {reason}"
+                        current_app.logger.warning("whatsapp_promo.group_send_failed target=%s label=%s reason=%s attempts=%s", grp["target"], group_label, reason, attempts)
 
                     event["detail"] = event["details"]
                     recent_events.append(event)

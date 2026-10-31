@@ -104,6 +104,10 @@ async function resolveTargetJid(rawTarget) {
   if (str.endsWith("@g.us")) {
     return { jid: str, isGroup: true, label: str };
   }
+  // Format JID numérique sans le suffixe @g.us
+  if (/^120363\d+$/.test(str)) {
+    return { jid: `${str}@g.us`, isGroup: true, label: `${str}@g.us` };
+  }
 
   // 2. Lien d'invitation de groupe (ex: https://chat.whatsapp.com/AbCdEf...)
   const inviteCode = extractInviteCode(str);
@@ -111,7 +115,7 @@ async function resolveTargetJid(rawTarget) {
     let groupJid = null;
     let groupSubject = str;
 
-    // A. Rejoindre le groupe si ce n'est pas déjà fait
+    // A. Tenter de rejoindre le groupe s'il n'est pas déjà rejoint
     try {
       const joinedId = await sock.groupAcceptInvite(inviteCode);
       if (joinedId) {
@@ -121,7 +125,7 @@ async function resolveTargetJid(rawTarget) {
       logger.debug({ inviteCode, err: joinErr && joinErr.message }, "groupAcceptInvite (peut-être déjà membre)");
     }
 
-    // B. Obtenir les informations du groupe
+    // B. Obtenir les informations du groupe (JID et Sujet)
     try {
       const info = await sock.groupGetInviteInfo(inviteCode);
       if (info && info.id) {
@@ -139,7 +143,25 @@ async function resolveTargetJid(rawTarget) {
     }
   }
 
-  // 3. Numéro de téléphone individuel (contact opt-in)
+  // 3. Recherche intelligente par NOM DU GROUPE parmi les groupes du compte connecté !
+  // Très utile quand l'admin tape le nom du groupe qu'il a lui-même créé sur son téléphone
+  if (sock && typeof sock.groupFetchAllParticipating === "function") {
+    try {
+      const participating = await sock.groupFetchAllParticipating();
+      const lower = str.toLowerCase();
+      for (const [gid, meta] of Object.entries(participating || {})) {
+        const subj = String(meta?.subject || "").trim().toLowerCase();
+        if (subj && (subj === lower || subj.includes(lower) || lower.includes(subj))) {
+          logger.info({ matchedGroup: meta.subject, gid }, "Groupe résolu par son nom");
+          return { jid: gid, isGroup: true, label: meta.subject || gid };
+        }
+      }
+    } catch (fetchErr) {
+      logger.debug({ err: fetchErr?.message }, "Erreur groupFetchAllParticipating dans resolveTargetJid");
+    }
+  }
+
+  // 4. Numéro de téléphone individuel (contact opt-in)
   const digits = normalizePhone(str);
   if (digits) {
     return { jid: `${digits}@s.whatsapp.net`, isGroup: false, phone: digits, label: digits };
@@ -449,26 +471,40 @@ app.post("/api/promo/send-media", requireApiKey, async (req, res) => {
     }
   }
 
+  let buffer = null;
   try {
-    const buffer = await fetchImageBuffer(imageUrl);
+    buffer = await fetchImageBuffer(imageUrl);
+  } catch (imgErr) {
+    logger.warn({ err: imgErr?.message, imageUrl }, "Impossible de télécharger l'image, envoi du texte seul en repli");
+  }
+
+  try {
     // Simulation présence humaine (anti-ban)
     try {
       await sock.sendPresenceUpdate("composing", targetInfo.jid);
-      await sleep(1200 + Math.floor(Math.random() * 1300));
+      await sleep(1000 + Math.floor(Math.random() * 1000));
       await sock.sendPresenceUpdate("paused", targetInfo.jid);
     } catch (_err) {
       // ignore
     }
 
-    await sock.sendMessage(targetInfo.jid, { image: buffer, caption });
+    if (buffer) {
+      await sock.sendMessage(targetInfo.jid, { image: buffer, caption });
+    } else {
+      await sock.sendMessage(targetInfo.jid, { text: caption });
+    }
+
+    logger.info({ target: targetInfo.jid, label: targetInfo.label, hasImage: !!buffer }, "Message diffusé avec succès");
     return res.json({
       ok: true,
       target: targetInfo.jid,
       isGroup: targetInfo.isGroup,
       label: targetInfo.label,
+      imageSent: !!buffer,
     });
-  } catch (err) {
-    return res.status(500).json({ ok: false, error: String(err && err.message ? err.message : err) });
+  } catch (sendErr) {
+    logger.error({ err: sendErr, target: targetInfo.jid }, "Erreur sendMessage");
+    return res.status(500).json({ ok: false, error: String(sendErr && sendErr.message ? sendErr.message : sendErr) });
   }
 });
 
