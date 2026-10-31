@@ -39,13 +39,14 @@ from .shared_state import get_json_state, locked_json_states, mutate_json_states
 SETTINGS_KEY = "whatsapp_promo_settings"
 LOG_KEY = "whatsapp_promo_log"
 
-SETTINGS_SCHEMA_VERSION = 2
+SETTINGS_SCHEMA_VERSION = 3
 PERSISTENCE_WINDOW_HOURS = 2
 PERSISTENCE_WINDOW_SECONDS = PERSISTENCE_WINDOW_HOURS * 3600  # 2h max de persistance d'envoi
 
 HARD_MAX_MESSAGES_PER_DAY = 200
-MAX_STATUS_PRODUCTS = 20
+MAX_STATUS_PRODUCTS = 24
 MIN_DELAY_FLOOR = 20
+MIN_INTER_GROUP_STEP = 15.0
 MAX_DELAY_CEILING = 300
 MAX_CONSECUTIVE_FAILURES = 3
 STATUS_DELAY_RANGE = (15, 45)
@@ -66,7 +67,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "pinned_product_ids": [],
     "groups": [],
     "recipients": [],
-    "status_products": 10,
+    "status_products": 12,
     "products_count": 5,
     "services_count": 3,
     "rentals_count": 2,
@@ -169,17 +170,26 @@ def get_settings() -> dict[str, Any]:
     try:
         raw = get_json_state(SETTINGS_KEY, dict)
         if isinstance(raw, dict) and raw and int(raw.get("schema_version") or 1) < SETTINGS_SCHEMA_VERSION:
-            upgraded = normalize_settings({
-                **raw,
-                "schema_version": SETTINGS_SCHEMA_VERSION,
-                "products_count": 5,
-                "services_count": 3,
-                "rentals_count": 2,
-                "status_products": 10,
-                "min_delay": 45,
-                "max_delay": max(_clamp_int(raw.get("max_delay"), 90, MIN_DELAY_FLOOR, MAX_DELAY_CEILING), 90),
-                "daily_message_limit": max(_clamp_int(raw.get("daily_message_limit"), 50, 0, HARD_MAX_MESSAGES_PER_DAY), 50),
-            })
+            prev_ver = int(raw.get("schema_version") or 1)
+            if prev_ver < 2:
+                upgraded = normalize_settings({
+                    **raw,
+                    "schema_version": SETTINGS_SCHEMA_VERSION,
+                    "products_count": 5,
+                    "services_count": 3,
+                    "rentals_count": 2,
+                    "status_products": 12,
+                    "min_delay": 45,
+                    "max_delay": max(_clamp_int(raw.get("max_delay"), 90, MIN_DELAY_FLOOR, MAX_DELAY_CEILING), 90),
+                    "daily_message_limit": max(_clamp_int(raw.get("daily_message_limit"), 50, 0, HARD_MAX_MESSAGES_PER_DAY), 50),
+                })
+            else:
+                cur_status = int(raw.get("status_products") or 10)
+                upgraded = normalize_settings({
+                    **raw,
+                    "schema_version": SETTINGS_SCHEMA_VERSION,
+                    "status_products": 12 if cur_status == 10 else cur_status,
+                })
             _persist_json_state(SETTINGS_KEY, upgraded)
             return upgraded
         return normalize_settings(raw)
@@ -341,6 +351,7 @@ def _clean_and_expire_log(
         for day_map_key in (
             "clicks_by_date",
             "sent_by_date",
+            "statuses_by_date",
             "sent_ids_by_date",
             "attempted_slots_by_date",
             "completed_slots_by_date",
@@ -1468,9 +1479,84 @@ def _record_run(
 
         sent_by_date = {today: int((current_log.get("sent_by_date") or {}).get(today, 0)) + sent_today}
         current_log["sent_by_date"] = sent_by_date
+        statuses_sent = int(summary.get("statuses_ok") or 0)
+        statuses_by_date = {today: int((current_log.get("statuses_by_date") or {}).get(today, 0)) + statuses_sent}
+        current_log["statuses_by_date"] = statuses_by_date
 
     cleaned, _ = _clean_and_expire_log(current_log)
     _persist_json_state(LOG_KEY, cleaned)
+
+
+def _compute_group_step_delay_range(min_delay: int, max_delay: int, groups_count: int) -> tuple[float, float]:
+    """Adapte le délai entre chaque envoi selon le nombre de groupes actifs :
+    - 1 seul groupe : conserve intégralement [min_delay, max_delay] (ex: 45s à 90s).
+    - Plusieurs groupes (alternance Round-Robin) : répartit le délai entre les groupes
+      (ex: 3 groupes -> 15s à 30s entre chaque groupe, soit toujours 45s à 90s d'écart dans un même groupe),
+      avec un plancher de sécurité de 15s entre deux groupes distincts.
+    """
+    n = max(1, int(groups_count or 1))
+    if n == 1:
+        return float(min_delay), float(max_delay)
+    step_min = max(MIN_INTER_GROUP_STEP, float(min_delay) / n)
+    step_max = max(step_min + 5.0, float(max_delay) / n)
+    return step_min, step_max
+
+
+def _select_balanced_status_cards(cards: list[dict[str, Any]], limit: int) -> list[dict[str, Any]]:
+    """Sélectionne `limit` offres variées (Produits, Services, Locations) et les alterne pour la Story 24h."""
+    if limit <= 0 or not cards:
+        return []
+    if len(cards) <= limit:
+        return list(cards)
+
+    buckets: list[list[dict[str, Any]]] = []
+    for kind in ("physical", "service", "rental"):
+        group = [c for c in cards if c.get("item_type") == kind]
+        if group:
+            buckets.append(group)
+    other = [c for c in cards if c.get("item_type") not in ("physical", "service", "rental")]
+    if other:
+        buckets.append(other)
+
+    if len(buckets) <= 1:
+        return list(cards[:limit])
+
+    total = len(cards)
+    quotas = [0] * len(buckets)
+    remainders: list[tuple[float, int]] = []
+    for idx, b in enumerate(buckets):
+        exact = (len(b) * limit) / total
+        base = min(len(b), max(1, int(exact))) if limit >= len(buckets) else int(exact)
+        quotas[idx] = base
+        remainders.append((exact - int(exact), idx))
+
+    while sum(quotas) > limit:
+        # Réduire le bucket ayant le plus grand quota (> 1)
+        idx_max = max(range(len(quotas)), key=lambda i: quotas[i])
+        if quotas[idx_max] <= 1:
+            break
+        quotas[idx_max] -= 1
+
+    remainders.sort(reverse=True)
+    while sum(quotas) < limit:
+        progressed = False
+        for _, idx in remainders:
+            if sum(quotas) >= limit:
+                break
+            if quotas[idx] < len(buckets[idx]):
+                quotas[idx] += 1
+                progressed = True
+        if not progressed:
+            break
+
+    sliced_buckets = [buckets[i][: quotas[i]] for i in range(len(buckets)) if quotas[i] > 0]
+    interleaved: list[dict[str, Any]] = []
+    max_len = max((len(b) for b in sliced_buckets), default=0)
+    for pos in range(max_len):
+        for b in sliced_buckets:
+            if pos < len(b):
+                interleaved.append(b[pos])
+    return interleaved[:limit]
 
 
 def run_daily_promo(
@@ -1674,7 +1760,19 @@ def run_daily_promo(
 
     people = _audience(settings)
     groups = settings.get("groups", [])
-    status_cards = cards[: settings.get("status_products", 10)]
+    total_daily_status_target = int(settings.get("status_products", 12))
+    # Répartition équilibrée Matin / Soir (ex: 12 au total -> 6 le matin + 6 le soir)
+    if total_daily_status_target >= 4:
+        half_quota = (total_daily_status_target + 1) // 2
+        if preview:
+            per_run_status_limit = half_quota
+        else:
+            already_posted_statuses = int((log.get("statuses_by_date") or {}).get(today, 0))
+            remaining_daily_statuses = max(0, total_daily_status_target - already_posted_statuses)
+            per_run_status_limit = min(half_quota, remaining_daily_statuses)
+    else:
+        per_run_status_limit = total_daily_status_target
+    status_cards = _select_balanced_status_cards(cards, per_run_status_limit)
 
     # 1. CANAL STATUT WHATSAPP (Story 24h)
     if run_status:
@@ -1752,11 +1850,15 @@ def run_daily_promo(
             summary["details"].append(event)
         else:
             total_group_sends = len(groups) * len(cards)
+            step_min, step_max = _compute_group_step_delay_range(
+                settings["min_delay"], settings["max_delay"], len(groups)
+            )
             sent_group_idx = 0
-            for grp in groups:
-                group_label = grp.get("label") or grp["target"]
-                for card_idx, card in enumerate(cards):
+            # Alternance Round-Robin : Offre 1 -> Grp 1, Grp 2, Grp 3 ; puis Offre 2 -> Grp 1, Grp 2, Grp 3...
+            for card in cards:
+                for grp in groups:
                     sent_group_idx += 1
+                    group_label = grp.get("label") or grp["target"]
                     group_text = compose_group_message(card, copies[card["id"]], group_label)
                     event = {
                         "timestamp": f"{today} {_local_now().strftime('%H:%M:%S')}",
@@ -1785,7 +1887,10 @@ def run_daily_promo(
                     if not still_enabled():
                         return finish("stopped_by_admin", sent_card_ids, last_generated_data)
 
-                    current_app.logger.info("whatsapp_promo.attempting_group_send target=%s label=%s card_id=%s", grp["target"], group_label, card["id"])
+                    current_app.logger.info(
+                        "whatsapp_promo.attempting_group_send target=%s label=%s card_id=%s step_delay=%.0f-%.0fs",
+                        grp["target"], group_label, card["id"], step_min, step_max,
+                    )
                     result, reason, attempts = send_promo_media_with_retry(grp["target"], card, group_text)
                     event["attempts"] = attempts
                     if result == "sent":
@@ -1810,7 +1915,7 @@ def run_daily_promo(
                         return finish("gateway_failures", sent_card_ids, last_generated_data)
 
                     if sent_group_idx < total_group_sends:
-                        sleep(random.uniform(settings["min_delay"], settings["max_delay"]))
+                        sleep(random.uniform(step_min, step_max))
 
     return finish(None, [] if preview else sent_card_ids, last_generated_data)
 
@@ -2057,6 +2162,7 @@ def retry_failed_promos(
 
     retried_count = 0
     ok_count = 0
+    retried_statuses_ok = 0
     failed_count = 0
     consecutive_failures = 0
     newly_sent_ids: list[str] = []
@@ -2107,6 +2213,7 @@ def retry_failed_promos(
             ok, reason, attempts = post_status_with_retry(card, msg_text, audience_phones)
             if ok:
                 ok_count += 1
+                retried_statuses_ok += 1
                 consecutive_failures = 0
                 newly_sent_ids.append(str(pid))
                 event["status"] = "ok"
@@ -2147,7 +2254,9 @@ def retry_failed_promos(
             break
 
         if pos < len(to_retry) - 1:
-            _sleep(random.uniform(settings["min_delay"], settings["max_delay"]))
+            distinct_grps = len({str(ev.get("target")) for _, ev in to_retry if ev.get("channel") == "group"}) or 1
+            r_min, r_max = _compute_group_step_delay_range(settings["min_delay"], settings["max_delay"], distinct_grps)
+            _sleep(random.uniform(r_min, r_max))
 
     # Sauvegarde des logs mis à jour (sans ceux expirés > 2h)
     log["recent_logs"] = [e for e in recent_logs if e is not None]
@@ -2162,6 +2271,10 @@ def retry_failed_promos(
                 existing_sent.add(s_pid)
         log["promoted"] = promoted
         log["sent_ids_by_date"] = sent_ids_map
+    if retried_statuses_ok > 0:
+        log["statuses_by_date"] = {
+            today: int((log.get("statuses_by_date") or {}).get(today, 0)) + retried_statuses_ok
+        }
     cleaned_log, _ = _clean_and_expire_log(log)
     _save_promo_log(cleaned_log)
 

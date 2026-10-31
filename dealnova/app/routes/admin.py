@@ -2114,7 +2114,7 @@ def whatsapp_promo_settings():
         "pinned_product_ids": current.get("pinned_product_ids", []),
         "groups": groups,
         "recipients": recipients,
-        "status_products": data.get("status_products", current.get("status_products", 10)),
+        "status_products": data.get("status_products", current.get("status_products", 12)),
         "products_count": data.get("products_count", current.get("products_count", 5)),
         "services_count": data.get("services_count", current.get("services_count", 3)),
         "rentals_count": data.get("rentals_count", current.get("rentals_count", 2)),

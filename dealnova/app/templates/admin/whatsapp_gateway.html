@@ -808,8 +808,11 @@
               </div>
               <input class="form-check-input" type="checkbox" name="status_enabled" value="1" {% if ps.get('status_enabled', True) %}checked{% endif %} style="width:1.25rem;height:1.25rem;">
             </div>
+            {% set st_tot = ps.get('status_products', 12) %}
+            {% set st_matin = (st_tot + 1) // 2 if st_tot >= 4 else st_tot %}
+            {% set st_soir = (st_tot - st_matin) if st_tot >= 4 else 0 %}
             <p class="channel-choice-desc">
-              Ce canal est non-intrusif et visible pendant 24h par vos contacts enregistrés ({{ ps.get('status_products', 10) }} produits/jour en Statut).
+              Ce canal est non-intrusif et visible pendant 24h par vos contacts enregistrés ({{ st_tot }} Statuts/jour : {{ st_matin }} matin + {{ st_soir }} soir).
             </p>
             <div style="font-size:0.75rem;font-weight:700;color:#059669;">
               <i class="bi bi-check-circle me-1"></i> Recommandé pour la visibilité
@@ -887,8 +890,8 @@
               <span title="Nombre de logements & locations">🏠 Locations :</span>
               <input type="number" name="rentals_count" value="{{ ps.get('rentals_count', 2) }}" min="0" max="15" class="form-control form-control-sm text-center fw-bold" style="width:55px;">
 
-              <span class="ms-1" title="Nombre d'offres en Statut WhatsApp 24h (Story)">📸 Statuts 24h :</span>
-              <input type="number" name="status_products" value="{{ ps.get('status_products', 10) }}" min="1" max="20" class="form-control form-control-sm text-center fw-bold" style="width:55px;">
+              <span class="ms-1" title="Total d'offres publiées en Statut WhatsApp sur la journée (ex: 12 = 6 matin + 6 soir)">📸 Statuts/jour (6+6) :</span>
+              <input type="number" name="status_products" value="{{ ps.get('status_products', 12) }}" min="1" max="24" class="form-control form-control-sm text-center fw-bold" style="width:55px;">
 
               <span class="ms-1" title="Ancienneté prioritaire des logements proposés">⏱️ Fraîcheur locations :</span>
               <select name="rental_max_age_hours" class="form-select form-select-sm" style="width:auto;font-weight:700;">
@@ -909,7 +912,7 @@
               <input type="number" name="max_delay" value="{{ ps.get('max_delay', 90) }}" min="20" max="300" class="form-control form-control-sm text-center fw-bold" style="width:60px;">
               <span>sec</span>
               <span class="badge bg-secondary-subtle text-dark border ms-auto" style="font-weight:600;">
-                <i class="bi bi-hourglass-split me-1"></i> Persistance max 2h • Historique vidé chaque jour
+                <i class="bi bi-shuffle me-1"></i> Alternance auto selon nb de groupes • Persistance max 2h
               </span>
             </div>
           </div>
@@ -950,7 +953,7 @@
           <input type="hidden" name="services_count" value="{{ ps.get('services_count', 3) }}">
           <input type="hidden" name="rentals_count" value="{{ ps.get('rentals_count', 2) }}">
           <input type="hidden" name="rental_max_age_hours" value="{{ ps.get('rental_max_age_hours', 24) }}">
-          <input type="hidden" name="status_products" value="{{ ps.get('status_products', 10) }}">
+          <input type="hidden" name="status_products" value="{{ ps.get('status_products', 12) }}">
           <input type="hidden" name="daily_message_limit" value="{{ ps.get('daily_message_limit', 50) }}">
           <input type="hidden" name="min_delay" value="{{ ps.get('min_delay', 45) }}">
           <input type="hidden" name="max_delay" value="{{ ps.get('max_delay', 90) }}">

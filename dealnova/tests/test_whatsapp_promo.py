@@ -777,9 +777,13 @@ def test_ten_offers_mix_random_rotation_and_zero_same_day_repeat(app, tmp_path):
         assert migrated["products_count"] == 5
         assert migrated["services_count"] == 3
         assert migrated["rentals_count"] == 2
-        assert migrated["status_products"] == 10
+        assert migrated["status_products"] == 12
         assert migrated["min_delay"] == 45
         assert migrated["max_delay"] == 90
+
+        # Vérification unitaire du calcul dynamique des délais selon le nombre de groupes
+        assert whatsapp_promo._compute_group_step_delay_range(45, 90, 1) == (45.0, 90.0)
+        assert whatsapp_promo._compute_group_step_delay_range(45, 90, 3) == (15.0, 30.0)
 
         # 2. Création d'un catalogue riche : 12 produits (6 promos + 6 hors promo), 6 services, 4 locations (2 <24h + 2 anciennes)
         vendor = User.query.filter_by(username="wa_mix10_vendor").first()
@@ -893,19 +897,19 @@ def test_ten_offers_mix_random_rotation_and_zero_same_day_repeat(app, tmp_path):
 
         db.session.commit()
 
-        # Réinitialiser le log et configurer les paramètres cibles
+        # Réinitialiser le log et configurer Matin avec 1 seul groupe (-> garde 45s-90s) et 12 Statuts/jour (6 matin + 6 soir)
         whatsapp_promo._persist_json_state(whatsapp_promo.LOG_KEY, {})
         whatsapp_promo.save_settings({
             "enabled": True,
             "dry_run": False,
             "status_enabled": True,
             "groups_enabled": True,
-            "groups": whatsapp_promo.parse_groups_text("https://chat.whatsapp.com/GrpMix10, Groupe Mix"),
+            "groups": whatsapp_promo.parse_groups_text("https://chat.whatsapp.com/GrpMix10, Groupe Unique"),
             "products_count": 5,
             "services_count": 3,
             "rentals_count": 2,
             "rental_max_age_hours": 24,
-            "status_products": 10,
+            "status_products": 12,
             "min_delay": 45,
             "max_delay": 90,
         })
@@ -913,11 +917,7 @@ def test_ten_offers_mix_random_rotation_and_zero_same_day_repeat(app, tmp_path):
         base_now = whatsapp_promo._local_now()
         morning_now = base_now.replace(hour=10, minute=35, second=0, microsecond=0)
         evening_now = base_now.replace(hour=18, minute=35, second=0, microsecond=0)
-        recorded_group_delays = []
-
-        def capture_sleep(sec):
-            if sec >= 45:
-                recorded_group_delays.append(sec)
+        morning_sleeps = []
 
         with (
             patch("dealnova.app.services.whatsapp_promo._rental_upload_roots", return_value=[rentals_dir.resolve()]),
@@ -925,13 +925,16 @@ def test_ten_offers_mix_random_rotation_and_zero_same_day_repeat(app, tmp_path):
             patch("dealnova.app.services.whatsapp_promo.get_whatsapp_gateway_status", return_value={"status": "connected"}),
             patch("dealnova.app.services.whatsapp_promo._gateway_post", return_value=(200, {"ok": True})),
         ):
-            morning_run = whatsapp_promo.run_daily_promo(force=False, dry_run=False, sleep=capture_sleep)
+            morning_run = whatsapp_promo.run_daily_promo(force=False, dry_run=False, sleep=lambda s: morning_sleeps.append(s))
 
         assert morning_run["aborted"] is None
         assert len(morning_run["products"]) == 10
-        assert morning_run["statuses_ok"] == 10  # 10 Statuts 24h publiés !
+        assert morning_run["statuses_ok"] == 6   # 6 Statuts le matin (sur 12 au total) !
         assert morning_run["groups_ok"] == 10
-        assert all(45.0 <= d <= 90.0 for d in recorded_group_delays)
+        # Les 9 derniers délais correspondent aux pauses entre les 10 messages de l'unique groupe : 45s à 90s conservés !
+        morning_group_delays = morning_sleeps[-9:]
+        assert len(morning_group_delays) == 9
+        assert all(45.0 <= d <= 90.0 for d in morning_group_delays)
 
         m_phys = [it["id"] for it in morning_run["products"] if it["item_type"] == "physical"]
         m_serv = [it["id"] for it in morning_run["products"] if it["item_type"] == "service"]
@@ -946,19 +949,46 @@ def test_ten_offers_mix_random_rotation_and_zero_same_day_repeat(app, tmp_path):
         # Vérifie que les 2 locations < 24h ont été prises en priorité le matin
         assert set(m_rent) == recent_rental_keys
 
-        # Envoi du Soir (18h35) le MÊME JOUR : 10 NOUVELLES offres, ZÉRO doublon avec le matin !
+        # Envoi du Soir (18h35) avec 3 GROUPES : alternance Round-Robin (G1 -> G2 -> G3) + délais répartis (15-30s) + 6 nouveaux Statuts (= 12 total)
+        three_groups_text = "\n".join([
+            "https://chat.whatsapp.com/GrpA, Groupe Casa",
+            "https://chat.whatsapp.com/GrpB, Groupe Rabat",
+            "https://chat.whatsapp.com/GrpC, Groupe Marrakech",
+        ])
+        whatsapp_promo.save_settings({
+            **whatsapp_promo.get_settings(),
+            "groups": whatsapp_promo.parse_groups_text(three_groups_text),
+        })
+        evening_sleeps = []
+
         with (
             patch("dealnova.app.services.whatsapp_promo._rental_upload_roots", return_value=[rentals_dir.resolve()]),
             patch("dealnova.app.services.whatsapp_promo._local_now", return_value=evening_now),
             patch("dealnova.app.services.whatsapp_promo.get_whatsapp_gateway_status", return_value={"status": "connected"}),
             patch("dealnova.app.services.whatsapp_promo._gateway_post", return_value=(200, {"ok": True})),
         ):
-            evening_run = whatsapp_promo.run_daily_promo(force=False, dry_run=False, sleep=lambda _: None)
+            evening_run = whatsapp_promo.run_daily_promo(force=False, dry_run=False, sleep=lambda s: evening_sleeps.append(s))
 
         assert evening_run["aborted"] is None
         assert len(evening_run["products"]) == 10
-        assert evening_run["statuses_ok"] == 10
-        assert evening_run["groups_ok"] == 10
+        assert evening_run["statuses_ok"] == 6   # 6 le matin + 6 le soir = 12 Statuts au total !
+        assert evening_run["groups_ok"] == 30    # 10 offres x 3 groupes
+        assert whatsapp_promo.get_log()["statuses_by_date"][morning_now.date().isoformat()] == 12
+
+        # Vérification de l'alternance Round-Robin stricte : GrpA -> GrpB -> GrpC -> GrpA -> GrpB -> GrpC
+        grp_targets_order = [d["target"] for d in evening_run["details"] if d["channel"] == "group"]
+        assert grp_targets_order[:6] == [
+            "https://chat.whatsapp.com/GrpA",
+            "https://chat.whatsapp.com/GrpB",
+            "https://chat.whatsapp.com/GrpC",
+            "https://chat.whatsapp.com/GrpA",
+            "https://chat.whatsapp.com/GrpB",
+            "https://chat.whatsapp.com/GrpC",
+        ]
+        # Vérification de la répartition des délais sur les 3 groupes (15s à 30s entre chaque groupe => 45s-90s dans un même groupe)
+        evening_group_delays = evening_sleeps[-29:]
+        assert len(evening_group_delays) == 29
+        assert all(15.0 <= d <= 30.0 for d in evening_group_delays)
 
         morning_ids = {str(it["id"]) for it in morning_run["products"]}
         evening_ids = {str(it["id"]) for it in evening_run["products"]}
