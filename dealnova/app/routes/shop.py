@@ -57,6 +57,10 @@ def _delivery_whatsapp_prefill_message() -> str:
 
 @bp.route("/delivery/whatsapp")
 def delivery_whatsapp_loader():
+    # Ancienne page intermédiaire supprimée au profit du hub officiel de livraison
+    if not request.args.get("legacy"):
+        return redirect(url_for("landing", open="delivery", sort="discover"))
+
     back_target = _safe_local_back_target(
         request.args.get("back") or request.referrer,
         url_for("landing"),

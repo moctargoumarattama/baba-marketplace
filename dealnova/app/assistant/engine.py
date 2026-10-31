@@ -375,7 +375,7 @@ def _delivery_response(state: dict[str, Any], city: str = "") -> dict[str, Any]:
     zones = normalized or ", ".join(CITY_SUGGESTIONS)
     return {"text": f"Pour un envoi à {zones}, contactez le service livraison pour connaître le tarif et le délai.\n{_delivery_hours_text()}",
             "handoff": {"label": "Contacter le service livraison sur WhatsApp",
-                        "url": url_for("shop.delivery_whatsapp_loader", back=url_for("shop.home"))},
+                        "url": url_for("landing", open="delivery", sort="discover")},
             "quick_replies": [{"label": name, "action": "delivery_city", "value": name} for name in CITY_SUGGESTIONS]
                              + [{"label": "Menu principal", "action": "start"}]}
 

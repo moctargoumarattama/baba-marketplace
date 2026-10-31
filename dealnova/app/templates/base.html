@@ -19,7 +19,7 @@
 ] %}
 {% set i18n_runtime_enabled = (current_lang or 'fr')|lower != 'fr' %}
 {% set delivery_wa = (config.get('DELIVERY_WHATSAPP_NUMBER') or '212602908954')|replace('+','')|replace(' ','')|replace('-','')|replace('(','')|replace(')','') %}
-{% set delivery_loader_url = url_for('shop.delivery_whatsapp_loader', back=request.full_path) %}
+{% set delivery_loader_url = url_for('landing', open='delivery', sort='discover') %}
 {% set apple_startup_images = [
   ('apple-splash-640x1136.png', '(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)'),
   ('apple-splash-1136x640.png', '(device-width: 568px) and (device-height: 320px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)'),

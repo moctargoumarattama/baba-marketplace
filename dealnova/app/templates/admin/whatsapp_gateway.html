@@ -303,7 +303,7 @@
 
   .wa-kpi-strip {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.65rem;
   }
 
@@ -1348,7 +1348,7 @@
   /* Responsivité Mobile & Tablette soignée */
   @media (max-width: 767.98px) {
     .wa-kpi-strip {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 0.45rem;
     }
     .wa-kpi-tile {
@@ -1553,7 +1553,7 @@
       </div>
     </section>
 
-    <!-- 3 KPIs compacts et lisibles -->
+    <!-- 2 KPIs compacts et lisibles -->
     <div class="wa-kpi-strip" role="region" aria-label="Performances du jour">
       <div class="wa-kpi-tile">
         <div style="min-inline-size:0;">
@@ -1569,20 +1569,6 @@
           <div class="wa-kpi-value wa-kpi-value--emerald">{{ total_clicks }}</div>
         </div>
         <span class="wa-kpi-icon wa-kpi-icon--emerald" aria-hidden="true"><i class="bi bi-cursor-fill"></i></span>
-      </div>
-
-      <div class="wa-kpi-tile">
-        <div style="min-inline-size:0;">
-          <div class="wa-kpi-label">Taux d'intérêt</div>
-          <div class="wa-kpi-value wa-kpi-value--blue">
-            {% if ok_count > 0 %}
-              {{ ((total_clicks / ok_count) * 100) | round(1) }}%
-            {% else %}
-              —
-            {% endif %}
-          </div>
-        </div>
-        <span class="wa-kpi-icon wa-kpi-icon--blue" aria-hidden="true"><i class="bi bi-graph-up-arrow"></i></span>
       </div>
     </div>
   </div>
