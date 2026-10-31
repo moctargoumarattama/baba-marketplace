@@ -109,6 +109,7 @@ MANAGER_BLOCKED_ADMIN_ENDPOINTS = {
     "admin.whatsapp_gateway_reconnect",
     "admin.whatsapp_promo_settings",
     "admin.whatsapp_promo_run",
+    "admin.whatsapp_promo_edit_copy",
 }
 
 
@@ -2169,3 +2170,38 @@ def whatsapp_promo_run():
     return redirect(url_for("admin.whatsapp_gateway"))
 
 
+
+
+@bp.route("/whatsapp-gateway/promo/edit-copy", methods=["POST"])
+def whatsapp_promo_edit_copy():
+    if _current_admin_role() != ADMIN_ROLE:
+        return _sensitive_admin_forbidden_response()
+
+    from ..services.whatsapp_promo import update_product_copy
+
+    data = request.get_json(silent=True) if request.is_json else request.form
+    product_id = data.get("product_id")
+    status_caption = data.get("status_caption")
+    group_message = data.get("group_message")
+    direct_message = data.get("direct_message")
+
+    updated = update_product_copy(
+        product_id=product_id,
+        status_caption=status_caption,
+        group_message=group_message,
+        direct_message=direct_message,
+    )
+
+    if updated:
+        session["whatsapp_promo_last_generated"] = updated
+        msg = f"Textes du produit #{product_id} modifiés avec succès !"
+        if _is_ajax_request() or request.is_json:
+            return jsonify(success=True, message=msg, last_generated=updated)
+        flash(msg, "success")
+    else:
+        err = "Impossible de mettre à jour le texte du produit (produit introuvable dans l'aperçu)."
+        if _is_ajax_request() or request.is_json:
+            return jsonify(success=False, error=err), 400
+        flash(err, "warning")
+
+    return redirect(url_for("admin.whatsapp_gateway"))

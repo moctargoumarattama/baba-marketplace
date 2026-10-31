@@ -363,11 +363,8 @@ def _sanitize_copy(text: Any, limit: int) -> str:
 def _fallback_copy(card: dict[str, Any]) -> dict[str, str]:
     shop = f" chez {card['shop']}" if card.get("shop") else ""
     return {
-        "status": f"✨ {card['name']}{shop} — disponible sur Baba Market !",
-        "message": (
-            f"Découvrez *{card['name']}*{shop}, disponible dès maintenant sur Baba Market. "
-            "Commandez en quelques clics et contactez la boutique sur WhatsApp."
-        ),
+        "status": f"⚡ {card['name']}{shop} dispo !",
+        "message": f"Profitez de *{card['name']}*{shop}, dispo en commande rapide !",
     }
 
 
@@ -384,12 +381,14 @@ def generate_copy(cards: list[dict[str, Any]], *, session: requests.Session | No
         for card in cards
     ]
     instruction = (
-        "Tu es le community manager de Baba Market, marketplace locale au Maroc (Rabat, Salé, Kénitra, Témara). "
-        "Pour chaque produit fourni, écris en français simple et chaleureux : "
-        "\"status\" (légende de Statut WhatsApp, 90 caractères max, 1 à 2 emojis) et "
-        "\"message\" (message promotionnel, 2 à 3 phrases, 300 caractères max, ton respectueux et vendeur). "
-        "N'écris AUCUN prix, AUCUN lien, AUCUN numéro de téléphone : ils sont ajoutés automatiquement. "
-        "N'invente aucune caractéristique absente des données. "
+        "Tu es le rédacteur commercial de Baba Market au Maroc. "
+        "RÈGLE STRICTE : SOIS ULTRA-COURT, PUNCHY ET VENDEUR. ZÉRO BLABLA, ZÉRO LONGUEUR. "
+        "Pour chaque produit fourni, écris en français dynamique : "
+        "\"status\" (légende courte de Statut WhatsApp : 1 seule phrase percutante de 35 à 55 caractères max, 1 emoji). "
+        "\"message\" (texte vendeur WhatsApp : 1 seule phrase courte et dynamique de 10 à 15 mots max, direct à l'essentiel). "
+        "Exemple status: '⚡ Riz poulet savoureux chez Benifood !' "
+        "Exemple message: 'Profitez d\'un délicieux Riz Poulet préparé par Benifood au meilleur prix.' "
+        "N'écris AUCUN prix, AUCUN lien, AUCUN numéro : ils sont ajoutés automatiquement. "
         "Réponds uniquement en JSON : {\"items\":[{\"id\":0,\"status\":\"...\",\"message\":\"...\"}]}."
     )
     payload = {
@@ -429,34 +428,92 @@ def generate_copy(cards: list[dict[str, Any]], *, session: requests.Session | No
 
 def compose_status_caption(card: dict[str, Any], copy: dict[str, str]) -> str:
     """Légende pour le Statut WhatsApp 24h."""
-    return "\n".join([copy["status"], card["price_line"], f"👉 {_tracked(card['page_url'], 'status')}"])
+    if copy.get("custom_caption"):
+        return copy["custom_caption"]
+    body = copy.get("status") or copy.get("message") or ""
+    parts = [body]
+    if card.get("price_line"):
+        parts.append(card["price_line"])
+    parts.append(f"👉 {_tracked(card.get('page_url', ''), 'status')}")
+    return "\n".join(parts)
 
 
 def compose_group_message(card: dict[str, Any], copy: dict[str, str], group_label: str = "") -> str:
     """Message destiné aux Groupes de vente WhatsApp."""
+    if copy.get("custom_group_message"):
+        return copy["custom_group_message"]
     shop_line = f" chez {card['shop']}" if card.get("shop") else ""
     product_line = f"🌟 *{card['name']}*{shop_line}"
     header = f"📢 *Offre spéciale {group_label}*" if group_label else "📢 *Offre du jour Baba Market*"
-    body_text = copy.get("group_message") or copy.get("message") or ""
-    return "\n\n".join([
-        header,
-        product_line,
-        body_text,
-        card["price_line"],
-        f"👉 Voir & Commander : {_tracked(card['page_url'], 'group')}",
-    ])
+    body_text = copy.get("group_message") or copy.get("message") or copy.get("status") or ""
+    parts = [header, product_line, body_text]
+    if card.get("price_line"):
+        parts.append(card["price_line"])
+    parts.append(f"👉 Voir & Commander : {_tracked(card.get('page_url', ''), 'group')}")
+    return "\n\n".join(parts)
 
 
 def compose_message(card: dict[str, Any], copy: dict[str, str], label: str = "") -> str:
     """Message direct personnalisé 1-à-1 avec pied de désinscription STOP."""
+    if copy.get("custom_direct_message"):
+        return copy["custom_direct_message"]
     greeting = f"Bonjour {label} 👋" if label else "Bonjour 👋"
-    return "\n\n".join([
-        greeting,
-        copy["message"],
-        card["price_line"],
-        f"👉 Voir le produit : {_tracked(card['page_url'], 'message')}",
-        OPT_OUT_FOOTER,
-    ])
+    body_text = copy.get("direct_message") or copy.get("message") or copy.get("status") or ""
+    parts = [greeting, body_text]
+    if card.get("price_line"):
+        parts.append(card["price_line"])
+    parts.append(f"👉 Voir le produit : {_tracked(card.get('page_url', ''), 'message')}")
+    parts.append(OPT_OUT_FOOTER)
+    return "\n\n".join(parts)
+
+
+def update_product_copy(
+    product_id: int | str,
+    status_caption: str | None = None,
+    group_message: str | None = None,
+    direct_message: str | None = None,
+) -> dict[str, Any] | None:
+    """Met à jour manuellement les textes générés pour un produit."""
+    try:
+        pid = int(product_id)
+    except (TypeError, ValueError):
+        return None
+
+    log = get_log() or {}
+    last_gen = log.get("last_generated")
+    if not last_gen or not isinstance(last_gen, dict):
+        return None
+
+    items = list(last_gen.get("items") or last_gen.get("products") or [])
+    found = False
+    for item in items:
+        if item.get("id") == pid or item.get("product_id") == pid:
+            if status_caption is not None:
+                item["status_caption"] = status_caption.strip()
+            if group_message is not None:
+                item["group_message"] = group_message.strip()
+                item["group_message_sample"] = group_message.strip()
+            if direct_message is not None:
+                item["direct_message"] = direct_message.strip()
+            found = True
+            break
+
+    if not found:
+        return None
+
+    last_gen["items"] = items
+    last_gen["products"] = items
+    last_gen["manually_edited"] = True
+
+    _record_run(
+        summary=log.get("last_preview") or {},
+        promoted_ids=[],
+        sent_today=0,
+        today=_today(),
+        preview=True,
+        last_generated=last_gen,
+    )
+    return last_gen
 
 
 # ---------------------------------------------------------------------------
@@ -693,18 +750,47 @@ def run_daily_promo(
             return finish("gateway_not_connected")
 
     log = get_log()
-    products = select_products(
-        settings["status_products"],
-        cooldown_days=settings["cooldown_days"],
-        promoted=log.get("promoted") or {},
-    )
-    if not products:
-        return finish("no_eligible_product")
+    last_gen = log.get("last_generated") or {}
+    saved_items = last_gen.get("items") or []
 
-    promos = get_active_promos_for_products([p.id for p in products])
-    cards = [build_product_card(p, promos.get(p.id)) for p in products]
-    copies, source = generate_copy(cards)
-    summary["copy_source"] = source
+    # Envoi réel : si un aperçu validé existe aujourd'hui, on réutilise ses produits et textes exacts
+    if not preview and saved_items and last_gen.get("date") == today:
+        cards = []
+        copies = {}
+        source = last_gen.get("copy_source") or "validated"
+        for item in saved_items:
+            cards.append({
+                "id": item["id"],
+                "name": item.get("title") or item.get("name") or "",
+                "shop": item.get("shop_name") or item.get("shop") or "",
+                "category": item.get("shop_city") or "",
+                "price": item.get("price", 0),
+                "old_price": item.get("old_price"),
+                "price_line": item.get("price_line", ""),
+                "image_url": item.get("image_url", ""),
+                "page_url": item.get("page_url", ""),
+            })
+            copies[item["id"]] = {
+                "custom_caption": item.get("status_caption") or "",
+                "custom_group_message": item.get("group_message") or "",
+                "custom_direct_message": item.get("direct_message") or "",
+                "status": item.get("status_caption") or "",
+                "message": item.get("direct_message") or "",
+            }
+        summary["copy_source"] = source
+    else:
+        products = select_products(
+            settings["status_products"],
+            cooldown_days=settings["cooldown_days"],
+            promoted=log.get("promoted") or {},
+        )
+        if not products:
+            return finish("no_eligible_product")
+
+        promos = get_active_promos_for_products([p.id for p in products])
+        cards = [build_product_card(p, promos.get(p.id)) for p in products]
+        copies, source = generate_copy(cards)
+        summary["copy_source"] = source
 
 
     # Construction du modèle d'aperçu pour l'interface admin
@@ -717,10 +803,10 @@ def run_daily_promo(
             "shop": c["shop"],
             "shop_name": c["shop"],
             "shop_city": c.get("category", "") or "",
-            "price": c["price"],
-            "price_dh": str(c["price"]),
-            "old_price": c["old_price"],
-            "old_price_dh": str(c["old_price"]) if c["old_price"] else "",
+            "price": c.get("price", 0),
+            "price_dh": str(c.get("price", 0)),
+            "old_price": c.get("old_price"),
+            "old_price_dh": str(c.get("old_price")) if c.get("old_price") else "",
             "price_line": c["price_line"],
             "image_url": c["image_url"],
             "page_url": c["page_url"],
