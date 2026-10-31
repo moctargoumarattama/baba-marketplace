@@ -315,70 +315,6 @@
     display: block;
   }
 
-  /* Guide / Protocole Assistant */
-  .subs-help {
-    background: var(--rec-surface);
-    border: 1px solid var(--rec-border);
-    border-radius: var(--rec-radius-lg);
-    box-shadow: var(--rec-shadow-3d);
-    padding: 1.15rem 1.4rem;
-  }
-
-  .subs-help h5 {
-    margin: 0 0 0.25rem 0;
-    font-size: 1.02rem;
-    font-weight: 800;
-    color: var(--rec-ink);
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
-  .subs-help .help-note {
-    color: var(--rec-ink-muted);
-    font-size: 0.85rem;
-    margin-bottom: 0.85rem;
-  }
-
-  .help-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-    gap: 0.85rem;
-  }
-
-  .help-item {
-    border: 1px solid var(--rec-border);
-    border-radius: var(--rec-radius-md);
-    padding: 0.9rem 1rem;
-    background: var(--rec-surface-subtle);
-    position: relative;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
-    transition: transform 0.2s ease;
-  }
-
-  .help-item:hover {
-    transform: translateY(-2px);
-  }
-
-  .help-item .step {
-    font-size: 0.72rem;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--rec-primary);
-    font-weight: 800;
-    margin-bottom: 0.25rem;
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-  }
-
-  .help-item p {
-    margin: 0;
-    font-size: 0.86rem;
-    color: var(--rec-ink-secondary);
-    line-height: 1.45;
-  }
-
   /* Settings Controls Bar */
   .rec-settings-grid {
     padding: 1.25rem 1.4rem;
@@ -637,24 +573,102 @@
     max-inline-size: 210px;
   }
 
-  /* Shop Badge */
-  .rec-shop-chip {
+  /* Shop cell with Logo */
+  .rec-shop-box {
     display: inline-flex;
     align-items: center;
-    gap: 0.4rem;
-    padding: 0.35rem 0.7rem;
-    border-radius: 10px;
-    font-size: 0.82rem;
-    font-weight: 700;
+    gap: 0.75rem;
+    padding: 0.35rem 0.75rem 0.35rem 0.35rem;
     background: var(--rec-surface-subtle);
     border: 1px solid var(--rec-border);
+    border-radius: var(--rec-radius-md);
+    box-shadow: var(--rec-shadow-sm);
+    max-inline-size: 260px;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .rec-shop-box:hover {
+    border-color: var(--rec-border-strong);
+    background: var(--rec-surface);
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+    transform: translateY(-1px);
+  }
+
+  .rec-shop-logo-wrap {
+    inline-size: 42px;
+    block-size: 42px;
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--rec-surface);
+    border: 1px solid var(--rec-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.05);
+    position: relative;
+  }
+
+  .rec-shop-logo-img {
+    inline-size: 100%;
+    block-size: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .rec-shop-logo-fallback {
+    inline-size: 100%;
+    block-size: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(5, 150, 105, 0.08));
+    color: #10b981;
+    font-size: 1.15rem;
+  }
+
+  .rec-shop-info {
+    display: flex;
+    flex-direction: column;
+    min-inline-size: 0;
+  }
+
+  .rec-shop-title {
+    font-weight: 800;
+    font-size: 0.88rem;
     color: var(--rec-ink);
+    text-decoration: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.25;
+    transition: color 0.15s ease;
+  }
+
+  .rec-shop-title:hover {
+    color: var(--rec-primary);
+  }
+
+  .rec-shop-sub {
+    font-size: 0.74rem;
+    color: var(--rec-ink-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.2;
+    margin-top: 0.15rem;
   }
 
   .rec-shop-empty {
-    font-size: 0.8rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.82rem;
     color: var(--rec-ink-muted);
-    font-style: italic;
+    padding: 0.35rem 0.65rem;
+    border-radius: 10px;
+    background: var(--rec-surface-subtle);
+    border: 1px dashed var(--rec-border);
   }
 
   /* Status Badges */
@@ -922,6 +936,21 @@
   }
 
   /* Dark theme overrides */
+  html[data-admin-theme="noc"] .rec-shop-box {
+    background: #141f32;
+    border-color: #334155;
+  }
+
+  html[data-admin-theme="noc"] .rec-shop-logo-wrap {
+    background: #0f172a;
+    border-color: #334155;
+  }
+
+  html[data-admin-theme="noc"] .rec-shop-empty {
+    background: #141f32;
+    border-color: #334155;
+  }
+
   html[data-admin-theme="noc"] .form-control,
   html[data-admin-theme="noc"] .form-select,
   html[data-admin-theme="noc"] .rec-select-3d,
@@ -1165,25 +1194,6 @@
         </div>
     </section>
 
-    <!-- Guide / Aide Rapide -->
-    <section class="subs-help">
-        <h5><i class="bi bi-info-circle-fill text-success"></i> Protocole de gestion des abonnements vendeurs</h5>
-        <div class="help-note">Contrôlez la régularité des comptes boutiques et appliquez les règlements d'abonnement en toute transparence.</div>
-        <div class="help-grid">
-            <div class="help-item">
-                <div class="step"><i class="bi bi-1-circle-fill"></i> Étape 1 : Diagnostic</div>
-                <p>Repérez l'état du vendeur dans le tableau : actif, échéance imminente, retard de paiement ou suspendu.</p>
-            </div>
-            <div class="help-item">
-                <div class="step"><i class="bi bi-2-circle-fill"></i> Étape 2 : Encaissement</div>
-                <p>Indiquez le nombre de mois réglés (1 à 24), ajoutez une note interne optionnelle, puis cliquez sur <strong>Encaisser</strong>.</p>
-            </div>
-            <div class="help-item">
-                <div class="step"><i class="bi bi-3-circle-fill"></i> Étape 3 : Assistance & Accès</div>
-                <p>Accordez des <strong>jours de grâce offerts</strong> pour fidéliser ou activez <strong>Bloquer / Débloquer</strong> selon la régularisation.</p>
-            </div>
-        </div>
-    </section>
 
     <!-- Paramètres abonnements -->
     <section class="subs-card adm-listing" id="subsListCard" data-adm-listing="reconciliation">
@@ -1319,12 +1329,40 @@
                         </td>
                         <td data-label="Boutique">
                             {% if vendor.shop %}
-                                <div class="rec-shop-chip">
-                                    <i class="bi bi-shop text-success"></i>
-                                    <span>{{ vendor.shop.name }}</span>
+                                <div class="rec-shop-box">
+                                    <div class="rec-shop-logo-wrap">
+                                        {% if vendor.shop.logo %}
+                                            <img src="{{ url_for('static', filename='uploads/' + vendor.shop.logo) }}"
+                                                 alt="{{ vendor.shop.name }}"
+                                                 loading="lazy"
+                                                 class="rec-shop-logo-img"
+                                                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                                            <div class="rec-shop-logo-fallback" style="display: none;">
+                                                <i class="bi bi-shop"></i>
+                                            </div>
+                                        {% else %}
+                                            <div class="rec-shop-logo-fallback">
+                                                <i class="bi bi-shop"></i>
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="rec-shop-info">
+                                        <a href="{{ url_for('admin_users.shop_detail', shop_id=vendor.shop.id) }}" 
+                                           class="rec-shop-title" title="Voir la boutique {{ vendor.shop.name }}">
+                                            {{ vendor.shop.name }}
+                                        </a>
+                                        {% if vendor.shop.slug %}
+                                            <span class="rec-shop-sub">@{{ vendor.shop.slug }}</span>
+                                        {% elif vendor.shop.address %}
+                                            <span class="rec-shop-sub"><i class="bi bi-geo-alt"></i> {{ vendor.shop.address }}</span>
+                                        {% endif %}
+                                    </div>
                                 </div>
                             {% else %}
-                                <span class="rec-shop-empty"><i class="bi bi-dash-circle"></i> Aucune boutique</span>
+                                <div class="rec-shop-empty">
+                                    <i class="bi bi-dash-circle"></i>
+                                    <span>Aucune boutique</span>
+                                </div>
                             {% endif %}
                         </td>
                         <td data-label="Statut">
