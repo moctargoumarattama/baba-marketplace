@@ -581,3 +581,35 @@ def test_enhancements_clicks_pinned_test_and_schedule(app, tmp_path):
             # Vérification du tag Test dans les logs
             logs = whatsapp_promo.get_log().get("recent_logs", [])
             assert any(l.get("channel_label") == "Test Admin" for l in logs)
+
+
+def test_image_base64_transmission_in_media_and_status(app, tmp_path):
+    promo_id, _, _ = _seed_catalog(app, tmp_path)
+
+    with app.app_context():
+        product = db.session.get(Product, promo_id)
+        card = whatsapp_promo.build_product_card(product)
+        assert card["has_image"] is True
+        assert card["image_base64"] != ""
+        assert card["image_url"] != ""
+
+        sent_payloads = []
+
+        def capture_gateway_post(path, payload):
+            sent_payloads.append((path, payload))
+            return 200, {"ok": True}
+
+        with patch("dealnova.app.services.whatsapp_promo._gateway_post", side_effect=capture_gateway_post):
+            # Envoi média
+            res, detail = whatsapp_promo.send_promo_media("212612345678", card, "Texte test")
+            assert res == "sent"
+            assert sent_payloads[0][0] == "/api/promo/send-media"
+            assert sent_payloads[0][1]["has_image"] is True
+            assert sent_payloads[0][1]["image_base64"] == card["image_base64"]
+
+            # Envoi statut
+            ok, reason = whatsapp_promo.post_status(card, "Légende", ["212612345678@s.whatsapp.net"])
+            assert ok is True
+            assert sent_payloads[1][0] == "/api/promo/status"
+            assert sent_payloads[1][1]["has_image"] is True
+            assert sent_payloads[1][1]["image_base64"] == card["image_base64"]

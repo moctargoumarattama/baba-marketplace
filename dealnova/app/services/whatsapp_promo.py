@@ -13,6 +13,7 @@ Stockage dans `RuntimeState` (sans migration de base de données).
 """
 from __future__ import annotations
 
+import base64
 import json
 import random
 import re
@@ -293,6 +294,34 @@ def _image_exists(filename: str) -> bool:
         return False
 
 
+def _get_product_image_base64(product: Product | None) -> str:
+    """Génère l'image avec filigrane en base64 pour transmission instantanée à la passerelle sans requête HTTP."""
+    if not product:
+        return ""
+    try:
+        images = [name.strip() for name in (product.image_file or "").split("|") if name.strip()]
+        if not images:
+            return ""
+        upload_root = current_app.config.get("UPLOAD_FOLDER") or (Path(current_app.static_folder) / "uploads")
+        from .image_download import watermarked_photo
+        try:
+            buf = watermarked_photo(upload_root, images[0])
+            raw_bytes = buf.getvalue()
+        except Exception as exc:
+            current_app.logger.debug("watermark_fallback_raw pid=%s: %s", getattr(product, "id", None), exc)
+            root = Path(upload_root).resolve()
+            src = (root / images[0]).resolve()
+            if src.is_relative_to(root) and src.is_file():
+                raw_bytes = src.read_bytes()
+            else:
+                return ""
+        if raw_bytes:
+            return base64.b64encode(raw_bytes).decode("ascii")
+    except Exception as exc:
+        current_app.logger.warning("whatsapp_promo.image_base64_failed pid=%s: %s", getattr(product, "id", None), exc)
+    return ""
+
+
 def select_products(
     count: int,
     *,
@@ -379,7 +408,10 @@ def build_product_card(product: Product, promo=None) -> dict[str, Any]:
     base_price = float(product.price or 0)
     base = _public_base_url()
     page = f"{base}/p/{product.id}"
-    image = f"{base}/shop/product/{product.id}/photo/0/download"
+    first_img = _first_image(product)
+    has_image = bool(first_img and _image_exists(first_img))
+    image = f"{base}/shop/product/{product.id}/photo/0/download" if has_image else ""
+    image_b64 = _get_product_image_base64(product) if has_image else ""
     shop_name = getattr(product.shop, "name", "") or ""
     category = getattr(getattr(product, "category", None), "name", "") or ""
     return {
@@ -396,6 +428,8 @@ def build_product_card(product: Product, promo=None) -> dict[str, Any]:
         ),
         "page_url": page,
         "image_url": image,
+        "image_base64": image_b64,
+        "has_image": has_image,
     }
 
 
@@ -665,8 +699,19 @@ def _gateway_post(path: str, payload: dict[str, Any]) -> tuple[int, dict[str, An
 
 
 def post_status(card: dict[str, Any], caption: str, audience: list[str]) -> tuple[bool, str]:
+    image_b64 = card.get("image_base64")
+    if not image_b64 and card.get("id"):
+        try:
+            prod = db.session.get(Product, card["id"])
+            if prod:
+                image_b64 = _get_product_image_base64(prod)
+        except Exception:
+            safe_session_rollback()
+
     code, body = _gateway_post("/api/promo/status", {
-        "image_url": card["image_url"],
+        "image_url": card.get("image_url", ""),
+        "image_base64": image_b64 or "",
+        "has_image": bool(image_b64 or card.get("image_url")),
         "caption": caption,
         "status_jid_list": audience,
     })
@@ -677,10 +722,21 @@ def send_promo_media(target: str, card: dict[str, Any], text: str) -> tuple[str,
     """Envoie une photo + texte vers un numéro client ou un groupe WhatsApp.
     Retourne (résultat, détail) : sent | opted_out | not_on_whatsapp | failed
     """
+    image_b64 = card.get("image_base64")
+    if not image_b64 and card.get("id"):
+        try:
+            prod = db.session.get(Product, card["id"])
+            if prod:
+                image_b64 = _get_product_image_base64(prod)
+        except Exception:
+            safe_session_rollback()
+
     payload = {
         "target": target,
         "phone": target,
         "image_url": card.get("image_url", ""),
+        "image_base64": image_b64 or "",
+        "has_image": bool(image_b64 or card.get("image_url")),
         "caption": text,
     }
     code, body = _gateway_post("/api/promo/send-media", payload)

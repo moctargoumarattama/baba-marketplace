@@ -41,7 +41,8 @@ const ALLOWED_IMAGE_HOSTS = new Set(
 
 const logger = pino({ level: process.env.LOG_LEVEL || "warn" });
 const app = express();
-app.use(express.json({ limit: "2mb" }));
+app.use(express.json({ limit: "15mb" }));
+app.use(express.urlencoded({ extended: true, limit: "15mb" }));
 
 let sock = null;
 let connectionStatus = "disconnected"; // connected | qr_ready | disconnected
@@ -421,7 +422,7 @@ app.post("/api/promo/status", requireApiKey, async (req, res) => {
   }
   const imageUrl = String(req.body.image_url || "").trim();
   const caption = String(req.body.caption || "").trim();
-  if (!imageUrl || !caption) {
+  if ((!imageUrl && !req.body.image_base64) || !caption) {
     return res.status(400).json({ ok: false, error: "invalid_status_payload" });
   }
   const rawList = Array.isArray(req.body.status_jid_list) ? req.body.status_jid_list : [];
@@ -429,10 +430,38 @@ app.post("/api/promo/status", requireApiKey, async (req, res) => {
   if (connectedPhone) {
     statusJidList.push(`${connectedPhone}@s.whatsapp.net`);
   }
+
+  let buffer = null;
+  // 1. Décodage instantané depuis image_base64 (zéro requête HTTP externe ou interne)
+  if (req.body.image_base64) {
+    try {
+      const cleanBase64 = String(req.body.image_base64).replace(/^data:image\/[a-zA-Z0-9+.-]+;base64,/, "").trim();
+      if (cleanBase64) {
+        buffer = Buffer.from(cleanBase64, "base64");
+      }
+    } catch (b64Err) {
+      logger.warn({ err: b64Err?.message }, "Impossible de décoder image_base64 pour le statut");
+      buffer = null;
+    }
+  }
+
+  // 2. Repli éventuel sur URL si base64 non fourni
+  if (!buffer && imageUrl) {
+    try {
+      buffer = await fetchImageBuffer(imageUrl);
+    } catch (imgErr) {
+      logger.warn({ err: imgErr?.message, imageUrl }, "Impossible de télécharger l'image pour le statut");
+    }
+  }
+
+  if (!buffer) {
+    logger.error({ imageUrl }, "Échec de récupération de l'image pour le statut 24h");
+    return res.status(502).json({ ok: false, error: "image_unavailable", detail: "Impossible d'obtenir l'image du produit pour le statut" });
+  }
+
   try {
-    const buffer = await fetchImageBuffer(imageUrl);
     const options = statusJidList.length > 0 ? { statusJidList: [...new Set(statusJidList)] } : {};
-    await sock.sendMessage("status@broadcast", { image: buffer, caption }, options);
+    await sock.sendMessage("status@broadcast", { image: buffer, caption, mimetype: "image/jpeg" }, options);
     return res.json({ ok: true, recipients: statusJidList.length });
   } catch (err) {
     return res.status(500).json({ ok: false, error: String(err && err.message ? err.message : err) });
@@ -446,7 +475,9 @@ app.post("/api/promo/send-media", requireApiKey, async (req, res) => {
   const target = req.body.target || req.body.phone || req.body.group;
   const imageUrl = String(req.body.image_url || "").trim();
   const caption = String(req.body.caption || "").trim();
-  if (!target || !imageUrl || !caption) {
+  const requiresImage = Boolean(req.body.has_image || req.body.image_url || req.body.image_base64);
+
+  if (!target || (!imageUrl && !req.body.image_base64 && !caption) || !caption) {
     return res.status(400).json({ ok: false, error: "invalid_media_payload" });
   }
 
@@ -472,10 +503,37 @@ app.post("/api/promo/send-media", requireApiKey, async (req, res) => {
   }
 
   let buffer = null;
-  try {
-    buffer = await fetchImageBuffer(imageUrl);
-  } catch (imgErr) {
-    logger.warn({ err: imgErr?.message, imageUrl }, "Impossible de télécharger l'image, envoi du texte seul en repli");
+  // 1. Décodage immédiat en mémoire si image_base64 est fourni (rapide, zéro requête réseau)
+  if (req.body.image_base64) {
+    try {
+      const cleanBase64 = String(req.body.image_base64).replace(/^data:image\/[a-zA-Z0-9+.-]+;base64,/, "").trim();
+      if (cleanBase64) {
+        buffer = Buffer.from(cleanBase64, "base64");
+        if (buffer.length === 0 || buffer.length > MAX_IMAGE_BYTES) {
+          logger.warn({ size: buffer.length }, "Taille image_base64 invalide");
+          buffer = null;
+        }
+      }
+    } catch (b64Err) {
+      logger.warn({ err: b64Err?.message }, "Impossible de décoder image_base64");
+      buffer = null;
+    }
+  }
+
+  // 2. Repli éventuel sur téléchargement URL si pas de base64
+  if (!buffer && imageUrl) {
+    try {
+      buffer = await fetchImageBuffer(imageUrl);
+    } catch (imgErr) {
+      logger.warn({ err: imgErr?.message, imageUrl }, "Impossible de télécharger l'image via URL");
+    }
+  }
+
+  // RÈGLE STRICTE : Si le produit a une photo rattachée, elle DOIT être envoyée avec l'image !
+  // On ne diffuse JAMAIS de message tronqué sans image si une image est requise.
+  if (requiresImage && !buffer) {
+    logger.error({ target: targetInfo.jid, imageUrl }, "Échec de récupération de l'image requise");
+    return res.status(502).json({ ok: false, error: "image_unavailable", detail: "Image obligatoire introuvable ou inaccessible" });
   }
 
   try {
@@ -489,7 +547,7 @@ app.post("/api/promo/send-media", requireApiKey, async (req, res) => {
     }
 
     if (buffer) {
-      await sock.sendMessage(targetInfo.jid, { image: buffer, caption });
+      await sock.sendMessage(targetInfo.jid, { image: buffer, caption, mimetype: "image/jpeg" });
     } else {
       await sock.sendMessage(targetInfo.jid, { text: caption });
     }
