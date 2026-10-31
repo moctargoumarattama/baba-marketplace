@@ -785,6 +785,39 @@
     text-align: center;
   }
 
+  /* 3D Modal Styling */
+  .aud-modal-content {
+    background: var(--aud-surface);
+    border: 1px solid var(--aud-border);
+    border-radius: var(--aud-radius-lg);
+    box-shadow: 0 25px 60px -12px rgba(15, 23, 42, 0.28), 0 0 1px 1px rgba(255, 255, 255, 0.2);
+    overflow: hidden;
+  }
+
+  .aud-modal-header {
+    background: var(--aud-surface-muted);
+    border-block-end: 1px solid var(--aud-border);
+    padding: 1rem 1.35rem;
+  }
+
+  .aud-modal-footer {
+    background: var(--aud-surface-muted);
+    border-block-start: 1px solid var(--aud-border);
+    padding: 0.75rem 1.35rem;
+  }
+
+  .aud-pill-btn {
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .aud-pill-btn:hover {
+    background: rgba(255, 255, 255, 0.28) !important;
+    border-color: rgba(255, 255, 255, 0.45) !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    color: #ffffff;
+  }
+
   @media (max-width: 1024px) {
     .aud-shell {
       grid-template-columns: minmax(0, 1fr);
@@ -825,6 +858,9 @@
       <span class="aud-pill"><i class="bi bi-arrow-repeat"></i> Actualisation auto (15 s)</span>
       <span class="aud-pill"><i class="bi bi-clock-history"></i> <span id="audUpdatedAt">Chargement...</span></span>
       <span class="aud-pill"><i class="bi bi-phone"></i> Application incluse</span>
+      <button type="button" class="aud-pill aud-pill-btn" data-bs-toggle="modal" data-bs-target="#audTechModal" style="cursor:pointer;background:rgba(255,255,255,0.18);border-color:rgba(255,255,255,0.32);margin-inline-start:auto;">
+        <i class="bi bi-cpu text-info"></i> Détails techniques
+      </button>
     </div>
   </section>
 
@@ -912,41 +948,49 @@
     </div>
   </section>
 
-  <!-- Bottom Collapsible: Technical Network Details -->
-  <section class="aud-page" id="audDetails">
-    <details class="aud-detail">
-      <summary>
-        <div>
-          <i class="bi bi-cpu me-1 text-secondary"></i> Détails techniques & Géolocalisation
-          <span>Villes détectées et informations réseau transmises</span>
+  <!-- Modal Popup: Détails techniques & Géolocalisation -->
+  <div class="modal fade" id="audTechModal" tabindex="-1" aria-labelledby="audTechModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content aud-modal-content">
+        <div class="modal-header aud-modal-header">
+          <div class="d-flex align-items-center gap-2">
+            <div class="aud-conv-icon" style="background:rgba(15,118,110,0.12);color:#0f766e;"><i class="bi bi-cpu"></i></div>
+            <div>
+              <h5 class="modal-title fw-black m-0" id="audTechModalLabel" style="font-size:1.05rem;font-weight:900;">Détails techniques & Géolocalisation</h5>
+              <div class="text-muted" style="font-size:0.75rem;">Villes repérées et en-têtes réseau transmises</div>
+            </div>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
         </div>
-        <i class="bi bi-chevron-down"></i>
-      </summary>
-      <div class="aud-detail-body">
-        <div class="aud-detail-grid">
-          <article class="aud-panel">
-            <div class="aud-panel-head">
-              <div>
-                <h2>Villes repérées</h2>
-                <div class="aud-panel-note">Localisation géographique estimée</div>
+        <div class="modal-body p-3">
+          <div class="aud-detail-grid">
+            <article class="aud-panel" style="box-shadow:none;border-color:var(--aud-border);">
+              <div class="aud-panel-head">
+                <div>
+                  <h2 style="font-size:0.9rem;"><i class="bi bi-geo-alt-fill text-emerald"></i> Villes repérées</h2>
+                  <div class="aud-panel-note">Origine géographique estimée</div>
+                </div>
               </div>
-            </div>
-            <div class="aud-scroll-panel" id="audCities"></div>
-          </article>
+              <div class="aud-scroll-panel" id="audCities" style="max-block-size:320px;"></div>
+            </article>
 
-          <article class="aud-panel">
-            <div class="aud-panel-head">
-              <div>
-                <h2>Données Cloudflare reçues</h2>
-                <div class="aud-panel-note">En-têtes réseau et sécurité transmises</div>
+            <article class="aud-panel" style="box-shadow:none;border-color:var(--aud-border);">
+              <div class="aud-panel-head">
+                <div>
+                  <h2 style="font-size:0.9rem;"><i class="bi bi-cloud-check-fill text-primary"></i> Données Cloudflare reçues</h2>
+                  <div class="aud-panel-note">En-têtes réseau et sécurité transmises</div>
+                </div>
               </div>
-            </div>
-            <div class="aud-scroll-panel" id="audHeaderDebug"></div>
-          </article>
+              <div class="aud-scroll-panel" id="audHeaderDebug" style="max-block-size:320px;"></div>
+            </article>
+          </div>
+        </div>
+        <div class="modal-footer aud-modal-footer">
+          <button type="button" class="btn btn-sm btn-secondary fw-bold rounded-pill px-3" data-bs-dismiss="modal">Fermer</button>
         </div>
       </div>
-    </details>
-  </section>
+    </div>
+  </div>
 </div>
 {% endblock %}
 
