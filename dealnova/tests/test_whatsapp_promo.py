@@ -439,3 +439,92 @@ def test_whatsapp_groups_and_granular_switches(app, tmp_path):
         assert len(log_state["recent_logs"]) > 0
         assert any(l.get("channel") == "group" for l in log_state["recent_logs"])
 
+
+
+def test_retry_mechanism_and_safeguards(app, tmp_path):
+    """Vérifie que les retries fonctionnent avec garde-fous et que retry_failed_promos relance les échecs."""
+    _seed_catalog(app, tmp_path)
+
+    with app.app_context():
+        card = {
+            "id": 100,
+            "name": "Produit Test",
+            "shop": "Boutique",
+            "price_line": "💰 50 DH",
+            "image_url": "https://babamarket.ma/img.jpg",
+            "page_url": "https://babamarket.ma/p/100",
+        }
+
+        # 1. Test send_promo_media_with_retry : succès à la 2ème tentative
+        attempts_counter = 0
+
+        def flaky_gateway_post(path, payload):
+            nonlocal attempts_counter
+            attempts_counter += 1
+            if attempts_counter == 1:
+                return 500, {"error": "transient_network_error"}
+            return 200, {"ok": True}
+
+        with (
+            patch("dealnova.app.services.whatsapp_promo.get_whatsapp_gateway_status", return_value={"status": "connected"}),
+            patch("dealnova.app.services.whatsapp_promo._gateway_post", side_effect=flaky_gateway_post),
+            patch("dealnova.app.services.whatsapp_promo.sleep", return_value=None),
+        ):
+            res, reason, count = whatsapp_promo.send_promo_media_with_retry("212611223344", card, "Hello", max_attempts=3)
+            assert res == "sent"
+            assert reason == "ok"
+            assert count == 2
+
+        # 2. Test garde-fou : pas de retry sur opted_out
+        def opt_out_gateway_post(path, payload):
+            return 409, {"error": "opted_out"}
+
+        with (
+            patch("dealnova.app.services.whatsapp_promo.get_whatsapp_gateway_status", return_value={"status": "connected"}),
+            patch("dealnova.app.services.whatsapp_promo._gateway_post", side_effect=opt_out_gateway_post),
+            patch("dealnova.app.services.whatsapp_promo.sleep", return_value=None),
+        ):
+            res, reason, count = whatsapp_promo.send_promo_media_with_retry("212611223344", card, "Hello", max_attempts=3)
+            assert res == "opted_out"
+            assert count == 1  # Arrêt immédiat sans relance inutile
+
+        # 3. Test retry_failed_promos : relance d'un message failed
+        fake_log = {
+            "last_generated": {"items": [card]},
+            "recent_logs": [
+                {
+                    "timestamp": "2026-10-31 10:00:00",
+                    "channel": "direct",
+                    "channel_label": "Message Privé",
+                    "product_id": 100,
+                    "product_name": "Produit Test",
+                    "target": "212699887766",
+                    "target_desc": "212699887766",
+                    "text": "Offre spéciale",
+                    "status": "failed",
+                    "detail": "Erreur temporaire",
+                    "attempts": 1,
+                }
+            ]
+        }
+        whatsapp_promo._record_run(fake_log, promoted_ids=[], sent_today=0, today="2026-10-31", preview=False, new_recent_logs=fake_log["recent_logs"])
+
+        def success_gateway_post(path, payload):
+            return 200, {"ok": True}
+
+        with (
+            patch("dealnova.app.services.whatsapp_promo.get_whatsapp_gateway_status", return_value={"status": "connected"}),
+            patch("dealnova.app.services.whatsapp_promo._gateway_post", side_effect=success_gateway_post),
+            patch("dealnova.app.services.whatsapp_promo.sleep", return_value=None),
+        ):
+            retry_summary = whatsapp_promo.retry_failed_promos(force=True)
+            assert retry_summary["success"] is True
+            assert retry_summary["retried"] == 1
+            assert retry_summary["ok"] == 1
+            assert retry_summary["failed"] == 0
+
+            # Vérification de l'état mis à jour dans les logs
+            updated_log = whatsapp_promo.get_log()
+            first_log = updated_log["recent_logs"][0]
+            assert first_log["status"] == "ok"
+            assert "Statut publié avec succès" in first_log["detail"] or "Message remis avec succès" in first_log["detail"]

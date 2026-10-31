@@ -17,6 +17,7 @@ import json
 import random
 import re
 import time
+from time import sleep
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable
@@ -643,6 +644,67 @@ def send_promo_message(phone: str, card: dict[str, Any], text: str) -> tuple[str
     return send_promo_media(phone, card, text)
 
 
+MAX_SEND_ATTEMPTS = 3
+RETRY_DELAY = 2.0
+
+
+def post_status_with_retry(
+    card: dict[str, Any],
+    caption: str,
+    audience: list[str],
+    *,
+    max_attempts: int = MAX_SEND_ATTEMPTS,
+) -> tuple[bool, str, int]:
+    """Publie un statut WhatsApp 24h avec tentatives automatiques et garde-fous."""
+    last_reason = "unknown"
+    for attempt in range(1, max_attempts + 1):
+        ok, reason = post_status(card, caption, audience)
+        if ok:
+            return True, "ok", attempt
+        last_reason = str(reason)
+        if attempt < max_attempts:
+            gw = get_whatsapp_gateway_status()
+            if gw.get("status") != "connected":
+                return False, f"passerelle_deconnectee: {reason}", attempt
+            sleep(RETRY_DELAY * attempt + random.uniform(0.3, 1.0))
+    return False, last_reason, max_attempts
+
+
+def send_promo_media_with_retry(
+    target: str,
+    card: dict[str, Any],
+    text: str,
+    *,
+    max_attempts: int = MAX_SEND_ATTEMPTS,
+) -> tuple[str, str, int]:
+    """Envoie une photo + texte avec tentatives automatiques et garde-fous stricts.
+    Retourne (resultat, detail, tentatives).
+    """
+    last_reason = "unknown"
+    for attempt in range(1, max_attempts + 1):
+        result, reason = send_promo_media(target, card, text)
+        if result == "sent":
+            return "sent", "ok", attempt
+
+        # GARDE-FOU STRICT : Jamais de relance pour désinscription ou numéro inexistant
+        if result in ("opted_out", "not_on_whatsapp"):
+            return result, reason, attempt
+
+        # GARDE-FOU : Cible ou payload invalide
+        if reason in ("invalid_target", "invalid_media_payload"):
+            return "failed", reason, attempt
+
+        last_reason = str(reason)
+        if attempt < max_attempts:
+            gw = get_whatsapp_gateway_status()
+            if gw.get("status") != "connected":
+                return "failed", f"passerelle_deconnectee: {reason}", attempt
+            sleep(RETRY_DELAY * attempt + random.uniform(0.3, 1.0))
+
+    return "failed", last_reason, max_attempts
+
+
+
 # ---------------------------------------------------------------------------
 # Exécution de l'automatisation
 # ---------------------------------------------------------------------------
@@ -674,6 +736,33 @@ def _claim_daily_run(today: str, force: bool) -> bool:
     except Exception:
         safe_session_rollback()
         return False
+
+
+def _save_promo_log(log_data: dict[str, Any]) -> None:
+    """Persiste l'état de log promo de manière atomique avec repli garanti."""
+    def _apply(payloads: dict[str, Any]) -> None:
+        payloads[LOG_KEY] = log_data
+
+    try:
+        mutate_json_states({LOG_KEY: dict}, _apply)
+        return
+    except Exception as exc:
+        safe_session_rollback()
+        current_app.logger.warning("whatsapp_promo.save_log_retry: %s", exc)
+
+    try:
+        from ..models.runtime_state import RuntimeState
+        row = RuntimeState.query.filter_by(state_key=LOG_KEY).first()
+        now = datetime.utcnow()
+        if row is None:
+            row = RuntimeState(state_key=LOG_KEY, created_at=now, updated_at=now)
+            db.session.add(row)
+        row.value_json = json.dumps(log_data, ensure_ascii=True, separators=(",", ":"))
+        row.updated_at = now
+        db.session.commit()
+    except Exception as exc:
+        safe_session_rollback()
+        current_app.logger.exception("whatsapp_promo.save_log_failed: %s", exc)
 
 
 def _record_run(
@@ -940,15 +1029,20 @@ def run_daily_promo(
             if not still_enabled():
                 return finish("stopped_by_admin", [c["id"] for c in cards[:index]], last_generated_data)
 
-            ok, reason = post_status(card, caption, audience_phones)
+            ok, reason, attempts = post_status_with_retry(card, caption, audience_phones)
             summary["statuses_ok" if ok else "statuses_failed"] += 1
+            event["attempts"] = attempts
             event["status"] = "ok" if ok else "failed"
-            event["details"] = "Publié avec succès" if ok else f"Échec: {reason}"
+            if ok:
+                event["details"] = "Publié avec succès" if attempts == 1 else f"Publié (après {attempts} tentatives)"
+                consecutive_failures = 0
+            else:
+                event["details"] = f"Échec après {attempts} tentatives: {reason}"
+                consecutive_failures += 1
+
             event["detail"] = event["details"]
             recent_events.append(event)
             summary["details"].append(event)
-
-            consecutive_failures = 0 if ok else consecutive_failures + 1
             if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
                 return finish("gateway_failures", [c["id"] for c in cards[:index + 1]], last_generated_data)
 
@@ -985,17 +1079,18 @@ def run_daily_promo(
                 if not still_enabled():
                     return finish("stopped_by_admin", [c["id"] for c in cards], last_generated_data)
 
-                result, reason = send_promo_media(grp["target"], card, group_text)
+                result, reason, attempts = send_promo_media_with_retry(grp["target"], card, group_text)
+                event["attempts"] = attempts
                 if result == "sent":
                     summary["groups_ok"] += 1
                     consecutive_failures = 0
                     event["status"] = "ok"
-                    event["details"] = "Envoyé dans le groupe"
+                    event["details"] = "Envoyé dans le groupe" if attempts == 1 else f"Envoyé dans le groupe (après {attempts} tentatives)"
                 else:
                     summary["groups_failed"] += 1
                     consecutive_failures += 1
                     event["status"] = "failed"
-                    event["details"] = f"Erreur: {reason}"
+                    event["details"] = f"Erreur après {attempts} tentatives: {reason}"
 
                 event["detail"] = event["details"]
                 recent_events.append(event)
@@ -1042,12 +1137,13 @@ def run_daily_promo(
                 if not still_enabled():
                     return finish("stopped_by_admin", [c["id"] for c in cards], last_generated_data)
 
-                result, reason = send_promo_media(person["phone"], card, text)
+                result, reason, attempts = send_promo_media_with_retry(person["phone"], card, text)
+                event["attempts"] = attempts
                 if result == "sent":
                     summary["messages_ok"] += 1
                     consecutive_failures = 0
                     event["status"] = "ok"
-                    event["details"] = "Message remis"
+                    event["details"] = "Message remis" if attempts == 1 else f"Message remis (après {attempts} tentatives)"
                 elif result in ("opted_out", "not_on_whatsapp"):
                     summary["skipped"] += 1
                     event["status"] = "skipped"
@@ -1061,7 +1157,7 @@ def run_daily_promo(
                     summary["messages_failed"] += 1
                     consecutive_failures += 1
                     event["status"] = "failed"
-                    event["details"] = f"Échec: {reason}"
+                    event["details"] = f"Échec après {attempts} tentatives: {reason}"
 
                 event["detail"] = event["details"]
                 recent_events.append(event)
@@ -1139,3 +1235,157 @@ def init_whatsapp_promo_cli(app) -> None:
             "recipients_count": len(_audience(settings)),
             "last_run_date": log.get("last_run_date"),
         }, ensure_ascii=False, indent=2))
+
+
+def retry_failed_promos(*, force: bool = False) -> dict[str, Any]:
+    """Relance les messages en échec ou en attente enregistrés aujourd'hui, avec garde-fous stricts."""
+    today = _local_now().date().isoformat()
+    log = get_log() or {}
+    recent_logs = list(log.get("recent_logs") or [])
+    settings = get_settings()
+
+    # GARDE-FOU 1 : Vérifier la passerelle WhatsApp
+    gw = get_whatsapp_gateway_status()
+    if gw.get("status") != "connected":
+        return {
+            "success": False,
+            "error": "gateway_not_connected",
+            "message": "La passerelle WhatsApp n'est pas connectée. Vérifiez la connexion de votre téléphone.",
+            "retried": 0,
+            "ok": 0,
+            "failed": 0,
+        }
+
+    # GARDE-FOU 2 : Contacts désinscrits (STOP) ou invalides exclus
+    opted_out_targets = {
+        r["phone"] for r in settings.get("recipients", []) if r.get("opted_out") or r.get("invalid")
+    }
+
+    to_retry = []
+    for idx, item in enumerate(recent_logs):
+        if item.get("status") in ("failed", "pending"):
+            target = str(item.get("target") or "")
+            if target in opted_out_targets:
+                item["status"] = "skipped"
+                item["detail"] = "Désinscrit (STOP) ou numéro invalide"
+                item["details"] = item["detail"]
+                continue
+            to_retry.append((idx, item))
+
+    if not to_retry:
+        return {
+            "success": True,
+            "message": "Aucun message en attente ou en échec à relancer pour aujourd'hui.",
+            "retried": 0,
+            "ok": 0,
+            "failed": 0,
+        }
+
+    # Données des produits
+    last_gen = log.get("last_generated") or {}
+    items_by_id = {
+        item["id"]: item for item in (last_gen.get("items") or last_gen.get("products") or [])
+    }
+
+    retried_count = 0
+    ok_count = 0
+    failed_count = 0
+    consecutive_failures = 0
+    audience_phones = [p["phone"] for p in _audience(settings)]
+
+    for idx, event in to_retry:
+        if not settings.get("enabled") and not force:
+            break
+
+        channel = event.get("channel")
+        target = event.get("target")
+        text = event.get("text")
+        pid = event.get("product_id")
+        card = items_by_id.get(pid)
+
+        if not card:
+            prod = db.session.get(Product, pid)
+            if prod:
+                promos = get_active_promos_for_products([prod.id])
+                card = build_product_card(prod, promos.get(prod.id))
+
+        if not card or not target or not text:
+            event["status"] = "failed"
+            event["detail"] = "Données du produit introuvables pour relancer"
+            event["details"] = event["detail"]
+            failed_count += 1
+            continue
+
+        retried_count += 1
+
+        if channel == "status":
+            ok, reason, attempts = post_status_with_retry(card, text, audience_phones)
+            if ok:
+                ok_count += 1
+                consecutive_failures = 0
+                event["status"] = "ok"
+                event["detail"] = "Statut publié avec succès (après relance)"
+            else:
+                failed_count += 1
+                consecutive_failures += 1
+                event["status"] = "failed"
+                event["detail"] = f"Échec après relance: {reason}"
+            event["attempts"] = event.get("attempts", 0) + attempts
+        else:
+            result, reason, attempts = send_promo_media_with_retry(target, card, text)
+            if result == "sent":
+                ok_count += 1
+                consecutive_failures = 0
+                event["status"] = "ok"
+                event["detail"] = "Message remis avec succès (après relance)"
+            elif result in ("opted_out", "not_on_whatsapp"):
+                event["status"] = "skipped"
+                event["detail"] = "Désinscrit (STOP)" if result == "opted_out" else "Pas de WhatsApp"
+                _mark_recipient(target, "opted_out" if result == "opted_out" else "invalid")
+            else:
+                failed_count += 1
+                consecutive_failures += 1
+                event["status"] = "failed"
+                event["detail"] = f"Échec après relance: {reason}"
+            event["attempts"] = event.get("attempts", 0) + attempts
+
+        event["details"] = event["detail"]
+        event["timestamp"] = f"{today} {_local_now().strftime('%H:%M:%S')}"
+        event["time"] = _local_now().strftime("%H:%M:%S")
+        recent_logs[idx] = event
+
+        # GARDE-FOU 3 : Déconnexion ou échecs consécutifs
+        if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
+            break
+
+        sleep(random.uniform(settings["min_delay"], settings["max_delay"]))
+
+    # Sauvegarde des logs mis à jour
+    log["recent_logs"] = recent_logs
+    _save_promo_log(log)
+
+    return {
+        "success": True,
+        "retried": retried_count,
+        "ok": ok_count,
+        "failed": failed_count,
+        "message": f"Relance terminée : {ok_count} envoyé(s), {failed_count} échec(s).",
+    }
+
+
+def run_retry_in_background(app, **kwargs) -> None:
+    """Lance la relance des messages non publiés en tâche de fond pour ne pas bloquer l'UI."""
+    import threading
+
+    def _worker() -> None:
+        with app.app_context():
+            try:
+                retry_failed_promos(**kwargs)
+            except Exception:
+                safe_session_rollback()
+                app.logger.exception("whatsapp_promo.retry_background_failed")
+            finally:
+                db.session.remove()
+
+    t = threading.Thread(target=_worker, daemon=True)
+    t.start()

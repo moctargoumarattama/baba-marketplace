@@ -2210,3 +2210,23 @@ def whatsapp_promo_edit_copy():
         flash(err, "warning")
 
     return redirect(url_for("admin.whatsapp_gateway"))
+
+
+@bp.route("/whatsapp-gateway/promo/retry-failed", methods=["POST"])
+def whatsapp_promo_retry_failed():
+    if _current_admin_role() != ADMIN_ROLE:
+        return _sensitive_admin_forbidden_response()
+
+    from ..services.whatsapp_promo import run_retry_in_background
+
+    app_obj = current_app._get_current_object()
+    run_retry_in_background(app_obj, force=True)
+
+    if _is_ajax_request() or request.is_json:
+        return jsonify(
+            success=True,
+            started=True,
+            message="Relance des messages non publiés démarrée en arrière-plan avec respect des délais anti-ban.",
+        )
+    flash("Relance des messages non publiés démarrée en arrière-plan (respect des délais anti-ban).", "info")
+    return redirect(url_for("admin.whatsapp_gateway"))
