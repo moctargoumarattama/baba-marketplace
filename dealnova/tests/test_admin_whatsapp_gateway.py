@@ -62,3 +62,14 @@ def test_admin_whatsapp_gateway_routes_registered():
     assert "/admin/whatsapp-gateway/disconnect" in rules
     assert "/admin/whatsapp-gateway/reconnect" in rules
 
+def test_whatsapp_gateway_bento_responsive_design():
+    content = _read("app/templates/admin/whatsapp_gateway.html")
+
+    assert "offers-bento-grid" in content
+    assert "container: offer-card / inline-size" in content
+    assert 'html[data-admin-theme="noc"] .wa-app-container' in content
+    assert "color-scheme: only light;" in content
+    assert 'id="step3Settings"' in content
+    assert "Clics sur liens" in content
+    assert "CLICS RÉELS (/P/..)" not in content.upper()
+

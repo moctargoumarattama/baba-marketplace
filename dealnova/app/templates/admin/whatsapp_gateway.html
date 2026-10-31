@@ -4,143 +4,540 @@
 
 {% block content %}
 <style>
-  :root {
+  .wa-app-container {
     --wa-green: #25d366;
+    --wa-green-hover: #1ebe5d;
     --wa-green-dark: #128c7e;
     --wa-teal: #075e54;
+    --wa-emerald: #059669;
     --wa-chat-bg: #efeae2;
     --wa-bubble-bg: #d9fdd3;
-    --card-radius: 16px;
-  }
+    --wa-surface: #ffffff;
+    --wa-surface-subtle: #f8fafc;
+    --wa-surface-muted: #f1f5f9;
+    --wa-border: #e2e8f0;
+    --wa-border-strong: #cbd5e1;
+    --wa-ink: #0f172a;
+    --wa-ink-secondary: #334155;
+    --wa-ink-muted: #64748b;
+    --wa-radius-lg: 16px;
+    --wa-radius-md: 12px;
+    --wa-radius-sm: 9px;
+    --wa-shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.04), 0 1px 2px rgba(15, 23, 42, 0.03);
+    --wa-shadow-md: 0 10px 26px -8px rgba(15, 23, 42, 0.08), 0 2px 6px -1px rgba(15, 23, 42, 0.04);
 
-  /* Conteneur principal */
-  .wa-app-container {
-    max-width: 1100px;
-    margin: 0 auto;
+    inline-size: 100%;
+    max-inline-size: 1440px;
+    margin-inline: auto;
     display: flex;
     flex-direction: column;
-    gap: 1.5rem;
-    padding-bottom: 3rem;
+    gap: 1rem;
+    padding-block-end: 2.5rem;
+    color: var(--wa-ink);
   }
 
-  /* Cartes d'étapes */
-  .step-card {
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
-    border-radius: var(--card-radius);
-    box-shadow: 0 4px 16px -2px rgba(15, 23, 42, 0.04);
-    overflow: hidden;
+  /* Support natif du thème sombre Admin NOC */
+  html[data-admin-theme="noc"] .wa-app-container {
+    --wa-surface: #0f172a;
+    --wa-surface-subtle: #1e293b;
+    --wa-surface-muted: #0b1220;
+    --wa-border: #334155;
+    --wa-border-strong: #475569;
+    --wa-ink: #f8fafc;
+    --wa-ink-secondary: #cbd5e1;
+    --wa-ink-muted: #94a3b8;
+    --wa-shadow-sm: 0 2px 8px rgba(2, 6, 23, 0.35);
+    --wa-shadow-md: 0 12px 28px -8px rgba(2, 6, 23, 0.55);
   }
 
-  .step-header {
+  /* Barre de commande supérieure (Hero compact) */
+  .wa-hero-bar {
+    display: flex;
+    align-items: safe center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.85rem;
+    padding-block: 0.15rem;
+  }
+
+  .wa-hero-brand {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    padding: 1rem 1.25rem;
-    background: #f8fafc;
-    border-bottom: 1px solid #f1f5f9;
-    flex-wrap: wrap;
     gap: 0.75rem;
+    min-inline-size: 0;
   }
 
-  .step-badge-num {
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    background: #0f172a;
+  .wa-hero-emblem {
+    inline-size: 42px;
+    block-size: 42px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #25d366 0%, #059669 100%);
     color: #ffffff;
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    font-size: 1.3rem;
+    box-shadow: 0 6px 14px rgba(16, 185, 129, 0.28);
+    flex-shrink: 0;
+  }
+
+  .wa-hero-title {
+    font-size: clamp(1.15rem, 0.98rem + 0.65vw, 1.42rem);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--wa-ink);
+    margin: 0;
+    line-height: 1.2;
+  }
+
+  .wa-hero-subtitle {
+    font-size: 0.8rem;
+    color: var(--wa-ink-muted);
+    margin: 0.15rem 0 0 0;
+    line-height: 1.35;
+  }
+
+  .wa-hero-actions {
+    display: flex;
+    align-items: safe center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .wa-btn-surface {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.44rem 0.82rem;
+    border-radius: 10px;
+    border: 1px solid var(--wa-border-strong);
+    background: var(--wa-surface);
+    color: var(--wa-ink-secondary);
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-decoration: none;
+    cursor: pointer;
+    box-shadow: var(--wa-shadow-sm);
+    transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
+  }
+  .wa-btn-surface:hover {
+    border-color: #10b981;
+    color: var(--wa-emerald);
+    background: var(--wa-surface-subtle);
+  }
+
+  .wa-btn-hero-publish {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.46rem 0.95rem;
+    border-radius: 10px;
+    border: none;
+    background: linear-gradient(135deg, #25d366 0%, #10b981 100%);
+    color: #052e16;
     font-size: 0.82rem;
     font-weight: 800;
-    margin-right: 0.5rem;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+  }
+  .wa-btn-hero-publish:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4);
+  }
+  .wa-btn-hero-publish:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
   }
 
-  .step-title {
-    font-size: 1.05rem;
-    font-weight: 800;
-    color: #0f172a;
-    margin: 0;
+  /* Bandeau exécutif : Connexion WhatsApp + 3 KPIs sur une seule ligne Bento */
+  .wa-exec-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+    gap: 0.85rem;
+    align-items: stretch;
+  }
+
+  @media (max-width: 1099.98px) {
+    .wa-exec-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .wa-gateway-card {
+    background: var(--wa-surface);
+    border: 1px solid var(--wa-border);
+    border-radius: var(--wa-radius-lg);
+    padding: 0.85rem 1.1rem;
+    box-shadow: var(--wa-shadow-sm);
     display: flex;
-    align-items: center;
-  }
-
-  .step-subtitle {
-    font-size: 0.8rem;
-    color: #64748b;
-    margin: 0.2rem 0 0 0;
-  }
-
-  .step-body {
-    padding: 1.25rem;
-  }
-
-  /* Étape 1 : Téléphone */
-  .phone-status-box {
-    display: flex;
-    align-items: center;
+    align-items: safe center;
     justify-content: space-between;
-    gap: 1rem;
     flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+  .wa-gateway-card.is-qr_ready {
+    border-color: #f59e0b;
+    background: linear-gradient(135deg, rgba(254, 243, 199, 0.35), var(--wa-surface));
+  }
+  .wa-gateway-card.is-disconnected {
+    border-color: #fca5a5;
+    background: linear-gradient(135deg, rgba(254, 226, 226, 0.3), var(--wa-surface));
   }
 
   .phone-info-left {
     display: flex;
     align-items: center;
-    gap: 1rem;
+    gap: 0.8rem;
+    min-inline-size: 0;
   }
 
   .phone-icon-circle {
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
+    position: relative;
+    inline-size: 42px;
+    block-size: 42px;
+    border-radius: 12px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.6rem;
+    font-size: 1.35rem;
+    flex-shrink: 0;
   }
   .phone-icon-circle.is-connected {
-    background: #dcfce7;
-    color: #166534;
+    background: rgba(16, 185, 129, 0.14);
+    color: #059669;
   }
+  .phone-icon-circle.is-qr_ready,
   .phone-icon-circle.is-qr {
-    background: #fef3c7;
-    color: #b45309;
+    background: rgba(245, 158, 11, 0.16);
+    color: #d97706;
   }
   .phone-icon-circle.is-disconnected {
-    background: #fee2e2;
-    color: #991b1b;
+    background: rgba(239, 68, 68, 0.14);
+    color: #dc2626;
   }
 
-  /* Étape 2 : L'Offre du Jour */
+  .wa-live-dot {
+    inline-size: 8px;
+    block-size: 8px;
+    border-radius: 50%;
+    background: #10b981;
+    display: inline-block;
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+  }
+
+  .wa-kpi-strip {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.65rem;
+  }
+
+  .wa-kpi-tile {
+    background: var(--wa-surface);
+    border: 1px solid var(--wa-border);
+    border-radius: var(--wa-radius-lg);
+    padding: 0.75rem 0.9rem;
+    box-shadow: var(--wa-shadow-sm);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    min-inline-size: 0;
+  }
+
+  .wa-kpi-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--wa-ink-muted);
+    white-space: nowrap;
+    overflow: clip;
+    text-overflow: ellipsis;
+  }
+
+  .wa-kpi-value {
+    font-size: clamp(1.15rem, 1rem + 0.4vw, 1.45rem);
+    font-weight: 900;
+    line-height: 1.15;
+    color: var(--wa-ink);
+    margin-block-start: 0.12rem;
+  }
+  .wa-kpi-value--emerald { color: #059669; }
+  .wa-kpi-value--blue { color: #2563eb; }
+  html[data-admin-theme="noc"] .wa-kpi-value--emerald { color: #34d399; }
+  html[data-admin-theme="noc"] .wa-kpi-value--blue { color: #38bdf8; }
+
+  .wa-kpi-icon {
+    inline-size: 34px;
+    block-size: 34px;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    flex-shrink: 0;
+    background: var(--wa-surface-subtle);
+    color: var(--wa-ink-muted);
+  }
+  .wa-kpi-icon--emerald {
+    background: rgba(16, 185, 129, 0.12);
+    color: #059669;
+  }
+  .wa-kpi-icon--blue {
+    background: rgba(37, 99, 235, 0.12);
+    color: #2563eb;
+  }
+
+  /* Cartes d'étapes principales */
+  .step-card {
+    background: var(--wa-surface);
+    border: 1px solid var(--wa-border);
+    border-radius: var(--wa-radius-lg);
+    box-shadow: var(--wa-shadow-sm);
+    scroll-margin-top: 5.5rem;
+  }
+
+  .step-header {
+    display: flex;
+    align-items: safe center;
+    justify-content: space-between;
+    padding: 0.95rem 1.2rem;
+    background: var(--wa-surface-subtle);
+    border-block-end: 1px solid var(--wa-border);
+    border-start-start-radius: var(--wa-radius-lg);
+    border-start-end-radius: var(--wa-radius-lg);
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .step-badge-num {
+    inline-size: 26px;
+    block-size: 26px;
+    border-radius: 8px;
+    background: var(--wa-ink);
+    color: var(--wa-surface);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.78rem;
+    font-weight: 800;
+    flex-shrink: 0;
+  }
+
+  .step-title {
+    font-size: 1rem;
+    font-weight: 800;
+    color: var(--wa-ink);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .step-subtitle {
+    font-size: 0.79rem;
+    color: var(--wa-ink-muted);
+    margin: 0.25rem 0 0 0;
+    line-height: 1.4;
+  }
+
+  .step-body {
+    padding: 1.1rem 1.2rem;
+  }
+
+  /* Puces récapitulatives de la vague (intégrées dans l'en-tête Étape 2 sans doublon) */
+  .wa-wave-chips {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-block-start: 0.45rem;
+  }
+
+  .wa-meta-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.18rem 0.58rem;
+    border-radius: 999px;
+    font-size: 0.73rem;
+    font-weight: 700;
+    background: var(--wa-surface);
+    border: 1px solid var(--wa-border);
+    color: var(--wa-ink-secondary);
+  }
+  .wa-meta-chip--story {
+    background: rgba(16, 185, 129, 0.1);
+    border-color: rgba(16, 185, 129, 0.3);
+    color: #059669;
+  }
+  .wa-meta-chip--groups {
+    background: rgba(37, 99, 235, 0.08);
+    border-color: rgba(37, 99, 235, 0.25);
+    color: #2563eb;
+  }
+  html[data-admin-theme="noc"] .wa-meta-chip--story { color: #34d399; }
+  html[data-admin-theme="noc"] .wa-meta-chip--groups { color: #60a5fa; }
+
+  /* Barre d'outils unifiée : Filtres de catégories + Recherche Coup de cœur */
+  .wa-CommandToolbar {
+    display: flex;
+    align-items: safe center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    padding-block-end: 0.9rem;
+    margin-block-end: 0.95rem;
+    border-block-end: 1px solid var(--wa-border);
+  }
+
+  .offer-filter-bar {
+    display: flex;
+    align-items: safe center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    flex-wrap: balance;
+    min-inline-size: 0;
+  }
+
+  .offer-filter-pill {
+    border: 1px solid var(--wa-border-strong);
+    background: var(--wa-surface);
+    color: var(--wa-ink-secondary);
+    border-radius: 999px;
+    padding: 0.32rem 0.78rem;
+    font-size: 0.77rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+  }
+  .offer-filter-pill:hover {
+    border-color: #10b981;
+    color: #059669;
+  }
+  .offer-filter-pill.active {
+    background: var(--wa-ink);
+    border-color: var(--wa-ink);
+    color: var(--wa-surface);
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.14);
+  }
+
+  .wa-pin-search-wrap {
+    position: relative;
+    flex: 1 1 290px;
+    max-inline-size: 400px;
+    min-inline-size: 0;
+  }
+
+  .wa-pin-input-group {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    background: var(--wa-surface-subtle);
+    border: 1px solid var(--wa-border-strong);
+    border-radius: 999px;
+    padding: 0.28rem 0.75rem;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+  }
+  .wa-pin-input-group:focus-within {
+    background: var(--wa-surface);
+    border-color: #10b981;
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.14);
+  }
+  .wa-pin-input-group input {
+    border: none;
+    background: transparent;
+    outline: none;
+    inline-size: 100%;
+    min-inline-size: 0;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--wa-ink);
+  }
+  .wa-pin-input-group input::placeholder {
+    color: var(--wa-ink-muted);
+    font-weight: 500;
+  }
+
+  .wa-pinned-ribbon {
+    display: flex;
+    align-items: safe center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0.55rem 0.85rem;
+    margin-block-end: 0.95rem;
+    border-radius: 11px;
+    background: linear-gradient(90deg, rgba(245, 158, 11, 0.1), rgba(16, 185, 129, 0.06));
+    border: 1px solid rgba(245, 158, 11, 0.32);
+  }
+
+  .wa-pinned-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.24rem 0.6rem;
+    border-radius: 999px;
+    background: var(--wa-surface);
+    border: 1px solid var(--wa-border-strong);
+    font-size: 0.77rem;
+    font-weight: 700;
+    color: var(--wa-ink);
+  }
+
+  /* GRILLE BENTO 2 COLONNES POUR LES 10 OFFRES (zéro espace vide sur grand écran) */
+  .offers-bento-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 450px), 1fr));
+    gap: 1rem;
+    align-items: stretch;
+  }
+
   .promo-product-box {
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
+    container: offer-card / inline-size;
+    background: var(--wa-surface-subtle);
+    border: 1px solid var(--wa-border);
     border-radius: 14px;
-    overflow: hidden;
-    margin-bottom: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    min-inline-size: 0;
+    transition: border-color 0.18s ease, box-shadow 0.18s ease;
+  }
+  .promo-product-box:hover {
+    border-color: var(--wa-border-strong);
+    box-shadow: var(--wa-shadow-md);
+  }
+
+  /* Rendu différé uniquement pour les cartes situées sous la ligne de flottaison initiale */
+  .promo-product-box.is-deferred {
+    content-visibility: auto;
+    contain-intrinsic-size: auto none auto 340px;
   }
 
   .promo-product-top {
     display: flex;
-    align-items: center;
-    gap: 1rem;
-    padding: 1rem;
-    background: #ffffff;
-    border-bottom: 1px solid #f1f5f9;
-    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 0.85rem;
+    padding: 0.85rem 0.95rem;
+    background: var(--wa-surface);
+    border-block-end: 1px solid var(--wa-border);
+    border-start-start-radius: 13px;
+    border-start-end-radius: 13px;
   }
 
   .promo-media-trigger {
     position: relative;
-    width: 84px;
-    height: 84px;
+    inline-size: 74px;
+    block-size: 74px;
+    aspect-ratio: 1 / 1;
     padding: 0;
-    border: 1px solid #cbd5e1;
-    border-radius: 12px;
-    background: #f8fafc;
-    overflow: hidden;
+    border: 1px solid var(--wa-border-strong);
+    border-radius: 11px;
+    background: var(--wa-surface-subtle);
+    overflow: clip;
     cursor: pointer;
     flex-shrink: 0;
     transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
@@ -150,22 +547,25 @@
     border-color: #10b981;
     box-shadow: 0 6px 14px rgba(15, 23, 42, 0.12);
   }
+
   .promo-product-img {
-    width: 100%;
-    height: 100%;
+    inline-size: 100%;
+    block-size: 100%;
+    aspect-ratio: 1 / 1;
     object-fit: cover;
     display: block;
-    background: #f8fafc;
+    background: var(--wa-surface-subtle);
   }
+
   .promo-thumb-overlay {
     position: absolute;
     inset: 0;
-    background: rgba(15, 23, 42, 0.38);
+    background: rgba(15, 23, 42, 0.4);
     color: #ffffff;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.2rem;
+    font-size: 1.15rem;
     opacity: 0;
     transition: opacity 0.16s ease;
   }
@@ -173,15 +573,16 @@
   .promo-media-trigger:focus-visible .promo-thumb-overlay {
     opacity: 1;
   }
+
   .promo-thumb-badge {
     position: absolute;
-    right: 4px;
-    bottom: 4px;
-    background: rgba(15, 23, 42, 0.82);
+    inset-inline-end: 4px;
+    inset-block-end: 4px;
+    background: rgba(15, 23, 42, 0.84);
     color: #ffffff;
-    font-size: 0.65rem;
+    font-size: 0.62rem;
     font-weight: 800;
-    padding: 2px 6px;
+    padding: 2px 5px;
     border-radius: 999px;
     line-height: 1.2;
     display: inline-flex;
@@ -192,8 +593,60 @@
   .promo-thumb-badge--video {
     background: rgba(220, 38, 38, 0.92);
   }
+
+  .promo-product-info {
+    flex: 1;
+    min-inline-size: 0;
+  }
+
+  .promo-meta-row {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+    margin-block-end: 0.28rem;
+  }
+
+  .promo-price-pill {
+    margin-inline-start: auto;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.3rem;
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.25);
+    padding: 0.14rem 0.55rem;
+    border-radius: 8px;
+    white-space: nowrap;
+  }
+
+  .price-promo {
+    font-size: 0.95rem;
+    font-weight: 900;
+    color: #059669;
+  }
+  html[data-admin-theme="noc"] .price-promo { color: #34d399; }
+
+  .price-old {
+    font-size: 0.74rem;
+    text-decoration: line-through;
+    color: var(--wa-ink-muted);
+  }
+
+  .promo-product-name {
+    font-size: 0.96rem;
+    font-weight: 800;
+    color: var(--wa-ink);
+    margin: 0 0 0.18rem 0;
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    line-clamp: 1;
+    overflow: clip;
+  }
+
   .promo-product-title-link {
-    color: #0f172a;
+    color: var(--wa-ink);
     text-decoration: none;
     transition: color 0.15s ease;
   }
@@ -201,45 +654,207 @@
     color: #059669;
     text-decoration: underline;
   }
+
+  .promo-product-shop {
+    font-size: 0.76rem;
+    color: var(--wa-ink-muted);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+  }
+
+  .promo-actions-strip {
+    margin-block-start: 0.45rem;
+    display: flex;
+    align-items: center;
+    gap: 0.38rem;
+    flex-wrap: wrap;
+  }
+
   .promo-action-pill {
     display: inline-flex;
     align-items: center;
-    gap: 0.35rem;
-    font-size: 0.76rem;
+    gap: 0.3rem;
+    font-size: 0.73rem;
     font-weight: 700;
-    padding: 0.28rem 0.68rem;
+    padding: 0.22rem 0.58rem;
     border-radius: 999px;
-    border: 1px solid #cbd5e1;
-    background: #f8fafc;
-    color: #0f172a;
+    border: 1px solid var(--wa-border-strong);
+    background: var(--wa-surface-subtle);
+    color: var(--wa-ink-secondary);
     text-decoration: none;
     cursor: pointer;
     transition: all 0.15s ease;
   }
   .promo-action-pill:hover {
-    background: #ecfdf5;
+    background: rgba(16, 185, 129, 0.12);
     border-color: #10b981;
-    color: #065f46;
+    color: #059669;
   }
   .promo-action-pill--video {
-    background: #fef2f2;
-    border-color: #fecaca;
-    color: #b91c1c;
+    background: rgba(239, 68, 68, 0.08);
+    border-color: rgba(239, 68, 68, 0.3);
+    color: #dc2626;
   }
   .promo-action-pill--video:hover {
-    background: #fee2e2;
-    border-color: #f87171;
-    color: #991b1b;
+    background: rgba(239, 68, 68, 0.15);
+    border-color: #ef4444;
+    color: #b91c1c;
   }
   .promo-action-pill--visit {
-    background: #f0fdfa;
-    border-color: #99f6e4;
+    background: rgba(20, 184, 166, 0.09);
+    border-color: rgba(20, 184, 166, 0.32);
     color: #0f766e;
   }
+  html[data-admin-theme="noc"] .promo-action-pill--visit { color: #2dd4bf; }
   .promo-action-pill--visit:hover {
-    background: #ccfbf1;
+    background: rgba(20, 184, 166, 0.18);
     border-color: #14b8a6;
-    color: #115e59;
+  }
+
+  /* Adaptation intrinsèque de chaque carte selon sa propre largeur (@container + repli @media) */
+  @media (max-width: 480px) {
+    .promo-product-top {
+      padding: 0.75rem;
+      gap: 0.7rem;
+    }
+    .promo-price-pill {
+      margin-inline-start: 0;
+    }
+  }
+  @supports (container-type: inline-size) {
+    @container offer-card (max-width: 410px) {
+      .promo-product-top {
+        padding: 0.75rem;
+        gap: 0.65rem;
+      }
+      .promo-media-trigger {
+        inline-size: 64px;
+        block-size: 64px;
+      }
+      .promo-price-pill {
+        margin-inline-start: 0;
+      }
+    }
+  }
+
+  /* Onglets segmentés Canal Statut / Groupes */
+  .channel-tabs-bar {
+    display: flex;
+    background: var(--wa-surface-muted);
+    border: 1px solid var(--wa-border);
+    padding: 3px;
+    border-radius: 9px;
+    margin: 0.65rem 0.85rem 0 0.85rem;
+    gap: 3px;
+  }
+
+  .channel-tab-btn {
+    flex: 1;
+    border: none;
+    background: transparent;
+    padding: 0.38rem 0.6rem;
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: var(--wa-ink-muted);
+    border-radius: 7px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    transition: all 0.16s ease;
+  }
+  .channel-tab-btn.active {
+    background: var(--wa-surface);
+    color: var(--wa-ink);
+    box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
+  }
+
+  /* Simulation authentique WhatsApp (toujours en mode clair lisible) */
+  .wa-mockup-wrapper {
+    padding: 0.65rem 0.85rem 0.75rem 0.85rem;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .wa-chat-window {
+    color-scheme: only light;
+    background-color: var(--wa-chat-bg);
+    background-image: radial-gradient(rgba(15, 23, 42, 0.045) 1px, transparent 0);
+    background-size: 14px 14px;
+    color: #111827;
+    border-radius: 11px;
+    padding: 0.75rem 0.85rem;
+    border: 1px solid #d6d0c4;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .wa-chat-bubble {
+    background: var(--wa-bubble-bg);
+    color: #111827;
+    border-radius: 10px;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.1);
+    padding: 0.68rem 0.85rem;
+    inline-size: 100%;
+    position: relative;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  .wa-bubble-badge {
+    font-size: 0.68rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    color: var(--wa-teal);
+    margin-block-end: 0.3rem;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+  }
+
+  .wa-bubble-text {
+    font-size: 0.84rem;
+    line-height: 1.42;
+    color: #111827;
+    white-space: pre-wrap;
+    word-break: break-word;
+    margin: 0;
+    max-block-size: 155px;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+    overscroll-behavior: contain;
+  }
+
+  .wa-bubble-time {
+    font-size: 0.67rem;
+    color: #52606d;
+    text-align: right;
+    margin-block-start: 0.3rem;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.25rem;
+  }
+
+  .promo-card-footer {
+    margin-block-start: auto;
+    padding: 0.6rem 0.9rem;
+    background: var(--wa-surface);
+    border-block-start: 1px solid var(--wa-border);
+    border-end-start-radius: 13px;
+    border-end-end-radius: 13px;
+    display: flex;
+    align-items: safe center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.5rem;
   }
 
   /* Visionneuse native <dialog> Photo & Vidéo */
@@ -248,12 +863,12 @@
     border: none;
     border-radius: 18px;
     padding: 0;
-    width: min(860px, 94vw);
-    max-height: 92vh;
-    background: #ffffff;
-    color: #0f172a;
+    inline-size: min(860px, 94dvw);
+    max-block-size: 92dvh;
+    background: var(--wa-surface);
+    color: var(--wa-ink);
     box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.45);
-    overflow: hidden;
+    overflow: clip;
   }
   dialog.offer-media-dialog::backdrop {
     overflow: hidden;
@@ -269,25 +884,25 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    min-height: 300px;
+    min-block-size: 280px;
   }
   .offer-media-main-img {
-    max-width: 100%;
-    max-height: 58vh;
-    width: auto;
-    height: auto;
+    max-inline-size: 100%;
+    max-block-size: 58dvh;
+    inline-size: auto;
+    block-size: auto;
     object-fit: contain;
     border-radius: 10px;
     display: block;
   }
   .offer-media-nav-btn {
     position: absolute;
-    top: 50%;
+    inset-block-start: 50%;
     transform: translateY(-50%);
-    width: 40px;
-    height: 40px;
+    inline-size: 40px;
+    block-size: 40px;
     border-radius: 50%;
-    border: 1px solid rgba(255,255,255,0.25);
+    border: 1px solid rgba(255, 255, 255, 0.25);
     background: rgba(15, 23, 42, 0.75);
     color: #ffffff;
     font-size: 1.2rem;
@@ -300,23 +915,24 @@
   .offer-media-nav-btn:hover {
     background: rgba(16, 185, 129, 0.9);
   }
-  .offer-media-nav-btn--prev { left: 14px; }
-  .offer-media-nav-btn--next { right: 14px; }
+  .offer-media-nav-btn--prev { inset-inline-start: 14px; }
+  .offer-media-nav-btn--next { inset-inline-end: 14px; }
   .offer-media-thumbs {
     display: flex;
     gap: 0.5rem;
-    margin-top: 0.75rem;
+    margin-block-start: 0.75rem;
     overflow-x: auto;
-    max-width: 100%;
-    padding-bottom: 2px;
+    overscroll-behavior-x: contain;
+    max-inline-size: 100%;
+    padding-block-end: 2px;
   }
   .offer-media-thumb-btn {
-    width: 54px;
-    height: 54px;
+    inline-size: 54px;
+    block-size: 54px;
     padding: 0;
     border-radius: 8px;
     border: 2px solid transparent;
-    overflow: hidden;
+    overflow: clip;
     background: #1e293b;
     cursor: pointer;
     opacity: 0.65;
@@ -327,164 +943,53 @@
     opacity: 1;
   }
   .offer-media-thumb-btn img {
-    width: 100%;
-    height: 100%;
+    inline-size: 100%;
+    block-size: 100%;
     object-fit: cover;
     display: block;
   }
 
-  .promo-product-info {
-    flex: 1;
-    min-width: 220px;
-  }
-
-  .promo-product-name {
-    font-size: 1.1rem;
-    font-weight: 800;
-    color: #0f172a;
-    margin: 0 0 0.25rem 0;
-  }
-
-  .promo-product-shop {
-    font-size: 0.8rem;
-    color: #64748b;
-  }
-
-  .promo-product-price {
-    text-align: right;
-  }
-  .price-promo {
-    font-size: 1.25rem;
-    font-weight: 900;
-    color: #059669;
-  }
-  .price-old {
-    font-size: 0.85rem;
-    text-decoration: line-through;
-    color: #94a3b8;
-    margin-right: 0.35rem;
-  }
-
-  /* Navigation Onglets Canaux */
-  .channel-tabs-bar {
-    display: flex;
-    background: #e2e8f0;
-    padding: 4px;
-    border-radius: 10px;
-    margin: 1rem 1rem 0 1rem;
-    gap: 4px;
-  }
-
-  .channel-tab-btn {
-    flex: 1;
-    border: none;
-    background: transparent;
-    padding: 0.5rem 0.75rem;
-    font-size: 0.82rem;
-    font-weight: 700;
-    color: #475569;
-    border-radius: 8px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.45rem;
-    transition: all 0.2s ease;
-  }
-  .channel-tab-btn.active {
-    background: #ffffff;
-    color: #0f172a;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.06);
-  }
-
-  /* Simulation WhatsApp */
-  .wa-mockup-wrapper {
-    padding: 1rem;
-  }
-
-  .wa-chat-window {
-    background: var(--wa-chat-bg);
-    border-radius: 12px;
-    padding: 1.25rem;
-    border: 1px solid #cbd5e1;
-  }
-
-  .wa-chat-bubble {
-    background: var(--wa-bubble-bg);
-    border-radius: 10px;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.12);
-    padding: 0.85rem 1rem;
-    max-width: 580px;
-    position: relative;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  }
-
-  .wa-bubble-badge {
-    font-size: 0.72rem;
-    font-weight: 800;
-    text-transform: uppercase;
-    color: var(--wa-teal);
-    margin-bottom: 0.4rem;
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-  }
-
-  .wa-bubble-text {
-    font-size: 0.9rem;
-    line-height: 1.45;
-    color: #111827;
-    white-space: pre-wrap;
-    word-break: break-word;
-    margin: 0;
-  }
-
-  .wa-bubble-time {
-    font-size: 0.7rem;
-    color: #64748b;
-    text-align: right;
-    margin-top: 0.35rem;
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 0.25rem;
-  }
-
-  /* Étape 3 : Canaux de diffusion */
+  /* ÉTAPE 3 : Architecture Bento Canaux, Horaires & Quotas */
   .channels-selection-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 1rem;
-    margin-bottom: 1.5rem;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+    gap: 0.85rem;
+    margin-block-end: 1rem;
   }
 
+  /* Choice cards sans décalage de mise en page (:has(:checked) + bordure 2px constante) */
   .channel-choice-card {
-    background: #ffffff;
-    border: 2px solid #e2e8f0;
+    background: var(--wa-surface);
+    border: 2px solid var(--wa-border);
     border-radius: 14px;
-    padding: 1.1rem;
-    transition: all 0.2s ease;
+    padding: 0.95rem 1.05rem;
+    transition: border-color 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
     cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
   }
   .channel-choice-card:hover {
-    border-color: #94a3b8;
+    border-color: var(--wa-border-strong);
   }
-  .channel-choice-card.is-selected {
+  .channel-choice-card.is-selected,
+  .channel-choice-card:has(input[type="checkbox"]:checked) {
     border-color: #10b981;
-    background: #f0fdf4;
+    background: rgba(16, 185, 129, 0.05);
+    box-shadow: 0 4px 14px rgba(16, 185, 129, 0.08);
   }
 
   .channel-choice-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 0.4rem;
+    margin-block-end: 0.35rem;
   }
 
   .channel-choice-title {
-    font-size: 0.95rem;
+    font-size: 0.92rem;
     font-weight: 800;
-    color: #0f172a;
+    color: var(--wa-ink);
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -492,72 +997,81 @@
 
   .channel-choice-desc {
     font-size: 0.78rem;
-    color: #64748b;
-    line-height: 1.4;
-    margin: 0 0 0.75rem 0;
+    color: var(--wa-ink-muted);
+    line-height: 1.42;
+    margin: 0 0 0.65rem 0;
   }
 
-  /* Bandeau de Vague & Filtres d'offres */
-  .wave-status-banner {
-    background: linear-gradient(135deg, #f0fdf4 0%, #eff6ff 100%);
-    border: 1.5px solid #bbf7d0;
+  .wa-settings-bento {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
+    gap: 0.9rem;
+    margin-block-end: 1rem;
+  }
+
+  .wa-bento-panel {
+    background: var(--wa-surface-subtle);
+    border: 1px solid var(--wa-border);
     border-radius: 14px;
-    padding: 0.9rem 1.15rem;
-    margin-bottom: 1rem;
+    padding: 0.95rem 1.05rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .wa-schedule-row {
+    background: var(--wa-surface);
+    border: 1px solid var(--wa-border);
+    border-radius: 10px;
+    padding: 0.55rem 0.75rem;
+    display: flex;
+    align-items: safe center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .wa-quotas-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+    gap: 0.55rem;
+  }
+
+  .wa-quota-tile {
+    background: var(--wa-surface);
+    border: 1px solid var(--wa-border);
+    border-radius: 10px;
+    padding: 0.5rem 0.65rem;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 0.75rem;
-  }
-  .wave-status-banner.is-evening {
-    background: linear-gradient(135deg, #eef2ff 0%, #f0fdf4 100%);
-    border-color: #c7d2fe;
-  }
-  .offer-filter-bar {
-    display: flex;
-    align-items: center;
     gap: 0.45rem;
-    flex-wrap: wrap;
-    margin-bottom: 1rem;
-  }
-  .offer-filter-pill {
-    border: 1px solid #cbd5e1;
-    background: #ffffff;
-    color: #334155;
-    border-radius: 999px;
-    padding: 0.3rem 0.75rem;
-    font-size: 0.78rem;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all 0.15s ease;
-  }
-  .offer-filter-pill:hover {
-    border-color: #10b981;
-    color: #0f766e;
-  }
-  .offer-filter-pill.active {
-    background: #0f172a;
-    border-color: #0f172a;
-    color: #ffffff;
   }
 
-  /* Contrôles renforcés Étape 3 (Steppers +/- & Horaires) */
+  .wa-quota-label {
+    font-size: 0.77rem;
+    font-weight: 700;
+    color: var(--wa-ink-secondary);
+    line-height: 1.25;
+  }
+
+  /* Contrôles tactiles Steppers - / + & Horaires */
   .wa-stepper {
     display: inline-flex;
     align-items: center;
-    border: 1.5px solid #cbd5e1;
+    border: 1.5px solid var(--wa-border-strong);
     border-radius: 9px;
-    background: #ffffff;
-    overflow: hidden;
-    height: 32px;
+    background: var(--wa-surface);
+    overflow: clip;
+    block-size: 32px;
+    flex-shrink: 0;
   }
   .wa-stepper-btn {
     border: none;
-    background: #f8fafc;
-    color: #0f172a;
-    width: 28px;
-    height: 100%;
+    background: var(--wa-surface-subtle);
+    color: var(--wa-ink);
+    inline-size: 29px;
+    block-size: 100%;
     font-weight: 900;
     font-size: 0.95rem;
     line-height: 1;
@@ -569,21 +1083,19 @@
     user-select: none;
   }
   .wa-stepper-btn:hover {
-    background: #e2e8f0;
-  }
-  .wa-stepper-btn:active {
-    background: #cbd5e1;
+    background: var(--wa-border);
   }
   .wa-stepper input[type="number"] {
     border: none !important;
     box-shadow: none !important;
-    width: 44px;
+    background: transparent;
+    inline-size: 40px;
     text-align: center;
     font-weight: 800;
-    font-size: 0.85rem;
-    color: #0f172a;
+    font-size: 0.84rem;
+    color: var(--wa-ink);
     padding: 0 2px;
-    height: 100%;
+    block-size: 100%;
     -moz-appearance: textfield;
   }
   .wa-stepper input[type="number"]::-webkit-outer-spin-button,
@@ -591,25 +1103,43 @@
     -webkit-appearance: none;
     margin: 0;
   }
+
   .wa-time-chip {
-    border: 1px solid #cbd5e1;
-    background: #ffffff;
-    color: #475569;
-    border-radius: 6px;
-    padding: 0.15rem 0.45rem;
+    border: 1px solid var(--wa-border-strong);
+    background: var(--wa-surface-subtle);
+    color: var(--wa-ink-secondary);
+    border-radius: 7px;
+    padding: 0.2rem 0.5rem;
     font-size: 0.72rem;
     font-weight: 700;
     cursor: pointer;
+    transition: all 0.14s ease;
   }
-  .wa-time-chip:hover, .wa-time-chip.is-active {
-    background: #dcfce7;
+  .wa-time-chip:hover,
+  .wa-time-chip.is-active {
+    background: rgba(16, 185, 129, 0.15);
     border-color: #10b981;
-    color: #065f46;
+    color: #059669;
   }
+  html[data-admin-theme="noc"] .wa-time-chip.is-active { color: #34d399; }
+
+  .broadcast-action-bar {
+    background: var(--wa-surface-subtle);
+    border: 1px solid var(--wa-border);
+    border-radius: 14px;
+    padding: 0.9rem 1.1rem;
+    display: flex;
+    align-items: safe center;
+    justify-content: space-between;
+    gap: 0.85rem;
+    flex-wrap: wrap;
+  }
+
   .btn-apply-settings {
     font-weight: 800;
     border-radius: 10px;
     padding: 0.55rem 1rem;
+    font-size: 0.84rem;
     transition: all 0.2s ease;
   }
   .btn-apply-settings.is-dirty {
@@ -619,44 +1149,64 @@
     box-shadow: 0 4px 14px rgba(5, 150, 105, 0.3);
   }
 
-  /* Envoi automatique & Bouton d'action */
-  .broadcast-action-bar {
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
-    border-radius: 14px;
-    padding: 1.25rem;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    flex-wrap: wrap;
-  }
-
   .btn-publish-now {
-    background: var(--wa-green);
-    color: #064e3b;
-    font-size: 1.05rem;
+    background: linear-gradient(135deg, #25d366 0%, #10b981 100%);
+    color: #052e16;
+    font-size: 0.92rem;
     font-weight: 800;
-    padding: 0.75rem 1.75rem;
-    border-radius: 12px;
+    padding: 0.62rem 1.35rem;
+    border-radius: 11px;
     border: none;
-    box-shadow: 0 4px 14px rgba(37, 211, 102, 0.4);
+    box-shadow: 0 4px 14px rgba(16, 185, 129, 0.34);
     display: inline-flex;
     align-items: center;
-    gap: 0.6rem;
+    justify-content: center;
+    gap: 0.5rem;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
   }
-  .btn-publish-now:hover {
-    background: #22c55e;
-    transform: translateY(-2px);
-    box-shadow: 0 6px 18px rgba(37, 211, 102, 0.5);
-    color: #064e3b;
+  .btn-publish-now:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px rgba(16, 185, 129, 0.45);
+    color: #052e16;
   }
   .btn-publish-now:disabled {
-    opacity: 0.6;
+    opacity: 0.55;
     cursor: not-allowed;
     transform: none;
+  }
+
+  /* Responsivité Mobile & Tablette soignée */
+  @media (max-width: 767.98px) {
+    .wa-kpi-strip {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.45rem;
+    }
+    .wa-kpi-tile {
+      padding: 0.6rem 0.65rem;
+    }
+    .wa-kpi-icon {
+      display: none;
+    }
+    .step-header,
+    .step-body {
+      padding: 0.85rem;
+    }
+    .wa-pin-search-wrap {
+      max-inline-size: 100%;
+      flex-basis: 100%;
+    }
+    .broadcast-action-bar .wa-footer-cta-group {
+      inline-size: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .btn-publish-now,
+    .btn-apply-settings {
+      inline-size: 100%;
+      justify-content: center;
+    }
   }
 </style>
 
@@ -680,81 +1230,82 @@
 {% set count_serv = products | selectattr('item_type', 'equalto', 'service') | list | length %}
 {% set count_rent = products | selectattr('item_type', 'equalto', 'rental') | list | length %}
 {% set count_story = products | selectattr('in_status') | list | length %}
+{% set count_video = products | selectattr('video_url') | list | length %}
+{% set total_clicks = (today_clicks or {}).get('_total', 0) %}
 
 <div class="wa-app-container" data-wave-number="{{ wave_num }}" data-is-sending="{{ '1' if wi.get('is_sending') else '0' }}" data-groups-count="{{ groups_list|length }}">
 
   <!-- BANDEAU ENVOI EN COURS (TEMPS RÉEL) -->
   <div id="liveSendBanner" class="card border-success shadow-sm" style="border-radius:14px;background:#ecfdf5;border-left:5px solid #10b981;{% if not wi.get('is_sending') %}display:none;{% endif %}">
-    <div class="card-body p-3 d-flex align-items-center justify-content-between flex-wrap gap-3">
+    <div class="card-body py-2 px-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
       <div class="d-flex align-items-center gap-3">
         <div class="spinner-border text-success spinner-border-sm" role="status" aria-hidden="true"></div>
         <div>
-          <div style="font-weight:800;color:#065f46;font-size:0.95rem;">
+          <div style="font-weight:800;color:#065f46;font-size:0.9rem;">
             🚀 Diffusion en cours ({{ (wi.get('active_send') or {}).get('wave_title') or wave_title }})…
           </div>
-          <div style="font-size:0.8rem;color:#047857;">
-            Les messages partent en arrière-plan avec vos délais anti-ban. Dès la fin de cet envoi, la vague suivante s'affichera automatiquement ici.
+          <div style="font-size:0.78rem;color:#047857;">
+            Envoi progressif en arrière-plan. La vague suivante prendra automatiquement sa place dès la fin.
           </div>
         </div>
       </div>
-      <span class="badge bg-success px-3 py-2">Actualisation automatique active</span>
+      <span class="badge bg-success px-3 py-2">Suivi temps réel actif</span>
     </div>
   </div>
 
-  <!-- EN-TÊTE DE LA PAGE -->
-  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-top:0.5rem;">
-    <div>
-      <h1 style="font-size:1.45rem;font-weight:900;color:#0f172a;margin:0 0 0.25rem 0;display:flex;align-items:center;gap:0.5rem;">
-        <i class="bi bi-whatsapp text-success"></i> Mes Promotions WhatsApp Quotidiennes
-      </h1>
-      <p style="font-size:0.85rem;color:#64748b;margin:0;">
-        Diffusez facilement vos produits du jour sur votre Statut WhatsApp (Story) et dans vos groupes de vente.
-      </p>
+  <!-- BARRE DE COMMANDE SUPÉRIEURE -->
+  <header class="wa-hero-bar">
+    <div class="wa-hero-brand">
+      <span class="wa-hero-emblem" aria-hidden="true"><i class="bi bi-whatsapp"></i></span>
+      <div>
+        <h1 class="wa-hero-title">Promotions WhatsApp Quotidiennes</h1>
+        <p class="wa-hero-subtitle">
+          Statuts 24h &amp; Groupes de vente • Rotation intelligente Matin &amp; Soir sans doublon
+        </p>
+      </div>
     </div>
 
-    <div>
-      <button type="button" class="btn btn-outline-secondary btn-sm fw-bold position-relative" data-bs-toggle="modal" data-bs-target="#logsModal">
-        <i class="bi bi-clock-history me-1"></i> Historique des envois ({{ rlogs|length }})
+    <div class="wa-hero-actions">
+      <a href="#step3Settings" class="wa-btn-surface" title="Aller aux horaires, canaux et quotas">
+        <i class="bi bi-sliders text-success"></i> Réglages &amp; Quotas
+      </a>
+
+      <button type="button" class="wa-btn-surface" data-bs-toggle="modal" data-bs-target="#logsModal">
+        <i class="bi bi-clock-history"></i> Historique ({{ rlogs|length }})
         {% if failed_count > 0 %}
-          <span class="badge bg-danger rounded-pill ms-1">{{ failed_count }} échec(s)</span>
+          <span class="badge bg-danger rounded-pill">{{ failed_count }}</span>
         {% elif pending_count > 0 %}
-          <span class="badge bg-warning text-dark rounded-pill ms-1">{{ pending_count }} en attente</span>
+          <span class="badge bg-warning text-dark rounded-pill">{{ pending_count }}</span>
         {% endif %}
       </button>
+
+      <button type="button" class="wa-btn-hero-publish" data-bs-toggle="modal" data-bs-target="#sendConfirmModal" {% if st != 'connected' %}disabled title="Connectez d'abord WhatsApp ci-dessous"{% endif %}>
+        <i class="bi bi-rocket-takeoff-fill"></i> Publier ({{ products|length }})
+      </button>
     </div>
-  </div>
+  </header>
 
   {% if failed_count > 0 or pending_count > 0 %}
-    <div class="card border-warning shadow-sm mb-4" style="border-radius:14px;background:#fffdfa;border-left:5px solid #f59e0b;">
-      <div class="card-body p-3 d-flex align-items-center justify-content-between flex-wrap gap-3">
-        <div class="d-flex align-items-center gap-3">
-          <div style="width:42px;height:42px;border-radius:10px;background:#fef3c7;display:flex;align-items:center;justify-content:center;color:#b45309;font-size:1.3rem;">
-            <i class="bi bi-shield-exclamation"></i>
-          </div>
-          <div>
-            <div style="font-weight:800;color:#0f172a;font-size:0.95rem;">
-              Certains messages n'ont pas encore été publiés
-            </div>
-            <div style="font-size:0.8rem;color:#64748b;">
-              {% if failed_count > 0 %}
-                <span class="badge bg-danger me-1">{{ failed_count }} en échec</span>
-              {% endif %}
-              {% if pending_count > 0 %}
-                <span class="badge bg-warning text-dark me-1">{{ pending_count }} en attente</span>
-              {% endif %}
-              <span>Persistance max 2h : les messages bloqués sont automatiquement vidés après 2h (aucun rattrapage le lendemain).</span>
-            </div>
+    <div class="card border-warning shadow-sm" style="border-radius:14px;background:#fffdfa;border-left:4px solid #f59e0b;">
+      <div class="card-body py-2 px-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-2">
+          <i class="bi bi-exclamation-triangle-fill text-warning fs-5"></i>
+          <div style="font-size:0.82rem;color:#0f172a;">
+            <strong>Messages non publiés :</strong>
+            {% if failed_count > 0 %}<span class="badge bg-danger ms-1">{{ failed_count }} échec(s)</span>{% endif %}
+            {% if pending_count > 0 %}<span class="badge bg-warning text-dark ms-1">{{ pending_count }} en attente</span>{% endif %}
+            <span class="text-muted ms-1">(expiration auto après 2h, aucun rattrapage J+1).</span>
           </div>
         </div>
 
         <div class="d-flex align-items-center gap-2">
-          <button type="button" class="btn btn-outline-secondary btn-sm fw-bold" data-bs-toggle="modal" data-bs-target="#logsModal">
-            <i class="bi bi-list-ul me-1"></i> Voir les détails
+          <button type="button" class="btn btn-outline-secondary btn-sm py-1 px-2 fw-bold" data-bs-toggle="modal" data-bs-target="#logsModal">
+            Détails
           </button>
           <form method="POST" action="{{ url_for('admin.whatsapp_promo_retry_failed') }}" class="m-0">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button type="submit" class="btn btn-warning btn-sm fw-bold shadow-sm">
-              <i class="bi bi-arrow-repeat me-1"></i> Relancer maintenant ({{ failed_count + pending_count }})
+            <button type="submit" class="btn btn-warning btn-sm py-1 px-2 fw-bold shadow-sm">
+              <i class="bi bi-arrow-repeat me-1"></i> Relancer ({{ failed_count + pending_count }})
             </button>
           </form>
         </div>
@@ -762,224 +1313,165 @@
     </div>
   {% endif %}
 
-  <!-- ÉTAPE 1 : ÉTAT DE MON TÉLÉPHONE WHATSAPP -->
-  <div class="step-card" id="waStatusBanner" class="is-{{ st }}">
-    <div class="step-body">
-      <div class="phone-status-box">
-        <div class="phone-info-left">
-          <div class="phone-icon-circle is-{{ st }}">
-            <i class="bi bi-whatsapp"></i>
-          </div>
-          <div>
-            <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
-              <span style="font-size:1.05rem;font-weight:800;color:#0f172a;">
-                {% if st == 'connected' %}
-                  Votre compte WhatsApp est connecté et prêt
-                {% elif st == 'qr_ready' %}
-                  Connexion en attente de scan
-                {% else %}
-                  WhatsApp non connecté
-                {% endif %}
-              </span>
-
-              {% if st == 'connected' and gateway.phone %}
-                <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1" style="font-size:0.82rem;">
-                  <i class="bi bi-telephone-fill me-1"></i> +{{ gateway.phone }}
-                </span>
-              {% endif %}
-            </div>
-
-            <div style="font-size:0.78rem;color:#64748b;margin-top:0.15rem;" id="waStatusDesc">
+  <!-- LIGNE EXÉCUTIVE BENTO : CONNEXION WHATSAPP (ÉTAPE 1) + INDICATEURS CLÉS -->
+  <div class="wa-exec-grid">
+    <section class="wa-gateway-card is-{{ st }}" id="waStatusBanner" aria-label="État de connexion WhatsApp">
+      <div class="phone-info-left">
+        <div class="phone-icon-circle is-{{ st }}">
+          <i class="bi bi-whatsapp"></i>
+        </div>
+        <div style="min-inline-size:0;">
+          <div style="display:flex;align-items:center;gap:0.45rem;flex-wrap:wrap;">
+            {% if st == 'connected' %}
+              <span class="wa-live-dot" aria-hidden="true"></span>
+            {% endif %}
+            <span style="font-size:0.94rem;font-weight:800;color:var(--wa-ink);">
               {% if st == 'connected' %}
-                Vos messages et statuts seront publiés avec ce numéro de téléphone.
+                WhatsApp connecté et prêt
               {% elif st == 'qr_ready' %}
-                Scannez le QR Code avec votre smartphone pour commencer à diffuser.
+                Connexion en attente de scan
               {% else %}
-                Pour pouvoir publier sur WhatsApp, connectez votre téléphone une première fois.
+                WhatsApp non connecté
               {% endif %}
-            </div>
+            </span>
+
+            {% if st == 'connected' and gateway.phone %}
+              <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1" style="font-size:0.75rem;">
+                <i class="bi bi-telephone-fill me-1"></i>+{{ gateway.phone }}
+              </span>
+            {% endif %}
+          </div>
+
+          <div style="font-size:0.76rem;color:var(--wa-ink-muted);margin-block-start:0.1rem;" id="waStatusDesc">
+            {% if st == 'connected' %}
+              Diffusions actives depuis ce numéro vers votre Story et vos groupes.
+            {% elif st == 'qr_ready' %}
+              Scannez le QR Code avec votre téléphone pour activer l'envoi.
+            {% else %}
+              Associez votre téléphone une première fois pour publier.
+            {% endif %}
           </div>
         </div>
+      </div>
 
-        <!-- Boutons d'action Étape 1 -->
-        <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
-          {% if st == 'qr_ready' or st == 'disconnected' %}
-            <button type="button" class="btn btn-warning fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#qrModal">
-              <i class="bi bi-qr-code me-1"></i> Scanner le QR Code
-            </button>
-          {% endif %}
-
-          <button type="button" id="waReconnectBtn" class="btn btn-light border btn-sm fw-semibold" data-reconnect-url="{{ url_for('admin.whatsapp_gateway_reconnect') }}" title="Générer un nouveau QR Code">
-            <i class="bi bi-arrow-repeat me-1"></i> Nouveau QR
+      <div style="display:flex;align-items:center;gap:0.4rem;flex-wrap:wrap;">
+        {% if st == 'qr_ready' or st == 'disconnected' %}
+          <button type="button" class="btn btn-warning btn-sm fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#qrModal">
+            <i class="bi bi-qr-code me-1"></i> Scanner le QR
           </button>
+        {% endif %}
 
-          {% if st == 'connected' %}
-            <button type="button" id="waDisconnectBtn" class="btn btn-outline-danger btn-sm" data-disconnect-url="{{ url_for('admin.whatsapp_gateway_disconnect') }}" title="Déconnecter ce téléphone">
-              <i class="bi bi-power me-1"></i> Changer de téléphone
-            </button>
-          {% endif %}
+        <button type="button" id="waReconnectBtn" class="btn btn-light border btn-sm fw-semibold" data-reconnect-url="{{ url_for('admin.whatsapp_gateway_reconnect') }}" title="Générer un nouveau QR Code">
+          <i class="bi bi-arrow-repeat me-1"></i> Nouveau QR
+        </button>
 
-          <a href="{{ url_for('admin.whatsapp_gateway') }}" id="waRefreshBtn" class="btn btn-light border btn-sm" data-status-url="{{ url_for('admin.whatsapp_gateway', format='json') }}" title="Actualiser la connexion">
-            <i class="bi bi-arrow-clockwise"></i>
-          </a>
+        {% if st == 'connected' %}
+          <button type="button" id="waDisconnectBtn" class="btn btn-outline-danger btn-sm" data-disconnect-url="{{ url_for('admin.whatsapp_gateway_disconnect') }}" title="Déconnecter ce téléphone">
+            <i class="bi bi-power me-1"></i> Changer
+          </button>
+        {% endif %}
+
+        <a href="{{ url_for('admin.whatsapp_gateway') }}" id="waRefreshBtn" class="btn btn-light border btn-sm" data-status-url="{{ url_for('admin.whatsapp_gateway', format='json') }}" title="Actualiser la connexion">
+          <i class="bi bi-arrow-clockwise"></i>
+        </a>
+      </div>
+    </section>
+
+    <!-- 3 KPIs compacts et lisibles -->
+    <div class="wa-kpi-strip" role="region" aria-label="Performances du jour">
+      <div class="wa-kpi-tile">
+        <div style="min-inline-size:0;">
+          <div class="wa-kpi-label">Messages envoyés</div>
+          <div class="wa-kpi-value">{{ ok_count }}</div>
         </div>
+        <span class="wa-kpi-icon" aria-hidden="true"><i class="bi bi-send-check"></i></span>
+      </div>
+
+      <div class="wa-kpi-tile">
+        <div style="min-inline-size:0;">
+          <div class="wa-kpi-label">Clics sur liens</div>
+          <div class="wa-kpi-value wa-kpi-value--emerald">{{ total_clicks }}</div>
+        </div>
+        <span class="wa-kpi-icon wa-kpi-icon--emerald" aria-hidden="true"><i class="bi bi-cursor-fill"></i></span>
+      </div>
+
+      <div class="wa-kpi-tile">
+        <div style="min-inline-size:0;">
+          <div class="wa-kpi-label">Taux d'intérêt</div>
+          <div class="wa-kpi-value wa-kpi-value--blue">
+            {% if ok_count > 0 %}
+              {{ ((total_clicks / ok_count) * 100) | round(1) }}%
+            {% else %}
+              —
+            {% endif %}
+          </div>
+        </div>
+        <span class="wa-kpi-icon wa-kpi-icon--blue" aria-hidden="true"><i class="bi bi-graph-up-arrow"></i></span>
       </div>
     </div>
   </div>
 
-  <!-- ÉTAPE 2 : VAGUE D'ENVOI ACTIVE (LES 10 OFFRES MATIN PUIS SOIR) -->
-  <div class="step-card">
+  <!-- ÉTAPE 2 : VAGUE D'ENVOI ACTIVE (GRILLE 2 COLONNES RESPONSIVE) -->
+  <section class="step-card">
     <div class="step-header">
-      <div>
+      <div style="min-inline-size:0;">
         <h2 class="step-title">
-          <span class="step-badge-num">2</span> {{ wave_icon }} {{ wave_title }} — {{ products|length }} offre(s) prête(s)
+          <span class="step-badge-num">2</span>
+          <span>{{ wave_icon }} {{ wave_title }}</span>
+          <span class="badge {% if wave_num == 2 %}bg-primary{% else %}bg-success{% endif %} rounded-pill" style="font-size:0.74rem;">
+            {{ wave_sched }} • {{ products|length }} offre(s)
+          </span>
         </h2>
+
         <p class="step-subtitle">
           {% if wave_num == 1 %}
-            Voici les <strong>{{ products|length }} offres de la 1ère vague (Matin • {{ wave_sched }})</strong>. Dès qu'elles seront envoyées, les <strong>offres du Soir ({{ ps.get('schedule_time_2', '18:30') }})</strong> prendront automatiquement leur place ici.
+            Lot prêt pour le <strong>Matin ({{ wave_sched }})</strong>. Dès sa diffusion, la <strong>Vague 2 — Soir ({{ ps.get('schedule_time_2', '18:30') }})</strong> prendra automatiquement le relais.
           {% elif wave_num == 2 %}
-            ✅ La vague du matin a été envoyée ! Voici les <strong>{{ products|length }} nouvelles offres prêtes pour la 2ème vague (Soir • {{ wave_sched }})</strong>, sans doublon avec ce matin.
+            Vague du matin diffusée. Voici les <strong>{{ products|length }} nouvelles offres du Soir ({{ wave_sched }})</strong>, garanties sans doublon avec ce matin.
           {% else %}
-            ✅ Les 2 vagues automatiques d'aujourd'hui ont été envoyées. Voici un lot prêt si vous souhaitez lancer une diffusion manuelle supplémentaire.
+            Les 2 vagues automatiques du jour ont été diffusées. Ce lot bonus est prêt si vous souhaitez lancer un envoi manuel supplémentaire.
           {% endif %}
         </p>
+
+        {% if products %}
+          <div class="wa-wave-chips">
+            <span class="wa-meta-chip">🛍️ {{ count_phys }} Produit(s)</span>
+            <span class="wa-meta-chip">🛠️ {{ count_serv }} Service(s)</span>
+            <span class="wa-meta-chip">🏠 {{ count_rent }} Location(s)</span>
+            <span class="wa-meta-chip wa-meta-chip--story">
+              <i class="bi bi-camera-fill"></i> {{ count_story }} en Statut 24h
+            </span>
+            <span class="wa-meta-chip wa-meta-chip--groups">
+              <i class="bi bi-people-fill"></i> {{ products|length if ps.get('groups_enabled', True) else 0 }} dans {{ groups_list|length }} groupe(s)
+            </span>
+          </div>
+        {% endif %}
       </div>
 
-      <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
-        <!-- Bouton Test WhatsApp direct vers mon téléphone -->
-        <form method="POST" action="{{ url_for('admin.whatsapp_promo_send_test') }}" style="display:inline;" id="formSendTest">
+      <div style="display:flex;align-items:center;gap:0.45rem;flex-wrap:wrap;">
+        <form method="POST" action="{{ url_for('admin.whatsapp_promo_send_test') }}" class="m-0" id="formSendTest">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button type="submit" class="btn btn-outline-primary btn-sm fw-bold shadow-sm" title="M'envoyer immédiatement la 1ère offre en test sur mon WhatsApp" {% if st != 'connected' %}disabled{% endif %}>
-            <i class="bi bi-send-check me-1"></i> M'envoyer un test WhatsApp 📲
+          <button type="submit" class="btn btn-outline-primary btn-sm fw-bold" title="M'envoyer immédiatement la 1ère offre en test sur mon WhatsApp" {% if st != 'connected' %}disabled{% endif %}>
+            <i class="bi bi-send-check me-1"></i> Test WhatsApp
           </button>
         </form>
 
-        <!-- Bouton Régénérer la vague avec l'IA (synchronise aussi l'Étape 3 si modifiée) -->
-        <form method="POST" action="{{ url_for('admin.whatsapp_promo_run') }}" style="display:inline;" id="formRegenerateWave">
+        <form method="POST" action="{{ url_for('admin.whatsapp_promo_run') }}" class="m-0" id="formRegenerateWave">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="mode" value="dry_run">
-          <button type="submit" class="btn btn-success btn-sm fw-bold shadow-sm" id="btnRegenerateWave" title="Tirer au sort un nouveau lot d'offres pour cette vague en respectant vos quotas">
-            <i class="bi bi-arrow-repeat me-1"></i> Changer ce lot ({{ products|length }} offres IA)
+          <button type="submit" class="btn btn-success btn-sm fw-bold shadow-sm" id="btnRegenerateWave" title="Tirer au sort un nouveau lot d'offres en respectant vos quotas">
+            <i class="bi bi-arrow-repeat me-1"></i> Changer ce lot ({{ products|length }} IA)
           </button>
         </form>
       </div>
     </div>
 
     <div class="step-body">
-      {% set total_clicks = (today_clicks or {}).get('_total', 0) %}
-
-      <!-- TABLEAU DE BORD DE PERFORMANCE DES CLICS -->
-      <div class="row g-2 mb-3">
-        <div class="col-sm-4">
-          <div class="p-2 px-3 bg-light rounded-3 border d-flex align-items-center justify-content-between">
-            <div>
-              <div class="text-muted" style="font-size:0.75rem;font-weight:700;text-transform:uppercase;">Messages envoyés</div>
-              <div class="fs-4 fw-black text-dark">{{ ok_count }}</div>
-            </div>
-            <i class="bi bi-send text-secondary fs-3"></i>
-          </div>
-        </div>
-        <div class="col-sm-4">
-          <div class="p-2 px-3 bg-light rounded-3 border d-flex align-items-center justify-content-between">
-            <div>
-              <div class="text-muted" style="font-size:0.75rem;font-weight:700;text-transform:uppercase;">Clics réels (/p/..)</div>
-              <div class="fs-4 fw-black text-success">{{ total_clicks }}</div>
-            </div>
-            <i class="bi bi-cursor-fill text-success fs-3"></i>
-          </div>
-        </div>
-        <div class="col-sm-4">
-          <div class="p-2 px-3 bg-light rounded-3 border d-flex align-items-center justify-content-between">
-            <div>
-              <div class="text-muted" style="font-size:0.75rem;font-weight:700;text-transform:uppercase;">Taux d'intérêt</div>
-              <div class="fs-4 fw-black text-primary">
-                {% if ok_count > 0 %}
-                  {{ ((total_clicks / ok_count) * 100) | round(1) }}%
-                {% else %}
-                  -
-                {% endif %}
-              </div>
-            </div>
-            <i class="bi bi-graph-up-arrow text-primary fs-3"></i>
-          </div>
-        </div>
-      </div>
-
-      <!-- CHOIX MANUEL DES PRODUITS (COUP DE CŒUR ADMIN) -->
-      <div class="p-3 mb-3 border rounded-3" style="background:#f8fafc;">
-        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
-          <div style="font-weight:700;font-size:0.88rem;color:#1e293b;">
-            <i class="bi bi-star-fill text-warning me-1"></i> Produits Coup de cœur (Sélection manuelle) :
-            <span class="badge bg-secondary ms-1">{{ pinned_products|length }} sélectionné(s)</span>
-          </div>
-          {% if pinned_products %}
-            <form method="POST" action="{{ url_for('admin.whatsapp_promo_pin_product') }}" style="display:inline;">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <input type="hidden" name="action" value="clear">
-              <button type="submit" class="btn btn-outline-secondary btn-sm py-0 px-2" style="font-size:0.78rem;">
-                <i class="bi bi-arrow-repeat me-1"></i> Remettre en 100% Automatique
-              </button>
-            </form>
-          {% endif %}
-        </div>
-
-        {% if pinned_products %}
-          <div class="d-flex flex-wrap gap-2 mb-2">
-            {% for pp in pinned_products %}
-              <div class="badge bg-white text-dark border p-2 d-flex align-items-center gap-2" style="font-size:0.82rem;border-radius:8px;">
-                <span>⭐ <strong>{{ pp.name }}</strong> ({{ pp.price }} DH)</span>
-                <form method="POST" action="{{ url_for('admin.whatsapp_promo_pin_product') }}" style="display:inline;" class="m-0">
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                  <input type="hidden" name="action" value="remove">
-                  <input type="hidden" name="product_id" value="{{ pp.id }}">
-                  <button type="submit" class="btn-close btn-close-sm" aria-label="Retirer" style="font-size:0.6rem;"></button>
-                </form>
-              </div>
-            {% endfor %}
-          </div>
-        {% endif %}
-
-        <div class="position-relative" style="max-width:520px;">
-          <label for="inputSearchProduct" class="visually-hidden">Rechercher un produit, service ou logement à épingler</label>
-          <div class="input-group input-group-sm">
-            <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
-            <input type="text" id="inputSearchProduct" class="form-control" placeholder="Rechercher un produit, service ou logement à épingler en priorité..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
-          </div>
-          <div id="searchResultsBox" class="list-group shadow position-absolute w-100 mt-1" style="display:none;z-index:1050;max-height:240px;overflow-y:auto;"></div>
-        </div>
-        <div class="form-text" style="font-size:0.75rem;color:#64748b;">
-          Les offres épinglées passent en priorité absolue dans la vague actuelle (sans se répéter le soir si déjà envoyées le matin).
-        </div>
-      </div>
-
-      {% if products %}
-        <!-- BANDEAU RÉCAPITULATIF DE LA VAGUE ACTIVE -->
-        <div class="wave-status-banner {% if wave_num == 2 %}is-evening{% endif %}">
-          <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;">
-            <span class="badge {% if wave_num == 2 %}bg-primary{% else %}bg-success{% endif %} px-2 py-1" style="font-size:0.82rem;">
-              {{ wave_icon }} {{ wave_title }} • {{ wave_sched }}
-            </span>
-            <span style="font-size:0.84rem;font-weight:700;color:#0f172a;">
-              {{ products|length }} offre(s) dans cette vague :
-              <span class="text-primary">{{ count_phys }} Produit(s)</span> •
-              <span class="text-warning-emphasis">{{ count_serv }} Service(s)</span> •
-              <span class="text-info-emphasis">{{ count_rent }} Location(s)</span>
-            </span>
-          </div>
-          <div style="display:flex;align-items:center;gap:0.45rem;flex-wrap:wrap;font-size:0.78rem;">
-            <span class="badge bg-white text-success border border-success-subtle">
-              <i class="bi bi-camera-fill me-1"></i> {{ count_story }} en Statut 24h
-            </span>
-            <span class="badge bg-white text-primary border border-primary-subtle">
-              <i class="bi bi-people-fill me-1"></i> {{ products|length if ps.get('groups_enabled', True) else 0 }} dans {{ groups_list|length }} groupe(s)
-            </span>
-          </div>
-        </div>
-
-        <!-- FILTRES RAPIDES POUR PARCOURIR LES 10 OFFRES -->
+      <!-- BARRE UNIFIÉE : FILTRES RAPIDES + ÉPINGLAGE COUP DE CŒUR -->
+      <div class="wa-CommandToolbar">
         <div class="offer-filter-bar" id="offerCategoryFilterBar">
           <button type="button" class="offer-filter-pill active" data-offer-filter="all">
-            Toutes les offres ({{ products|length }})
+            Toutes ({{ products|length }})
           </button>
           <button type="button" class="offer-filter-pill" data-offer-filter="physical">
             🛍️ Produits ({{ count_phys }})
@@ -991,203 +1483,270 @@
             🏠 Locations ({{ count_rent }})
           </button>
           <button type="button" class="offer-filter-pill" data-offer-filter="story">
-            📸 En Statut 24h ({{ count_story }})
+            📸 Story 24h ({{ count_story }})
           </button>
+          {% if count_video > 0 %}
+            <button type="button" class="offer-filter-pill" data-offer-filter="video">
+              🎬 Vidéos ({{ count_video }})
+            </button>
+          {% endif %}
         </div>
 
-        {% for prod in products %}
-          {% set pid = prod.get('id') or prod.get('product_id') %}
-          {% set ptype = prod.get('item_type', 'physical') %}
-          {% set in_story = prod.get('in_status', True) %}
-          {% set thumb_src = prod.get('thumb_url') or prod.get('image_url') or url_for('static', filename='images/placeholder-product.svg') %}
-          {% set gallery_list = prod.get('gallery_urls') or ([thumb_src] if thumb_src else []) %}
-          {% set video_src = prod.get('video_url') or '' %}
-          {% set visit_url = prod.get('public_url') or prod.get('page_url') or prod.get('product_url') or '#' %}
-          {% set offer_title = prod.get('title') or prod.get('name') or 'Offre' %}
-          {% set offer_shop = prod.get('shop_name') or prod.get('shop') or 'Baba Market' %}
-          {% set offer_price = (prod.get('price_dh') or prod.get('price')) ~ ' DH' %}
-          <div class="promo-product-box" data-item-type="{{ ptype }}" data-in-story="{{ '1' if in_story else '0' }}" data-has-video="{{ '1' if video_src else '0' }}" style="margin-bottom:1.1rem;">
-            <!-- Haut : Produit -->
-            <div class="promo-product-top">
-              <button type="button"
-                      class="promo-media-trigger js-open-offer-media"
-                      title="Cliquer pour agrandir la photo{% if video_src %} ou lire la vidéo{% endif %}"
-                      aria-label="Voir les médias de {{ offer_title }}"
-                      data-media-title="{{ offer_title }}"
-                      data-media-shop="{{ offer_shop }}"
-                      data-media-price="{{ offer_price }}"
-                      data-media-visit-url="{{ visit_url }}"
-                      data-media-photos='{{ gallery_list | tojson }}'
-                      data-media-video="{{ video_src }}"
-                      data-default-tab="{{ 'video' if (video_src and not gallery_list) else 'photos' }}">
-                <img src="{{ thumb_src }}"
-                     alt="{{ offer_title }}"
-                     width="84" height="84"
-                     {% if loop.index == 1 %}fetchpriority="high"{% elif loop.index > 3 %}loading="lazy"{% endif %}
-                     decoding="async"
-                     class="promo-product-img js-fallback-img">
-                <span class="promo-thumb-overlay">
-                  <i class="bi {{ 'bi-play-circle-fill' if video_src else 'bi-zoom-in' }}"></i>
-                </span>
-                {% if video_src %}
-                  <span class="promo-thumb-badge promo-thumb-badge--video"><i class="bi bi-camera-reels-fill"></i> Vidéo</span>
-                {% elif gallery_list|length > 1 %}
-                  <span class="promo-thumb-badge"><i class="bi bi-images"></i> {{ gallery_list|length }}</span>
-                {% else %}
-                  <span class="promo-thumb-badge"><i class="bi bi-zoom-in"></i></span>
-                {% endif %}
-              </button>
+        <div class="wa-pin-search-wrap">
+          <label for="inputSearchProduct" class="visually-hidden">Rechercher un produit, service ou logement à épingler en priorité</label>
+          <div class="wa-pin-input-group">
+            <i class="bi bi-star-fill text-warning" aria-hidden="true"></i>
+            <input type="text" id="inputSearchProduct" placeholder="Épingler un coup de cœur (produit, service, location)…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+            {% if pinned_products %}
+              <span class="badge bg-warning text-dark rounded-pill" style="font-size:0.68rem;">{{ pinned_products|length }}</span>
+            {% else %}
+              <i class="bi bi-search text-muted" style="font-size:0.8rem;" aria-hidden="true"></i>
+            {% endif %}
+          </div>
+          <div id="searchResultsBox" class="list-group shadow-lg position-absolute w-100 mt-1" style="display:none;z-index:1050;max-block-size:240px;overflow-y:auto;overscroll-behavior:contain;border-radius:12px;"></div>
+        </div>
+      </div>
 
-              <div class="promo-product-info">
-                <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
-                  <span class="badge bg-dark text-white" style="font-size:0.72rem;">#{{ loop.index }}/{{ products|length }}</span>
-                  {% if ptype == 'rental' %}
-                    <span class="badge bg-info text-dark" style="font-size:0.75rem;"><i class="bi bi-house-door-fill me-1"></i> Location</span>
-                  {% elif ptype == 'service' %}
-                    <span class="badge bg-warning text-dark" style="font-size:0.75rem;"><i class="bi bi-tools me-1"></i> Service</span>
-                  {% else %}
-                    <span class="badge bg-primary text-white" style="font-size:0.75rem;"><i class="bi bi-bag-fill me-1"></i> Produit</span>
-                  {% endif %}
+      {% if pinned_products %}
+        <div class="wa-pinned-ribbon">
+          <div class="d-flex align-items-center flex-wrap gap-2">
+            <span style="font-size:0.78rem;font-weight:800;color:var(--wa-ink);">
+              <i class="bi bi-pin-angle-fill text-warning me-1"></i> Prioritaires ({{ pinned_products|length }}) :
+            </span>
+            {% for pp in pinned_products %}
+              <span class="wa-pinned-chip">
+                <span>⭐ {{ pp.name }} <span class="text-success">({{ pp.price|int if (pp.price|float) == (pp.price|int) else pp.price }} DH)</span></span>
+                <form method="POST" action="{{ url_for('admin.whatsapp_promo_pin_product') }}" class="m-0 d-inline">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="action" value="remove">
+                  <input type="hidden" name="product_id" value="{{ pp.id }}">
+                  <button type="submit" class="btn-close" aria-label="Retirer {{ pp.name }}" style="font-size:0.55rem;"></button>
+                </form>
+              </span>
+            {% endfor %}
+          </div>
+
+          <form method="POST" action="{{ url_for('admin.whatsapp_promo_pin_product') }}" class="m-0">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="clear">
+            <button type="submit" class="btn btn-outline-secondary btn-sm py-0 px-2 fw-semibold" style="font-size:0.75rem;">
+              <i class="bi bi-arrow-counterclockwise me-1"></i> Tout repasser en auto
+            </button>
+          </form>
+        </div>
+      {% endif %}
+
+      {% if products %}
+        <div class="offers-bento-grid" id="offersBentoGrid">
+          {% for prod in products %}
+            {% set pid = prod.get('id') or prod.get('product_id') %}
+            {% set ptype = prod.get('item_type', 'physical') %}
+            {% set in_story = prod.get('in_status', True) %}
+            {% set thumb_src = prod.get('thumb_url') or prod.get('image_url') or url_for('static', filename='images/placeholder-product.svg') %}
+            {% set gallery_list = prod.get('gallery_urls') or ([thumb_src] if thumb_src else []) %}
+            {% set video_src = prod.get('video_url') or '' %}
+            {% set visit_url = prod.get('public_url') or prod.get('page_url') or prod.get('product_url') or '#' %}
+            {% set offer_title = prod.get('title') or prod.get('name') or 'Offre' %}
+            {% set offer_shop = prod.get('shop_name') or prod.get('shop') or 'Baba Market' %}
+            {% set offer_sub = prod.get('shop_city') or prod.get('city') or prod.get('category') %}
+            {% set raw_price = prod.get('price_dh') if prod.get('price_dh') is not none else prod.get('price', 0) %}
+            {% set num_price = raw_price | float %}
+            {% set clean_price = (num_price | int) if (num_price == (num_price | int)) else raw_price %}
+            {% set offer_price = clean_price ~ ' DH' %}
+            {% set raw_old = prod.get('old_price_dh') or prod.get('old_price') %}
+            {% set clean_old = ((raw_old | float | int) if ((raw_old | float) == (raw_old | float | int)) else raw_old) if raw_old else none %}
+
+            <article class="promo-product-box{% if loop.index > 4 %} is-deferred{% endif %}" data-item-type="{{ ptype }}" data-in-story="{{ '1' if in_story else '0' }}" data-has-video="{{ '1' if video_src else '0' }}">
+              <!-- En-tête compact de la carte d'offre -->
+              <div class="promo-product-top">
+                <button type="button"
+                        class="promo-media-trigger js-open-offer-media"
+                        title="Cliquer pour agrandir la photo{% if video_src %} ou lire la vidéo{% endif %}"
+                        aria-label="Voir les médias de {{ offer_title }}"
+                        data-media-title="{{ offer_title }}"
+                        data-media-shop="{{ offer_shop }}"
+                        data-media-price="{{ offer_price }}"
+                        data-media-visit-url="{{ visit_url }}"
+                        data-media-photos='{{ gallery_list | tojson }}'
+                        data-media-video="{{ video_src }}"
+                        data-default-tab="{{ 'video' if (video_src and not gallery_list) else 'photos' }}">
+                  <img src="{{ thumb_src }}"
+                       alt="{{ offer_title }}"
+                       width="74" height="74"
+                       {% if loop.index <= 2 %}fetchpriority="high"{% elif loop.index > 4 %}loading="lazy"{% endif %}
+                       decoding="async"
+                       class="promo-product-img js-fallback-img">
+                  <span class="promo-thumb-overlay">
+                    <i class="bi {{ 'bi-play-circle-fill' if video_src else 'bi-zoom-in' }}"></i>
+                  </span>
                   {% if video_src %}
-                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle" style="font-size:0.72rem;">
-                      <i class="bi bi-camera-reels-fill me-1"></i> Vidéo dispo
-                    </span>
+                    <span class="promo-thumb-badge promo-thumb-badge--video"><i class="bi bi-camera-reels-fill"></i> Vidéo</span>
+                  {% elif gallery_list|length > 1 %}
+                    <span class="promo-thumb-badge"><i class="bi bi-images"></i> {{ gallery_list|length }}</span>
+                  {% else %}
+                    <span class="promo-thumb-badge"><i class="bi bi-zoom-in"></i></span>
                   {% endif %}
-                  {% if in_story %}
-                    <span class="badge bg-success-subtle text-success border border-success-subtle" style="font-size:0.72rem;" title="Publié aussi dans votre Story WhatsApp 24h">
-                      <i class="bi bi-camera-fill me-1"></i> Story 24h
+                </button>
+
+                <div class="promo-product-info">
+                  <div class="promo-meta-row">
+                    <span class="badge bg-dark text-white" style="font-size:0.69rem;">#{{ loop.index }}/{{ products|length }}</span>
+                    {% if ptype == 'rental' %}
+                      <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle" style="font-size:0.7rem;"><i class="bi bi-house-door-fill me-1"></i>Location</span>
+                    {% elif ptype == 'service' %}
+                      <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle" style="font-size:0.7rem;"><i class="bi bi-tools me-1"></i>Service</span>
+                    {% else %}
+                      <span class="badge bg-primary-subtle text-primary border border-primary-subtle" style="font-size:0.7rem;"><i class="bi bi-bag-fill me-1"></i>Produit</span>
+                    {% endif %}
+                    {% if in_story %}
+                      <span class="badge bg-success-subtle text-success border border-success-subtle" style="font-size:0.68rem;" title="Publié en Story WhatsApp 24h">
+                        <i class="bi bi-camera-fill me-1"></i>Story
+                      </span>
+                    {% endif %}
+                    {% if ps.get('groups_enabled', True) %}
+                      <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle" style="font-size:0.68rem;">
+                        <i class="bi bi-people-fill me-1"></i>Groupes
+                      </span>
+                    {% endif %}
+
+                    <span class="promo-price-pill">
+                      {% if clean_old %}
+                        <span class="price-old">{{ clean_old }} DH</span>
+                      {% endif %}
+                      <span class="price-promo">{{ clean_price }} DH</span>
                     </span>
-                  {% endif %}
-                  {% if ps.get('groups_enabled', True) %}
-                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle" style="font-size:0.72rem;">
-                      <i class="bi bi-people-fill me-1"></i> Groupes
-                    </span>
-                  {% endif %}
-                  <h3 class="promo-product-name m-0">
-                    <a href="{{ visit_url }}" target="_blank" rel="noopener" class="promo-product-title-link" title="Ouvrir l'annonce sur Baba Market">
+                  </div>
+
+                  <h3 class="promo-product-name" title="{{ offer_title }}">
+                    <a href="{{ visit_url }}" target="_blank" rel="noopener" class="promo-product-title-link">
                       {{ offer_title }}
                     </a>
                   </h3>
-                </div>
-                <div class="promo-product-shop">
-                  <i class="bi bi-shop me-1 text-secondary"></i> Vendeur : <strong>{{ offer_shop }}</strong>
-                  {% if prod.get('shop_city') %} • {{ prod.get('shop_city') }}{% endif %}
-                </div>
-                <div style="margin-top:0.45rem;display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
-                  <button type="button"
-                          class="promo-action-pill js-open-offer-media"
-                          data-media-title="{{ offer_title }}"
-                          data-media-shop="{{ offer_shop }}"
-                          data-media-price="{{ offer_price }}"
-                          data-media-visit-url="{{ visit_url }}"
-                          data-media-photos='{{ gallery_list | tojson }}'
-                          data-media-video="{{ video_src }}"
-                          data-default-tab="photos">
-                    <i class="bi {{ 'bi-images' if gallery_list|length > 1 else 'bi-zoom-in' }} text-primary"></i>
-                    {% if gallery_list|length > 1 %}Voir photos ({{ gallery_list|length }}){% else %}Voir la photo{% endif %}
-                  </button>
-                  {% if video_src %}
+
+                  <div class="promo-product-shop">
+                    <span>
+                      <i class="bi bi-shop me-1"></i><strong>{{ offer_shop }}</strong>{% if offer_sub %} • {{ offer_sub }}{% endif %}
+                    </span>
+                    {% set p_clicks = (today_clicks or {}).get(pid|string, 0) %}
+                    <span class="badge {{ 'bg-success text-white' if p_clicks > 0 else 'bg-light text-secondary border' }}" style="font-size:0.68rem;">
+                      <i class="bi bi-cursor-fill me-1"></i>{{ p_clicks }} clic{{ 's' if p_clicks != 1 else '' }}
+                    </span>
+                  </div>
+
+                  <div class="promo-actions-strip">
                     <button type="button"
-                            class="promo-action-pill promo-action-pill--video js-open-offer-media"
+                            class="promo-action-pill js-open-offer-media"
                             data-media-title="{{ offer_title }}"
                             data-media-shop="{{ offer_shop }}"
                             data-media-price="{{ offer_price }}"
                             data-media-visit-url="{{ visit_url }}"
                             data-media-photos='{{ gallery_list | tojson }}'
                             data-media-video="{{ video_src }}"
-                            data-default-tab="video">
-                      <i class="bi bi-play-circle-fill"></i> Voir la vidéo
+                            data-default-tab="photos">
+                      <i class="bi {{ 'bi-images' if gallery_list|length > 1 else 'bi-zoom-in' }} text-primary"></i>
+                      {% if gallery_list|length > 1 %}Voir photos ({{ gallery_list|length }}){% else %}Voir la photo{% endif %}
                     </button>
-                  {% endif %}
-                  <a href="{{ visit_url }}" target="_blank" rel="noopener" class="promo-action-pill promo-action-pill--visit">
-                    <i class="bi bi-box-arrow-up-right"></i> Visiter l'annonce
-                  </a>
-                  {% set p_clicks = (today_clicks or {}).get(pid|string, 0) %}
-                  <span class="badge bg-success-subtle text-success border border-success-subtle" style="font-size:0.75rem;">
-                    <i class="bi bi-cursor-fill me-1"></i> {{ p_clicks }} clic(s) aujourd'hui
-                  </span>
-                </div>
-              </div>
-
-              <div class="promo-product-price">
-                {% if prod.get('old_price_dh') %}
-                  <span class="price-old">{{ prod.get('old_price_dh') }} DH</span>
-                {% endif %}
-                <span class="price-promo">{{ prod.get('price_dh') or prod.get('price') }} DH</span>
-              </div>
-            </div>
-
-            <!-- Onglets de prévisualisation : Statut / Groupes -->
-            <div class="channel-tabs-bar" role="tablist">
-              <button class="channel-tab-btn active" data-target="msg_status_{{ pid }}" type="button">
-                <i class="bi bi-camera-fill text-success"></i> 1. Mon Statut WhatsApp (Story)
-              </button>
-              <button class="channel-tab-btn" data-target="msg_group_{{ pid }}" type="button">
-                <i class="bi bi-people-fill text-primary"></i> 2. Mes Groupes de Vente
-              </button>
-            </div>
-
-            <div class="wa-mockup-wrapper">
-              <div class="wa-chat-window">
-                <!-- Vue Statut -->
-                <div id="msg_status_{{ pid }}" class="wa-tab-view">
-                  <div class="wa-chat-bubble">
-                    <div class="wa-bubble-badge">
-                      <i class="bi bi-camera-fill"></i> Statut WhatsApp (Photo + Légende)
-                    </div>
-                    <p class="wa-bubble-text">{{ prod.get('status_caption') or 'Aucune légende' }}</p>
-                    <div class="wa-bubble-time">
-                      <span>Visible 24h par tous vos contacts</span>
-                      <i class="bi bi-check2-all text-primary"></i>
-                    </div>
+                    {% if video_src %}
+                      <button type="button"
+                              class="promo-action-pill promo-action-pill--video js-open-offer-media"
+                              data-media-title="{{ offer_title }}"
+                              data-media-shop="{{ offer_shop }}"
+                              data-media-price="{{ offer_price }}"
+                              data-media-visit-url="{{ visit_url }}"
+                              data-media-photos='{{ gallery_list | tojson }}'
+                              data-media-video="{{ video_src }}"
+                              data-default-tab="video">
+                        <i class="bi bi-play-circle-fill"></i> Voir la vidéo
+                      </button>
+                    {% endif %}
+                    <a href="{{ visit_url }}" target="_blank" rel="noopener" class="promo-action-pill promo-action-pill--visit">
+                      <i class="bi bi-box-arrow-up-right"></i> Visiter l'annonce
+                    </a>
                   </div>
                 </div>
-
-                <!-- Vue Groupe -->
-                <div id="msg_group_{{ pid }}" class="wa-tab-view" style="display:none;">
-                  <div class="wa-chat-bubble">
-                    <div class="wa-bubble-badge" style="color:#0284c7;">
-                      <i class="bi bi-people-fill"></i> Message pour vos Groupes de Vente
-                    </div>
-                    <p class="wa-bubble-text">{{ prod.get('group_message') or prod.get('group_message_sample') or prod.get('direct_message') or 'Aucun message de groupe' }}</p>
-                    <div class="wa-bubble-time">
-                      <span>Envoyé dans vos groupes</span>
-                      <i class="bi bi-check2-all text-primary"></i>
-                    </div>
-                  </div>
-                </div>
-
-
               </div>
-            </div>
 
-            <!-- Actions par offre : Tester sur mon WhatsApp + Modifier le texte -->
-            <div style="padding:0.75rem 1rem;background:#ffffff;border-top:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;">
-              <span style="font-size:0.78rem;color:#64748b;">
-                {% if prod.get('manually_edited') or prod.get('is_custom') %}
-                  <i class="bi bi-check-circle-fill text-success me-1"></i> <strong>Texte personnalisé par vos soins</strong>
-                {% else %}
-                  <i class="bi bi-stars text-success me-1"></i> Rédigé automatiquement par l'IA (court et percutant)
-                {% endif %}
-              </span>
-
-              <div style="display:flex;align-items:center;gap:0.45rem;flex-wrap:wrap;">
-                <form method="POST" action="{{ url_for('admin.whatsapp_promo_send_test') }}" class="m-0 d-inline">
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                  <input type="hidden" name="product_id" value="{{ pid }}">
-                  <button type="submit" class="btn btn-outline-primary btn-sm fw-semibold" {% if st != 'connected' %}disabled{% endif %} title="Recevoir cette offre précise en test sur mon WhatsApp">
-                    <i class="bi bi-whatsapp me-1"></i> Tester
-                  </button>
-                </form>
-
-                <button type="button" class="btn btn-outline-dark btn-sm fw-bold" data-bs-toggle="modal" data-bs-target="#editModal_{{ pid }}">
-                  <i class="bi bi-pencil-square me-1 text-success"></i> Modifier le texte à ma façon
+              <!-- Sélecteur segmenté d'aperçu WhatsApp -->
+              <div class="channel-tabs-bar" role="tablist">
+                <button class="channel-tab-btn active" data-target="msg_status_{{ pid }}" type="button">
+                  <i class="bi bi-camera-fill text-success"></i> Statut 24h (Story)
+                </button>
+                <button class="channel-tab-btn" data-target="msg_group_{{ pid }}" type="button">
+                  <i class="bi bi-people-fill text-primary"></i> Groupes de vente
                 </button>
               </div>
-            </div>
-          </div>
 
-          <!-- MODAL FACILE DE MODIFICATION DU TEXTE -->
+              <div class="wa-mockup-wrapper">
+                <div class="wa-chat-window">
+                  <div id="msg_status_{{ pid }}" class="wa-tab-view">
+                    <div class="wa-chat-bubble">
+                      <div class="wa-bubble-badge">
+                        <i class="bi bi-camera-fill"></i> Statut WhatsApp (Photo + Légende)
+                      </div>
+                      <p class="wa-bubble-text">{{ prod.get('status_caption') or 'Aucune légende' }}</p>
+                      <div class="wa-bubble-time">
+                        <span>Visible 24h par vos contacts</span>
+                        <i class="bi bi-check2-all text-primary"></i>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div id="msg_group_{{ pid }}" class="wa-tab-view" style="display:none;">
+                    <div class="wa-chat-bubble">
+                      <div class="wa-bubble-badge" style="color:#0284c7;">
+                        <i class="bi bi-people-fill"></i> Message Groupes de Vente
+                      </div>
+                      <p class="wa-bubble-text">{{ prod.get('group_message') or prod.get('group_message_sample') or prod.get('direct_message') or 'Aucun message de groupe' }}</p>
+                      <div class="wa-bubble-time">
+                        <span>Diffusé dans vos groupes</span>
+                        <i class="bi bi-check2-all text-primary"></i>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Pied de carte aligné -->
+              <footer class="promo-card-footer">
+                <span style="font-size:0.74rem;color:var(--wa-ink-muted);">
+                  {% if prod.get('manually_edited') or prod.get('is_custom') %}
+                    <i class="bi bi-check-circle-fill text-success me-1"></i><strong style="color:var(--wa-ink);">Texte personnalisé</strong>
+                  {% else %}
+                    <i class="bi bi-stars text-success me-1"></i>Rédigé par l'IA
+                  {% endif %}
+                </span>
+
+                <div style="display:flex;align-items:center;gap:0.4rem;">
+                  <form method="POST" action="{{ url_for('admin.whatsapp_promo_send_test') }}" class="m-0 d-inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="product_id" value="{{ pid }}">
+                    <button type="submit" class="btn btn-outline-primary btn-sm py-1 px-2 fw-semibold" style="font-size:0.76rem;" {% if st != 'connected' %}disabled{% endif %} title="Recevoir cette offre en test sur mon WhatsApp">
+                      <i class="bi bi-whatsapp me-1"></i>Tester
+                    </button>
+                  </form>
+
+                  <button type="button" class="btn btn-outline-secondary btn-sm py-1 px-2 fw-bold" style="font-size:0.76rem;" data-bs-toggle="modal" data-bs-target="#editModal_{{ pid }}">
+                    <i class="bi bi-pencil-square me-1 text-success"></i>Modifier
+                  </button>
+                </div>
+              </footer>
+            </article>
+          {% endfor %}
+        </div>
+
+        <!-- État vide dynamique si un filtre de catégorie retourne 0 carte -->
+        <div id="emptyFilterNotice" style="display:none;text-align:center;padding:2rem 1rem;background:var(--wa-surface-subtle);border:1px dashed var(--wa-border-strong);border-radius:12px;">
+          <p style="font-size:0.86rem;color:var(--wa-ink-muted);margin:0 0 0.65rem 0;">
+            Aucune offre ne correspond à ce filtre dans la vague actuelle.
+          </p>
+          <button type="button" id="btnResetOfferFilter" class="btn btn-outline-secondary btn-sm fw-bold">
+            Afficher toutes les offres ({{ products|length }})
+          </button>
+        </div>
+
+        <!-- Modals d'édition placées hors des conteneurs CSS Grid / container-type -->
+        {% for prod in products %}
+          {% set pid = prod.get('id') or prod.get('product_id') %}
           <div class="modal fade" id="editModal_{{ pid }}" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-lg modal-dialog-centered">
               <div class="modal-content border-0 shadow-lg" style="border-radius:16px;">
@@ -1197,18 +1756,18 @@
 
                   <div class="modal-header bg-light">
                     <h5 class="modal-title fw-bold">
-                      <i class="bi bi-pencil-fill text-success me-2"></i> Retoucher les textes de : {{ prod.get('title') or prod.get('name') }}
+                      <i class="bi bi-pencil-fill text-success me-2"></i> Retoucher les textes : {{ prod.get('title') or prod.get('name') }}
                     </h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
                   </div>
 
-                  <div class="modal-body p-4" style="display:grid;gap:1.25rem;">
+                  <div class="modal-body p-4" style="display:grid;gap:1.15rem;">
                     <div>
                       <label class="form-label fw-bold" style="font-size:0.88rem;">
-                        <i class="bi bi-camera text-success me-1"></i> 1. Légende pour votre Statut (Story WhatsApp 24h)
+                        <i class="bi bi-camera text-success me-1"></i> 1. Légende Statut (Story WhatsApp 24h)
                       </label>
                       <textarea name="status_caption" rows="3" class="form-control" style="font-size:0.88rem;" required>{{ prod.get('status_caption') or '' }}</textarea>
-                      <small class="text-muted">Conseil : gardez une phrase courte et attrayante avec le prix et le lien.</small>
+                      <small class="text-muted">Gardez une accroche courte avec le prix et le lien.</small>
                     </div>
 
                     <div>
@@ -1216,10 +1775,8 @@
                         <i class="bi bi-people text-primary me-1"></i> 2. Message pour vos Groupes de Vente
                       </label>
                       <textarea name="group_message" rows="5" class="form-control" style="font-size:0.88rem;" required>{{ prod.get('group_message') or prod.get('group_message_sample') or prod.get('direct_message') or '' }}</textarea>
-                      <small class="text-muted">Ce texte sera envoyé avec la photo dans chacun de vos groupes enregistrés.</small>
+                      <small class="text-muted">Envoyé avec la photo dans vos groupes enregistrés.</small>
                     </div>
-
-
                   </div>
 
                   <div class="modal-footer bg-light">
@@ -1235,82 +1792,87 @@
         {% endfor %}
 
       {% else %}
-        <!-- État vide : invitation à préparer la première promo -->
-        <div style="text-align:center;padding:3rem 1.5rem;background:#ffffff;border:2px dashed #cbd5e1;border-radius:14px;">
-          <div style="font-size:3rem;color:#10b981;margin-bottom:0.75rem;">
+        <!-- État vide initial -->
+        <div style="text-align:center;padding:2.5rem 1.25rem;background:var(--wa-surface-subtle);border:2px dashed var(--wa-border-strong);border-radius:14px;">
+          <div style="font-size:2.6rem;color:#10b981;margin-block-end:0.6rem;">
             <i class="bi bi-bag-check-fill"></i>
           </div>
-          <h3 style="font-size:1.15rem;font-weight:800;color:#0f172a;margin-bottom:0.4rem;">
+          <h3 style="font-size:1.08rem;font-weight:800;color:var(--wa-ink);margin-block-end:0.35rem;">
             Aucune offre préparée pour le moment
           </h3>
-          <p style="font-size:0.85rem;color:#64748b;max-width:480px;margin:0 auto 1.5rem auto;">
-            Cliquez sur le bouton vert ci-dessous. Le système va choisir automatiquement les meilleurs produits en stock et rédiger des textes vendeurs percutants.
+          <p style="font-size:0.84rem;color:var(--wa-ink-muted);max-inline-size:460px;margin:0 auto 1.25rem auto;">
+            Générez automatiquement votre sélection d'offres en stock avec textes courts adaptés aux Stories et aux groupes.
           </p>
 
           <form method="POST" action="{{ url_for('admin.whatsapp_promo_run') }}" style="display:inline;">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="mode" value="dry_run">
-            <button type="submit" class="btn btn-success btn-lg fw-bold px-4 py-2 shadow-sm">
-              <i class="bi bi-magic me-2"></i> Préparer l'Offre du Jour avec l'IA
+            <button type="submit" class="btn btn-success fw-bold px-4 py-2 shadow-sm">
+              <i class="bi bi-magic me-2"></i> Préparer la vague avec l'IA
             </button>
           </form>
         </div>
       {% endif %}
     </div>
-  </div>
+  </section>
 
-  <!-- ÉTAPE 3 : OÙ ET COMMENT DIFFUSER ? -->
-  <div class="step-card">
+  <!-- ÉTAPE 3 : CANAUX, HORAIRES & QUOTAS (ARCHITECTURE BENTO) -->
+  <section class="step-card" id="step3Settings">
     <div class="step-header">
       <div>
         <h2 class="step-title">
-          <span class="step-badge-num">3</span> Où et Comment diffuser ?
+          <span class="step-badge-num">3</span> Canaux, Horaires &amp; Quotas de Diffusion
         </h2>
         <p class="step-subtitle">
-          Choisissez où vous souhaitez que vos promotions soient publiées.
+          Pilotez vos canaux actifs, vos heures d'envoi Matin/Soir et la répartition exacte de chaque vague.
         </p>
       </div>
+      <span id="instantSaveBadge" aria-live="polite" class="badge bg-success-subtle text-success border border-success-subtle" style="display:none;font-size:0.76rem;">
+        <i class="bi bi-check2-circle me-1"></i> Synchronisé
+      </span>
     </div>
 
     <div class="step-body">
       <form method="POST" action="{{ url_for('admin.whatsapp_promo_settings') }}" id="promoSettingsForm">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-        <!-- Les 2 canaux de diffusion : Statut & Groupes -->
+        <!-- 1. Choix des canaux -->
         <div class="channels-selection-grid">
-          <!-- Canal 1 : Statut -->
           <label class="channel-choice-card {% if ps.get('status_enabled', True) %}is-selected{% endif %}" id="cardStatusChoice">
-            <div class="channel-choice-header">
-              <div class="channel-choice-title">
-                <i class="bi bi-camera-fill text-success fs-5"></i>
-                <span>Mon Statut (Story)</span>
+            <div>
+              <div class="channel-choice-header">
+                <div class="channel-choice-title">
+                  <i class="bi bi-camera-fill text-success fs-5"></i>
+                  <span>Mon Statut WhatsApp (Story 24h)</span>
+                </div>
+                <input class="form-check-input js-instant-toggle" type="checkbox" id="chStatusChoice" name="status_enabled" value="1" {% if ps.get('status_enabled', True) %}checked{% endif %} style="inline-size:1.2rem;block-size:1.2rem;">
               </div>
-              <input class="form-check-input js-instant-toggle" type="checkbox" id="chStatusChoice" name="status_enabled" value="1" {% if ps.get('status_enabled', True) %}checked{% endif %} style="width:1.25rem;height:1.25rem;">
+              {% set st_tot = ps.get('status_products', 12) %}
+              {% set st_matin = (st_tot + 1) // 2 if st_tot >= 4 else st_tot %}
+              {% set st_soir = (st_tot - st_matin) if st_tot >= 4 else 0 %}
+              <p class="channel-choice-desc" id="descStatusQuota">
+                Canal non-intrusif visible 24h par vos contacts enregistrés ({{ st_tot }} Statuts/jour : {{ st_matin }} matin + {{ st_soir }} soir).
+              </p>
             </div>
-            {% set st_tot = ps.get('status_products', 12) %}
-            {% set st_matin = (st_tot + 1) // 2 if st_tot >= 4 else st_tot %}
-            {% set st_soir = (st_tot - st_matin) if st_tot >= 4 else 0 %}
-            <p class="channel-choice-desc" id="descStatusQuota">
-              Ce canal est non-intrusif et visible pendant 24h par vos contacts enregistrés ({{ st_tot }} Statuts/jour : {{ st_matin }} matin + {{ st_soir }} soir).
-            </p>
-            <div style="font-size:0.75rem;font-weight:700;color:#059669;">
-              <i class="bi bi-check-circle me-1"></i> Recommandé pour la visibilité
+            <div style="font-size:0.74rem;font-weight:700;color:#059669;">
+              <i class="bi bi-check-circle-fill me-1"></i> Visibilité organique maximale
             </div>
           </label>
 
-          <!-- Canal 2 : Groupes -->
           <div class="channel-choice-card {% if ps.get('groups_enabled', True) %}is-selected{% endif %}" id="cardGroupsChoice">
-            <div class="channel-choice-header">
-              <label class="channel-choice-title" for="chGroupsChoice" style="cursor:pointer;margin:0;">
-                <i class="bi bi-people-fill text-primary fs-5"></i>
-                <span>Mes Groupes de Vente</span>
-              </label>
-              <input class="form-check-input js-instant-toggle" type="checkbox" id="chGroupsChoice" name="groups_enabled" value="1" {% if ps.get('groups_enabled', True) %}checked{% endif %} style="width:1.25rem;height:1.25rem;">
+            <div>
+              <div class="channel-choice-header">
+                <label class="channel-choice-title" for="chGroupsChoice" style="cursor:pointer;margin:0;">
+                  <i class="bi bi-people-fill text-primary fs-5"></i>
+                  <span>Mes Groupes de Vente</span>
+                </label>
+                <input class="form-check-input js-instant-toggle" type="checkbox" id="chGroupsChoice" name="groups_enabled" value="1" {% if ps.get('groups_enabled', True) %}checked{% endif %} style="inline-size:1.2rem;block-size:1.2rem;">
+              </div>
+              <p class="channel-choice-desc">
+                Alterne automatiquement les offres avec photo entre vos groupes WhatsApp enregistrés.
+              </p>
             </div>
-            <p class="channel-choice-desc">
-              Alterne automatiquement chaque offre avec photo entre vos groupes WhatsApp dédiés à la vente.
-            </p>
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-top:0.5rem;">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;flex-wrap:wrap;">
               {% if groups_list|length > 0 %}
                 <span class="badge bg-success-subtle text-success border border-success-subtle fw-bold">
                   <i class="bi bi-check-circle me-1"></i> {{ groups_list|length }} groupe(s) actif(s)
@@ -1320,124 +1882,134 @@
                   <i class="bi bi-exclamation-triangle me-1"></i> Aucun groupe configuré
                 </span>
               {% endif %}
-              <button type="button" class="btn btn-outline-primary btn-sm fw-bold" data-bs-toggle="modal" data-bs-target="#groupsModal">
-                <i class="bi bi-plus-circle me-1"></i> Gérer mes groupes
+              <button type="button" class="btn btn-outline-primary btn-sm py-1 px-2 fw-bold" style="font-size:0.76rem;" data-bs-toggle="modal" data-bs-target="#groupsModal">
+                <i class="bi bi-gear-fill me-1"></i> Gérer mes groupes
               </button>
             </div>
           </div>
         </div>
 
-        <!-- Mode de diffusion : Automatique + Réglages renforcés -->
-        <div class="broadcast-action-bar" style="flex-direction:column;align-items:stretch;gap:1rem;">
-          <div>
-            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
-              <div class="form-check form-switch m-0">
-                <input class="form-check-input js-instant-toggle" type="checkbox" role="switch" id="settingEnabled" name="enabled" value="1" {% if ps.get('enabled') %}checked{% endif %} style="width:2.5em;height:1.25em;">
-                <label class="form-check-label fw-bold ms-2" for="settingEnabled" style="font-size:0.98rem;color:#0f172a;">
-                  ⏰ Publier automatiquement 2 fois par jour
+        <!-- 2. Bento 2 Colonnes : Automatisation Horaires + Quotas par catégorie -->
+        {% set tot_quota = ps.get('products_count', 5) + ps.get('services_count', 3) + ps.get('rentals_count', 2) %}
+        <div class="wa-settings-bento">
+          <!-- Colonne A : Programmation automatique -->
+          <div class="wa-bento-panel">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+              <div class="form-check form-switch m-0 d-flex align-items-center gap-2">
+                <input class="form-check-input js-instant-toggle m-0" type="checkbox" role="switch" id="settingEnabled" name="enabled" value="1" {% if ps.get('enabled') %}checked{% endif %} style="inline-size:2.4em;block-size:1.25em;cursor:pointer;">
+                <label class="form-check-label fw-bold" for="settingEnabled" style="font-size:0.9rem;color:var(--wa-ink);cursor:pointer;">
+                  ⏰ Publier automatiquement 2 fois / jour
                 </label>
               </div>
-              <span id="instantSaveBadge" aria-live="polite" class="badge bg-success-subtle text-success border border-success-subtle" style="display:none;font-size:0.76rem;">
-                <i class="bi bi-check2-circle me-1"></i> Synchronisé
-              </span>
             </div>
 
-            <!-- Ligne 1 : Horaires précis des 2 vagues avec boutons rapides Changer l'heure -->
-            <div style="font-size:0.82rem;color:#334155;display:flex;align-items:center;gap:0.85rem;flex-wrap:wrap;background:#ffffff;border:1px solid #e2e8f0;padding:0.55rem 0.9rem;border-radius:10px;">
-              <div style="display:flex;align-items:center;gap:0.4rem;flex-wrap:wrap;">
-                <label for="inputSchedule1" class="fw-bold text-dark m-0">☀️ Vague 1 (Matin) :</label>
-                <input type="time" id="inputSchedule1" name="schedule_time" value="{{ ps.get('schedule_time', '10:30') }}" class="form-control form-control-sm fw-bold js-watch-setting" style="width:112px;">
+            <div class="wa-schedule-row">
+              <label for="inputSchedule1" class="fw-bold m-0" style="font-size:0.8rem;color:var(--wa-ink);">
+                ☀️ Vague 1 (Matin)
+              </label>
+              <div class="d-flex align-items-center gap-1 flex-wrap">
+                <input type="time" id="inputSchedule1" name="schedule_time" value="{{ ps.get('schedule_time', '10:30') }}" class="form-control form-control-sm fw-bold js-watch-setting" style="inline-size:106px;">
                 <button type="button" class="wa-time-chip" data-time-target="inputSchedule1" data-time-val="09:30">09:30</button>
                 <button type="button" class="wa-time-chip" data-time-target="inputSchedule1" data-time-val="10:30">10:30</button>
                 <button type="button" class="wa-time-chip" data-time-target="inputSchedule1" data-time-val="12:00">12:00</button>
               </div>
+            </div>
 
-              <div style="display:flex;align-items:center;gap:0.4rem;flex-wrap:wrap;" class="ms-md-3">
-                <label for="inputSchedule2" class="fw-bold text-dark m-0">🌙 Vague 2 (Soir) :</label>
-                <input type="time" id="inputSchedule2" name="schedule_time_2" value="{{ ps.get('schedule_time_2', '18:30') }}" class="form-control form-control-sm fw-bold js-watch-setting" style="width:112px;">
+            <div class="wa-schedule-row">
+              <label for="inputSchedule2" class="fw-bold m-0" style="font-size:0.8rem;color:var(--wa-ink);">
+                🌙 Vague 2 (Soir)
+              </label>
+              <div class="d-flex align-items-center gap-1 flex-wrap">
+                <input type="time" id="inputSchedule2" name="schedule_time_2" value="{{ ps.get('schedule_time_2', '18:30') }}" class="form-control form-control-sm fw-bold js-watch-setting" style="inline-size:106px;">
                 <button type="button" class="wa-time-chip" data-time-target="inputSchedule2" data-time-val="18:00">18:00</button>
                 <button type="button" class="wa-time-chip" data-time-target="inputSchedule2" data-time-val="18:30">18:30</button>
                 <button type="button" class="wa-time-chip" data-time-target="inputSchedule2" data-time-val="20:30">20:30</button>
               </div>
             </div>
-
-            <!-- Ligne 2 : Répartition par vague avec boutons - / + renforcés -->
-            {% set tot_quota = ps.get('products_count', 5) + ps.get('services_count', 3) + ps.get('rentals_count', 2) %}
-            <div style="font-size:0.82rem;color:#334155;display:flex;align-items:center;gap:0.8rem;flex-wrap:wrap;margin-top:0.6rem;background:#f1f5f9;border:1px solid #cbd5e1;padding:0.6rem 0.9rem;border-radius:10px;">
-              <span class="fw-bold text-dark">
-                <i class="bi bi-sliders me-1 text-success"></i> Répartition par vague (<span id="liveTotalOffersLabel">{{ tot_quota }}</span> offres) :
-              </span>
-
-              <div class="d-inline-flex align-items-center gap-1" title="Nombre de produits physiques par vague">
-                <label for="inpProdCount" class="fw-semibold m-0">🛍️ Produits :</label>
-                <div class="wa-stepper">
-                  <button type="button" class="wa-stepper-btn" data-step-target="inpProdCount" data-step="-1" aria-label="Moins">−</button>
-                  <input type="number" id="inpProdCount" name="products_count" value="{{ ps.get('products_count', 5) }}" min="0" max="15" class="js-watch-setting js-quota-input">
-                  <button type="button" class="wa-stepper-btn" data-step-target="inpProdCount" data-step="1" aria-label="Plus">+</button>
-                </div>
-              </div>
-
-              <div class="d-inline-flex align-items-center gap-1" title="Nombre de services professionnels par vague">
-                <label for="inpServCount" class="fw-semibold m-0">🛠️ Services :</label>
-                <div class="wa-stepper">
-                  <button type="button" class="wa-stepper-btn" data-step-target="inpServCount" data-step="-1" aria-label="Moins">−</button>
-                  <input type="number" id="inpServCount" name="services_count" value="{{ ps.get('services_count', 3) }}" min="0" max="15" class="js-watch-setting js-quota-input">
-                  <button type="button" class="wa-stepper-btn" data-step-target="inpServCount" data-step="1" aria-label="Plus">+</button>
-                </div>
-              </div>
-
-              <div class="d-inline-flex align-items-center gap-1" title="Nombre de locations immobilières par vague">
-                <label for="inpRentCount" class="fw-semibold m-0">🏠 Locations :</label>
-                <div class="wa-stepper">
-                  <button type="button" class="wa-stepper-btn" data-step-target="inpRentCount" data-step="-1" aria-label="Moins">−</button>
-                  <input type="number" id="inpRentCount" name="rentals_count" value="{{ ps.get('rentals_count', 2) }}" min="0" max="15" class="js-watch-setting js-quota-input">
-                  <button type="button" class="wa-stepper-btn" data-step-target="inpRentCount" data-step="1" aria-label="Plus">+</button>
-                </div>
-              </div>
-
-              <div class="d-inline-flex align-items-center gap-1" title="Total d'offres publiées en Story 24h sur la journée (réparti moitié matin + moitié soir)">
-                <label for="inpStatusCount" class="fw-semibold m-0">📸 Statuts/jour (<span id="liveStatusSplitLabel">{{ st_matin }}+{{ st_soir }}</span>) :</label>
-                <div class="wa-stepper">
-                  <button type="button" class="wa-stepper-btn" data-step-target="inpStatusCount" data-step="-1" aria-label="Moins">−</button>
-                  <input type="number" id="inpStatusCount" name="status_products" value="{{ ps.get('status_products', 12) }}" min="1" max="24" class="js-watch-setting">
-                  <button type="button" class="wa-stepper-btn" data-step-target="inpStatusCount" data-step="1" aria-label="Plus">+</button>
-                </div>
-              </div>
-
-              <div class="d-inline-flex align-items-center gap-1" title="Ancienneté prioritaire des logements proposés">
-                <label for="inpRentalAge" class="fw-semibold m-0">⏱️ Fraîcheur locations :</label>
-                <select name="rental_max_age_hours" id="inpRentalAge" class="form-select form-select-sm fw-bold js-watch-setting" style="width:auto;">
-                  <option value="12" {% if ps.get('rental_max_age_hours') == 12 %}selected{% endif %}>Moins de 12h</option>
-                  <option value="24" {% if ps.get('rental_max_age_hours', 24) == 24 %}selected{% endif %}>Moins de 24h (Prioritaire)</option>
-                  <option value="48" {% if ps.get('rental_max_age_hours') == 48 %}selected{% endif %}>Moins de 48h</option>
-                  <option value="72" {% if ps.get('rental_max_age_hours') == 72 %}selected{% endif %}>Moins de 72h</option>
-                  <option value="168" {% if ps.get('rental_max_age_hours') == 168 %}selected{% endif %}>Toutes les récentes</option>
-                </select>
-              </div>
-            </div>
-
-
           </div>
 
-          <!-- Barre d'actions bien visible et synchronisée -->
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:0.75rem;flex-wrap:wrap;padding-top:0.5rem;border-top:1px solid #e2e8f0;">
-            <div style="font-size:0.78rem;color:#64748b;" id="dirtySettingsHint" aria-live="polite">
-              <i class="bi bi-check-circle text-success me-1"></i> Les offres affichées à l'Étape 2 suivent automatiquement ces réglages.
+          <!-- Colonne B : Quotas par vague & Fraîcheur -->
+          <div class="wa-bento-panel">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+              <span class="fw-bold" style="font-size:0.88rem;color:var(--wa-ink);">
+                <i class="bi bi-grid-1x2-fill text-success me-1"></i> Composition de chaque vague
+              </span>
+              <span class="badge bg-dark text-white rounded-pill px-2 py-1" style="font-size:0.74rem;">
+                <span id="liveTotalOffersLabel">{{ tot_quota }}</span> offres / vague
+              </span>
             </div>
-            <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
-              <button type="submit" id="btnApplySettings" class="btn btn-dark btn-apply-settings shadow-sm">
-                <i class="bi bi-sliders me-1"></i> Appliquer & Adapter les offres
-              </button>
 
-              <!-- Bouton pour diffuser tout de suite -->
-              <button type="button" id="btnOpenPublishModal" class="btn-publish-now" data-bs-toggle="modal" data-bs-target="#sendConfirmModal" {% if st != 'connected' %}disabled title="Connectez d'abord votre WhatsApp à l'Étape 1"{% endif %}>
-                <i class="bi bi-rocket-takeoff-fill"></i> Publier maintenant ({{ wave_title }}) 🚀
-              </button>
+            <div class="wa-quotas-grid">
+              <div class="wa-quota-tile" title="Nombre de produits physiques par vague">
+                <label for="inpProdCount" class="wa-quota-label m-0">🛍️ Produits</label>
+                <div class="wa-stepper">
+                  <button type="button" class="wa-stepper-btn" data-step-target="inpProdCount" data-step="-1" aria-label="Moins de produits">−</button>
+                  <input type="number" id="inpProdCount" name="products_count" value="{{ ps.get('products_count', 5) }}" min="0" max="15" class="js-watch-setting js-quota-input">
+                  <button type="button" class="wa-stepper-btn" data-step-target="inpProdCount" data-step="1" aria-label="Plus de produits">+</button>
+                </div>
+              </div>
+
+              <div class="wa-quota-tile" title="Nombre de services par vague">
+                <label for="inpServCount" class="wa-quota-label m-0">🛠️ Services</label>
+                <div class="wa-stepper">
+                  <button type="button" class="wa-stepper-btn" data-step-target="inpServCount" data-step="-1" aria-label="Moins de services">−</button>
+                  <input type="number" id="inpServCount" name="services_count" value="{{ ps.get('services_count', 3) }}" min="0" max="15" class="js-watch-setting js-quota-input">
+                  <button type="button" class="wa-stepper-btn" data-step-target="inpServCount" data-step="1" aria-label="Plus de services">+</button>
+                </div>
+              </div>
+
+              <div class="wa-quota-tile" title="Nombre de locations immobilières par vague">
+                <label for="inpRentCount" class="wa-quota-label m-0">🏠 Locations</label>
+                <div class="wa-stepper">
+                  <button type="button" class="wa-stepper-btn" data-step-target="inpRentCount" data-step="-1" aria-label="Moins de locations">−</button>
+                  <input type="number" id="inpRentCount" name="rentals_count" value="{{ ps.get('rentals_count', 2) }}" min="0" max="15" class="js-watch-setting js-quota-input">
+                  <button type="button" class="wa-stepper-btn" data-step-target="inpRentCount" data-step="1" aria-label="Plus de locations">+</button>
+                </div>
+              </div>
+
+              <div class="wa-quota-tile" title="Total d'offres en Story 24h sur la journée (moitié matin + moitié soir)">
+                <label for="inpStatusCount" class="wa-quota-label m-0">
+                  📸 Story/j <small class="text-muted">(<span id="liveStatusSplitLabel">{{ st_matin }}+{{ st_soir }}</span>)</small>
+                </label>
+                <div class="wa-stepper">
+                  <button type="button" class="wa-stepper-btn" data-step-target="inpStatusCount" data-step="-1" aria-label="Moins de statuts">−</button>
+                  <input type="number" id="inpStatusCount" name="status_products" value="{{ ps.get('status_products', 12) }}" min="1" max="24" class="js-watch-setting">
+                  <button type="button" class="wa-stepper-btn" data-step-target="inpStatusCount" data-step="1" aria-label="Plus de statuts">+</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="wa-schedule-row">
+              <label for="inpRentalAge" class="wa-quota-label m-0">⏱️ Fraîcheur prioritaire des locations</label>
+              <select name="rental_max_age_hours" id="inpRentalAge" class="form-select form-select-sm fw-bold js-watch-setting" style="inline-size:auto;">
+                <option value="12" {% if ps.get('rental_max_age_hours') == 12 %}selected{% endif %}>Moins de 12h</option>
+                <option value="24" {% if ps.get('rental_max_age_hours', 24) == 24 %}selected{% endif %}>Moins de 24h (Prioritaire)</option>
+                <option value="48" {% if ps.get('rental_max_age_hours') == 48 %}selected{% endif %}>Moins de 48h</option>
+                <option value="72" {% if ps.get('rental_max_age_hours') == 72 %}selected{% endif %}>Moins de 72h</option>
+                <option value="168" {% if ps.get('rental_max_age_hours') == 168 %}selected{% endif %}>Toutes les récentes</option>
+              </select>
             </div>
           </div>
         </div>
 
-        <!-- Champs cachés techniques (délais anti-ban gérés automatiquement en arrière-plan) -->
+        <!-- 3. Barre finale d'action et de lancement -->
+        <div class="broadcast-action-bar">
+          <div style="font-size:0.79rem;color:var(--wa-ink-muted);" id="dirtySettingsHint" aria-live="polite">
+            <i class="bi bi-check-circle-fill text-success me-1"></i> Les offres de l'Étape 2 sont synchronisées avec ces réglages.
+          </div>
+
+          <div class="wa-footer-cta-group" style="display:flex;align-items:center;gap:0.65rem;flex-wrap:wrap;">
+            <button type="submit" id="btnApplySettings" class="btn btn-dark btn-apply-settings shadow-sm">
+              <i class="bi bi-sliders me-1"></i> Appliquer &amp; Adapter les offres
+            </button>
+
+            <button type="button" id="btnOpenPublishModal" class="btn-publish-now" data-bs-toggle="modal" data-bs-target="#sendConfirmModal" {% if st != 'connected' %}disabled title="Connectez d'abord votre WhatsApp en haut de page"{% endif %}>
+              <i class="bi bi-rocket-takeoff-fill"></i> Publier maintenant ({{ wave_title }}) 🚀
+            </button>
+          </div>
+        </div>
+
+        <!-- Champs techniques en arrière-plan -->
         <input type="hidden" name="dry_run" value="0">
         <input type="hidden" name="min_delay" value="{{ ps.get('min_delay', 45) }}">
         <input type="hidden" name="max_delay" value="{{ ps.get('max_delay', 90) }}">
@@ -1445,7 +2017,7 @@
         <input type="hidden" name="cooldown_days" value="{{ ps.get('cooldown_days', 7) }}">
       </form>
     </div>
-  </div>
+  </section>
 
   <!-- MODAL : GÉRER MES GROUPES DE VENTE -->
   <div class="modal fade" id="groupsModal" tabindex="-1" aria-hidden="true">
@@ -1501,7 +2073,7 @@
 
         <div class="modal-body text-center p-4">
           <div style="display:inline-block;padding:12px;background:#ffffff;border:2px solid #e2e8f0;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,0.06);">
-            <img id="waQrImage" src="{{ gateway.qr if gateway.qr else '' }}" alt="QR Code WhatsApp" style="width:250px;height:250px;object-fit:contain;display:block;">
+            <img id="waQrImage" src="{{ gateway.qr if gateway.qr else '' }}" alt="QR Code WhatsApp" width="250" height="250" style="inline-size:250px;block-size:250px;object-fit:contain;display:block;">
           </div>
 
           <div class="mt-3 text-start bg-light p-3 rounded" style="font-size:0.85rem;line-height:1.6;">
@@ -1558,11 +2130,10 @@
                   <span class="badge bg-warning text-dark">0 groupe (ajoutez vos liens dans Gérer mes groupes)</span>
                 {% endif %}
               </li>
-
             </ul>
 
             <div class="alert alert-info py-2 px-3 mb-0" style="font-size:0.8rem;">
-              <i class="bi bi-shield-check me-1"></i> La diffusion se fait en arrière-plan en espaçant les messages de quelques secondes pour protéger votre compte.
+              <i class="bi bi-shield-check me-1"></i> La diffusion s'exécute en arrière-plan à cadence naturelle pour protéger votre compte.
             </div>
           </div>
 
@@ -1589,7 +2160,6 @@
         </div>
 
         <div class="modal-body p-3">
-          <!-- BARRE DE FILTRAGE ET ACTION DE RELANCE -->
           <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3 pb-2 border-bottom">
             <div class="btn-group btn-group-sm" role="group" id="logFilterButtons">
               <button type="button" class="btn btn-outline-secondary active fw-bold" data-filter="all">
@@ -1627,7 +2197,7 @@
                     <th>Cible</th>
                     <th>Statut</th>
                     <th style="text-align:center;">Essais</th>
-                    <th>Détails & Diagnostic</th>
+                    <th>Détails &amp; Diagnostic</th>
                     <th style="text-align:center;">Message</th>
                   </tr>
                 </thead>
@@ -1683,14 +2253,14 @@
           {% else %}
             <div class="text-center py-5 text-muted">
               <i class="bi bi-inbox fs-1 d-block mb-2 text-secondary"></i>
-              Aucun envoi récent enregistré. Lancez un aperçu ou une diffusion pour commencer.
+              Aucun envoi récent enregistré aujourd'hui.
             </div>
           {% endif %}
         </div>
 
         <div class="modal-footer bg-light d-flex justify-content-between">
           <span class="text-muted" style="font-size:0.8rem;">
-            <i class="bi bi-shield-check text-success me-1"></i> Garde-fous actifs : délais anti-ban (45–90 s), persistance max 2h (aucun envoi J+1) et vidage quotidien de l'historique.
+            <i class="bi bi-shield-check text-success me-1"></i> Garde-fous actifs : cadence naturelle protégée, persistance max 2h (aucun envoi J+1) et remise à zéro quotidienne.
           </span>
           <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Fermer</button>
         </div>
@@ -1768,7 +2338,6 @@
             qrImage.setAttribute("src", data.qr);
           }
           if (st === "connected" && banner.classList.contains("is-qr_ready")) {
-            // Recharger la page dès que le scan réussit
             window.location.reload();
             return;
           }
@@ -1792,12 +2361,10 @@
         wasSending = true;
         if (liveBanner) liveBanner.style.display = "";
       } else if (wasSending || (psState.wave_number && psState.wave_number !== initialWaveNum)) {
-        // Dès que l'envoi du matin est fini -> rechargement auto pour afficher la vague du soir en place !
         window.location.reload();
       }
     }
 
-    // Auto-polling si en attente de scan OU si une vague est en cours d'envoi
     if (banner.classList.contains("is-qr_ready") || wasSending) {
       pollTimer = window.setInterval(function () { refreshGatewayStatus(true); }, 4500);
     }
@@ -1844,8 +2411,8 @@
           .catch(function () { window.location.reload(); });
       });
     }
-  
-    // Filtrage dynamique des logs dans la modal
+
+    // 3. Filtrage dynamique des logs dans la modal
     document.querySelectorAll("#logFilterButtons button").forEach(function(btn) {
       btn.addEventListener("click", function() {
         document.querySelectorAll("#logFilterButtons button").forEach(function(b) { b.classList.remove("active"); });
@@ -1879,7 +2446,6 @@
       });
     });
 
-  
     // Recherche et épinglage de produits coup de cœur
     var searchInput = document.getElementById("inputSearchProduct");
     var searchBox = document.getElementById("searchResultsBox");
@@ -1910,14 +2476,13 @@
               list.forEach(function(p) {
                 var kindTag = p.kind ? '<span class="badge bg-light text-dark border me-1">' + p.kind + '</span>' : '';
                 htmlStr += '<button type="button" class="list-group-item list-group-item-action d-flex align-items-center justify-content-between p-2 btn-pin-item" data-id="' + p.id + '">' +
-                  '<div>' + kindTag + '<strong>' + p.name + '</strong> <span class="text-muted" style="font-size:0.75rem;">(' + p.shop + ')</span></div>' +
-                  '<div class="badge bg-success-subtle text-success border border-success-subtle">' + p.price + ' DH</div>' +
+                  '<div class="text-truncate me-2">' + kindTag + '<strong>' + p.name + '</strong> <span class="text-muted" style="font-size:0.75rem;">(' + p.shop + ')</span></div>' +
+                  '<div class="badge bg-success-subtle text-success border border-success-subtle flex-shrink-0">' + p.price + ' DH</div>' +
                   '</button>';
               });
               searchBox.innerHTML = htmlStr;
               searchBox.style.display = "block";
 
-              // Écoute des clics sur les items trouvés
               searchBox.querySelectorAll(".btn-pin-item").forEach(function(itemBtn) {
                 itemBtn.addEventListener("click", function() {
                   var pid = this.getAttribute("data-id");
@@ -1938,7 +2503,6 @@
         }, 250);
       });
 
-      // Fermer le dropdown si clic extérieur
       document.addEventListener("click", function(evt) {
         if (!searchInput.contains(evt.target) && !searchBox.contains(evt.target)) {
           searchBox.style.display = "none";
@@ -1947,22 +2511,44 @@
     }
 
     // 4. Filtrage rapide par catégorie d'offre à l'Étape 2
+    var emptyFilterNotice = document.getElementById("emptyFilterNotice");
+    var btnResetOfferFilter = document.getElementById("btnResetOfferFilter");
+
+    function applyOfferFilter(flt) {
+      var visibleCount = 0;
+      document.querySelectorAll(".promo-product-box").forEach(function(card) {
+        var show = false;
+        if (flt === "all") {
+          show = true;
+        } else if (flt === "story") {
+          show = card.getAttribute("data-in-story") === "1";
+        } else if (flt === "video") {
+          show = card.getAttribute("data-has-video") === "1";
+        } else {
+          show = card.getAttribute("data-item-type") === flt;
+        }
+        card.style.display = show ? "" : "none";
+        if (show) visibleCount += 1;
+      });
+      if (emptyFilterNotice) {
+        emptyFilterNotice.style.display = (visibleCount === 0 && flt !== "all") ? "block" : "none";
+      }
+    }
+
     document.querySelectorAll("#offerCategoryFilterBar .offer-filter-pill").forEach(function(pill) {
       pill.addEventListener("click", function() {
         document.querySelectorAll("#offerCategoryFilterBar .offer-filter-pill").forEach(function(b) { b.classList.remove("active"); });
         this.classList.add("active");
-        var flt = this.getAttribute("data-offer-filter");
-        document.querySelectorAll(".promo-product-box").forEach(function(card) {
-          if (flt === "all") {
-            card.style.display = "";
-          } else if (flt === "story") {
-            card.style.display = card.getAttribute("data-in-story") === "1" ? "" : "none";
-          } else {
-            card.style.display = card.getAttribute("data-item-type") === flt ? "" : "none";
-          }
-        });
+        applyOfferFilter(this.getAttribute("data-offer-filter") || "all");
       });
     });
+
+    if (btnResetOfferFilter) {
+      btnResetOfferFilter.addEventListener("click", function() {
+        var allBtn = document.querySelector('#offerCategoryFilterBar .offer-filter-pill[data-offer-filter="all"]');
+        if (allBtn) allBtn.click();
+      });
+    }
 
     // 5. Contrôles renforcés de l'Étape 3 (Steppers +/-, Horaires rapides, Calcul temps réel & Sync auto)
     var settingsForm = document.getElementById("promoSettingsForm");
@@ -1970,7 +2556,6 @@
     var dirtyHint = document.getElementById("dirtySettingsHint");
     var instantBadge = document.getElementById("instantSaveBadge");
     var settingsDirty = false;
-    var groupsCount = appContainer ? parseInt(appContainer.getAttribute("data-groups-count") || "0", 10) : 0;
 
     function clampNum(el) {
       if (!el) return 0;
@@ -2000,10 +2585,8 @@
 
       var descStatus = document.getElementById("descStatusQuota");
       if (descStatus) {
-        descStatus.textContent = "Ce canal est non-intrusif et visible pendant 24h par vos contacts enregistrés (" + stTot + " Statuts/jour : " + stMatin + " matin + " + stSoir + " soir).";
+        descStatus.textContent = "Canal non-intrusif visible 24h par vos contacts enregistrés (" + stTot + " Statuts/jour : " + stMatin + " matin + " + stSoir + " soir).";
       }
-
-
 
       var confirmCountEl = document.getElementById("confirmOffersCount");
       if (confirmCountEl) confirmCountEl.textContent = tot + " offre(s)";
@@ -2022,7 +2605,6 @@
       if (cardSt && stCheck) cardSt.classList.toggle("is-selected", stCheck.checked);
       if (cardGr && grCheck) cardGr.classList.toggle("is-selected", grCheck.checked);
 
-      // Marquer les puces d'heure actives
       document.querySelectorAll(".wa-time-chip").forEach(function(chip) {
         var tId = chip.getAttribute("data-time-target");
         var inp = document.getElementById(tId);
@@ -2041,7 +2623,6 @@
       }
     }
 
-    // Boutons Steppers - / +
     document.querySelectorAll(".wa-stepper-btn").forEach(function(btn) {
       btn.addEventListener("click", function() {
         var targetId = this.getAttribute("data-step-target");
@@ -2053,7 +2634,6 @@
       });
     });
 
-    // Boutons rapides "Changer l'heure"
     document.querySelectorAll(".wa-time-chip").forEach(function(chip) {
       chip.addEventListener("click", function() {
         var targetId = this.getAttribute("data-time-target");
@@ -2070,7 +2650,6 @@
       inp.addEventListener("input", function() { refreshLiveMetrics(true); });
     });
 
-    // Sauvegarde instantanée quand on bascule un switch (Statut, Groupes, Auto 2x/jour)
     function saveSettingsAjax() {
       if (!settingsForm) return Promise.resolve();
       var fd = new FormData(settingsForm);
@@ -2098,7 +2677,6 @@
       });
     });
 
-    // Si l'utilisateur clique sur "Changer ce lot (IA)" ou "Publier maintenant 🚀" alors que des réglages Étape 3 ont été modifiés, on synchronise d'abord !
     var regenForm = document.getElementById("formRegenerateWave");
     if (regenForm) {
       regenForm.addEventListener("submit", function(e) {
@@ -2136,7 +2714,6 @@
     }
 
     refreshLiveMetrics(false);
-
   })();
 </script>
 
@@ -2163,7 +2740,6 @@
   </div>
 
   <div class="offer-media-dialog-body">
-    <!-- Scène Photo -->
     <div id="offerMediaPhotoStage" style="width:100%;display:flex;flex-direction:column;align-items:center;">
       <div style="position:relative;width:100%;display:flex;align-items:center;justify-content:center;">
         <button type="button" id="btnMediaPrev" class="offer-media-nav-btn offer-media-nav-btn--prev" aria-label="Photo précédente" style="display:none;">
@@ -2184,7 +2760,6 @@
       <div id="offerMediaThumbs" class="offer-media-thumbs"></div>
     </div>
 
-    <!-- Scène Vidéo (chargée uniquement à la demande) -->
     <div id="offerMediaVideoStage" style="width:100%;display:none;flex-direction:column;align-items:center;">
       <video id="offerMediaVideo"
              controls
@@ -2192,7 +2767,7 @@
              preload="none"
              width="800"
              height="450"
-             style="width:100%;max-height:58vh;border-radius:10px;background:#000000;">
+             style="width:100%;max-height:58dvh;border-radius:10px;background:#000000;">
       </video>
     </div>
   </div>
@@ -2214,7 +2789,6 @@
 
 <script>
   (function () {
-    // Repli image sans handler inline (compatible CSP stricte)
     document.querySelectorAll("img.js-fallback-img").forEach(function (img) {
       img.addEventListener("error", function () {
         if (this.dataset.fallbackApplied) return;
@@ -2226,7 +2800,6 @@
     var dialog = document.getElementById("offerMediaDialog");
     if (!dialog) return;
 
-    // Fallback light-dismiss (clic extérieur) pour les navigateurs sans support natif de closedby="any"
     if (!("closedBy" in HTMLDialogElement.prototype)) {
       var isOutside = function (e, dlg) {
         var r = dlg.getBoundingClientRect();
