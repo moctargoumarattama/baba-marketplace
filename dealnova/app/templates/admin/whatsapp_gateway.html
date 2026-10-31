@@ -423,54 +423,161 @@
   }
 
 
-  /* Barre d'outils unifiée : Filtres de catégories + Recherche Coup de cœur */
+  /* Barre de commande visible, raffinée et moderne (format compact sans gabarit lourd) */
   .wa-CommandToolbar {
     display: flex;
-    align-items: safe center;
+    align-items: center;
     justify-content: space-between;
     flex-wrap: wrap;
-    gap: 0.75rem;
-    padding-block-end: 0.9rem;
-    margin-block-end: 0.95rem;
-    border-block-end: 1px solid var(--wa-border);
+    gap: 0.65rem;
+    padding: 0.5rem 0.65rem;
+    margin-block-end: 1rem;
+    background: var(--wa-surface-subtle);
+    border: 1px solid var(--wa-border-strong);
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  }
+
+  html[data-admin-theme="noc"] .wa-CommandToolbar {
+    background: #1e293b;
+    border-color: #334155;
+    box-shadow: 0 2px 6px rgba(2, 6, 23, 0.35);
   }
 
   .offer-filter-bar {
     display: flex;
-    align-items: safe center;
-    gap: 0.4rem;
+    align-items: center;
+    gap: 0.35rem;
     flex-wrap: wrap;
-    flex-wrap: balance;
     min-inline-size: 0;
   }
 
   .offer-filter-pill {
-    border: 1px solid var(--wa-border-strong);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    border: 1px solid var(--wa-border);
     background: var(--wa-surface);
     color: var(--wa-ink-secondary);
     border-radius: 999px;
-    padding: 0.32rem 0.78rem;
+    padding: 0.32rem 0.72rem;
     font-size: 0.77rem;
     font-weight: 700;
     cursor: pointer;
-    transition: all 0.15s ease;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+    transition: all 0.16s ease;
     white-space: nowrap;
+    user-select: none;
   }
   .offer-filter-pill:hover {
     border-color: #10b981;
     color: #059669;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(16, 185, 129, 0.12);
   }
   .offer-filter-pill.active {
-    background: var(--wa-ink);
-    border-color: var(--wa-ink);
-    color: var(--wa-surface);
-    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.14);
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    border-color: #0f172a;
+    color: #ffffff;
+    box-shadow: 0 2px 7px rgba(15, 23, 42, 0.22);
+  }
+  html[data-admin-theme="noc"] .offer-filter-pill {
+    background: #0f172a;
+    border-color: #334155;
+    color: #cbd5e1;
+  }
+  html[data-admin-theme="noc"] .offer-filter-pill:hover {
+    border-color: #10b981;
+    color: #34d399;
+  }
+  html[data-admin-theme="noc"] .offer-filter-pill.active {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    border-color: #10b981;
+    color: #052e16;
+    font-weight: 800;
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.35);
+  }
+
+  .pill-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-inline-size: 19px;
+    block-size: 19px;
+    padding: 0 5px;
+    border-radius: 999px;
+    font-size: 0.69rem;
+    font-weight: 800;
+    background: var(--wa-surface-muted);
+    color: var(--wa-ink-muted);
+    line-height: 1;
+    transition: all 0.16s ease;
+  }
+  .offer-filter-pill:hover .pill-count {
+    background: rgba(16, 185, 129, 0.14);
+    color: #059669;
+  }
+  .offer-filter-pill.active .pill-count {
+    background: rgba(255, 255, 255, 0.22);
+    color: #ffffff;
+  }
+  html[data-admin-theme="noc"] .offer-filter-pill.active .pill-count {
+    background: rgba(0, 0, 0, 0.2);
+    color: #052e16;
+  }
+
+  .btn-regen-wave {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.42rem 0.88rem;
+    border-radius: 9px;
+    border: 1px solid rgba(16, 185, 129, 0.35);
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: #ffffff;
+    font-size: 0.79rem;
+    font-weight: 800;
+    box-shadow: 0 2px 6px rgba(16, 185, 129, 0.25);
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+  }
+  .btn-regen-wave:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.38);
+    color: #ffffff;
+  }
+
+  .btn-manage-groups {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.32rem 0.72rem;
+    border-radius: 8px;
+    font-size: 0.76rem;
+    font-weight: 700;
+    background: rgba(37, 99, 235, 0.08);
+    border: 1px solid rgba(37, 99, 235, 0.25);
+    color: #2563eb;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .btn-manage-groups:hover {
+    background: #2563eb;
+    color: #ffffff;
+    border-color: #2563eb;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+  }
+  html[data-admin-theme="noc"] .btn-manage-groups {
+    background: rgba(59, 130, 246, 0.15);
+    border-color: rgba(59, 130, 246, 0.35);
+    color: #60a5fa;
   }
 
   .wa-pin-search-wrap {
     position: relative;
-    flex: 1 1 290px;
-    max-inline-size: 400px;
+    flex: 1 1 260px;
+    max-inline-size: 340px;
     min-inline-size: 0;
   }
 
@@ -478,10 +585,11 @@
     display: flex;
     align-items: center;
     gap: 0.45rem;
-    background: var(--wa-surface-subtle);
+    background: var(--wa-surface);
     border: 1px solid var(--wa-border-strong);
     border-radius: 999px;
-    padding: 0.28rem 0.75rem;
+    padding: 0.28rem 0.72rem;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
     transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
   }
   .wa-pin-input-group:focus-within {
@@ -1147,23 +1255,29 @@
   }
 
   .wa-time-chip {
-    border: 1px solid var(--wa-border-strong);
-    background: var(--wa-surface-subtle);
+    border: 1px solid var(--wa-border);
+    background: var(--wa-surface);
     color: var(--wa-ink-secondary);
     border-radius: 7px;
-    padding: 0.2rem 0.5rem;
-    font-size: 0.72rem;
+    padding: 0.2rem 0.52rem;
+    font-size: 0.73rem;
     font-weight: 700;
     cursor: pointer;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
     transition: all 0.14s ease;
   }
-  .wa-time-chip:hover,
-  .wa-time-chip.is-active {
-    background: rgba(16, 185, 129, 0.15);
+  .wa-time-chip:hover {
     border-color: #10b981;
     color: #059669;
   }
-  html[data-admin-theme="noc"] .wa-time-chip.is-active { color: #34d399; }
+  .wa-time-chip.is-active {
+    background: #10b981;
+    border-color: #10b981;
+    color: #ffffff;
+    font-weight: 800;
+    box-shadow: 0 2px 6px rgba(16, 185, 129, 0.25);
+  }
+  html[data-admin-theme="noc"] .wa-time-chip.is-active { color: #052e16; }
 
   .broadcast-action-bar {
     background: var(--wa-surface-subtle);
@@ -1178,17 +1292,30 @@
   }
 
   .btn-apply-settings {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
     font-weight: 800;
     border-radius: 10px;
-    padding: 0.55rem 1rem;
-    font-size: 0.84rem;
-    transition: all 0.2s ease;
+    padding: 0.52rem 1rem;
+    font-size: 0.82rem;
+    border: 1px solid var(--wa-border-strong);
+    background: var(--wa-surface);
+    color: var(--wa-ink);
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+    transition: all 0.18s ease;
+    cursor: pointer;
+  }
+  .btn-apply-settings:hover {
+    border-color: #10b981;
+    color: #059669;
+    transform: translateY(-1px);
   }
   .btn-apply-settings.is-dirty {
     background: #059669 !important;
     border-color: #059669 !important;
     color: #ffffff !important;
-    box-shadow: 0 4px 14px rgba(5, 150, 105, 0.3);
+    box-shadow: 0 4px 14px rgba(5, 150, 105, 0.35);
   }
 
   .btn-publish-now {
@@ -1489,8 +1616,8 @@
         <form method="POST" action="{{ url_for('admin.whatsapp_promo_run') }}" class="m-0" id="formRegenerateWave">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="mode" value="dry_run">
-          <button type="submit" class="btn btn-success btn-sm fw-bold shadow-sm" id="btnRegenerateWave" title="Tirer au sort un nouveau lot d'offres en respectant vos quotas">
-            <i class="bi bi-arrow-repeat me-1"></i> Changer ce lot ({{ products|length }} IA)
+          <button type="submit" class="btn-regen-wave" id="btnRegenerateWave" title="Tirer au sort un nouveau lot d'offres en respectant vos quotas">
+            <i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i> Changer ce lot ({{ products|length }} IA)
           </button>
         </form>
       </div>
@@ -1501,21 +1628,20 @@
       <div class="wa-CommandToolbar">
         <div class="offer-filter-bar" id="offerCategoryFilterBar">
           <button type="button" class="offer-filter-pill active" data-offer-filter="all">
-            Toutes ({{ products|length }})
+            <span>Toutes</span><span class="pill-count">{{ products|length }}</span>
           </button>
           <button type="button" class="offer-filter-pill" data-offer-filter="physical">
-            🛍️ Produits ({{ count_phys }})
+            <span>🛍️ Produits</span><span class="pill-count">{{ count_phys }}</span>
           </button>
           <button type="button" class="offer-filter-pill" data-offer-filter="service">
-            🛠️ Services ({{ count_serv }})
+            <span>🛠️ Services</span><span class="pill-count">{{ count_serv }}</span>
           </button>
           <button type="button" class="offer-filter-pill" data-offer-filter="rental">
-            🏠 Locations ({{ count_rent }})
+            <span>🏠 Locations</span><span class="pill-count">{{ count_rent }}</span>
           </button>
           <button type="button" class="offer-filter-pill" data-offer-filter="story">
-            📸 Story 24h ({{ count_story }})
+            <span>📸 Story 24h</span><span class="pill-count">{{ count_story }}</span>
           </button>
-
         </div>
 
         <div class="wa-pin-search-wrap">
@@ -1900,8 +2026,8 @@
                   <i class="bi bi-exclamation-triangle me-1"></i> Aucun groupe configuré
                 </span>
               {% endif %}
-              <button type="button" class="btn btn-outline-primary btn-sm py-1 px-2 fw-bold" style="font-size:0.76rem;" data-bs-toggle="modal" data-bs-target="#groupsModal">
-                <i class="bi bi-gear-fill me-1"></i> Gérer mes groupes
+              <button type="button" class="btn-manage-groups" data-bs-toggle="modal" data-bs-target="#groupsModal">
+                <i class="bi bi-gear-fill" aria-hidden="true"></i> Gérer mes groupes
               </button>
             </div>
           </div>
@@ -2017,8 +2143,8 @@
           </div>
 
           <div class="wa-footer-cta-group" style="display:flex;align-items:center;gap:0.65rem;flex-wrap:wrap;">
-            <button type="submit" id="btnApplySettings" class="btn btn-dark btn-apply-settings shadow-sm">
-              <i class="bi bi-sliders me-1"></i> Appliquer &amp; Adapter les offres
+            <button type="submit" id="btnApplySettings" class="btn-apply-settings">
+              <i class="bi bi-sliders me-1" aria-hidden="true"></i> Appliquer &amp; Adapter les offres
             </button>
 
             <button type="button" id="btnOpenPublishModal" class="btn-publish-now" data-bs-toggle="modal" data-bs-target="#sendConfirmModal" {% if st != 'connected' %}disabled title="Connectez d'abord votre WhatsApp en haut de page"{% endif %}>
