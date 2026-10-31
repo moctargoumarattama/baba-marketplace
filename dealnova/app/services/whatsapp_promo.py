@@ -353,6 +353,28 @@ def _tracked(url: str, medium: str = "") -> str:
 # ---------------------------------------------------------------------------
 # Textes commerciaux (Gemini + Repli)
 # ---------------------------------------------------------------------------
+def _clean_body_text(text: str) -> str:
+    """Nettoie le texte pour enlever les résidus de templates, liens, STOP, salutations ou badges."""
+    if not text:
+        return ""
+    lines = []
+    for raw_line in str(text).splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        lower = line.lower()
+        if "http://" in lower or "https://" in lower:
+            continue
+        if "stop" in lower and ("répondez" in lower or "repondez" in lower or lower == "stop"):
+            continue
+        if lower.startswith("bonjour"):
+            continue
+        if any(line.startswith(c) for c in ("✨", "🌟", "📢", "💰", "👉", "✅", "🚚", "💵", "*")):
+            continue
+        lines.append(line)
+    return " ".join(lines).strip()
+
+
 def _sanitize_copy(text: Any, limit: int) -> str:
     value = _UNSAFE_CHARS_RE.sub("", _URL_RE.sub("", str(text or "")))
     value = re.sub(r"[ \t]+", " ", value)
@@ -363,8 +385,8 @@ def _sanitize_copy(text: Any, limit: int) -> str:
 def _fallback_copy(card: dict[str, Any]) -> dict[str, str]:
     shop = f" chez {card['shop']}" if card.get("shop") else ""
     return {
-        "status": f"⚡ {card['name']}{shop} dispo !",
-        "message": f"Profitez de *{card['name']}*{shop}, dispo en commande rapide !",
+        "status": f"⚡ {card['name']}{shop} disponible !",
+        "message": f"Produit de qualité disponible immédiatement en commande directe{shop}.",
     }
 
 
@@ -381,15 +403,20 @@ def generate_copy(cards: list[dict[str, Any]], *, session: requests.Session | No
         for card in cards
     ]
     instruction = (
-        "Tu es le rédacteur commercial de Baba Market au Maroc. "
-        "RÈGLE STRICTE : SOIS ULTRA-COURT, PUNCHY ET VENDEUR. ZÉRO BLABLA, ZÉRO LONGUEUR. "
-        "Pour chaque produit fourni, écris en français dynamique : "
-        "\"status\" (légende courte de Statut WhatsApp : 1 seule phrase percutante de 35 à 55 caractères max, 1 emoji). "
-        "\"message\" (texte vendeur WhatsApp : 1 seule phrase courte et dynamique de 10 à 15 mots max, direct à l'essentiel). "
-        "Exemple status: '⚡ Riz poulet savoureux chez Benifood !' "
-        "Exemple message: 'Profitez d\'un délicieux Riz Poulet préparé par Benifood au meilleur prix.' "
-        "N'écris AUCUN prix, AUCUN lien, AUCUN numéro : ils sont ajoutés automatiquement. "
-        "Réponds uniquement en JSON : {\"items\":[{\"id\":0,\"status\":\"...\",\"message\":\"...\"}]}."
+        "Tu es le conseiller commercial WhatsApp de Baba Market au Maroc. "
+        "RÈGLE ABSOLUE : INTERDICTION DU BLABLA GÉNÉRIQUE ET COMMERCIAL BANAL "
+        "(Bannis formellement: 'Savourez nos excellents...', 'Profitez de...', 'Simplifiez votre...', 'Découvrez nos...'). "
+        "Un client WhatsApp veut une description concrète, utile, naturelle et rassurante en français. "
+        "Pour chaque produit ou service, écris deux champs : "
+        "1. \"status\" : 1 courte phrase percutante et concrète (30 à 45 caractères max, 1 emoji). "
+        "2. \"message\" : 1 seule phrase simple, précise et rassurante (8 à 14 mots max) qui décrit l'utilité réelle du produit/service "
+        "(fraîcheur, qualité vérifiée, efficacité, soin). "
+        "Exemples concrets : "
+        "- Alimentaire -> status: '🌿 Feuilles de patate fraîches du jour !', message: 'Feuilles fraîches de qualité supérieure, idéales pour vos sauces et plats.' "
+        "- Déménagement -> status: '📦 Déménagement soigné et rapide !', message: 'Transport sécurisé et manipulation méticuleuse de vos meubles et cartons.' "
+        "- Repas -> status: '🍗 Riz poulet chaud et savoureux !', message: 'Plat copieux préparé à la commande avec des ingrédients frais.' "
+        "N'écris JAMAIS de prix, JAMAIS de lien, JAMAIS de numéro : ils sont ajoutés automatiquement dans le modèle. "
+        "Réponds STRICTEMENT en JSON : {\"items\":[{\"id\":0,\"status\":\"...\",\"message\":\"...\"}]}."
     )
     payload = {
         "system_instruction": {"parts": [{"text": instruction}]},
@@ -428,10 +455,13 @@ def generate_copy(cards: list[dict[str, Any]], *, session: requests.Session | No
 
 def compose_status_caption(card: dict[str, Any], copy: dict[str, str]) -> str:
     """Légende pour le Statut WhatsApp 24h."""
-    if copy.get("custom_caption"):
-        return copy["custom_caption"]
-    body = copy.get("status") or copy.get("message") or ""
-    parts = [body]
+    if copy.get("is_custom") and copy.get("custom_caption"):
+        body = _clean_body_text(copy["custom_caption"])
+    else:
+        body = _clean_body_text(copy.get("status") or copy.get("message") or "")
+    parts = []
+    if body:
+        parts.append(body)
     if card.get("price_line"):
         parts.append(card["price_line"])
     parts.append(f"👉 {_tracked(card.get('page_url', ''), 'status')}")
@@ -439,33 +469,66 @@ def compose_status_caption(card: dict[str, Any], copy: dict[str, str]) -> str:
 
 
 def compose_group_message(card: dict[str, Any], copy: dict[str, str], group_label: str = "") -> str:
-    """Message destiné aux Groupes de vente WhatsApp."""
-    if copy.get("custom_group_message"):
-        return copy["custom_group_message"]
-    shop_line = f" chez {card['shop']}" if card.get("shop") else ""
+    """Message destiné aux Groupes de vente WhatsApp (dynamique et rassurant)."""
+    clean_grp = (group_label or "").strip()
+    if clean_grp.lower() in ("groupe", "group", "whatsapp"):
+        clean_grp = ""
+    header = f"📢 *Offre spéciale {clean_grp}*" if clean_grp else "📢 *Offre du jour Baba Market*"
+
+    shop_line = f" chez *{card['shop']}*" if card.get("shop") else ""
     product_line = f"🌟 *{card['name']}*{shop_line}"
-    header = f"📢 *Offre spéciale {group_label}*" if group_label else "📢 *Offre du jour Baba Market*"
-    body_text = copy.get("group_message") or copy.get("message") or copy.get("status") or ""
-    parts = [header, product_line, body_text]
+
+    if copy.get("is_custom") and copy.get("custom_group_message"):
+        body_text = _clean_body_text(copy["custom_group_message"])
+    else:
+        body_text = _clean_body_text(copy.get("group_message") or copy.get("message") or copy.get("status") or "")
+
+    parts = [header, product_line]
+    if body_text:
+        parts.append(body_text)
     if card.get("price_line"):
         parts.append(card["price_line"])
-    parts.append(f"👉 Voir & Commander : {_tracked(card.get('page_url', ''), 'group')}")
+
+    parts.append("🚚 Livraison rapide • 💵 Paiement à la livraison")
+    parts.append(f"👉 Voir & Commander en 1 clic : {_tracked(card.get('page_url', ''), 'group')}")
     return "\n\n".join(parts)
 
 
 def compose_message(card: dict[str, Any], copy: dict[str, str], label: str = "") -> str:
-    """Message direct personnalisé 1-à-1 chaleureux et propre."""
-    if copy.get("custom_direct_message"):
-        return copy["custom_direct_message"]
+    """Message direct personnalisé 1-à-1 chaleureux, rassurant et sans blabla."""
     clean_label = (label or "").strip()
-    if clean_label.lower() in ("admin", "test", "client", "destinataire", "user", "contact"):
+    if clean_label.lower() in ("admin", "test", "client", "destinataire", "user", "contact", "abonne", "inconnu"):
         clean_label = ""
     greeting = f"Bonjour {clean_label} 👋" if clean_label else "Bonjour 👋"
-    body_text = copy.get("direct_message") or copy.get("message") or copy.get("status") or ""
-    parts = [greeting, body_text]
+
+    if copy.get("is_custom") and copy.get("custom_direct_message"):
+        body_text = _clean_body_text(copy["custom_direct_message"])
+    else:
+        body_text = _clean_body_text(copy.get("direct_message") or copy.get("message") or copy.get("status") or "")
+
+    shop_name = card.get("shop")
+    shop_line = f" chez *{shop_name}*" if shop_name else ""
+    product_header = f"✨ *{card['name']}*{shop_line}"
+
+    parts = [greeting, product_header]
+    if body_text:
+        parts.append(body_text)
+
     if card.get("price_line"):
         parts.append(card["price_line"])
-    parts.append(f"👉 Commander ici : {_tracked(card.get('page_url', ''), 'message')}")
+
+    # Réassurance concrète pour le client marocain
+    reassurance = [
+        "✅ Qualité vérifiée & satisfaction garantie",
+        "🚚 Livraison rapide à domicile",
+        "💵 Paiement à la livraison",
+    ]
+    parts.append("\n".join(reassurance))
+
+    # Lien court et clair sur sa propre ligne
+    url = _tracked(card.get('page_url', ''), 'message')
+    parts.append(f"👉 Commander en 1 clic ici :\n{url}")
+
     return "\n\n".join(parts)
 
 
@@ -759,6 +822,7 @@ def run_daily_promo(
     if not preview and saved_items and last_gen.get("date") == today:
         cards = []
         copies = {}
+        base = _public_base_url()
         source = last_gen.get("copy_source") or "validated"
         for item in saved_items:
             cards.append({
@@ -770,14 +834,18 @@ def run_daily_promo(
                 "old_price": item.get("old_price"),
                 "price_line": item.get("price_line", ""),
                 "image_url": item.get("image_url", ""),
-                "page_url": item.get("page_url", ""),
+                "page_url": f"{base}/p/{item['id']}",
             })
+            raw_text = _clean_body_text(item.get("ai_message") or item.get("message") or item.get("direct_message") or "")
+            raw_status = _clean_body_text(item.get("ai_status") or item.get("status") or item.get("status_caption") or "")
+            is_custom = bool(item.get("is_custom"))
             copies[item["id"]] = {
-                "custom_caption": item.get("status_caption") or "",
-                "custom_group_message": item.get("group_message") or "",
-                "custom_direct_message": item.get("direct_message") or "",
-                "status": item.get("status_caption") or "",
-                "message": item.get("direct_message") or "",
+                "is_custom": is_custom,
+                "custom_caption": _clean_body_text(item.get("custom_caption") or "") if is_custom else "",
+                "custom_group_message": _clean_body_text(item.get("custom_group_message") or "") if is_custom else "",
+                "custom_direct_message": _clean_body_text(item.get("custom_direct_message") or "") if is_custom else "",
+                "status": raw_status,
+                "message": raw_text,
             }
         summary["copy_source"] = source
     else:
@@ -816,7 +884,10 @@ def run_daily_promo(
             "status_caption": compose_status_caption(c, copies[c["id"]]),
             "group_message": compose_group_message(c, copies[c["id"]]),
             "group_message_sample": compose_group_message(c, copies[c["id"]]),
-            "direct_message": compose_message(c, copies[c["id"]], "Client"),
+            "ai_status": copies[c["id"]].get("status", ""),
+            "ai_message": copies[c["id"]].get("message", ""),
+            "is_custom": bool(copies[c["id"]].get("is_custom")),
+            "direct_message": compose_message(c, copies[c["id"]], ""),
         }
         for c in cards
     ]

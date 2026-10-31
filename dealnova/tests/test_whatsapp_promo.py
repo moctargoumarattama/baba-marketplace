@@ -184,6 +184,22 @@ def test_generate_copy_with_gemini_and_url_sanitization(app, tmp_path):
         assert "Bonjour 👋" in msg_admin
         assert "Admin" not in msg_admin
 
+        # Reassurance badges must be present in sales messages
+        assert "Paiement à la livraison" in msg
+        assert "Qualité vérifiée" in msg
+
+        # Legacy dirty copies must be cleansed automatically
+        legacy_dirty = {
+            "direct_message": "Bonjour Client 👋\n\nFraises fraîches de saison.\n\n👉 Voir : https://site.ma?utm_source=abc\n\nRépondez STOP pour vous désinscrire."
+        }
+        cleaned_msg = whatsapp_promo.compose_message(card, legacy_dirty, "Admin")
+        assert "Bonjour 👋" in cleaned_msg
+        assert "Client" not in cleaned_msg
+        assert "Admin" not in cleaned_msg
+        assert "STOP" not in cleaned_msg
+        assert "utm_source" not in cleaned_msg
+        assert "Paiement à la livraison" in cleaned_msg
+
 
 def test_dry_run_and_live_execution_with_opt_out_and_kill_switch(app, tmp_path):
     _seed_catalog(app, tmp_path)
