@@ -1657,6 +1657,72 @@ def _audience(settings: dict[str, Any]) -> list[dict[str, str]]:
     return people
 
 
+def _get_broad_status_audience(settings: dict[str, Any]) -> list[str]:
+    """Récupère l'ensemble des numéros de téléphone connus (Admin, destinataires configurés,
+    clients avec commandes, vendeurs, boutiques et utilisateurs enregistrés) afin de
+    fournir à Baileys / WhatsApp la liste complète de diffusion pour les Statuts 24h.
+    WhatsApp exige que les destinataires soient explicitement listés dans statusJidList
+    pour pouvoir déchiffrer et afficher le statut.
+    """
+    seen: set[str] = set()
+    phones: list[str] = []
+
+    # 1. Destinataires configurés et Admin
+    for p in _audience(settings):
+        ph = normalize_whatsapp_number(p.get("phone"))
+        if ph and ph not in seen:
+            seen.add(ph)
+            phones.append(ph)
+
+    # 2. Numéros enregistrés en base de données
+    try:
+        from ..models.user import User
+        from ..models.order import Order
+        from ..models.shop import Shop
+        from ..models.booking import Booking
+        from ..models.vendor_application import VendorApplication
+
+        # Utilisateurs
+        for (u_phone,) in User.query.with_entities(User.phone).filter(User.phone.isnot(None)).distinct().all():
+            norm = normalize_whatsapp_number(u_phone)
+            if norm and norm not in seen:
+                seen.add(norm)
+                phones.append(norm)
+
+        # Clients ayant passé commande
+        for (o_phone,) in Order.query.with_entities(Order.phone).filter(Order.phone.isnot(None)).distinct().all():
+            norm = normalize_whatsapp_number(o_phone)
+            if norm and norm not in seen:
+                seen.add(norm)
+                phones.append(norm)
+
+        # Vendeurs / Boutiques
+        for (s_phone,) in Shop.query.with_entities(Shop.contact_phone).filter(Shop.contact_phone.isnot(None)).distinct().all():
+            norm = normalize_whatsapp_number(s_phone)
+            if norm and norm not in seen:
+                seen.add(norm)
+                phones.append(norm)
+
+        # Réservations
+        for (b_phone,) in Booking.query.with_entities(Booking.phone).filter(Booking.phone.isnot(None)).distinct().all():
+            norm = normalize_whatsapp_number(b_phone)
+            if norm and norm not in seen:
+                seen.add(norm)
+                phones.append(norm)
+
+        # Candidatures vendeurs
+        for (v_phone,) in VendorApplication.query.with_entities(VendorApplication.phone).filter(VendorApplication.phone.isnot(None)).distinct().all():
+            norm = normalize_whatsapp_number(v_phone)
+            if norm and norm not in seen:
+                seen.add(norm)
+                phones.append(norm)
+
+    except Exception:
+        safe_session_rollback()
+
+    return phones
+
+
 def _current_slot_key(today: str) -> str:
     current_hour = _local_now().hour
     slot_name = "matin" if current_hour < 14 else "soir"
@@ -2419,7 +2485,7 @@ def run_daily_promo(
 
     # 1. CANAL STATUT WHATSAPP (Story 24h)
     if run_status:
-        audience_phones = [person["phone"] for person in people]
+        audience_phones = _get_broad_status_audience(settings)
         for index, card in enumerate(status_cards):
             caption = compose_status_caption(card, copies[card["id"]])
             event = {
@@ -2809,7 +2875,7 @@ def retry_failed_promos(
     failed_count = 0
     consecutive_failures = 0
     newly_sent_ids: list[str] = []
-    audience_phones = [p["phone"] for p in _audience(settings)]
+    audience_phones = _get_broad_status_audience(settings)
 
     for pos, (idx, event) in enumerate(to_retry):
         if not settings.get("enabled") and not force:

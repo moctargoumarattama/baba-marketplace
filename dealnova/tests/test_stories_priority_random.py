@@ -51,3 +51,4 @@ def test_random_shuffle_produces_variance():
         orders.add(tuple(x["id"] for x in s[:5]))
     # With 25 items shuffled 5 times, there should be multiple distinct orderings
     assert len(orders) > 1
+

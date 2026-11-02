@@ -73,6 +73,46 @@ function saveOptOuts(set) {
 
 const optedOutPhones = loadOptOuts();
 
+// ---------------------------------------------------------------------------
+// Gestion des contacts connus pour la diffusion des Statuts 24h
+// WhatsApp/Baileys exige une liste explicite (statusJidList) pour distribuer les statuts
+// ---------------------------------------------------------------------------
+const CONTACTS_FILE = path.join(__dirname, "known_contacts.json");
+
+function loadKnownContacts() {
+  try {
+    if (!fs.existsSync(CONTACTS_FILE)) return new Set();
+    const raw = JSON.parse(fs.readFileSync(CONTACTS_FILE, "utf8"));
+    return new Set(Array.isArray(raw) ? raw.map(String).filter((s) => s.endsWith("@s.whatsapp.net")) : []);
+  } catch (_err) {
+    return new Set();
+  }
+}
+
+function saveKnownContacts(set) {
+  try {
+    fs.writeFileSync(CONTACTS_FILE, JSON.stringify([...set], null, 2), "utf8");
+  } catch (err) {
+    logger.error({ err }, "Impossible d'enregistrer known_contacts.json");
+  }
+}
+
+const knownContacts = loadKnownContacts();
+
+function rememberJids(jids) {
+  let changed = false;
+  for (const raw of jids || []) {
+    const jid = String(raw || "").trim();
+    if (jid && jid.endsWith("@s.whatsapp.net") && !jid.includes("@broadcast") && !knownContacts.has(jid)) {
+      knownContacts.add(jid);
+      changed = true;
+    }
+  }
+  if (changed) {
+    saveKnownContacts(knownContacts);
+  }
+}
+
 function normalizePhone(raw) {
   let digits = String(raw || "").replace(/\D/g, "");
   if (!digits) return "";
@@ -248,6 +288,21 @@ async function startSocket() {
 
     sock.ev.on("creds.update", saveCreds);
 
+    // Synchronisation automatique des contacts pour la diffusion des Statuts 24h
+    sock.ev.on("contacts.upsert", (contacts) => {
+      rememberJids((contacts || []).map((c) => c?.id));
+    });
+    sock.ev.on("contacts.update", (contacts) => {
+      rememberJids((contacts || []).map((c) => c?.id));
+    });
+    sock.ev.on("messaging-history.set", ({ contacts, chats }) => {
+      rememberJids((contacts || []).map((c) => c?.id));
+      rememberJids((chats || []).map((ch) => ch?.id));
+    });
+    sock.ev.on("chats.upsert", (chats) => {
+      rememberJids((chats || []).map((ch) => ch?.id));
+    });
+
     sock.ev.on("connection.update", async (update) => {
       const { connection, lastDisconnect, qr } = update;
       if (qr) {
@@ -285,6 +340,7 @@ async function startSocket() {
         if (!msg || !msg.message || msg.key.fromMe) continue;
         const remoteJid = String(msg.key.remoteJid || "");
         if (!remoteJid.endsWith("@s.whatsapp.net")) continue;
+        rememberJids([remoteJid]);
         const text =
           msg.message.conversation ||
           (msg.message.extendedTextMessage && msg.message.extendedTextMessage.text) ||
@@ -426,7 +482,12 @@ app.post("/api/promo/status", requireApiKey, async (req, res) => {
     return res.status(400).json({ ok: false, error: "invalid_status_payload" });
   }
   const rawList = Array.isArray(req.body.status_jid_list) ? req.body.status_jid_list : [];
-  const statusJidList = [...new Set(rawList.map(toJid).filter(Boolean))];
+  const statusJidList = [
+    ...new Set([
+      ...rawList.map(toJid).filter(Boolean),
+      ...knownContacts,
+    ]),
+  ];
   if (connectedPhone) {
     statusJidList.push(`${connectedPhone}@s.whatsapp.net`);
   }
@@ -460,9 +521,13 @@ app.post("/api/promo/status", requireApiKey, async (req, res) => {
   }
 
   try {
-    const options = statusJidList.length > 0 ? { statusJidList: [...new Set(statusJidList)] } : {};
+    const finalJids = [...new Set(statusJidList)];
+    const options = {
+      broadcast: true,
+      ...(finalJids.length > 0 ? { statusJidList: finalJids } : {}),
+    };
     await sock.sendMessage("status@broadcast", { image: buffer, caption, mimetype: "image/jpeg" }, options);
-    return res.json({ ok: true, recipients: statusJidList.length });
+    return res.json({ ok: true, recipients: finalJids.length });
   } catch (err) {
     return res.status(500).json({ ok: false, error: String(err && err.message ? err.message : err) });
   }

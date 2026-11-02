@@ -1736,6 +1736,16 @@
       </div>
 
       <div style="display:flex;align-items:center;gap:0.45rem;flex-wrap:wrap;">
+        {% if ps.get('enabled') %}
+          <a href="#step3Settings" class="btn btn-sm btn-outline-success fw-bold d-inline-flex align-items-center gap-1 shadow-sm" style="font-size:0.78rem;" title="L'envoi automatique quotidien est ACTIF (cliquez pour régler dans l'étape 3)">
+            <i class="bi bi-clock-fill text-success"></i> Auto : <strong>ACTIF</strong>
+          </a>
+        {% else %}
+          <a href="#step3Settings" class="btn btn-sm btn-outline-warning text-dark fw-bold d-inline-flex align-items-center gap-1 shadow-sm" style="font-size:0.78rem;" title="L'envoi automatique quotidien est EN PAUSE (cliquez pour activer dans l'étape 3)">
+            <i class="bi bi-pause-circle-fill text-warning"></i> Auto : <strong>EN PAUSE</strong>
+          </a>
+        {% endif %}
+
         <form method="POST" action="{{ url_for('admin.whatsapp_promo_run') }}" class="m-0" id="formRegenerateWave">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="mode" value="dry_run">
