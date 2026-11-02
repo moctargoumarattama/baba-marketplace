@@ -213,7 +213,12 @@ body[data-page="landing"] .u-pdetail-actions-dock { padding-bottom: env(safe-are
 body[data-page="landing"] .u-pdetail-actions-dock :is(a, button) { min-height: 48px; font-size: 15px; }
 body[data-page="landing"] .bm-assistant { inset-inline-start: auto !important; left: auto !important; top: auto !important; right: max(18px, env(safe-area-inset-right, 0px)) !important; bottom: 20px !important; z-index: 1040; }
 body[data-page="landing"] .bm-assistant.is-mobile-open { bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important; }
-body[data-page="landing"] .bm-assistant-toggle { width: 46px; height: 46px; background: var(--hub-green); box-shadow: 0 6px 18px #0b60352b; }
+body[data-page="landing"] .bm-assistant-toggle { width: 46px; height: 46px; background: var(--hub-green); box-shadow: 0 6px 18px #0b60352b; animation: bm-assistant-ia-blink 1.8s ease-in-out infinite; }
+body[data-page="landing"] .bm-assistant-toggle.is-paused,
+body[data-page="landing"] .bm-assistant-toggle[aria-expanded="true"],
+body[data-page="landing"] body.bm-assistant-open .bm-assistant-toggle,
+body[data-page="landing"] .bm-assistant[inert] .bm-assistant-toggle,
+body[data-page="landing"] .bm-assistant[aria-hidden="true"] .bm-assistant-toggle { animation: none !important; }
 body[data-page="landing"] .bm-assistant-bubble-svg { width: 23px; height: 23px; }
 body[data-page="landing"] .bm-assistant-sparkle-badge { top: -5px; right: -6px; font-size: 11px; }
 body[data-page="landing"] .hub-feedback { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); width: max-content; max-width: calc(100vw - 32px); z-index: 4000; padding: 12px 20px; border-radius: 14px; background: #173f2c; color: #fff; font-size: 14px; box-shadow: 0 10px 30px #16342120; }

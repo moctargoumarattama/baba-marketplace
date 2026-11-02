@@ -52,13 +52,53 @@
   touch-action: none;
   pointer-events: auto;
   transition: transform 0.16s ease, filter 0.16s ease;
-  animation: bm-assistant-attention 0.72s ease-in-out 5;
+  animation: bm-assistant-ia-blink 1.8s ease-in-out infinite;
 }
 
-@keyframes bm-assistant-attention {
-  0%, 100% { transform: scale(1); box-shadow: 0 8px 24px rgba(5, 114, 82, 0.24); }
-  45% { transform: scale(1.12); box-shadow: 0 0 0 9px rgba(16, 185, 129, 0.18), 0 12px 28px rgba(5, 114, 82, 0.3); }
-  70% { transform: scale(1); box-shadow: 0 8px 24px rgba(5, 114, 82, 0.24); }
+@keyframes bm-assistant-ia-blink {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 6px 18px rgba(11, 96, 53, 0.28), 0 0 0 0 rgba(16, 185, 129, 0.65);
+    filter: brightness(1);
+  }
+  40% {
+    transform: scale(1.09);
+    box-shadow: 0 10px 26px rgba(11, 96, 53, 0.42), 0 0 0 10px rgba(16, 185, 129, 0);
+    filter: brightness(1.15);
+  }
+  55% {
+    transform: scale(1.03);
+    filter: brightness(1.2);
+  }
+  75% {
+    transform: scale(1);
+    box-shadow: 0 6px 18px rgba(11, 96, 53, 0.28), 0 0 0 0 rgba(16, 185, 129, 0);
+    filter: brightness(1);
+  }
+}
+
+/* Arret immediat du clignotement des que l'ecran change ou qu'une modale s'ouvre */
+.bm-assistant-toggle.is-paused,
+.bm-assistant-toggle[aria-expanded="true"],
+.bm-assistant.is-open .bm-assistant-toggle,
+.bm-assistant.is-mobile-open .bm-assistant-toggle,
+.bm-assistant.is-dragging .bm-assistant-toggle,
+.bm-assistant[inert] .bm-assistant-toggle,
+.bm-assistant[aria-hidden="true"] .bm-assistant-toggle,
+body.bm-assistant-open .bm-assistant-toggle,
+body.is-modal-open .bm-assistant-toggle,
+body.modal-open .bm-assistant-toggle,
+body.u-modal-open .bm-assistant-toggle {
+  animation: none !important;
+}
+
+.bm-assistant-toggle.is-paused .bm-assistant-sparkle-badge,
+.bm-assistant-toggle[aria-expanded="true"] .bm-assistant-sparkle-badge,
+body.bm-assistant-open .bm-assistant-sparkle-badge,
+body.is-modal-open .bm-assistant-sparkle-badge,
+body.modal-open .bm-assistant-sparkle-badge,
+body.u-modal-open .bm-assistant-sparkle-badge {
+  animation: none !important;
 }
 
 .bm-assistant-toggle:active {

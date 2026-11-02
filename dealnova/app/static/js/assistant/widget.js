@@ -761,6 +761,38 @@
     clampCurrentPosition();
   });
 
+  // Clignotement continu tant que l'utilisateur est sur l'ecran d'accueil,
+  // et arret des que l'ecran change (modale ouverte, onglet change, assistant ouvert).
+  function syncActiveScreenAnimation() {
+    if (!toggleBtn) return;
+    var screenHidden = document.hidden ||
+                       isPanelOpen() ||
+                       document.body.classList.contains("bm-assistant-open") ||
+                       document.body.classList.contains("u-modal-open") ||
+                       document.body.classList.contains("modal-open") ||
+                       (document.getElementById("universeModalPanel") && !document.getElementById("universeModalPanel").hidden);
+    if (screenHidden) {
+      toggleBtn.classList.add("is-paused");
+    } else {
+      toggleBtn.classList.remove("is-paused");
+    }
+  }
+
+  document.addEventListener("visibilitychange", syncActiveScreenAnimation);
+  window.addEventListener("blur", function () {
+    if (toggleBtn) toggleBtn.classList.add("is-paused");
+  });
+  window.addEventListener("focus", syncActiveScreenAnimation);
+
+  if (typeof MutationObserver !== "undefined" && document.body) {
+    var screenObserver = new MutationObserver(syncActiveScreenAnimation);
+    screenObserver.observe(document.body, { attributes: true, attributeFilter: ["class", "inert", "aria-hidden"] });
+    var universePanel = document.getElementById("universeModalPanel");
+    if (universePanel) {
+      screenObserver.observe(universePanel, { attributes: true, attributeFilter: ["hidden", "class", "style"] });
+    }
+  }
+
   placeInitialPosition();
   updatePanelPlacement();
   window.setTimeout(showHintIfNeeded, 900);
