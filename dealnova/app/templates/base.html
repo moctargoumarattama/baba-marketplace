@@ -1921,13 +1921,13 @@
       <span class="pwa-banner__3d-badge" aria-hidden="true">App</span>
     </div>
     <div class="pwa-banner__text">
-      <strong>{{ t('Application Baba Market') }}</strong>
-      <span>{{ t('Vos commandes plus rapides & en 1 clic') }}</span>
+      <strong class="pwa-banner__title">{{ t('Application Baba Market') }}</strong>
+      <span class="pwa-banner__subtitle">{{ t('Vos commandes plus rapides & en 1 clic') }}</span>
     </div>
     <div class="pwa-banner__actions">
-      <button id="pwaBannerInstall" class="pwa-btn primary" type="button">⚡ {{ t('Installer') }}</button>
-      <button id="pwaHowBtn" class="pwa-btn ghost hidden" type="button">{{ t('Comment installer') }}</button>
-      <button id="pwaBannerLater" class="pwa-btn ghost" type="button" aria-label="{{ t('Plus tard') }}">✕</button>
+      <button id="pwaBannerInstall" class="pwa-action-btn" type="button">⚡ {{ t('Installer') }}</button>
+      <button id="pwaHowBtn" class="pwa-action-btn hidden" type="button">⚡ {{ t('Installer') }}</button>
+      <button id="pwaBannerLater" class="pwa-close-btn" type="button" aria-label="{{ t('Fermer') }}">✕</button>
     </div>
   </div>
 
@@ -1941,16 +1941,17 @@
       <div class="install-bar__sub">{{ t('Vos commandes plus rapides & en 1 clic') }}</div>
     </div>
     <div class="install-bar__actions">
-      <button id="androidInstallBtn" class="install-btn" type="button">⚡ {{ t('Installer') }}</button>
-      <button id="androidInstallClose" class="install-close" type="button" aria-label="{{ t('Fermer') }}">✕</button>
+      <button id="androidInstallBtn" class="pwa-action-btn" type="button">⚡ {{ t('Installer') }}</button>
+      <button id="androidInstallClose" class="pwa-close-btn" type="button" aria-label="{{ t('Fermer') }}">✕</button>
     </div>
   </div>
 
   <!-- Install Popup (1/day) -->
   <div id="installModal" class="pwa-modal hidden" role="dialog" aria-modal="true" aria-labelledby="pwaInstallTitle">
     <div class="pwa-modal__card">
+      <button class="pwa-modal__close" type="button" onclick="document.getElementById('installModal').classList.add('hidden')" aria-label="{{ t('Fermer') }}">✕</button>
       <div class="pwa-modal__brand">
-        <img class="pwa-modal__icon" src="{{ url_for('apple_touch_icon') }}" alt="{{ t('Icône Baba Market') }}" width="64" height="64">
+        <img class="pwa-modal__icon" src="{{ url_for('apple_touch_icon') }}" alt="{{ t('Icône Baba Market') }}" width="56" height="56">
         <div>
           <h3 id="pwaInstallTitle">{{ t('Installer Baba Market') }}</h3>
           <p class="pwa-modal__value">{{ t("Ouvrez BabaMarket depuis l'écran d'accueil de votre téléphone.") }}</p>
@@ -1966,10 +1967,10 @@
         <p id="iosBrowserWarning" class="pwa-ios-browser-warning hidden">{{ t("Ouvrez babamarket.ma dans Safari, puis suivez ces étapes.") }}</p>
         <ol class="pwa-ios-steps">
           <li>
-            {{ t('Dans Safari, appuyez sur le bouton') }}
+            <span>1. {{ t('Dans Safari, appuyez sur le bouton') }}</span>
             <span class="pwa-share-inline">
               <span class="pwa-share-icon" aria-hidden="true">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M12 3v12"/>
                   <path d="M8 7l4-4 4 4"/>
                   <path d="M5 13v6h14v-6"/>
@@ -1977,20 +1978,20 @@
               </span>
               <b>{{ t('Partager') }}</b>
             </span>
-            {{ t('(icône carré avec flèche vers le haut)') }}
+            <span class="pwa-ios-step-hint">{{ t('(icône carré avec flèche vers le haut)') }}</span>
           </li>
-          <li>{{ t('Sélectionnez') }} <b>➕ {{ t("Sur l'écran d'accueil") }}</b></li>
-          <li>{{ t('Appuyez sur') }} <b>✅ {{ t('Ajouter') }}</b></li>
+          <li><span>2. {{ t('Sélectionnez') }} <b>➕ {{ t("Sur l'écran d'accueil") }}</b></span></li>
+          <li><span>3. {{ t('Appuyez sur') }} <b>✅ {{ t('Ajouter') }}</b></span></li>
         </ol>
-        <p class="pwa-ios-end">{{ t('Baba Market sera accessible directement depuis votre téléphone.') }}</p>
+        <p class="pwa-ios-end">✨ {{ t('Baba Market sera accessible directement depuis votre téléphone.') }}</p>
       </div>
 
       <p id="pwaInstallStatus" class="pwa-install-status hidden" role="status" aria-live="polite"></p>
 
       <div class="pwa-modal__actions">
-        <button id="pwaModalInstall" class="pwa-btn primary" type="button">{{ t('Installer') }}</button>
-        <button id="pwaModalLater" class="pwa-btn ghost" type="button">{{ t('Plus tard') }}</button>
-        <button id="pwaModalToday" class="pwa-btn subtle" type="button">{{ t("Ne plus afficher aujourd'hui") }}</button>
+        <button id="pwaModalInstall" class="pwa-modal-btn pwa-modal-btn--primary" type="button">⚡ {{ t('Installer') }}</button>
+        <button id="pwaModalLater" class="pwa-modal-btn pwa-modal-btn--secondary" type="button">{{ t('Plus tard') }}</button>
+        <button id="pwaModalToday" class="pwa-modal-btn pwa-modal-btn--subtle" type="button">{{ t("Ne plus afficher aujourd'hui") }}</button>
       </div>
     </div>
   </div>
