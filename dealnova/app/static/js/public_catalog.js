@@ -467,7 +467,7 @@
         media.classList.add('promotion-photo-frame');
         if (window.BMPromotionPhotos) window.BMPromotionPhotos.enhance(media, image);
       }
-      image.addEventListener('error', function () { image.remove(); media.appendChild(placeholder(item)); }, { once: true }); media.appendChild(image);
+      image.addEventListener('error', function () { if (item.image_url && image.src !== item.image_url && !image.dataset.fallbackRetried) { image.dataset.fallbackRetried = '1'; image.src = item.image_url; return; } image.remove(); media.appendChild(placeholder(item)); }, { once: true }); media.appendChild(image);
     } else if (item.video_url && !isPlaceholderImageUrl(item.video_url)) {
       var video = node('video', 'catalog-media-video'); video.src = safeURL(item.video_url, ''); video.muted = true; video.playsInline = true; video.preload = 'metadata';
       video.setAttribute('aria-label', 'Aperçu vidéo : ' + (item.name || 'offre'));

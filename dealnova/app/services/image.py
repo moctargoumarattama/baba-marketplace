@@ -20,7 +20,7 @@ MAX_PRODUCT_VIDEO_BYTES = 30 * 1024 * 1024
 
 # Qualite elevee pour garder un beau rendu
 MAIN_WEBP_QUALITY = 90
-VARIANT_WEBP_QUALITY = 86
+VARIANT_WEBP_QUALITY = 90
 WEBP_METHOD = 6
 
 
@@ -273,15 +273,20 @@ def image_variant(filename: str, size: str = "thumb") -> str:
     if not filename:
         return filename
 
-    size_px = THUMB_SIZE if size in ("thumb", "small") else LARGE_SIZE
-    variant = _variant_name(filename, size_px)
     upload_dir = _uploads_root_dir()
+    is_thumb = size in ("thumb", "small")
 
-    if os.path.exists(os.path.join(upload_dir, variant)):
-        return variant
+    # Ordre de recherche intelligent et resilient (HD Retina sans ralentissement) :
+    # 1. Privilegier la variante haute definition (900px) si elle existe deja sur le serveur
+    # 2. Repli fluide sur la variante standard (300px) si 900px n'existe pas en production
+    # 3. Repli de secours sur le fichier original (.jpg/.webp) pour 0 risque de 404
+    candidate_sizes = [LARGE_SIZE, THUMB_SIZE] if is_thumb else [LARGE_SIZE, THUMB_SIZE]
+    for size_px in candidate_sizes:
+        variant = _variant_name(filename, size_px)
+        if os.path.exists(os.path.join(upload_dir, variant)):
+            return variant
 
-    # Fallback de compatibilite pour anciens fichiers non-webp
-    legacy_variant = _variant_name(filename, size_px)
+    legacy_variant = _variant_name(filename, THUMB_SIZE if is_thumb else LARGE_SIZE)
     if os.path.exists(os.path.join(upload_dir, legacy_variant)):
         return legacy_variant
 

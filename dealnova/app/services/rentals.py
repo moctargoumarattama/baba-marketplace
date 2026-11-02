@@ -21,7 +21,7 @@ MAX_VIDEO_BYTES = 30 * 1024 * 1024
 ARCHIVE_RETENTION_DAYS = 30
 IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "webp"}
 VIDEO_EXTENSIONS = {"mp4", "mov", "webm", "m4v", "avi", "mkv", "3gp", "mpeg", "mpg", "wmv", "flv"}
-RENTAL_THUMB_SIZE = 300
+RENTAL_THUMB_SIZE = 600
 VIDEO_POSTER_EXTENSION = "jpg"
 
 
@@ -84,14 +84,23 @@ def _rental_thumb_rel_path(relative_path: str) -> str | None:
         return None
 
     filename = normalized[len(prefix):]
-    if filename.endswith(f"_{RENTAL_THUMB_SIZE}.webp"):
+    if filename.endswith(f"_{RENTAL_THUMB_SIZE}.webp") or filename.endswith("_300.webp"):
         return None
 
     ext = os.path.splitext(filename)[1].lower()
     if ext not in {".jpg", ".jpeg", ".png", ".webp"}:
         return None
 
-    return _relative_rental_path(_rental_thumb_filename(filename)).replace("\\", "/").lstrip("/")
+    abs_dir = _rental_abs_dir()
+    thumb_name = _rental_thumb_filename(filename)
+    if os.path.exists(os.path.join(abs_dir, thumb_name)):
+        return _relative_rental_path(thumb_name).replace("\\", "/").lstrip("/")
+
+    legacy_300 = f"{os.path.splitext(filename)[0]}_300.webp"
+    if os.path.exists(os.path.join(abs_dir, legacy_300)):
+        return _relative_rental_path(legacy_300).replace("\\", "/").lstrip("/")
+
+    return _relative_rental_path(filename).replace("\\", "/").lstrip("/")
 
 
 def rental_video_poster_rel_path(relative_path: str) -> str | None:
@@ -175,14 +184,14 @@ def save_rental_image(file_obj: FileStorage) -> str:
         file_obj.stream.seek(0)
         with Image.open(file_obj.stream) as image:
             prepared = _prepare_rental_image(image)
-            prepared.save(abs_path, "WEBP", quality=84, method=6)
+            prepared.save(abs_path, "WEBP", quality=90, method=6)
             thumb_filename = _rental_thumb_filename(filename)
             thumb_abs_path = os.path.join(abs_dir, thumb_filename)
             if not os.path.exists(thumb_abs_path):
                 try:
                     thumb_image = prepared.copy()
                     thumb_image.thumbnail((RENTAL_THUMB_SIZE, RENTAL_THUMB_SIZE), Image.LANCZOS)
-                    thumb_image.save(thumb_abs_path, "WEBP", quality=84, method=6)
+                    thumb_image.save(thumb_abs_path, "WEBP", quality=90, method=6)
                 except Exception:
                     if os.path.exists(thumb_abs_path):
                         try:
