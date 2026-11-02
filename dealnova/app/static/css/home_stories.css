@@ -1,0 +1,648 @@
+/* ==========================================================================
+   Baba Market — Discovery Stories & Video Rail (Modern 2026 Edition)
+   Fluid, non-intrusive, native <dialog> story player
+   ========================================================================== */
+
+.bm-stories-container {
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto 0.75rem auto;
+  padding: 0.5rem 1rem 0.25rem 1rem;
+}
+
+.bm-stories-inner {
+  position: relative;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(240, 253, 244, 0.65) 100%);
+  border: 1px solid rgba(16, 185, 129, 0.14);
+  border-radius: 20px;
+  padding: 0.75rem 0.75rem 0.65rem 0.75rem;
+  box-shadow: 0 4px 20px -2px rgba(16, 185, 129, 0.06), 0 2px 6px -1px rgba(0, 0, 0, 0.02);
+}
+
+.bm-stories-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.65rem;
+  padding: 0 0.25rem;
+}
+
+.bm-stories-live-pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #10b981;
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  animation: bmStoryPulse 2s infinite cubic-bezier(0.66, 0, 0, 1);
+}
+
+@keyframes bmStoryPulse {
+  to {
+    box-shadow: 0 0 0 8px rgba(16, 185, 129, 0);
+  }
+}
+
+.bm-stories-title {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #0f172a;
+  text-transform: uppercase;
+  font-size: 0.78rem;
+}
+
+.bm-stories-hint {
+  margin-left: auto;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #059669;
+  background: rgba(16, 185, 129, 0.1);
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+}
+
+.bm-stories-rail-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.bm-stories-rail {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding: 0.25rem 0.25rem 0.4rem 0.25rem;
+  width: 100%;
+}
+
+.bm-stories-rail::-webkit-scrollbar {
+  display: none;
+}
+
+.bm-story-bubble {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+  background: none;
+  border: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  width: 76px;
+  cursor: pointer;
+  outline: none;
+  text-align: center;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.bm-story-bubble:hover,
+.bm-story-bubble:focus-visible {
+  transform: translateY(-2px) scale(1.03);
+}
+
+.bm-story-ring {
+  position: relative;
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  padding: 3px;
+  background: linear-gradient(135deg, #10b981 0%, #06b6d4 50%, #f59e0b 100%);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
+  transition: all 0.25s ease;
+}
+
+.bm-story-ring.is-promo {
+  background: linear-gradient(135deg, #f43f5e 0%, #fb923c 50%, #eab308 100%);
+  box-shadow: 0 4px 12px rgba(244, 63, 94, 0.25);
+}
+
+.bm-story-ring.is-video {
+  background: linear-gradient(135deg, #8b5cf6 0%, #06b6d4 50%, #10b981 100%);
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.25);
+}
+
+/* Viewed story ring state: dimmed, subtle border */
+.bm-story-bubble.is-viewed .bm-story-ring {
+  background: #cbd5e1;
+  box-shadow: none;
+  opacity: 0.78;
+}
+
+.bm-story-avatar-wrap {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: #ffffff;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.bm-story-avatar {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.bm-story-bubble:hover .bm-story-avatar {
+  transform: scale(1.08);
+}
+
+.bm-story-micro-badge {
+  position: absolute;
+  bottom: 0px;
+  right: 0px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-size: 0.65rem;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+.bm-story-micro-badge.video {
+  background: #8b5cf6;
+}
+
+.bm-story-micro-badge.promo {
+  background: #ef4444;
+}
+
+.bm-story-micro-badge.shop {
+  background: #10b981;
+}
+
+.bm-story-name {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #1e293b;
+  line-height: 1.2;
+  max-width: 74px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bm-story-tag {
+  font-size: 0.64rem;
+  font-weight: 700;
+  color: #059669;
+  background: rgba(16, 185, 129, 0.08);
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  line-height: 1;
+}
+
+.bm-story-bubble.is-viewed .bm-story-tag {
+  color: #64748b;
+  background: rgba(100, 116, 139, 0.08);
+}
+
+/* Scroll navigation arrows */
+.bm-stories-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #1e293b;
+  cursor: pointer;
+  z-index: 2;
+  transition: all 0.2s ease;
+}
+
+.bm-stories-arrow:hover {
+  background: #10b981;
+  color: #ffffff;
+  border-color: #10b981;
+  transform: translateY(-50%) scale(1.1);
+}
+
+.bm-stories-prev {
+  left: -8px;
+}
+
+.bm-stories-next {
+  right: -8px;
+}
+
+/* ==========================================================================
+   Native <dialog> Stories Player
+   Complies with modern-web-guidance
+   ========================================================================== */
+
+dialog.bm-stories-dialog {
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: auto;
+  max-width: 100vw;
+  max-height: 100vh;
+  outline: none;
+}
+
+dialog.bm-stories-dialog:modal {
+  overscroll-behavior: contain;
+}
+
+dialog.bm-stories-dialog::backdrop {
+  overflow: hidden;
+  overscroll-behavior: contain;
+  background: rgba(15, 23, 42, 0.88);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.bm-story-player-card {
+  position: relative;
+  width: min(92vw, 420px);
+  height: min(88vh, 760px);
+  background: #0f172a;
+  border-radius: 28px;
+  overflow: hidden;
+  box-shadow: 0 25px 60px -10px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Progress bar segments */
+.bm-story-progress-bar {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  right: 14px;
+  display: flex;
+  gap: 4px;
+  z-index: 10;
+}
+
+.bm-story-progress-segment {
+  flex: 1;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.35);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.bm-story-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: #ffffff;
+  border-radius: 2px;
+  transition: width 0.05s linear;
+}
+
+.bm-story-progress-segment.completed .bm-story-progress-fill {
+  width: 100%;
+}
+
+/* Player Header */
+.bm-story-header {
+  position: absolute;
+  top: 26px;
+  left: 14px;
+  right: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.bm-story-brand-info {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  pointer-events: auto;
+}
+
+.bm-story-shop-logo {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 2px solid #ffffff;
+  object-fit: cover;
+  background: #ffffff;
+}
+
+.bm-story-brand-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.bm-story-shop-name {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #ffffff;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+
+.bm-story-status-badge {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #34d399;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+.bm-story-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  pointer-events: auto;
+}
+
+.bm-story-ctrl-btn {
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 50%;
+  width: 34px;
+  height: 34px;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.bm-story-ctrl-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+  transform: scale(1.08);
+}
+
+.bm-story-dialog-form {
+  margin: 0;
+  display: inline;
+}
+
+/* Tap Zones */
+.bm-story-tap-zone {
+  position: absolute;
+  top: 70px;
+  bottom: 120px;
+  width: 35%;
+  z-index: 5;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.bm-story-tap-zone.prev {
+  left: 0;
+}
+
+.bm-story-tap-zone.next {
+  right: 0;
+}
+
+/* Media Wrap */
+.bm-story-media-wrap {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000000;
+}
+
+.bm-story-video,
+.bm-story-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: opacity 0.2s ease;
+}
+
+.bm-story-video.hidden,
+.bm-story-image.hidden {
+  display: none;
+}
+
+.bm-story-loader {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.5);
+  z-index: 4;
+}
+
+.bm-story-loader.hidden {
+  display: none;
+}
+
+.bm-story-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(255, 255, 255, 0.2);
+  border-top-color: #10b981;
+  border-radius: 50%;
+  animation: bmSpin 0.8s linear infinite;
+}
+
+@keyframes bmSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* Story Footer Card */
+.bm-story-footer {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 1.2rem 1.1rem 1.1rem 1.1rem;
+  background: linear-gradient(0deg, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.7) 65%, transparent 100%);
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.bm-story-title-text {
+  margin: 0 0 0.25rem 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #ffffff;
+  line-height: 1.25;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+.bm-story-price-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.bm-story-price-tag {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #34d399;
+  letter-spacing: -0.02em;
+}
+
+.bm-story-orig-price {
+  font-size: 0.88rem;
+  color: #94a3b8;
+  text-decoration: line-through;
+}
+
+.bm-story-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+}
+
+.bm-story-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.7rem 0.85rem;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.bm-story-action-btn.whatsapp {
+  background: #25d366;
+  color: #ffffff;
+  box-shadow: 0 4px 14px rgba(37, 211, 102, 0.4);
+}
+
+.bm-story-action-btn.whatsapp:hover {
+  background: #20ba59;
+  transform: translateY(-2px);
+  color: #ffffff;
+}
+
+.bm-story-action-btn.detail {
+  background: rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.bm-story-action-btn.detail:hover {
+  background: rgba(255, 255, 255, 0.28);
+  transform: translateY(-2px);
+  color: #ffffff;
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .bm-stories-container {
+    padding: 0.25rem 0.5rem 0.25rem 0.5rem;
+  }
+  .bm-story-player-card {
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    border-radius: 0;
+  }
+  .bm-stories-inner {
+    border-radius: 16px;
+    padding: 0.6rem 0.5rem 0.5rem 0.5rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bm-stories-live-pulse {
+    animation: none;
+  }
+  .bm-story-bubble {
+    transition: none;
+  }
+}
+
+
+/* Local SEO Cities & Intents Footer Strip */
+.hub-footer-cities {
+  margin: 1.25rem 0 1rem 0;
+  padding: 1rem;
+  background: #f8fafc;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  text-align: center;
+}
+
+.hub-footer-cities-title {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #475569;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.65rem;
+}
+
+.hub-footer-cities-pills,
+.hub-footer-intents-pills {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.45rem;
+  margin-bottom: 0.5rem;
+}
+
+.hub-footer-cities-pills a {
+  display: inline-block;
+  padding: 0.25rem 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #334155;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.hub-footer-cities-pills a:hover {
+  background: #10b981;
+  color: #ffffff;
+  border-color: #10b981;
+}
+
+.hub-footer-intents-pills a {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: #059669;
+  background: rgba(16, 185, 129, 0.08);
+  border-radius: 8px;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.hub-footer-intents-pills a:hover {
+  background: #10b981;
+  color: #ffffff;
+}

@@ -267,3 +267,24 @@ def test_search_console_non_www_urls_have_working_public_redirect_chains(public_
             assert urlparse(destination.location).path == "/produits"
             destination = public_seo.client.get(destination.location, headers=headers)
         assert destination.status_code == 200
+
+
+def test_local_seo_city_hub_and_intent_pages_are_indexable(public_seo):
+    for path, expected_text in [
+        ("/maroc/casablanca", "Casablanca"),
+        ("/maroc/casablanca/produits", "Produits"),
+        ("/maroc/casablanca/meubles-occasion", "Meubles d'occasion"),
+        ("/maroc/marrakech/location-vacances", "Location vacances"),
+        ("/maroc/rabat/services-domicile", "Services à domicile"),
+        ("/maroc/tanger/electromenager", "Électroménager"),
+    ]:
+        response = public_seo.client.get(path)
+        assert response.status_code == 200
+        page = Page(response)
+        assert expected_text.casefold() in page.title.casefold()
+        assert not any("noindex" in attrs.get("content", "").lower() for attrs in page.attrs("meta")
+                       if attrs.get("name") == "robots")
+        assert urlparse(page.canonical()).path == path
+
+    not_found = public_seo.client.get("/maroc/ville-inconnue-xyz")
+    assert not_found.status_code == 404

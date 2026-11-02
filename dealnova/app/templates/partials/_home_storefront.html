@@ -55,6 +55,9 @@
 </header>
 
 <div class="hub-page-content" id="hubHome">
+  {% if stories %}
+  {% include 'partials/_home_stories.html' %}
+  {% endif %}
   {% include 'partials/_home_hero.html' %}
 
   <section class="hub-discovery" aria-labelledby="hubCategoriesTitle">
@@ -79,6 +82,27 @@
   {% endif %}
 
   <footer class="hub-footer">
+    <div class="hub-footer-cities" aria-label="{{ t('Villes et annonces au Maroc') }}">
+      <span class="hub-footer-cities-title"><i class="bi bi-geo-alt-fill" aria-hidden="true"></i> {{ t('Villes populaires') }} :</span>
+      <div class="hub-footer-cities-pills">
+        <a href="/maroc/casablanca">Casablanca</a>
+        <a href="/maroc/rabat">Rabat</a>
+        <a href="/maroc/marrakech">Marrakech</a>
+        <a href="/maroc/tanger">Tanger</a>
+        <a href="/maroc/sale">Salé</a>
+        <a href="/maroc/kenitra">Kénitra</a>
+        <a href="/maroc/temara">Témara</a>
+        <a href="/maroc/fes">Fès</a>
+        <a href="/maroc/meknes">Meknès</a>
+        <a href="/maroc/agadir">Agadir</a>
+      </div>
+      <div class="hub-footer-intents-pills">
+        <a href="/maroc/casablanca/meubles-occasion">Meubles Casablanca</a>
+        <a href="/maroc/marrakech/location-vacances">Vacances Marrakech</a>
+        <a href="/maroc/rabat/services-domicile">Services Rabat</a>
+        <a href="/maroc/tanger/electromenager">Électroménager Tanger</a>
+      </div>
+    </div>
     <nav class="hub-footer-links" aria-label="{{ t('Liens utiles') }}">
       <a href="{{ url_for('auth.vendor_access') }}"><i class="bi bi-shop" aria-hidden="true"></i><span>{{ t('Devenir vendeur') }}</span></a>
       <a href="{{ url_for('auth.public_help') }}" data-support-open><i class="bi bi-question-circle" aria-hidden="true"></i><span>{{ t('Support') }}</span></a>

@@ -196,6 +196,40 @@
     openWhatsAppMessage(message);
   });
 
+  // Populate recently viewed cached offers
+  try {
+    var rawRecent = localStorage.getItem("bm_recent_offers");
+    if (rawRecent) {
+      var list = JSON.parse(rawRecent);
+      if (Array.isArray(list) && list.length > 0) {
+        var section = document.getElementById("offlineRecentSection");
+        var grid = document.getElementById("offlineRecentGrid");
+        if (section && grid) {
+          grid.innerHTML = "";
+          list.slice(0, 8).forEach(function (item) {
+            var card = document.createElement("a");
+            card.className = "offline-offer-card";
+            card.href = item.url || "#";
+            var imgHtml = item.image
+              ? '<img class="offline-offer-img" src="' + item.image + '" alt="" loading="lazy">'
+              : '<div class="offline-offer-placeholder">🛍️</div>';
+
+            card.innerHTML = [
+              '<div class="offline-offer-thumb">' + imgHtml + '</div>',
+              '<div class="offline-offer-details">',
+              '  <span class="offline-offer-shop">' + (item.shop || "Baba Market") + '</span>',
+              '  <h3 class="offline-offer-title">' + (item.title || "Offre") + '</h3>',
+              item.price ? '  <span class="offline-offer-price">' + item.price + '</span>' : '',
+              '</div>'
+            ].join("");
+            grid.appendChild(card);
+          });
+          section.classList.remove("hidden");
+        }
+      }
+    }
+  } catch (err) {}
+
   window.requestAnimationFrame(restorePosition);
   window.addEventListener("resize", function () {
     applyPosition(fab.offsetLeft, fab.offsetTop, false);

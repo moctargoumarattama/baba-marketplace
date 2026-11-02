@@ -30,6 +30,16 @@
 
       <button class="offline-retry" id="retryBtn" type="button">Réessayer</button>
 
+      <!-- Dernières annonces consultées (disponibles en cache) -->
+      <section class="offline-cached-section hidden" id="offlineRecentSection" aria-label="Dernières annonces consultées">
+        <div class="offline-cached-head">
+          <span class="offline-cached-badge">En cache</span>
+          <h2 class="offline-cached-title">Dernières annonces consultées</h2>
+        </div>
+        <p class="offline-cached-hint">Vous pouvez encore consulter les détails de vos annonces récentes :</p>
+        <div class="offline-cached-grid" id="offlineRecentGrid"></div>
+      </section>
+
       <p class="offline-note">
         Si le problème persiste, signalez-le à notre équipe.
       </p>

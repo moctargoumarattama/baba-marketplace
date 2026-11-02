@@ -2009,6 +2009,54 @@
       });
     }, true);
 
+    // Cache recent offers for offline browsing
+    document.addEventListener("click", function (event) {
+      if (!event.target || !event.target.closest) return;
+      const card = event.target.closest(".hub-product, .hub-product-card, [data-open-product-detail], .bm-story-bubble");
+      if (!card) return;
+      try {
+        let title = "";
+        let price = "";
+        let image = "";
+        let url = "";
+        let shop = "Baba Market";
+
+        if (card.classList.contains("bm-story-bubble")) {
+          title = card.getAttribute("data-story-title") || "";
+          price = card.getAttribute("data-story-price") || "";
+          image = card.querySelector("img") ? card.querySelector("img").src : "";
+          url = card.getAttribute("data-story-detail") || "";
+          shop = card.getAttribute("data-story-shop") || "Baba Market";
+        } else {
+          const titleElem = card.querySelector("h3, h4, .hub-product-title");
+          title = titleElem ? titleElem.textContent.trim() : "";
+          const priceElem = card.querySelector(".hub-product-prices, .price");
+          price = priceElem ? priceElem.textContent.trim().replace(/\s+/g, " ") : "";
+          const imgElem = card.querySelector("img");
+          image = imgElem ? imgElem.src : "";
+          const link = card.querySelector("a") || (card.tagName === "A" ? card : null);
+          url = link ? link.getAttribute("href") : "";
+        }
+
+        if (title && (url || image)) {
+          const raw = localStorage.getItem("bm_recent_offers");
+          let list = raw ? JSON.parse(raw) : [];
+          if (!Array.isArray(list)) list = [];
+          list = list.filter(function (it) { return it.title !== title; });
+          list.unshift({
+            title: title,
+            price: price,
+            image: image,
+            url: url,
+            shop: shop,
+            savedAt: Date.now()
+          });
+          if (list.length > 12) list = list.slice(0, 12);
+          localStorage.setItem("bm_recent_offers", JSON.stringify(list));
+        }
+      } catch (e) {}
+    }, true);
+
     let pwaInstallUiBooted = false;
     function bootPwaInstallUi() {
       if (pwaInstallUiBooted) return;

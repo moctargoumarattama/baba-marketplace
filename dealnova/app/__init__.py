@@ -882,7 +882,14 @@ def create_app(config_class=Config):
                     pass
                 current_app.logger.error("landing fallback build error: %s", inner_exc)
                 payload = {"data": []}
-        return render_template("home.html", data=payload.get("data", []))
+        try:
+            from .services.stories import get_homepage_stories
+            stories = get_homepage_stories()
+        except Exception as stories_exc:
+            current_app.logger.warning("landing stories fetch failed: %s", stories_exc)
+            stories = []
+
+        return render_template("home.html", data=payload.get("data", []), stories=stories)
 
     #  REDIRECTION RECHERCHE GLOBALE VERS ACCUEIL SINGLE-HUB
     @app.route("/search")

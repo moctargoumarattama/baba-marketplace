@@ -1,0 +1,128 @@
+{% if stories and stories|length > 0 %}
+<section class="bm-stories-container" aria-label="Stories et Vidéos Baba Market">
+  <div class="bm-stories-inner">
+    <div class="bm-stories-heading">
+      <span class="bm-stories-live-pulse" aria-hidden="true"></span>
+      <h2 class="bm-stories-title">Découvertes en direct &amp; Vidéos</h2>
+      <span class="bm-stories-hint">Nouveautés 24h</span>
+    </div>
+
+    <div class="bm-stories-rail-wrap">
+      <button type="button" class="bm-stories-arrow bm-stories-prev" aria-label="Faire défiler vers la gauche" hidden>
+        <i class="bi bi-chevron-left" aria-hidden="true"></i>
+      </button>
+
+      <div class="bm-stories-rail" role="region" aria-label="Stories des commerçants" tabindex="0">
+        {% for s in stories %}
+        <button type="button"
+                class="bm-story-bubble"
+                data-story-index="{{ loop.index0 }}"
+                data-story-id="{{ s.id }}"
+                data-story-title="{{ s.title }}"
+                data-story-media="{{ s.media_url }}"
+                data-story-type="{{ s.media_type }}"
+                data-story-label="{{ s.label }}"
+                data-story-price="{{ s.price }}"
+                data-story-orig-price="{{ s.original_price }}"
+                data-story-shop="{{ s.shop_name }}"
+                data-story-shop-logo="{{ s.shop_logo }}"
+                data-story-wa="{{ s.whatsapp_url }}"
+                data-story-detail="{{ s.detail_url }}"
+                aria-label="{{ s.title }} — {{ s.shop_name }}">
+          <div class="bm-story-ring{% if s.has_video %} is-video{% elif s.is_promo %} is-promo{% endif %}">
+            <div class="bm-story-avatar-wrap">
+              <img class="bm-story-avatar" src="{{ s.thumbnail_url }}" alt="" loading="lazy" width="68" height="68">
+            </div>
+            {% if s.has_video %}
+            <span class="bm-story-micro-badge video" aria-hidden="true">
+              <i class="bi bi-play-fill"></i>
+            </span>
+            {% elif s.is_promo %}
+            <span class="bm-story-micro-badge promo" aria-hidden="true">
+              <i class="bi bi-tag-fill"></i>
+            </span>
+            {% else %}
+            <span class="bm-story-micro-badge shop" aria-hidden="true">
+              <i class="bi bi-shop"></i>
+            </span>
+            {% endif %}
+          </div>
+          <span class="bm-story-name">{{ s.title | truncate(13, True, '…') }}</span>
+          <span class="bm-story-tag">{{ s.label }}</span>
+        </button>
+        {% endfor %}
+      </div>
+
+      <button type="button" class="bm-stories-arrow bm-stories-next" aria-label="Faire défiler vers la droite" hidden>
+        <i class="bi bi-chevron-right" aria-hidden="true"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- Story Player Native Dialog (Accessible, top layer, overscroll-behavior contained) -->
+  <dialog id="bmStoriesDialog" class="bm-stories-dialog" closedby="any" aria-label="Lecteur de stories Baba Market">
+    <div class="bm-story-player-card">
+      <!-- Progress bars segment container -->
+      <div class="bm-story-progress-bar" id="bmStoryProgressBars" aria-hidden="true"></div>
+
+      <!-- Player Header -->
+      <div class="bm-story-header">
+        <div class="bm-story-brand-info">
+          <img id="bmStoryShopLogo" class="bm-story-shop-logo" src="" alt="" width="36" height="36">
+          <div class="bm-story-brand-text">
+            <span id="bmStoryShopName" class="bm-story-shop-name"></span>
+            <span id="bmStoryBadge" class="bm-story-status-badge"></span>
+          </div>
+        </div>
+        <div class="bm-story-controls">
+          <button type="button" id="bmStoryAudioBtn" class="bm-story-ctrl-btn" aria-label="Activer le son" title="Son">
+            <i class="bi bi-volume-mute-fill" aria-hidden="true"></i>
+          </button>
+          <button type="button" id="bmStoryPlayBtn" class="bm-story-ctrl-btn" aria-label="Mettre en pause" title="Pause / Reprendre">
+            <i class="bi bi-pause-fill" aria-hidden="true"></i>
+          </button>
+          <form method="dialog" class="bm-story-dialog-form">
+            <button type="submit" class="bm-story-ctrl-btn bm-story-close" aria-label="Fermer le lecteur">
+              <i class="bi bi-x-lg" aria-hidden="true"></i>
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Touch navigation areas (Left 30% = prev, Right 30% = next) -->
+      <div class="bm-story-tap-zone prev" id="bmStoryTapPrev" role="button" aria-label="Story précédente"></div>
+      <div class="bm-story-tap-zone next" id="bmStoryTapNext" role="button" aria-label="Story suivante"></div>
+
+      <!-- Media Area (Video or Image) -->
+      <div class="bm-story-media-wrap" id="bmStoryMediaContainer">
+        <video id="bmStoryVideo" class="bm-story-video hidden" playsinline webkit-playsinline loop preload="auto" muted></video>
+        <img id="bmStoryImage" class="bm-story-image hidden" src="" alt="">
+        <div class="bm-story-loader" id="bmStoryLoader" aria-hidden="true">
+          <div class="bm-story-spinner"></div>
+        </div>
+      </div>
+
+      <!-- Story Footer Card with WhatsApp & Detail Actions -->
+      <div class="bm-story-footer">
+        <div class="bm-story-footer-info">
+          <h3 id="bmStoryTitle" class="bm-story-title-text"></h3>
+          <div class="bm-story-price-row">
+            <span id="bmStoryPrice" class="bm-story-price-tag"></span>
+            <span id="bmStoryOrigPrice" class="bm-story-orig-price"></span>
+          </div>
+        </div>
+        <div class="bm-story-actions">
+          <a id="bmStoryWhatsAppBtn" href="#" target="_blank" rel="noopener" class="bm-story-action-btn whatsapp">
+            <i class="bi bi-whatsapp" aria-hidden="true"></i>
+            <span>Commander</span>
+          </a>
+          <a id="bmStoryDetailBtn" href="#" class="bm-story-action-btn detail">
+            <span>Voir l'offre</span>
+            <i class="bi bi-arrow-right" aria-hidden="true"></i>
+          </a>
+        </div>
+      </div>
+    </div>
+  </dialog>
+</section>
+{% endif %}
