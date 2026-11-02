@@ -44,6 +44,8 @@ body[data-page="landing"] :is(button, a, summary, input):focus-visible { outline
 .hub-popover a:hover, .hub-popover button:hover { color: #063c2b; text-decoration: underline; }
 .hub-location-panel > a { margin-top: 12px; }
 .hub-search { position: relative; display: flex; align-items: center; gap: 12px; background: #f4f4f1; border: 1px solid transparent; border-radius: 28px; min-width: 0; padding: 4px 12px 4px 18px; min-height: 48px; }
+.hub-header .hub-search { display: none !important; }
+.hub-header .hub-header-actions { margin-left: auto; }
 .hub-search:focus-within { border-color: var(--hub-green); box-shadow: 0 0 0 3px #087f5b12; }
 .hub-search > .bi { flex: none; font-size: 18px; }
 .hub-search input { width: 100%; min-width: 0; border: 0; outline: 0 !important; box-shadow: none; background: transparent; font: inherit; font-size: 16px; color: var(--hub-ink); padding: 6px 0; }
@@ -295,7 +297,7 @@ body[data-page="landing"] .hub-feedback { position: fixed; left: 50%; bottom: 24
 @media (max-width: 768px) {
   body[data-page="landing"] .u-modal-fullscreen-btn { display: none !important; }
   body[data-page="landing"] { padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
-  .hub-header-inner { grid-template-columns: minmax(0, 1fr) auto; gap: 3px 14px; padding: max(14px, calc(12px + env(safe-area-inset-top, 0px))) 18px 10px; }
+  .hub-header-inner { grid-template-columns: minmax(0, 1fr) auto; gap: 2px 14px; padding: max(12px, calc(10px + env(safe-area-inset-top, 0px))) 18px 4px; }
   .hub-brand { grid-row: 1; font-size: 25px; gap: 8px; letter-spacing: -.9px; }
   .hub-brand-logo { width: 48px; height: 48px; }
   .hub-header-actions { grid-row: 1; grid-column: 2; }
@@ -308,11 +310,11 @@ body[data-page="landing"] .hub-feedback { position: fixed; left: 50%; bottom: 24
   .hub-location { grid-column: 1; grid-row: 2; justify-self: start; }
   .hub-location summary { padding: 3px 0; background: none; font-size: 13px; min-height: 28px; gap: 6px; }
   .hub-location .hub-popover { width: min(290px, calc(100vw - 36px)); }
-  .hub-search { grid-column: 1 / -1; grid-row: 3; margin-top: 2px; min-height: 46px; padding-inline-start: 15px; }
+  .hub-search { display: none !important; }
   .hub-search input { font-size: 16px; }
   .hub-search-clear { width: 44px; height: 44px; }
   .hub-desktop-nav { display: none; }
-  .hub-page-content { padding: 4px 16px 12px; }
+  .hub-page-content { padding: 2px 16px 12px; }
   .hub-hero { min-height: 220px; border-radius: 16px; }
   .hub-hero-photo { object-position: 63% center; }
   .hub-hero-slide::before { background: linear-gradient(90deg, #f5ecdffa 0, #f5ecdfe6 38%, #f5ecdfa6 58%, #f5ecdf00 85%); }

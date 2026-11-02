@@ -558,7 +558,8 @@ dialog.bm-stories-dialog::backdrop {
 /* Responsive adjustments */
 @media (max-width: 640px) {
   .bm-stories-container {
-    padding: 0.25rem 0.5rem 0.25rem 0.5rem;
+    padding: 0 0.5rem 0.25rem 0.5rem;
+    margin: 0 auto 0.5rem auto;
   }
   .bm-story-player-card {
     width: 100vw;

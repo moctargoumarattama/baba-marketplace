@@ -31,7 +31,7 @@
                 aria-label="{{ s.title }} — {{ s.shop_name }}">
           <div class="bm-story-ring{% if s.has_video %} is-video{% elif s.is_promo %} is-promo{% endif %}">
             <div class="bm-story-avatar-wrap">
-              <img class="bm-story-avatar" src="{{ s.thumbnail_url }}" alt="" loading="lazy" width="68" height="68">
+              <img class="bm-story-avatar" src="{{ s.thumbnail_url }}" alt="" loading="lazy" width="68" height="68" onerror="this.onerror=null; this.src='/static/img/placeholders/product.svg';">
             </div>
             {% if s.has_video %}
             <span class="bm-story-micro-badge video" aria-hidden="true">
