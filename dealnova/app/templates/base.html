@@ -1914,29 +1914,36 @@
     </div>
   </main>
 
-  <!-- Install Banner (soft) -->
+  <!-- Install Banner (soft - Option A 3D) -->
   <div id="installBanner" class="pwa-banner hidden" role="status" aria-live="polite">
-    <img class="pwa-banner__icon" src="{{ url_for('apple_touch_icon') }}" alt="" width="48" height="48">
+    <div class="pwa-banner__icon-wrap">
+      <img class="pwa-banner__icon" src="{{ url_for('apple_touch_icon') }}" alt="Baba Market" width="46" height="46">
+      <span class="pwa-banner__3d-badge" aria-hidden="true">App</span>
+    </div>
     <div class="pwa-banner__text">
-      <strong>{{ t("Installez l'application Baba Market en 1 clic sans passer par le Play Store") }}</strong>
-      <span>{{ t("0 Mo sur le Play Store · Accès instantané · Fonctionne hors connexion") }}</span>
+      <strong>{{ t('Application Baba Market') }}</strong>
+      <span>{{ t('Vos commandes plus rapides & en 1 clic') }}</span>
     </div>
     <div class="pwa-banner__actions">
-      <button id="pwaBannerInstall" class="pwa-btn primary" type="button">{{ t('Installer en 1 clic') }}</button>
+      <button id="pwaBannerInstall" class="pwa-btn primary" type="button">⚡ {{ t('Installer') }}</button>
       <button id="pwaHowBtn" class="pwa-btn ghost hidden" type="button">{{ t('Comment installer') }}</button>
-      <button id="pwaBannerLater" class="pwa-btn ghost" type="button">{{ t('Plus tard') }}</button>
+      <button id="pwaBannerLater" class="pwa-btn ghost" type="button" aria-label="{{ t('Plus tard') }}">✕</button>
     </div>
   </div>
 
   <div id="androidInstallBar" class="install-bar hidden" role="dialog" aria-label="{{ t('Installer Baba Market') }}">
-    <img class="install-bar__icon" src="{{ url_for('apple_touch_icon') }}" alt="" width="48" height="48">
-    <div class="install-bar__text">
-      <div class="install-bar__title">{{ t("Installez l'application Baba Market en 1 clic sans passer par le Play Store") }}</div>
-      <div class="install-bar__sub">{{ t("0 Mo sur le Play Store · Accès direct · Fonctionne même hors ligne") }}</div>
+    <div class="pwa-banner__icon-wrap">
+      <img class="install-bar__icon" src="{{ url_for('apple_touch_icon') }}" alt="Baba Market" width="46" height="46">
+      <span class="pwa-banner__3d-badge" aria-hidden="true">App</span>
     </div>
-
-    <button id="androidInstallBtn" class="install-btn" type="button">{{ t('Installer en 1 clic') }}</button>
-    <button id="androidInstallClose" class="install-close" type="button" aria-label="{{ t('Fermer') }}">✕</button>
+    <div class="install-bar__text">
+      <div class="install-bar__title">{{ t('Application Baba Market') }}</div>
+      <div class="install-bar__sub">{{ t('Vos commandes plus rapides & en 1 clic') }}</div>
+    </div>
+    <div class="install-bar__actions">
+      <button id="androidInstallBtn" class="install-btn" type="button">⚡ {{ t('Installer') }}</button>
+      <button id="androidInstallClose" class="install-close" type="button" aria-label="{{ t('Fermer') }}">✕</button>
+    </div>
   </div>
 
   <!-- Install Popup (1/day) -->
