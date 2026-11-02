@@ -24,7 +24,6 @@
         <a href="{{ delivery_loader_url }}">{{ t('Organiser une livraison') }} <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
       </div>
     </details>
-    {% with search_id='homeSearch' %}{% include 'partials/_header_search.html' %}{% endwith %}
     <div class="hub-header-actions">
       <details class="hub-account hub-disclosure" id="hubAccount">
         <summary aria-label="{{ t('Mon compte' if current_user.is_authenticated else 'Espace vendeur') }}"><i class="bi bi-person" aria-hidden="true"></i><span>{{ t('Compte' if current_user.is_authenticated else 'Vendeur') }}</span></summary>
@@ -90,7 +89,7 @@
   </footer>
 </div>
 
-<nav class="hub-bottom-nav" aria-label="{{ t('Navigation principale') }}">
+<nav class="hub-bottom-nav" data-home-bottom-tabs aria-label="{{ t('Navigation principale') }}">
   <a href="{{ url_for('landing') }}" class="is-active" data-hub-home aria-current="page"><i class="bi bi-house-door-fill" aria-hidden="true"></i><span>{{ t('Accueil') }}</span></a>
   <a href="{{ catalog_url('search') }}" data-open-universe="search" data-hub-nav="explore"><i class="bi bi-search" aria-hidden="true"></i><span>{{ t('Explorer') }}</span></a>
   <button type="button" data-open-cart data-hub-nav="cart"><span class="hub-bottom-icon"><i class="bi bi-bag" aria-hidden="true"></i><span class="hub-cart-badge{% if not cart_count %} d-none{% endif %}" data-cart-badge>{{ cart_count or 0 }}</span></span><span>{{ t('Panier') }}</span></button>

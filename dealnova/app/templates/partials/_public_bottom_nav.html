@@ -1,5 +1,5 @@
 {% from 'partials/_public_catalog_links.html' import catalog_url %}
-<nav class="hub-bottom-nav" aria-label="{{ t('Navigation principale') }}">
+<nav class="hub-bottom-nav" data-home-bottom-tabs aria-label="{{ t('Navigation principale') }}">
   <a href="{{ url_for('landing') }}"><i class="bi bi-house-door" aria-hidden="true"></i><span>{{ t('Accueil') }}</span></a>
   <a href="{{ catalog_url('search') }}" {% if base_endpoint.startswith(('shops.', 'rentals.', 'public_catalog_pages.')) or base_endpoint == 'shop.product_detail' %}class="is-active" aria-current="page"{% endif %}><i class="bi bi-search" aria-hidden="true"></i><span>{{ t('Explorer') }}</span></a>
   <a href="{{ url_for('cart.view') }}"><span class="hub-bottom-icon"><i class="bi bi-bag" aria-hidden="true"></i><span class="hub-cart-badge{% if not cart_count %} d-none{% endif %}" data-cart-badge>{{ cart_count or 0 }}</span></span><span>{{ t('Panier') }}</span></a>
