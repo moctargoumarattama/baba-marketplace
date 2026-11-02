@@ -589,7 +589,7 @@ body[data-page="landing"] .pwa-banner { bottom: calc(76px + env(safe-area-inset-
   .hub-footer-links { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; width: 100%; }
   .hub-footer-links a { padding: 9px 8px; gap: 6px; font-size: 12px; }
   .hub-footer-copyright { text-align: center; font-size: 11px; }
-  .hub-bottom-nav { position: fixed; bottom: 0; inset-inline: 0; z-index: 1040; display: grid; grid-template-columns: repeat(4, 1fr); background: #fff; border-top: 1px solid #e7ece5; padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px)); box-shadow: 0 -3px 18px #182d1e05; }
+  .hub-bottom-nav { position: fixed; bottom: 0; inset-inline: 0; z-index: 1040; display: grid !important; visibility: visible !important; opacity: 1 !important; grid-template-columns: repeat(4, 1fr); background: #fff; border-top: 1px solid #e7ece5; padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px)); box-shadow: 0 -3px 18px rgba(24, 45, 30, 0.08); }
   .hub-bottom-nav > :is(a, button) { min-height: 49px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 11px; line-height: 1.25; text-decoration: none; color: #546057; background: none; border: 0; border-radius: 10px; padding: 2px 5px; }
   .hub-bottom-nav > .is-active { color: var(--hub-green-dark); font-weight: 700; }
   .hub-bottom-nav .bi { font-size: 23px; line-height: 1; }

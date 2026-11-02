@@ -2395,10 +2395,9 @@ body[data-page="landing"] footer.footer {
   pointer-events: none !important;
 }
 
-/* Suppression définitive de la barre de navigation du bas (Accueil / Livraison) */
+/* Suppression définitive de l'ancienne barre de navigation legacy (Accueil / Livraison) */
 .home-bottom-tabs,
 .bm-home-tabs,
-[data-home-bottom-tabs],
 .home-tab,
 .bm-home-tab {
   display: none !important;

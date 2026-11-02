@@ -24,6 +24,7 @@
         <a href="{{ delivery_loader_url }}">{{ t('Organiser une livraison') }} <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
       </div>
     </details>
+    {% with search_id='homeSearch' %}{% include 'partials/_header_search.html' %}{% endwith %}
     <div class="hub-header-actions">
       <details class="hub-account hub-disclosure" id="hubAccount">
         <summary aria-label="{{ t('Mon compte' if current_user.is_authenticated else 'Espace vendeur') }}"><i class="bi bi-person" aria-hidden="true"></i><span>{{ t('Compte' if current_user.is_authenticated else 'Vendeur') }}</span></summary>
