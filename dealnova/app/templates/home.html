@@ -98,9 +98,9 @@
 <link rel="preload" as="image" href="{{ url_for('static', filename='images/home-refresh/hero.webp', v=app_static_version) }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/ui_home_single_hub.css', v=(app_static_version ~ '-catalog-v3-video-v1-photo-download-v2-detail-refresh-v2-nav-restore')) }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/assistant/widget.css', v=(app_static_version ~ '-assistant-flow-v8')) }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/home_refresh.css', v=(app_static_version ~ '-home-refresh-cachebust-v3-nav-restore')) }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/home_refresh.css', v=(app_static_version ~ '-home-refresh-cachebust-v4-promo-rail')) }}">
 <script src="{{ url_for('static', filename='js/public_live_search.js', v=app_static_version ~ '-header-v3') }}" defer></script>
-<link rel="stylesheet" href="{{ url_for('static', filename='css/home_stories.css', v=app_static_version ~ '-story-backdrop-v1') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/home_stories.css', v=app_static_version ~ '-story-backdrop-v2-nofocus') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/catalog_panel.css', v=(app_static_version ~ '-catalog-rotation-v3')) }}">
 {% endblock %}
 
@@ -574,7 +574,7 @@
 <script src="{{ url_for('static', filename='js/home_hero.js', v=app_static_version ~ '-hero-v1') }}" defer></script>
 <script src="{{ url_for('static', filename='js/home_refresh.js', v=(app_static_version ~ '-textes-v1-catalog-v3-cleanup-v1-promo-photo-fit-v1')) }}" defer></script>
 <script src="{{ url_for('static', filename='js/public_catalog.js', v=(app_static_version ~ '-catalog-rotation-v4-photo-fit-keep-visible-v1-detail-download-only-v1')) }}" defer></script>
-<script src="{{ url_for('static', filename='js/ui_home_single_hub.js', v=(app_static_version ~ '-hub-catalog-rotation-v2-detail-refresh-v1')) }}" defer></script>
-<script src="{{ url_for('static', filename='js/home_stories.js', v=app_static_version) }}" defer></script>
+<script src="{{ url_for('static', filename='js/ui_home_single_hub.js', v=(app_static_version ~ '-hub-catalog-rotation-v3-unfreeze')) }}" defer></script>
+<script src="{{ url_for('static', filename='js/home_stories.js', v=app_static_version ~ '-stories-nofreeze-v2') }}" defer></script>
 <script src="{{ url_for('static', filename='js/assistant/widget.js', v=(app_static_version ~ '-textes-v1' ~ '-assistant-flow-v7')) }}" defer></script>
 {% endblock %}

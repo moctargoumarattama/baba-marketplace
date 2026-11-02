@@ -76,6 +76,15 @@
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   padding: 0.25rem 0.25rem 0.4rem 0.25rem;
+  outline: none !important;
+}
+
+.bm-stories-rail:focus,
+.bm-stories-rail:focus-visible,
+.bm-stories-container:focus,
+.bm-stories-container:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
   width: 100%;
 }
 

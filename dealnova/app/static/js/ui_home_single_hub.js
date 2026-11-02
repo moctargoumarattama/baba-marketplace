@@ -200,24 +200,59 @@
       document.documentElement.style.overflow = 'hidden';
     }
 
-    function finishHubEffects() {
-      if (motionNodes.size || sheetDrag || closeGesture) return;
-      if (viewportDirty) updateSheetViewport();
-      if (hubStack.length || !scrollLock) return;
+    function forceUnlockHubScroll() {
       unlockHubBackground();
-      var saved = scrollLock;
-      scrollLock = null;
-      Object.keys(saved.body).forEach(function (key) { document.body.style[key] = saved.body[key]; });
-      document.documentElement.style.overflow = saved.rootOverflow;
-      window.scrollTo({ left: saved.x, top: saved.y, behavior: 'auto' });
-      var target = finalReturnFocus;
-      finalReturnFocus = null;
-      // A touch dismissal must not reopen the phone keyboard behind the sheet.
-      if (target && lastInputType === 'pointer' && window.matchMedia('(max-width: 768px)').matches && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) {
-        target = target.closest('form') || target.parentElement;
-        if (target && !target.hasAttribute('tabindex')) target.setAttribute('tabindex', '-1');
+      motionNodes.clear();
+      sheetDrag = null;
+      closeGesture = null;
+      historyNavPending = false;
+      if (scrollLock) {
+        var saved = scrollLock;
+        scrollLock = null;
+        Object.keys(saved.body).forEach(function (key) { document.body.style[key] = saved.body[key] || ''; });
+        document.documentElement.style.overflow = saved.rootOverflow || '';
+        window.scrollTo({ left: saved.x, top: saved.y, behavior: 'auto' });
+      } else {
+        document.body.style.position = '';
+        document.body.style.top = '';
+        document.body.style.left = '';
+        document.body.style.width = '';
+        document.body.style.overflow = '';
+        document.documentElement.style.overflow = '';
       }
-      focusHubElement(target);
+      document.body.classList.remove('modal-open');
+    }
+
+    function finishHubEffects() {
+      if (viewportDirty) updateSheetViewport();
+      if (!hubStack.length) {
+        unlockHubBackground();
+        if (scrollLock) {
+          var saved = scrollLock;
+          scrollLock = null;
+          Object.keys(saved.body).forEach(function (key) { document.body.style[key] = saved.body[key] || ''; });
+          document.documentElement.style.overflow = saved.rootOverflow || '';
+          window.scrollTo({ left: saved.x, top: saved.y, behavior: 'auto' });
+        } else {
+          document.body.style.position = '';
+          document.body.style.top = '';
+          document.body.style.left = '';
+          document.body.style.width = '';
+          document.body.style.overflow = '';
+          document.documentElement.style.overflow = '';
+        }
+        document.body.classList.remove('modal-open');
+        var target = finalReturnFocus;
+        finalReturnFocus = null;
+        if (target) {
+          focusHubElement(target);
+          if (window.matchMedia('(max-width: 768px)').matches || lastInputType === 'pointer') {
+            if (target.blur) target.blur();
+          }
+        }
+        return;
+      }
+      if (motionNodes.size || sheetDrag || closeGesture) return;
     }
 
     function visibleHubFocusables(node) {
@@ -597,8 +632,12 @@
       var useBack = index === hubStack.length - 1 && hubHistoryEnabled && hubHistoryIndex > 0;
       hubStack = hubStack.slice(0, index);
       syncHubLayers(pendingReturnFocus);
+      if (hubStack.length === 0) {
+        setTimeout(forceUnlockHubScroll, 240);
+      }
       if (useBack) {
         historyNavPending = true;
+        setTimeout(function () { historyNavPending = false; }, 250);
         try { window.history.back(); return; } catch (_error) { historyNavPending = false; }
       }
       pendingReturnFocus = null;

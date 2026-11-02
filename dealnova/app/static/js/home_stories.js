@@ -306,6 +306,11 @@
     }
     if (imageElem) imageElem.classList.add('hidden');
     if (backdropElem) backdropElem.classList.add('hidden');
+    document.body.style.overflow = '';
+    document.documentElement.style.overflow = '';
+    if (document.activeElement && document.activeElement.blur) {
+      document.activeElement.blur();
+    }
   }
 
   // Dialog dismissal listener
@@ -318,6 +323,11 @@
     }
     if (imageElem) imageElem.classList.add('hidden');
     if (backdropElem) backdropElem.classList.add('hidden');
+    document.body.style.overflow = '';
+    document.documentElement.style.overflow = '';
+    if (document.activeElement && document.activeElement.blur) {
+      document.activeElement.blur();
+    }
   });
 
   // Controls
