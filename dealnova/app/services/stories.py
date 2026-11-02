@@ -249,3 +249,4 @@ def get_homepage_stories() -> list[dict]:
         except Exception:
             pass
         return build_homepage_stories()
+
