@@ -1667,11 +1667,42 @@
     }
 
     .pwa-ios-steps {
-      margin: 0;
+      margin: 0.5rem 0;
       padding: 0;
-      list-style: none;
-      display: grid;
-      gap: 0.45rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.55rem;
+    }
+
+    .pwa-ios-step {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.65rem;
+      background: rgba(255, 255, 255, 0.75);
+      padding: 0.55rem 0.65rem;
+      border-radius: 10px;
+      border: 1px solid rgba(187, 247, 208, 0.7);
+    }
+
+    .pwa-ios-step-num {
+      width: 22px;
+      height: 22px;
+      flex: 0 0 22px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color: #ffffff;
+      font-size: 0.75rem;
+      font-weight: 800;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 1px;
+      box-shadow: 0 2px 4px rgba(16, 185, 129, 0.25);
+    }
+
+    .pwa-ios-step-body {
+      flex: 1;
+      min-width: 0;
       font-size: 0.81rem;
       line-height: 1.4;
       color: #1e293b;
@@ -1681,7 +1712,7 @@
       display: block;
       font-size: 0.72rem;
       color: #64748b;
-      margin-top: 1px;
+      margin-top: 2px;
     }
 
     .pwa-share-inline {
