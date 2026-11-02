@@ -6,16 +6,61 @@
     <div class="hub-header-actions" data-nav-badges>
       <details class="hub-account hub-disclosure" id="hubAccount">
         <summary aria-label="{{ t('Mon compte' if current_user.is_authenticated else 'Espace vendeur') }}"><i class="bi bi-person" aria-hidden="true"></i><span>{{ t('Compte' if current_user.is_authenticated else 'Vendeur') }}</span></summary>
-        <div class="hub-popover hub-account-panel">
-          {% if current_user.is_authenticated %}
-          <strong>{{ current_user.username }}</strong>
-          {% if current_user.role in ['admin', 'manager'] %}<a href="{{ url_for('admin_users.admin_dashboard') }}">{{ t('Administration') }}</a>{% elif current_user.role == 'vendor' %}<a href="{{ url_for('vendor.dashboard') }}">{{ t('Mon espace vendeur') }}</a>{% endif %}
-          <form method="post" action="{{ url_for('auth.logout') }}">{% include 'partials/_csrf.html' %}<button type="submit">{{ t('Déconnexion') }}</button></form>
-          {% else %}
-          <strong>{{ t('Espace vendeur') }}</strong><a href="{{ url_for('auth.login') }}">{{ t('Se connecter') }}</a>
-          {% endif %}
-          <a href="{{ url_for('auth.vendor_access') }}">{{ t('Devenir vendeur') }}<i class="bi bi-arrow-up-right" aria-hidden="true"></i></a>
-          <div class="hub-language-links" aria-label="{{ t('Langue') }}">{% for language, label in [('fr', 'FR'), ('en', 'EN'), ('ary', 'دارجة')] %}<a href="{{ url_for('set_language_route', lang_code=language, next=request.full_path) }}" lang="{{ language }}" {% if current_lang == language %}aria-current="true"{% endif %}>{{ label }}</a>{% endfor %}</div>
+        <div class="hub-popover hub-account-panel hub-3d-panel">
+          <div class="hub-account-badge-header">
+            <span class="hub-account-avatar-pill" aria-hidden="true">
+              <i class="bi {{ 'bi-person-badge-fill' if current_user.is_authenticated else 'bi-shop-window' }}"></i>
+            </span>
+            <div class="hub-account-meta">
+              <strong class="hub-account-name">{{ current_user.username if current_user.is_authenticated else t('Espace vendeur') }}</strong>
+              <span class="hub-account-role">{{ (t('Compte ') ~ current_user.role|capitalize) if current_user.is_authenticated else t('Boutiques & Partenaires') }}</span>
+            </div>
+          </div>
+
+          <div class="hub-account-nav-group">
+            {% if current_user.is_authenticated %}
+              {% if current_user.role in ['admin', 'manager'] %}
+              <a href="{{ url_for('admin_users.admin_dashboard') }}" class="hub-account-action-btn is-primary">
+                <i class="bi bi-speedometer2" aria-hidden="true"></i>
+                <span class="hub-account-btn-label">{{ t('Administration') }}</span>
+                <i class="bi bi-chevron-right hub-account-btn-arrow" aria-hidden="true"></i>
+              </a>
+              {% elif current_user.role == 'vendor' %}
+              <a href="{{ url_for('vendor.dashboard') }}" class="hub-account-action-btn is-primary">
+                <i class="bi bi-grid-fill" aria-hidden="true"></i>
+                <span class="hub-account-btn-label">{{ t('Mon espace vendeur') }}</span>
+                <i class="bi bi-chevron-right hub-account-btn-arrow" aria-hidden="true"></i>
+              </a>
+              {% endif %}
+              <form method="post" action="{{ url_for('auth.logout') }}" class="hub-account-logout-form">
+                {% include 'partials/_csrf.html' %}
+                <button type="submit" class="hub-account-action-btn is-danger">
+                  <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
+                  <span class="hub-account-btn-label">{{ t('Déconnexion') }}</span>
+                </button>
+              </form>
+            {% else %}
+              <a href="{{ url_for('auth.login') }}" class="hub-account-action-btn is-primary">
+                <i class="bi bi-box-arrow-in-right" aria-hidden="true"></i>
+                <span class="hub-account-btn-label">{{ t('Se connecter') }}</span>
+                <i class="bi bi-chevron-right hub-account-btn-arrow" aria-hidden="true"></i>
+              </a>
+              <a href="{{ url_for('auth.vendor_access') }}" class="hub-account-action-btn is-secondary">
+                <i class="bi bi-rocket-takeoff" aria-hidden="true"></i>
+                <span class="hub-account-btn-label">{{ t('Devenir vendeur') }}</span>
+                <i class="bi bi-arrow-up-right hub-account-btn-arrow" aria-hidden="true"></i>
+              </a>
+            {% endif %}
+          </div>
+
+          <div class="hub-account-lang-section">
+            <span class="hub-account-lang-label">{{ t('Langue') }}</span>
+            <div class="hub-language-links" aria-label="{{ t('Langue') }}">
+              {% for language, label in [('fr', 'FR'), ('en', 'EN'), ('ary', 'دارجة')] %}
+              <a href="{{ url_for('set_language_route', lang_code=language, next=request.full_path if request.full_path else url_for('landing')) }}" lang="{{ language }}" data-lang-switch="{{ language }}" {% if current_lang == language %}aria-current="true"{% endif %}>{{ label }}</a>
+              {% endfor %}
+            </div>
+          </div>
         </div>
       </details>
       <a class="hub-header-cart" href="{{ url_for('cart.view') }}" data-cart-icon aria-label="{{ t('Ouvrir le panier') }}"><i class="bi bi-bag" aria-hidden="true"></i><span class="hub-header-cart-label">{{ t('Panier') }}</span><span class="hub-cart-badge{% if not cart_count %} d-none{% endif %}" data-cart-badge>{{ cart_count or 0 }}</span></a>

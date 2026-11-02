@@ -644,7 +644,7 @@
   <script src="{{ url_for('static', filename='js/i18n.js', v=app_static_version) }}" defer></script>
   {% endif %}
   {% if public_refresh_enabled %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/home_refresh.css', v=app_static_version ~ '-home-refresh-cachebust-v1') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/home_refresh.css', v=app_static_version ~ '-home-refresh-cachebust-v2') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/public_refresh.css', v=app_static_version ~ '-public-refresh-cachebust-v1') }}">
   <script src="{{ url_for('static', filename='js/home_refresh.js', v=app_static_version ~ '-home-refresh-js-cachebust-v1') }}" defer></script>
   {% endif %}
@@ -654,7 +654,7 @@
   {% endif %}
 </head>
 
-<body data-public-refresh="{{ '1' if public_refresh_enabled else '0' }}" data-page="{{ 'landing' if base_endpoint in ['landing', 'shop.product_detail'] else (request.endpoint or '') }}" data-user-role="{{ current_user.role if current_user.is_authenticated else 'guest' }}" data-lang="{{ current_lang }}" data-rtl-langs="{{ (rtl_langs or [])|join(',') }}" data-static-version="{{ app_static_version ~ '-cb1' }}" data-static-root="{{ url_for('static', filename='') }}" data-session-scope="{{ pwa_session_scope }}" dir="{{ 'rtl' if rtl_enabled else 'ltr' }}" {% block body_attrs %}{% endblock %}>
+<body data-public-refresh="{{ '1' if public_refresh_enabled else '0' }}" data-page="{{ 'landing' if base_endpoint in ['landing', 'shop.product_detail'] else (request.endpoint or '') }}" data-user-role="{{ current_user.role if current_user.is_authenticated else 'guest' }}" data-lang="{{ current_lang }}" data-rtl-langs="{{ (rtl_langs or [])|join(',') }}" data-static-version="{{ app_static_version ~ '-cb2' }}" data-static-root="{{ url_for('static', filename='') }}" data-session-scope="{{ pwa_session_scope }}" dir="{{ 'rtl' if rtl_enabled else 'ltr' }}" {% block body_attrs %}{% endblock %}>
 {% set lang_labels = {"fr": "Français", "en": "English", "ary": "Darija"} %}
 {% set lang_codes = {"fr": "FR", "en": "EN", "ary": "DA"} %}
 {% set current_lang_label = lang_labels.get(current_lang, "Français") %}

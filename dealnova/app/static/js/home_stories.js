@@ -17,6 +17,7 @@
   var progressContainer = document.getElementById('bmStoryProgressBars');
   var videoElem = document.getElementById('bmStoryVideo');
   var imageElem = document.getElementById('bmStoryImage');
+  var backdropElem = document.getElementById('bmStoryBackdrop');
   var loaderElem = document.getElementById('bmStoryLoader');
   var shopLogo = document.getElementById('bmStoryShopLogo');
   var shopName = document.getElementById('bmStoryShopName');
@@ -150,6 +151,14 @@
     if (imageElem) {
       imageElem.classList.add('hidden');
     }
+    if (backdropElem) {
+      if (s.mediaUrl) {
+        backdropElem.style.backgroundImage = 'url("' + s.mediaUrl + '")';
+        backdropElem.classList.remove('hidden');
+      } else {
+        backdropElem.classList.add('hidden');
+      }
+    }
     if (loaderElem) loaderElem.classList.remove('hidden');
 
     // Populate info
@@ -183,6 +192,11 @@
         videoElem.onloadedmetadata = function () {
           if (videoElem.duration && !isNaN(videoElem.duration)) {
             storyDuration = Math.max(3000, videoElem.duration * 1000);
+          }
+          if (videoElem.videoHeight > videoElem.videoWidth * 1.3) {
+            videoElem.classList.add('is-vertical');
+          } else {
+            videoElem.classList.remove('is-vertical');
           }
           if (loaderElem) loaderElem.classList.add('hidden');
           startPlayback();
@@ -290,6 +304,8 @@
       videoElem.removeAttribute('src');
       videoElem.load();
     }
+    if (imageElem) imageElem.classList.add('hidden');
+    if (backdropElem) backdropElem.classList.add('hidden');
   }
 
   // Dialog dismissal listener
@@ -300,6 +316,8 @@
       videoElem.removeAttribute('src');
       videoElem.load();
     }
+    if (imageElem) imageElem.classList.add('hidden');
+    if (backdropElem) backdropElem.classList.add('hidden');
   });
 
   // Controls
