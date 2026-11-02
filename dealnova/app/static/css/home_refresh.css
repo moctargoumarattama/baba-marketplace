@@ -214,6 +214,8 @@ body[data-page="landing"] .u-pdetail-actions-dock :is(a, button) { min-height: 4
 body[data-page="landing"] .bm-assistant { inset-inline-start: auto !important; left: auto !important; top: auto !important; right: max(18px, env(safe-area-inset-right, 0px)) !important; bottom: 20px !important; z-index: 1040; }
 body[data-page="landing"] .bm-assistant.is-mobile-open { bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important; }
 body[data-page="landing"] .bm-assistant-toggle { width: 46px; height: 46px; background: var(--hub-green); box-shadow: 0 6px 18px #0b60352b; }
+body[data-page="landing"] .bm-assistant-bubble-svg { width: 23px; height: 23px; }
+body[data-page="landing"] .bm-assistant-sparkle-badge { top: -5px; right: -6px; font-size: 11px; }
 body[data-page="landing"] .hub-feedback { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); width: max-content; max-width: calc(100vw - 32px); z-index: 4000; padding: 12px 20px; border-radius: 14px; background: #173f2c; color: #fff; font-size: 14px; box-shadow: 0 10px 30px #16342120; }
 
 @media (hover: hover) {
