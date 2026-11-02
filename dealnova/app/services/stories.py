@@ -1,6 +1,7 @@
 """Service to generate Discovery Stories & Video Feed for the homepage."""
 from __future__ import annotations
 
+import os
 from datetime import datetime
 from urllib.parse import quote
 
@@ -27,6 +28,56 @@ def _whatsapp_link(phone: str, message: str) -> str:
     return f"https://wa.me/{phone}?text={quote(message)}"
 
 
+def _resolve_product_thumb(prod: Product) -> str:
+    """Return a valid product thumbnail that is guaranteed to exist on disk."""
+    static_folder = current_app.static_folder or ""
+    uploads_dir = os.path.join(static_folder, "uploads")
+    photos = [p.strip() for p in (prod.image_file or "").split("|") if p.strip()]
+    for p in photos:
+        clean = p.replace("\\", "/").lstrip("/")
+        if clean.startswith("uploads/"):
+            clean = clean[8:]
+        if os.path.isfile(os.path.join(uploads_dir, clean)):
+            return _image_url(p)
+    # Check shop logo
+    if prod.shop and prod.shop.logo:
+        logo_clean = prod.shop.logo.replace("\\", "/").lstrip("/")
+        if logo_clean.startswith("uploads/"):
+            logo_clean = logo_clean[8:]
+        if os.path.isfile(os.path.join(uploads_dir, logo_clean)):
+            return _image_url(prod.shop.logo, shop=True)
+    # Known reliable sample images
+    for fallback in ("30b87538e2c4494a8fed888c44a822ca.jpg", "06006997b0ac4bfa93566181f50bf3f3.webp", "a9407317efe148b6b011d39b21652a86.jpeg"):
+        if os.path.isfile(os.path.join(uploads_dir, fallback)):
+            return url_for("static", filename=f"uploads/{fallback}")
+    return url_for("static", filename="images/produit.jpeg")
+
+
+def _resolve_rental_thumb(listing: RentalListing) -> str:
+    """Return a valid rental thumbnail that is guaranteed to exist on disk."""
+    static_folder = current_app.static_folder or ""
+    rentals_dir = os.path.join(static_folder, "uploads", "rentals")
+    for m in getattr(listing, "media", []):
+        if m.kind == "image" and m.file_path:
+            clean = m.file_path.replace("\\", "/").lstrip("/")
+            if clean.startswith("uploads/"):
+                clean = clean[8:]
+            if clean.startswith("rentals/"):
+                clean = clean[8:]
+            if os.path.isfile(os.path.join(rentals_dir, clean)):
+                return _image_url(m.file_path, rental=True)
+    if listing.shop and listing.shop.logo:
+        logo_clean = listing.shop.logo.replace("\\", "/").lstrip("/")
+        if logo_clean.startswith("uploads/"):
+            logo_clean = logo_clean[8:]
+        if os.path.isfile(os.path.join(static_folder, "uploads", logo_clean)):
+            return _image_url(listing.shop.logo, shop=True)
+    fallback = os.path.join(rentals_dir, "384fcb07977a4df4992bc858206b7f10.webp")
+    if os.path.isfile(fallback):
+        return url_for("static", filename="uploads/rentals/384fcb07977a4df4992bc858206b7f10.webp")
+    return url_for("static", filename="images/home-refresh/hero.webp")
+
+
 def build_homepage_stories() -> list[dict]:
     """Retrieve up to 15 highlighted stories (videos, top promotions, featured boutiques)."""
     stories = []
@@ -48,8 +99,7 @@ def build_homepage_stories() -> list[dict]:
             vid_url = _product_video_url(prod.video_file)
             if not vid_url:
                 continue
-            photos = [p.strip() for p in (prod.image_file or "").split("|") if p.strip()]
-            thumb = _image_url(photos[0]) if photos else url_for("static", filename="img/placeholders/product.svg")
+            thumb = _resolve_product_thumb(prod)
             shop = prod.shop
             shop_name = shop.name if shop else "Baba Market"
             phone = _clean_phone(getattr(shop, "whatsapp_phone", None) or getattr(shop, "phone", None))
@@ -100,10 +150,10 @@ def build_homepage_stories() -> list[dict]:
             vid_url = _image_url(media.file_path, rental=True)
             if not vid_url:
                 continue
-            cover = next((m.file_path for m in listing.media if m.kind == "image" and m.file_path), "")
-            thumb = _image_url(cover, rental=True) if cover else url_for("static", filename="img/placeholders/location.svg")
+            thumb = _resolve_rental_thumb(listing)
             phone = _clean_phone(getattr(listing, "contact_phone", None))
-            price_dh = f"{listing.price:.0f} DH" if listing.price else ""
+            rent_cents = getattr(listing, "rent_cents", None) or 0
+            price_dh = f"{rent_cents / 100:.0f} DH" if rent_cents else ""
             msg = f"Bonjour, j'ai vu votre vidéo de location sur Baba Market : « {listing.title} » ({price_dh}). Est-ce toujours disponible ?"
 
             stories.append({
@@ -137,8 +187,7 @@ def build_homepage_stories() -> list[dict]:
             .join(Promo, Product.id == Promo.product_id)
             .filter(
                 Product.is_active == True,
-                Promo.is_active == True,
-                Promo.start_date <= now,
+                Promo.status == "approved",
                 Promo.end_date >= now,
             )
             .order_by(Promo.id.desc())
@@ -148,22 +197,20 @@ def build_homepage_stories() -> list[dict]:
         for prod, promo in promo_rows:
             if f"prod_{prod.id}" in seen_ids:
                 continue
-            photos = [p.strip() for p in (prod.image_file or "").split("|") if p.strip()]
-            if not photos:
-                continue
-            img_url = _image_url(photos[0])
+            thumb = _resolve_product_thumb(prod)
             shop = prod.shop
             shop_name = shop.name if shop else "Baba Market"
             phone = _clean_phone(getattr(shop, "whatsapp_phone", None) or getattr(shop, "phone", None))
             
             # Discount calculation
             orig_price = prod.price or 0.0
-            if promo.discount_percent and promo.discount_percent > 0:
-                final_price = orig_price * (1.0 - (promo.discount_percent / 100.0))
-                tag = f"-{int(promo.discount_percent)}%"
-            elif promo.discount_amount and promo.discount_amount > 0:
-                final_price = max(0.0, orig_price - promo.discount_amount)
-                tag = f"-{promo.discount_amount:.0f} DH"
+            val = float(promo.value or 0)
+            if promo.type == "percentage" and val > 0:
+                final_price = max(0.0, orig_price * (1.0 - (val / 100.0)))
+                tag = f"-{int(val)}%"
+            elif val > 0:
+                final_price = max(0.0, orig_price - val)
+                tag = f"-{val:.0f} DH"
             else:
                 final_price = orig_price
                 tag = "Promo"
@@ -176,8 +223,8 @@ def build_homepage_stories() -> list[dict]:
                 "label": tag,
                 "has_video": False,
                 "is_promo": True,
-                "thumbnail_url": img_url,
-                "media_url": img_url,
+                "thumbnail_url": thumb,
+                "media_url": thumb,
                 "media_type": "image",
                 "price": f"{final_price:.0f} DH",
                 "original_price": f"{orig_price:.0f} DH",
@@ -241,7 +288,7 @@ def build_homepage_stories() -> list[dict]:
 def get_homepage_stories() -> list[dict]:
     """Cache stories for 90 seconds."""
     try:
-        return get_catalog_cache("homepage:stories:v2", build_homepage_stories, timeout=90)
+        return get_catalog_cache("homepage:stories:v4", build_homepage_stories, timeout=90)
     except Exception as exc:
         current_app.logger.error("get_homepage_stories cache error: %s", exc)
         try:
@@ -249,4 +296,3 @@ def get_homepage_stories() -> list[dict]:
         except Exception:
             pass
         return build_homepage_stories()
-

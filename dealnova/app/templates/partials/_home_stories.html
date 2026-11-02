@@ -3,8 +3,8 @@
   <div class="bm-stories-inner">
     <div class="bm-stories-heading">
       <span class="bm-stories-live-pulse" aria-hidden="true"></span>
-      <h2 class="bm-stories-title">Découvertes en direct &amp; Vidéos</h2>
-      <span class="bm-stories-hint">Nouveautés 24h</span>
+      <h2 class="bm-stories-title">Stories</h2>
+      <span class="bm-stories-hint">Échantillons</span>
     </div>
 
     <div class="bm-stories-rail-wrap">
@@ -31,7 +31,7 @@
                 aria-label="{{ s.title }} — {{ s.shop_name }}">
           <div class="bm-story-ring{% if s.has_video %} is-video{% elif s.is_promo %} is-promo{% endif %}">
             <div class="bm-story-avatar-wrap">
-              <img class="bm-story-avatar" src="{{ s.thumbnail_url }}" alt="" loading="lazy" width="68" height="68" onerror="this.onerror=null; this.src='/static/img/placeholders/product.svg';">
+              <img class="bm-story-avatar" src="{{ s.thumbnail_url }}" alt="" loading="lazy" width="68" height="68" onerror="this.onerror=null; this.src='/static/images/produit.jpeg';">
             </div>
             {% if s.has_video %}
             <span class="bm-story-micro-badge video" aria-hidden="true">
@@ -47,8 +47,7 @@
             </span>
             {% endif %}
           </div>
-          <span class="bm-story-name">{{ s.title | truncate(13, True, '…') }}</span>
-          <span class="bm-story-tag">{{ s.label }}</span>
+          <span class="bm-story-name">{{ s.title | truncate(14, True, '…') }}</span>
         </button>
         {% endfor %}
       </div>
