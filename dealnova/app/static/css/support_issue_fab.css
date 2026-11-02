@@ -159,7 +159,7 @@
 }
 
 .support-issue-textarea {
-  min-height: 104px;
+  min-height: 74px;
   resize: vertical;
 }
 
@@ -171,13 +171,16 @@
 }
 
 .support-issue-context {
-  display: grid;
-  gap: 0.34rem;
-  border-radius: 18px;
-  background: rgba(15, 23, 42, 0.04);
-  padding: 0.85rem 0.92rem;
-  color: #475569;
-  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 12px;
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.18);
+  padding: 0.55rem 0.85rem;
+  color: #065f46;
+  font-size: 0.85rem;
+  font-weight: 600;
 }
 
 .support-issue-context strong {
