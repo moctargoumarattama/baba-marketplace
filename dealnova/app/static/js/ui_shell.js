@@ -1206,6 +1206,7 @@
     const pwaModalInstall = document.getElementById("pwaModalInstall");
     const pwaModalLater = document.getElementById("pwaModalLater");
     const pwaModalToday = document.getElementById("pwaModalToday");
+    const pwaModalClose = document.getElementById("pwaModalClose");
     const pwaNativeInstallCopy = document.getElementById("pwaNativeInstallCopy");
     const pwaInstallStatus = document.getElementById("pwaInstallStatus");
     const iosHint = document.getElementById("iosHint");
@@ -1936,6 +1937,9 @@
     if (pwaModalLater) {
       pwaModalLater.addEventListener("click", closePwaModal);
     }
+    if (pwaModalClose) {
+      pwaModalClose.addEventListener("click", closePwaModal);
+    }
     if (pwaModalToday) {
       pwaModalToday.addEventListener("click", function () {
         hideInstallUntilEndOfDay();
@@ -1947,9 +1951,19 @@
     }
     if (installModal) {
       installModal.addEventListener("click", function (e) {
-        if (e.target === installModal) closePwaModal();
+        if (
+          e.target === installModal ||
+          (e.target && e.target.closest && e.target.closest("#pwaModalClose, .pwa-modal__close, [data-close-pwa-modal]"))
+        ) {
+          closePwaModal();
+        }
       });
     }
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && installModal && !installModal.classList.contains("hidden")) {
+        closePwaModal();
+      }
+    });
 
     window.addEventListener("pwa:beforeinstallprompt-ready", function () {
       showSoftInstallUI();

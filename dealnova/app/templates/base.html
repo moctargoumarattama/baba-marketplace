@@ -1949,7 +1949,7 @@
   <!-- Install Popup (1/day) -->
   <div id="installModal" class="pwa-modal hidden" role="dialog" aria-modal="true" aria-labelledby="pwaInstallTitle">
     <div class="pwa-modal__card">
-      <button class="pwa-modal__close" type="button" onclick="document.getElementById('installModal').classList.add('hidden')" aria-label="{{ t('Fermer') }}">✕</button>
+      <button id="pwaModalClose" class="pwa-modal__close" type="button" aria-label="{{ t('Fermer') }}" data-close-pwa-modal="true">✕</button>
       <div class="pwa-modal__brand">
         <img class="pwa-modal__icon" src="{{ url_for('apple_touch_icon') }}" alt="{{ t('Icône Baba Market') }}" width="56" height="56">
         <div>
@@ -1990,7 +1990,7 @@
 
       <div class="pwa-modal__actions">
         <button id="pwaModalInstall" class="pwa-modal-btn pwa-modal-btn--primary" type="button">⚡ {{ t('Installer') }}</button>
-        <button id="pwaModalLater" class="pwa-modal-btn pwa-modal-btn--secondary" type="button">{{ t('Plus tard') }}</button>
+        <button id="pwaModalLater" class="pwa-modal-btn pwa-modal-btn--secondary" type="button">{{ t('Fermer') }}</button>
         <button id="pwaModalToday" class="pwa-modal-btn pwa-modal-btn--subtle" type="button">{{ t("Ne plus afficher aujourd'hui") }}</button>
       </div>
     </div>

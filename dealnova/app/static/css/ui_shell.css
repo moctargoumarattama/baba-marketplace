@@ -1575,13 +1575,14 @@
       position: absolute;
       top: 0.85rem;
       right: 0.85rem;
-      width: 30px;
-      height: 30px;
+      width: 36px;
+      height: 36px;
       border-radius: 50%;
       background: #f1f5f9;
-      border: 1px solid #e2e8f0;
+      border: 1px solid #cbd5e1;
       color: #64748b;
-      font-size: 0.82rem;
+      font-size: 0.95rem;
+      font-weight: 700;
       display: inline-flex;
       align-items: center;
       justify-content: center;
@@ -1589,12 +1590,13 @@
       transition: all 0.15s ease;
       line-height: 1;
       padding: 0;
+      z-index: 10;
     }
 
     .pwa-modal__close:hover {
       background: #e2e8f0;
       color: #0f172a;
-      transform: scale(1.06);
+      transform: scale(1.08);
     }
 
     .pwa-modal__brand {
