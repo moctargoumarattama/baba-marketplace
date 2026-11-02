@@ -509,8 +509,9 @@
   function itemCard(item) {
     var type = item.item_type || 'product';
     var card = node('article', 'u-item-card catalog-item'); card.dataset.itemType = type;
-    var mediaLink = node('a', 'u-item-link-media'); mediaLink.href = safeURL(item.url, '/'); mediaLink.setAttribute('aria-label', 'Voir : ' + item.name); mediaLink.appendChild(imageFor(item));
-    if (item.video_url) { var videoBadge = node('span', 'catalog-video-badge', 'Vidéo'); videoBadge.prepend(icon('play-circle-fill')); mediaLink.appendChild(videoBadge); }
+    var media = imageFor(item);
+    if (item.video_url) { var videoBadge = node('span', 'catalog-video-badge', 'Vidéo'); videoBadge.prepend(icon('play-circle-fill')); media.appendChild(videoBadge); }
+    var mediaLink = node('a', 'u-item-link-media'); mediaLink.href = safeURL(item.url, '/'); mediaLink.setAttribute('aria-label', 'Voir : ' + item.name); mediaLink.appendChild(media);
     var content = node('div', 'u-item-content');
     var titleLink = node('a', 'u-item-title-link'); titleLink.href = mediaLink.href;
     if (type === 'product' || type === 'service') { mediaLink.dataset.openProductDetail = item.id; titleLink.dataset.openProductDetail = item.id; card.dataset.productId = item.id; }
