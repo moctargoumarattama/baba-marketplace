@@ -644,9 +644,9 @@
   <script src="{{ url_for('static', filename='js/i18n.js', v=app_static_version) }}" defer></script>
   {% endif %}
   {% if public_refresh_enabled %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/home_refresh.css', v=app_static_version ~ '-home-refresh-cachebust-v4-promo-rail') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/public_refresh.css', v=app_static_version ~ '-public-refresh-cachebust-v1') }}">
-  <script src="{{ url_for('static', filename='js/home_refresh.js', v=app_static_version ~ '-home-refresh-js-cachebust-v1') }}" defer></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/home_refresh.css', v=app_static_version ~ '-home-refresh-cachebust-v5-promo-scroll') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/public_refresh.css', v=app_static_version ~ '-public-refresh-cachebust-v2') }}">
+  <script src="{{ url_for('static', filename='js/home_refresh.js', v=app_static_version ~ '-home-refresh-js-cachebust-v2') }}" defer></script>
   {% endif %}
   {% block head %}{% endblock %}
   {% if public_refresh_enabled or base_endpoint in ['landing', 'shop.home'] %}

@@ -5,7 +5,7 @@ body[data-public-refresh="1"] > .navbar, body[data-public-refresh="1"] > .drawer
 body[data-public-refresh="1"] main { flex: 1; width: 100%; padding: 0; }
 body[data-public-refresh="1"] main > .container-fluid { padding: 0; }
 body[data-public-refresh="1"] #pageContent > .alert { max-width: 1180px; margin: 20px auto; }
-body[data-public-refresh="1"] :is(a,button,input,select,summary):focus-visible { outline: 3px solid #087f5b; outline-offset: 3px; }
+body[data-public-refresh="1"] :is(a,button,input,select,summary):not(.hub-category, .bm-story-bubble, .bm-stories-rail, .bm-stories-container, .hub-product, .hub-product-media, .hub-product-add):focus-visible { outline: 3px solid #087f5b; outline-offset: 3px; }
 .public-header { width: 100%; flex: none; }
 .public-header .hub-header-inner { grid-template-columns: minmax(0, 1fr) auto auto; }
 .public-location { display: inline-flex; align-items: center; gap: 8px; padding: 12px; min-height: 44px; font-size: 13px; color: var(--hub-ink); text-decoration: none; white-space: nowrap; }

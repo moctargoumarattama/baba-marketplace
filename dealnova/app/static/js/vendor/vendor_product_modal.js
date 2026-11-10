@@ -626,7 +626,19 @@
         return;
       }
       let message = data?.message;
-      if (!message) message = xhr.status === 413 ? "Les fichiers sont trop volumineux. Réduisez leur taille puis réessayez." : "La session ou la connexion a été interrompue. Votre saisie est conservée. Vérifiez votre session avant de réessayer.";
+      if (!message) {
+        if (xhr.status === 413) {
+          message = "Les fichiers sont trop volumineux pour le serveur (erreur 413). Réduisez la taille de vos photos.";
+        } else if (xhr.status === 403) {
+          message = "Action non autorisée (erreur 403). Vérifiez les autorisations de votre boutique.";
+        } else if (xhr.status === 409) {
+          message = "Informations manquantes sur votre boutique (erreur 409). Renseignez l'adresse et le téléphone de votre boutique.";
+        } else if (xhr.status === 500) {
+          message = "Erreur technique du serveur (erreur 500). Votre saisie a été conservée.";
+        } else {
+          message = "La session ou la connexion a été interrompue (statut " + (xhr.status || "inconnu") + "). Votre saisie est conservée.";
+        }
+      }
       showError(message, data?.redirect_url);
       if (xhr.status === 400 && !data) {
         const refresh = document.createElement("button");
@@ -645,9 +657,17 @@
       if (first) first.focus();
       else form.querySelector("#vpmFormError").scrollIntoView({ block: "nearest" });
     };
-    xhr.onerror = xhr.ontimeout = xhr.onabort = () => {
+    xhr.onerror = () => {
       if (!finish()) return;
-      showError("La connexion a été interrompue. Votre saisie est conservée. Vérifiez vos annonces avant de réessayer pour éviter un doublon.", createType === "location" ? "/owner/locations" : "/vendor/catalog");
+      showError("Échec de connexion réseau au serveur BabaMarket. Vos saisies sont conservées. Vérifiez votre connexion Internet.", createType === "location" ? "/owner/locations" : "/vendor/catalog");
+    };
+    xhr.ontimeout = () => {
+      if (!finish()) return;
+      showError("Délai de connexion dépassé (timeout). L'envoi a pris trop de temps. Vos données sont conservées.", createType === "location" ? "/owner/locations" : "/vendor/catalog");
+    };
+    xhr.onabort = () => {
+      if (!finish()) return;
+      showError("L'envoi du formulaire a été interrompu. Vos données sont conservées.", createType === "location" ? "/owner/locations" : "/vendor/catalog");
     };
     xhr.send(body);
   }

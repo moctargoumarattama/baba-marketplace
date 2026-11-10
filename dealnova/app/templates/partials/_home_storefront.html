@@ -117,9 +117,17 @@
   </section>
 
   {% if hub_items.promotions %}
-  <section class="hub-section" aria-labelledby="hubPromotionsTitle">
+  <section class="hub-section hub-section-promotions" aria-labelledby="hubPromotionsTitle">
     <div class="hub-section-heading"><h2 id="hubPromotionsTitle">{{ t('Promotions') }}</h2><a href="{{ catalog_url('promotions') }}" class="hub-text-link" data-open-universe="promotions">{{ t('Tout voir') }}<i class="bi bi-arrow-right" aria-hidden="true"></i></a></div>
-    <div class="hub-products-grid hub-products-rail" data-promotions-rail>{% for item in hub_items.promotions[:10] %}{{ offer_card(item) }}{% endfor %}</div>
+    <div class="hub-products-rail-wrap">
+      <button type="button" class="hub-rail-arrow hub-rail-prev" data-promo-prev aria-label="{{ t('Précédent') }}" hidden>
+        <i class="bi bi-chevron-left" aria-hidden="true"></i>
+      </button>
+      <div class="hub-products-grid hub-products-rail" data-promotions-rail>{% for item in hub_items.promotions[:10] %}{{ offer_card(item) }}{% endfor %}</div>
+      <button type="button" class="hub-rail-arrow hub-rail-next" data-promo-next aria-label="{{ t('Suivant') }}" hidden>
+        <i class="bi bi-chevron-right" aria-hidden="true"></i>
+      </button>
+    </div>
   </section>
   {% endif %}
 

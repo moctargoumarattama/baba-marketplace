@@ -91,6 +91,42 @@
       });
     });
     initImages(document);
+    initPromotionsRail(document);
+  }
+
+  function initPromotionsRail(root) {
+    var rail = root.querySelector('[data-promotions-rail]');
+    var prev = root.querySelector('[data-promo-prev]');
+    var next = root.querySelector('[data-promo-next]');
+    if (!rail) return;
+    function updateArrows() {
+      if (!prev || !next) return;
+      var canScroll = rail.scrollWidth > rail.clientWidth + 8;
+      if (!canScroll) {
+        prev.hidden = true;
+        next.hidden = true;
+        return;
+      }
+      prev.hidden = rail.scrollLeft <= 4;
+      next.hidden = rail.scrollLeft + rail.clientWidth >= rail.scrollWidth - 4;
+    }
+    if (prev) {
+      prev.addEventListener('click', function () {
+        var card = rail.querySelector('.hub-product');
+        var step = card ? (card.offsetWidth + 14) : 220;
+        rail.scrollBy({ left: -step, behavior: 'smooth' });
+      });
+    }
+    if (next) {
+      next.addEventListener('click', function () {
+        var card = rail.querySelector('.hub-product');
+        var step = card ? (card.offsetWidth + 14) : 220;
+        rail.scrollBy({ left: step, behavior: 'smooth' });
+      });
+    }
+    rail.addEventListener('scroll', updateArrows, { passive: true });
+    window.addEventListener('resize', updateArrows, { passive: true });
+    updateArrows();
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initStorefront);
   else initStorefront();

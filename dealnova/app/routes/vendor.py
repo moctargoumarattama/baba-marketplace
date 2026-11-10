@@ -191,8 +191,9 @@ def guard_product_form_modal():
             401,
         )
     if getattr(current_user, "role", None) != "vendor":
+        role_label = getattr(current_user, "role", "inconnu")
         return _product_form_json(
-            {"success": False, "message": "Accès réservé aux vendeurs."},
+            {"success": False, "message": f"Accès réservé aux vendeurs. Votre compte actuel a le rôle '{role_label}'."},
             403,
         )
 
@@ -1469,13 +1470,21 @@ def _product_form(product=None):
         )), status
 
     if not shop:
-        return reject("Votre boutique doit être créée par l’administration.", status=403, endpoint="vendor.manage_shop")
+        return reject("Votre boutique doit être créée par l’administration avant de pouvoir gérer des offres.", status=403, endpoint="vendor.manage_shop")
     if not shop_allows_any(shop, "products", "services"):
-        return reject("Cette boutique ne permet pas de gérer des produits ou services.", status=403, endpoint="vendor.manage_shop")
+        allowed = getattr(shop, "primary_type", "") or "autres"
+        return reject(f"Votre boutique n'est pas autorisée à gérer des produits ou services (type de boutique : {allowed}).", status=403, endpoint="vendor.manage_shop")
     if editing and not shop_allows_any(shop, shop_type_from_product_kind(product.kind)):
-        return reject("Ce type d’offre n’est pas autorisé pour votre boutique.", status=403, endpoint="vendor.manage_shop")
+        expected_kind = "un service" if product.kind == "service" else "un produit physique"
+        return reject(f"Votre boutique n'autorise pas la modification de cette offre ({expected_kind}).", status=403, endpoint="vendor.manage_shop")
     if not _shop_has_required_contact_details(shop):
-        return reject("Ajoutez le téléphone et l’adresse de votre boutique avant de gérer une offre.", status=409, endpoint="vendor.edit_shop")
+        missing = []
+        if not (getattr(shop, "contact_phone", "") or "").strip():
+            missing.append("numéro de téléphone")
+        if not (getattr(shop, "address", "") or "").strip():
+            missing.append("adresse physique")
+        missing_str = " et ".join(missing) if missing else "coordonnées"
+        return reject(f"Votre boutique n'a pas encore de {missing_str}. Renseignez ces coordonnées dans les paramètres de votre boutique pour pouvoir gérer une offre.", status=409, endpoint="vendor.edit_shop")
 
     if request.method == "GET":
         if modal_request:
@@ -1499,7 +1508,8 @@ def _product_form(product=None):
     if kind not in ("physical", "service"):
         return reject("Choisissez un produit ou un service.", field="kind")
     if not shop_allows_any(shop, shop_type_from_product_kind(kind)):
-        return reject("Ce type d’offre n’est pas autorisé pour votre boutique.", field="kind", status=403)
+        kind_label = "des services" if kind == "service" else "des produits physiques"
+        return reject(f"Votre boutique n'est pas autorisée à publier {kind_label}. Modifiez les activités autorisées de votre boutique.", field="kind", status=403)
     price = (request.form.get("price") or "").strip().replace(",", ".")
     try:
         amount = Decimal(price)
@@ -1517,12 +1527,18 @@ def _product_form(product=None):
                 raise ValueError("stock_invalid")
         except (TypeError, ValueError, OverflowError):
             return reject("Saisissez une quantité entière positive ou nulle.", field="stock")
+    raw_cat = (request.form.get("category_id") or "").strip()
     try:
-        category_id = int(request.form.get("category_id") or "")
-        category = _validate_category_for_kind(category_id, kind) if 0 < category_id <= 2147483647 else None
+        category_id = int(raw_cat)
+        raw_category = Category.query.get(category_id) if 0 < category_id <= 2147483647 else None
+        category = _validate_category_for_kind(category_id, kind) if raw_category else None
     except (TypeError, ValueError, OverflowError):
         category = None
+        raw_category = None
     if not category:
+        if raw_category:
+            expected_type = "service" if kind == "service" else "produit"
+            return reject(f"La catégorie '{raw_category.name}' est réservée aux {raw_category.normalized_type} et ne correspond pas à un {expected_type}.", field="category_id")
         return reject("Choisissez une catégorie correspondant au type d’offre.", field="category_id")
 
     existing_images = _parse_product_images(product.image_file) if editing else []
@@ -1537,18 +1553,19 @@ def _product_form(product=None):
     files = [f for f in request.files.getlist("images") if f and (f.filename or "").strip()]
     video_files = [f for f in request.files.getlist("video") if f and (f.filename or "").strip()]
     if len(kept_images) + len(files) > MAX_PRODUCT_IMAGES:
-        return reject("Conservez au maximum 4 photos au total.", field="images")
-    if any(not allowed_file(f.filename) for f in files):
-        return reject("Choisissez des photos au format JPG, PNG ou WebP.", field="images")
+        return reject(f"Conservez au maximum {MAX_PRODUCT_IMAGES} photos au total ({len(kept_images) + len(files)} reçues).", field="images")
+    bad_files = [f.filename for f in files if not allowed_file(f.filename)]
+    if bad_files:
+        return reject(f"La photo '{bad_files[0]}' a un format non autorisé. Formats acceptés : JPG, PNG ou WebP.", field="images")
     if _uploaded_files_total_bytes(files) > MAX_PRODUCT_IMAGES_TOTAL_BYTES:
-        return reject("La taille totale des nouvelles photos doit rester inférieure à 15 Mo.", field="images")
+        return reject(f"La taille totale des nouvelles photos dépasse la limite de {MAX_PRODUCT_IMAGES_TOTAL_BYTES // (1024*1024)} Mo.", field="images")
     if len(video_files) > MAX_PRODUCT_VIDEOS:
-        return reject("Ajoutez une seule vidéo.", field="video")
+        return reject(f"Ajoutez une seule vidéo ({MAX_PRODUCT_VIDEOS} max).", field="video")
     if video_files:
         if not allowed_video_file(video_files[0].filename):
-            return reject("Choisissez une vidéo dans un format pris en charge, comme MP4, MOV ou WebM.", field="video")
+            return reject(f"Le format de la vidéo '{video_files[0].filename}' n'est pas pris en charge. Formats acceptés : MP4, MOV ou WebM.", field="video")
         if _uploaded_files_total_bytes(video_files) > MAX_PRODUCT_VIDEO_BYTES:
-            return reject("La vidéo doit rester inférieure à 30 Mo.", field="video")
+            return reject(f"La vidéo dépasse la taille autorisée de {MAX_PRODUCT_VIDEO_BYTES // (1024*1024)} Mo.", field="video")
 
     filenames = []
     new_video = None
@@ -1559,9 +1576,12 @@ def _product_form(product=None):
         filenames, invalid_images, excess_images = _save_uploaded_product_images(
             files, vendor_id=vendor_id, remaining_slots=MAX_PRODUCT_IMAGES - len(kept_images),
         )
-        if invalid_images or excess_images:
+        if invalid_images:
             _cleanup_product_media(filenames, None)
-            return reject("Une photo est illisible. Retirez-la ou choisissez une autre photo.", field="images")
+            return reject(f"La photo '{invalid_images[0]}' est illisible ou corrompue. Retirez-la ou choisissez une autre photo.", field="images")
+        if excess_images:
+            _cleanup_product_media(filenames, None)
+            return reject(f"Nombre maximal de photos atteint ({MAX_PRODUCT_IMAGES} photos max).", field="images")
         if video_files:
             try:
                 new_video = save_product_video(video_files[0])
@@ -1591,14 +1611,33 @@ def _product_form(product=None):
         }
         catalog_total = Product.query.filter_by(vendor_id=vendor_id).count()
         db.session.commit()
-    except Exception:
+    except Exception as exc:
         safe_session_rollback()
         _cleanup_product_media(filenames, new_video)
         current_app.logger.exception("[vendor] save_product.failed vendor_id=%s editing=%s", vendor_id, editing)
         # A failed new instance must not be rendered as an existing, editable offer.
         if not editing:
             product = None
-        return reject("L’enregistrement a échoué. Votre saisie est conservée, réessayez dans quelques instants.", status=500)
+        err_type = exc.__class__.__name__
+        err_detail = str(exc).strip()
+        if isinstance(exc, (OSError, PermissionError)):
+            cause = "Erreur de stockage serveur : impossible d'enregistrer les médias (dossier inaccessible ou espace disque insuffisant)."
+        elif "IntegrityError" in err_type:
+            if "category_id" in err_detail.lower():
+                cause = "La catégorie sélectionnée n'est plus valide ou n'existe plus."
+            elif "shop_id" in err_detail.lower():
+                cause = "La boutique associée est introuvable ou inactive."
+            elif "duplicate" in err_detail.lower() or "unique" in err_detail.lower():
+                cause = "Une offre avec ce nom ou ces références existe déjà."
+            else:
+                cause = f"Contrainte de base de données non respectée : {err_detail[:120]}"
+        elif "OperationalError" in err_type or "locked" in err_detail.lower():
+            cause = "La base de données est temporairement occupée. Vos données sont conservées, renvoyez le formulaire."
+        elif "DataError" in err_type:
+            cause = "Une information saisie dépasse la longueur autorisée ou son format est incompatible."
+        else:
+            cause = f"L'enregistrement a échoué : {err_detail if err_detail else err_type}"
+        return reject(f"{cause} (Votre saisie est conservée)", status=500)
 
     # Commit succeeded. Secondary cleanup/cache/audit errors must never ask for another POST.
     try:

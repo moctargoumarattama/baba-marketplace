@@ -245,10 +245,14 @@
         var target = finalReturnFocus;
         finalReturnFocus = null;
         if (target) {
-          focusHubElement(target);
           if (window.matchMedia('(max-width: 768px)').matches || lastInputType === 'pointer') {
             if (target.blur) target.blur();
+          } else {
+            focusHubElement(target);
           }
+        }
+        if (document.activeElement && document.activeElement !== document.body && document.activeElement.blur) {
+          document.activeElement.blur();
         }
         return;
       }
@@ -633,6 +637,8 @@
       hubStack = hubStack.slice(0, index);
       syncHubLayers(pendingReturnFocus);
       if (hubStack.length === 0) {
+        unlockHubBackground();
+        forceUnlockHubScroll();
         setTimeout(forceUnlockHubScroll, 240);
       }
       if (useBack) {

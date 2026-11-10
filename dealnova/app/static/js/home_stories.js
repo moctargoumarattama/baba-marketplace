@@ -308,9 +308,15 @@
     if (backdropElem) backdropElem.classList.add('hidden');
     document.body.style.overflow = '';
     document.documentElement.style.overflow = '';
+    document.body.classList.remove('modal-open');
     if (document.activeElement && document.activeElement.blur) {
       document.activeElement.blur();
     }
+    setTimeout(function () {
+      if (document.activeElement && document.activeElement !== document.body && document.activeElement.blur) {
+        document.activeElement.blur();
+      }
+    }, 0);
   }
 
   // Dialog dismissal listener
@@ -325,9 +331,15 @@
     if (backdropElem) backdropElem.classList.add('hidden');
     document.body.style.overflow = '';
     document.documentElement.style.overflow = '';
+    document.body.classList.remove('modal-open');
     if (document.activeElement && document.activeElement.blur) {
       document.activeElement.blur();
     }
+    setTimeout(function () {
+      if (document.activeElement && document.activeElement !== document.body && document.activeElement.blur) {
+        document.activeElement.blur();
+      }
+    }, 0);
   });
 
   // Controls
