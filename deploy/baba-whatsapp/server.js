@@ -40,6 +40,15 @@ const ALLOWED_IMAGE_HOSTS = new Set(
 );
 
 const logger = pino({ level: process.env.LOG_LEVEL || "warn" });
+
+// Protection contre les plantages silencieux du processus Node.js
+process.on("uncaughtException", (err) => {
+  logger.error({ err: err?.message || err, stack: err?.stack }, "Erreur non capturée dans le micro-service WhatsApp");
+});
+process.on("unhandledRejection", (reason) => {
+  logger.error({ reason: reason?.message || reason }, "Rejet de promesse non capturé dans le micro-service WhatsApp");
+});
+
 const app = express();
 app.use(express.json({ limit: "15mb" }));
 app.use(express.urlencoded({ extended: true, limit: "15mb" }));
@@ -290,17 +299,35 @@ async function startSocket() {
 
     // Synchronisation automatique des contacts pour la diffusion des Statuts 24h
     sock.ev.on("contacts.upsert", (contacts) => {
-      rememberJids((contacts || []).map((c) => c?.id));
+      try {
+        rememberJids((contacts || []).map((c) => c?.id));
+      } catch (err) {
+        logger.warn({ err: err?.message }, "contacts.upsert error");
+      }
     });
     sock.ev.on("contacts.update", (contacts) => {
-      rememberJids((contacts || []).map((c) => c?.id));
+      try {
+        rememberJids((contacts || []).map((c) => c?.id));
+      } catch (err) {
+        logger.warn({ err: err?.message }, "contacts.update error");
+      }
     });
-    sock.ev.on("messaging-history.set", ({ contacts, chats }) => {
-      rememberJids((contacts || []).map((c) => c?.id));
-      rememberJids((chats || []).map((ch) => ch?.id));
+    sock.ev.on("messaging-history.set", (payload) => {
+      try {
+        const contacts = payload && Array.isArray(payload.contacts) ? payload.contacts : [];
+        const chats = payload && Array.isArray(payload.chats) ? payload.chats : [];
+        rememberJids(contacts.map((c) => c?.id));
+        rememberJids(chats.map((ch) => ch?.id));
+      } catch (err) {
+        logger.warn({ err: err?.message }, "messaging-history.set error");
+      }
     });
     sock.ev.on("chats.upsert", (chats) => {
-      rememberJids((chats || []).map((ch) => ch?.id));
+      try {
+        rememberJids((chats || []).map((ch) => ch?.id));
+      } catch (err) {
+        logger.warn({ err: err?.message }, "chats.upsert error");
+      }
     });
 
     sock.ev.on("connection.update", async (update) => {

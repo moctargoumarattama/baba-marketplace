@@ -1383,7 +1383,9 @@
     color: var(--wa-ink);
     padding: 0 2px;
     block-size: 100%;
+    -webkit-appearance: textfield;
     -moz-appearance: textfield;
+    appearance: textfield;
   }
   .wa-stepper input[type="number"]::-webkit-outer-spin-button,
   .wa-stepper input[type="number"]::-webkit-inner-spin-button {
@@ -1514,6 +1516,15 @@
       justify-content: center;
     }
   }
+
+  .wa-live-send-banner {
+    border-radius: 14px;
+    background: #ecfdf5;
+    border-left: 5px solid #10b981;
+  }
+  .wa-live-send-banner[hidden] {
+    display: none !important;
+  }
 </style>
 
 {% set ps = promo_settings or {} %}
@@ -1542,7 +1553,7 @@
 <div class="wa-app-container" data-wave-number="{{ wave_num }}" data-is-sending="{{ '1' if wi.get('is_sending') else '0' }}" data-groups-count="{{ groups_list|length }}">
 
   <!-- BANDEAU ENVOI EN COURS (TEMPS RÉEL) -->
-  <div id="liveSendBanner" class="card border-success shadow-sm" style="border-radius:14px;background:#ecfdf5;border-left:5px solid #10b981;{% if not wi.get('is_sending') %}display:none;{% endif %}">
+  <div id="liveSendBanner" class="card border-success shadow-sm wa-live-send-banner" {% if not wi.get('is_sending') %}hidden{% endif %}>
     <div class="card-body py-2 px-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
       <div class="d-flex align-items-center gap-3">
         <div class="spinner-border text-success spinner-border-sm" role="status" aria-hidden="true"></div>
@@ -1613,40 +1624,65 @@
 
   <!-- LIGNE EXÉCUTIVE BENTO : CONNEXION WHATSAPP (ÉTAPE 1) + INDICATEURS CLÉS -->
   <div class="wa-exec-grid">
-    <section class="wa-gateway-card is-{{ st }}" id="waStatusBanner" aria-label="État de connexion WhatsApp">
+    <section class="wa-gateway-card is-{{ st }}{% if not gateway.get('reachable') %} is-unreachable{% endif %}" id="waStatusBanner" aria-label="État de connexion WhatsApp">
       <div class="phone-info-left">
-        <div class="phone-icon-circle is-{{ st }}">
-          <i class="bi bi-whatsapp"></i>
+        <div class="phone-icon-circle is-{{ st }}{% if not gateway.get('reachable') %} bg-danger-subtle text-danger{% endif %}">
+          {% if not gateway.get('reachable') %}
+            <i class="bi bi-exclamation-octagon-fill text-danger"></i>
+          {% else %}
+            <i class="bi bi-whatsapp"></i>
+          {% endif %}
         </div>
         <div style="min-inline-size:0;">
           <div style="display:flex;align-items:center;gap:0.45rem;flex-wrap:wrap;">
-            {% if st == 'connected' %}
+            {% if not gateway.get('reachable') %}
+              <span class="badge bg-danger text-white px-2 py-1 fw-bold" style="font-size:0.75rem;">
+                <i class="bi bi-slash-circle me-1"></i>Port 3002 Injoignable
+              </span>
+              <span style="font-size:0.94rem;font-weight:800;color:var(--wa-ink);">
+                Micro-service WhatsApp arrêté
+              </span>
+            {% elif st == 'connected' %}
               <span class="wa-live-dot" aria-hidden="true"></span>
-            {% endif %}
-            <span style="font-size:0.94rem;font-weight:800;color:var(--wa-ink);">
-              {% if st == 'connected' %}
+              <span style="font-size:0.94rem;font-weight:800;color:var(--wa-ink);">
                 WhatsApp connecté et prêt
-              {% elif st == 'qr_ready' %}
-                Connexion en attente de scan
-              {% else %}
-                WhatsApp non connecté
+              </span>
+              {% if gateway.phone %}
+                <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1" style="font-size:0.75rem;">
+                  <i class="bi bi-telephone-fill me-1"></i>+{{ gateway.phone }}
+                </span>
               {% endif %}
-            </span>
-
-            {% if st == 'connected' and gateway.phone %}
-              <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1" style="font-size:0.75rem;">
-                <i class="bi bi-telephone-fill me-1"></i>+{{ gateway.phone }}
+            {% elif st == 'qr_ready' %}
+              <span class="badge bg-warning text-dark px-2 py-1 fw-bold" style="font-size:0.75rem;">
+                <i class="bi bi-qr-code me-1"></i>Scan requis
+              </span>
+              <span style="font-size:0.94rem;font-weight:800;color:var(--wa-ink);">
+                En attente de scan du QR Code
+              </span>
+            {% else %}
+              <span class="badge bg-secondary-subtle text-secondary border px-2 py-1 fw-bold" style="font-size:0.75rem;">
+                <i class="bi bi-power me-1"></i>Déconnecté
+              </span>
+              <span style="font-size:0.94rem;font-weight:800;color:var(--wa-ink);">
+                WhatsApp non connecté
               </span>
             {% endif %}
           </div>
 
-          <div style="font-size:0.76rem;color:var(--wa-ink-muted);margin-block-start:0.1rem;" id="waStatusDesc">
-            {% if st == 'connected' %}
-              Diffusions actives depuis ce numéro vers votre Story et vos groupes.
+          <div style="font-size:0.76rem;color:var(--wa-ink-muted);margin-block-start:0.15rem;" id="waStatusDesc">
+            {% if not gateway.get('reachable') %}
+              <span class="text-danger fw-semibold">
+                <i class="bi bi-exclamation-triangle-fill me-1"></i>Le service local (127.0.0.1:3002) ne répond pas. Redémarrez-le sur le serveur avec : <code class="bg-light text-dark px-1 rounded">sudo systemctl restart baba-whatsapp.service</code>
+              </span>
+            {% elif st == 'connected' %}
+              Diffusions actives depuis ce numéro (+{{ gateway.phone or '' }}) vers vos Stories 24h et groupes de vente.
             {% elif st == 'qr_ready' %}
-              Scannez le QR Code avec votre téléphone pour activer l'envoi.
+              Ouvrez WhatsApp sur votre téléphone &gt; Réglages &gt; Appareils connectés &gt; Connecter un appareil, puis scannez le QR code.
             {% else %}
-              Associez votre téléphone une première fois pour publier.
+              Le micro-service est en ligne sur le port 3002. Cliquez sur « Scanner le QR » pour associer votre WhatsApp.
+            {% endif %}
+            {% if gateway.get('checked_at') %}
+              <span class="d-inline-block text-muted ms-1" style="font-size:0.68rem;">(Vérifié : {{ gateway.get('checked_at') }})</span>
             {% endif %}
           </div>
         </div>
@@ -2636,7 +2672,10 @@
           if (qrImage && st === "qr_ready" && data && data.qr) {
             qrImage.setAttribute("src", data.qr);
           }
-          if (st === "connected" && banner.classList.contains("is-qr_ready")) {
+          var wasConnected = banner.classList.contains("is-connected");
+          var wasQr = banner.classList.contains("is-qr_ready");
+          var wasDisconnected = banner.classList.contains("is-disconnected") || banner.classList.contains("is-unreachable");
+          if ((st === "connected" && !wasConnected) || (st === "qr_ready" && !wasQr) || (st === "disconnected" && !wasDisconnected)) {
             window.location.reload();
             return;
           }
@@ -2658,7 +2697,10 @@
       var liveBanner = document.getElementById("liveSendBanner");
       if (psState.is_sending) {
         wasSending = true;
-        if (liveBanner) liveBanner.style.display = "";
+        if (liveBanner) {
+          liveBanner.hidden = false;
+          liveBanner.style.display = "";
+        }
       } else if (wasSending || (psState.wave_number && psState.wave_number !== initialWaveNum)) {
         window.location.reload();
       }
@@ -2670,7 +2712,12 @@
 
     refreshBtn.addEventListener("click", function (e) {
       e.preventDefault();
-      refreshGatewayStatus(false);
+      var icon = refreshBtn.querySelector("i");
+      if (icon) {
+        icon.className = "spinner-border spinner-border-sm";
+      }
+      refreshBtn.setAttribute("disabled", "disabled");
+      window.location.reload();
     });
 
     if (disconnectBtn && disconnectUrl) {
