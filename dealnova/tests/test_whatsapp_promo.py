@@ -1429,3 +1429,46 @@ def test_offer_photo_video_preview_and_short_rental_visit(app, tmp_path):
     assert "/location/studio-moderne-visite-video" in r_real.headers["Location"]
     with app.app_context():
         assert whatsapp_promo.get_today_clicks().get(f"rental_{rent_id}", 0) == 1
+
+
+def test_cancel_active_send_aborts_immediately_and_updates_state(app, tmp_path):
+    _seed_catalog(app, tmp_path)
+    with app.app_context():
+        admin_user = User.query.filter_by(username="wa_promo_admin").first()
+        if not admin_user:
+            admin_user = User(
+                username="wa_promo_admin",
+                email="wa_promo_admin@babamarket.ma",
+                role="admin",
+                is_active=True,
+            )
+            admin_user.set_password("AdminPass123!")
+            db.session.add(admin_user)
+            db.session.commit()
+        admin_id = admin_user.id
+
+        # 1. Vérifier cancel_active_send() directement
+        whatsapp_promo._SEND_CANCEL_EVENT.clear()
+        res = whatsapp_promo.cancel_active_send()
+        assert res["success"] is True
+        assert res["cancelled"] is True
+        assert whatsapp_promo.is_send_cancelled() is True
+
+        # 2. Vérifier que run_daily_promo s'interrompt immédiatement avec cancelled_by_admin
+        with patch("dealnova.app.services.whatsapp_promo.get_whatsapp_gateway_status", return_value={"status": "connected"}):
+            summary = whatsapp_promo.run_daily_promo(force=True, dry_run=False)
+            assert summary["aborted"] == "cancelled_by_admin"
+            # Les drapeaux sont réinitialisés proprement
+            assert whatsapp_promo.is_send_cancelled() is False
+
+        # 3. Vérifier la route HTTP POST /admin/whatsapp-gateway/promo/cancel
+        client = app.test_client()
+        with client.session_transaction() as sess:
+            sess["_user_id"] = str(admin_id)
+            sess["_fresh"] = True
+
+        cancel_resp = client.post("/admin/whatsapp-gateway/promo/cancel", headers={"X-Requested-With": "fetch"})
+        assert cancel_resp.status_code == 200
+        data = cancel_resp.get_json()
+        assert data["success"] is True
+        assert data["cancelled"] is True

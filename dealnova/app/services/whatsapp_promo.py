@@ -17,6 +17,7 @@ import base64
 import json
 import random
 import re
+import threading
 import time
 from time import sleep
 from datetime import datetime, timedelta, timezone
@@ -1592,15 +1593,20 @@ def post_status_with_retry(
     """Publie un statut WhatsApp 24h avec tentatives automatiques et garde-fous."""
     last_reason = "unknown"
     for attempt in range(1, max_attempts + 1):
+        if is_send_cancelled():
+            return False, "cancelled_by_admin", attempt
         ok, reason = post_status(card, caption, audience)
         if ok:
             return True, "ok", attempt
         last_reason = str(reason)
         if attempt < max_attempts:
+            if is_send_cancelled():
+                return False, "cancelled_by_admin", attempt
             gw = get_whatsapp_gateway_status()
             if gw.get("status") != "connected":
                 return False, f"passerelle_deconnectee: {reason}", attempt
-            sleep(RETRY_DELAY * attempt + random.uniform(0.3, 1.0))
+            if not _interruptible_sleep(RETRY_DELAY * attempt + random.uniform(0.3, 1.0)):
+                return False, "cancelled_by_admin", attempt
     return False, last_reason, max_attempts
 
 
@@ -1616,6 +1622,8 @@ def send_promo_media_with_retry(
     """
     last_reason = "unknown"
     for attempt in range(1, max_attempts + 1):
+        if is_send_cancelled():
+            return "failed", "cancelled_by_admin", attempt
         result, reason = send_promo_media(target, card, text)
         if result == "sent":
             return "sent", "ok", attempt
@@ -1630,10 +1638,13 @@ def send_promo_media_with_retry(
 
         last_reason = str(reason)
         if attempt < max_attempts:
+            if is_send_cancelled():
+                return "failed", "cancelled_by_admin", attempt
             gw = get_whatsapp_gateway_status()
             if gw.get("status") != "connected":
                 return "failed", f"passerelle_deconnectee: {reason}", attempt
-            sleep(RETRY_DELAY * attempt + random.uniform(0.3, 1.0))
+            if not _interruptible_sleep(RETRY_DELAY * attempt + random.uniform(0.3, 1.0)):
+                return "failed", "cancelled_by_admin", attempt
 
     return "failed", last_reason, max_attempts
 
@@ -1770,6 +1781,96 @@ def _claim_daily_run(today: str, force: bool) -> bool:
 def _save_promo_log(log_data: dict[str, Any]) -> None:
     """Persiste l'état de log promo de manière directe et non-bloquante."""
     _persist_json_state(LOG_KEY, log_data)
+
+
+def _clear_active_send() -> None:
+    cur = get_log()
+    if cur.get("active_send"):
+        cur["active_send"] = None
+        _save_promo_log(cur)
+
+
+_SEND_CANCEL_EVENT = threading.Event()
+
+
+def is_send_cancelled() -> bool:
+    """Vérifie si une annulation d'envoi a été demandée en mémoire (thread local) ou en base (multi-workers)."""
+    if _SEND_CANCEL_EVENT.is_set():
+        return True
+    try:
+        cur = get_log()
+        if cur.get("cancel_send_requested"):
+            return True
+        act = cur.get("active_send")
+        if act and act.get("cancelled"):
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def _interruptible_sleep(seconds: float, check_interval: float = 0.5, sleep_fn: Callable[[float], None] | None = None) -> bool:
+    """Dort pendant 'seconds', mais s'interrompt immédiatement (<0.5s) dès qu'une annulation est demandée.
+    Retourne True si le délai s'est écoulé normalement, False si l'envoi a été annulé.
+    """
+    if is_send_cancelled():
+        return False
+    if seconds <= 0:
+        return True
+    if sleep_fn is not None and sleep_fn != time.sleep:
+        sleep_fn(seconds)
+        return not is_send_cancelled()
+
+    end_time = time.monotonic() + seconds
+    while time.monotonic() < end_time:
+        if is_send_cancelled():
+            return False
+        remaining = end_time - time.monotonic()
+        to_wait = min(check_interval, max(0.05, remaining))
+        if _SEND_CANCEL_EVENT.wait(timeout=to_wait):
+            return False
+    return not is_send_cancelled()
+
+
+def cancel_active_send() -> dict[str, Any]:
+    """Annule de manière robuste et immédiate toute diffusion WhatsApp en cours."""
+    _SEND_CANCEL_EVENT.set()
+    now_str = _local_now().strftime("%Y-%m-%d %H:%M:%S")
+    log = get_log()
+    active = log.get("active_send") or {}
+    wave_title = active.get("wave_title") or "Vague active"
+
+    log["cancel_send_requested"] = now_str
+    log["active_send"] = None  # Libère immédiatement le bandeau pour l'UI
+
+    event = {
+        "timestamp": now_str,
+        "time": _local_now().strftime("%H:%M:%S"),
+        "channel": "control",
+        "channel_label": "Interruption",
+        "product_id": 0,
+        "product_name": "Diffusion interrompue",
+        "product_title": "Diffusion interrompue",
+        "target": "admin",
+        "target_desc": "Arrêt manuel",
+        "text": f"La diffusion ({wave_title}) a été annulée par l'administrateur.",
+        "status": "warning",
+        "details": f"Diffusion arrêtée par l'administrateur ({now_str})",
+        "detail": f"Diffusion arrêtée par l'administrateur ({now_str})",
+        "attempts": 0,
+    }
+    recent = log.get("recent_logs") or []
+    recent.insert(0, event)
+    log["recent_logs"] = recent[:MAX_RECENT_LOGS_KEPT]
+    _save_promo_log(log)
+
+    current_app.logger.warning("whatsapp_promo.cancelled_by_admin wave=%s at=%s", wave_title, now_str)
+    return {
+        "success": True,
+        "cancelled": True,
+        "message": f"La diffusion ({wave_title}) a été interrompue.",
+        "wave_title": wave_title,
+    }
 
 
 def _record_run(
@@ -2300,11 +2401,6 @@ def run_daily_promo(
     # Nettoyage automatique dès l'entrée (minuit + purge > 2h)
     get_log()
 
-    # Prise en compte des canaux actifs (Statut et Groupes uniquement)
-    run_status = include_status and settings.get("status_enabled", True)
-    run_groups = include_groups and settings.get("groups_enabled", True)
-    run_messages = False
-
     summary: dict[str, Any] = {
         "started_at": _local_now().strftime("%Y-%m-%d %H:%M:%S"),
         "mode": "dry_run" if preview else "live",
@@ -2321,21 +2417,41 @@ def run_daily_promo(
         "details": [],
     }
 
-    recent_events: list[dict[str, Any]] = []
+    # Si une annulation a déjà été demandée avant le démarrage de l'envoi
+    if not preview and is_send_cancelled():
+        _clear_active_send()
+        _SEND_CANCEL_EVENT.clear()
+        try:
+            c_log = get_log()
+            if c_log.get("cancel_send_requested"):
+                c_log["cancel_send_requested"] = None
+                _save_promo_log(c_log)
+        except Exception:
+            pass
+        summary["aborted"] = "cancelled_by_admin"
+        summary["finished_at"] = _local_now().strftime("%Y-%m-%d %H:%M:%S")
+        return summary
 
-    def _clear_active_send() -> None:
-        if preview:
-            return
-        cur = get_log()
-        if cur.get("active_send"):
-            cur["active_send"] = None
-            _save_promo_log(cur)
+    # Prise en compte des canaux actifs (Statut et Groupes uniquement)
+    run_status = include_status and settings.get("status_enabled", True)
+    run_groups = include_groups and settings.get("groups_enabled", True)
+    run_messages = False
+
+    recent_events: list[dict[str, Any]] = []
 
     def finish(reason: str | None = None, promoted_ids: list[int | str] | None = None, last_gen: dict[str, Any] | None = None) -> dict[str, Any]:
         summary["aborted"] = reason
         summary["finished_at"] = _local_now().strftime("%Y-%m-%d %H:%M:%S")
         sent = summary["messages_ok"] + summary["groups_ok"]
         _clear_active_send()
+        _SEND_CANCEL_EVENT.clear()
+        try:
+            c_log = get_log()
+            if c_log.get("cancel_send_requested"):
+                c_log["cancel_send_requested"] = None
+                _save_promo_log(c_log)
+        except Exception:
+            pass
         _record_run(
             summary,
             promoted_ids=promoted_ids or [],
@@ -2346,7 +2462,7 @@ def run_daily_promo(
             new_recent_logs=recent_events,
         )
         # Dès qu'une vague réelle est envoyée (ex: Vague 1 Matin), préparer aussitôt en place la Vague suivante (ex: Vague 2 Soir) !
-        if not preview and (reason is None or bool(promoted_ids)):
+        if not preview and reason != "cancelled_by_admin" and (reason is None or bool(promoted_ids)):
             try:
                 next_wave = get_wave_info(settings, get_log())
                 if not next_wave.get("all_waves_done"):
@@ -2509,6 +2625,9 @@ def run_daily_promo(
                 summary["details"].append(event)
                 continue
 
+            if is_send_cancelled():
+                return finish("cancelled_by_admin", sent_card_ids, last_generated_data)
+
             if (time.monotonic() - started_mono) >= PERSISTENCE_WINDOW_SECONDS:
                 return finish("expired_2h_window", sent_card_ids, last_generated_data)
 
@@ -2516,6 +2635,8 @@ def run_daily_promo(
                 return finish("stopped_by_admin", sent_card_ids, last_generated_data)
 
             ok, reason, attempts = post_status_with_retry(card, caption, audience_phones)
+            if reason == "cancelled_by_admin" or is_send_cancelled():
+                return finish("cancelled_by_admin", sent_card_ids, last_generated_data)
             summary["statuses_ok" if ok else "statuses_failed"] += 1
             event["attempts"] = attempts
             event["status"] = "ok" if ok else "failed"
@@ -2534,7 +2655,8 @@ def run_daily_promo(
                 return finish("gateway_failures", sent_card_ids, last_generated_data)
 
             if index < len(status_cards) - 1:
-                sleep(random.uniform(*STATUS_DELAY_RANGE))
+                if not _interruptible_sleep(random.uniform(*STATUS_DELAY_RANGE), sleep_fn=sleep):
+                    return finish("cancelled_by_admin", sent_card_ids, last_generated_data)
 
     # 2. CANAL GROUPES WHATSAPP
     if run_groups:
@@ -2590,6 +2712,9 @@ def run_daily_promo(
                         summary["details"].append(event)
                         continue
 
+                    if is_send_cancelled():
+                        return finish("cancelled_by_admin", sent_card_ids, last_generated_data)
+
                     if (time.monotonic() - started_mono) >= PERSISTENCE_WINDOW_SECONDS:
                         return finish("expired_2h_window", sent_card_ids, last_generated_data)
 
@@ -2601,6 +2726,8 @@ def run_daily_promo(
                         grp["target"], group_label, card["id"], step_min, step_max,
                     )
                     result, reason, attempts = send_promo_media_with_retry(grp["target"], card, group_text)
+                    if reason == "cancelled_by_admin" or is_send_cancelled():
+                        return finish("cancelled_by_admin", sent_card_ids, last_generated_data)
                     event["attempts"] = attempts
                     if result == "sent":
                         _mark_card_sent(card["id"])
@@ -2624,7 +2751,9 @@ def run_daily_promo(
                         return finish("gateway_failures", sent_card_ids, last_generated_data)
 
                     if sent_group_idx < total_group_sends:
-                        sleep(random.uniform(step_min, step_max))
+                        step_delay = random.uniform(step_min, step_max)
+                        if not _interruptible_sleep(step_delay, sleep_fn=sleep):
+                            return finish("cancelled_by_admin", sent_card_ids, last_generated_data)
 
     return finish(None, [] if preview else sent_card_ids, last_generated_data)
 

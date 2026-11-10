@@ -2276,6 +2276,21 @@ def whatsapp_promo_run():
     return redirect(url_for("admin.whatsapp_gateway"))
 
 
+@bp.route("/whatsapp-gateway/promo/cancel", methods=["POST"])
+def whatsapp_promo_cancel():
+    if _current_admin_role() not in {ADMIN_ROLE, MANAGER_ROLE}:
+        return _sensitive_admin_forbidden_response()
+
+    from ..services.whatsapp_promo import cancel_active_send
+
+    result = cancel_active_send()
+    if _is_ajax_request() or request.is_json:
+        return jsonify(result)
+
+    flash(result.get("message", "Diffusion annulée avec succès."), "warning")
+    return redirect(url_for("admin.whatsapp_gateway"))
+
+
 
 
 @bp.route("/whatsapp-gateway/promo/edit-copy", methods=["POST"])

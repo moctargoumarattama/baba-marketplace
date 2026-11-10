@@ -1559,14 +1559,24 @@
         <div class="spinner-border text-success spinner-border-sm" role="status" aria-hidden="true"></div>
         <div>
           <div style="font-weight:800;color:#065f46;font-size:0.9rem;">
-            🚀 Diffusion en cours ({{ (wi.get('active_send') or {}).get('wave_title') or wave_title }})…
+            🚀 Diffusion en cours (<span id="liveWaveTitle">{{ (wi.get('active_send') or {}).get('wave_title') or wave_title }}</span>)…
           </div>
           <div style="font-size:0.78rem;color:#047857;">
-            Envoi progressif en arrière-plan. La vague suivante prendra automatiquement sa place dès la fin.
+            Envoi progressif en arrière-plan. Vous pouvez interrompre l’envoi à tout moment.
           </div>
         </div>
       </div>
-      <span class="badge bg-success px-3 py-2">Suivi temps réel actif</span>
+      <div class="d-flex align-items-center gap-2">
+        <span class="badge bg-success px-3 py-2">Suivi temps réel actif</span>
+        <button type="button"
+                id="btnCancelLiveSend"
+                class="btn btn-sm btn-outline-danger bg-white d-inline-flex align-items-center gap-1 shadow-sm fw-bold"
+                data-cancel-url="{{ url_for('admin.whatsapp_promo_cancel') }}"
+                title="Arrêter immédiatement la diffusion en cours">
+          <i class="bi bi-stop-circle-fill text-danger" aria-hidden="true"></i>
+          <span>Annuler la diffusion</span>
+        </button>
+      </div>
     </div>
   </div>
 
@@ -2719,6 +2729,52 @@
       refreshBtn.setAttribute("disabled", "disabled");
       window.location.reload();
     });
+
+    var cancelLiveSendBtn = document.getElementById("btnCancelLiveSend");
+    if (cancelLiveSendBtn) {
+      cancelLiveSendBtn.addEventListener("click", function (e) {
+        e.preventDefault();
+        if (!window.confirm("Voulez-vous vraiment annuler la diffusion en cours ?\n\nL'envoi des messages restants (statuts ou groupes) sera immédiatement interrompu.")) {
+          return;
+        }
+        var cancelUrl = cancelLiveSendBtn.getAttribute("data-cancel-url");
+        if (!cancelUrl) return;
+
+        cancelLiveSendBtn.setAttribute("disabled", "disabled");
+        cancelLiveSendBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span> Arrêt…';
+
+        fetch(cancelUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "X-Requested-With": "fetch",
+            "X-CSRFToken": csrfToken
+          },
+          body: JSON.stringify({})
+        })
+        .then(function (res) { return res.json(); })
+        .then(function () {
+          var liveBanner = document.getElementById("liveSendBanner");
+          if (liveBanner) {
+            liveBanner.className = "card border-warning shadow-sm wa-live-send-banner";
+            liveBanner.innerHTML = '<div class="card-body py-2 px-3 d-flex align-items-center justify-content-between flex-wrap gap-2">' +
+              '<div class="d-flex align-items-center gap-2 text-warning-emphasis fw-bold">' +
+                '<i class="bi bi-stop-circle-fill text-warning fs-5"></i>' +
+                '<span>Diffusion interrompue avec succès par l’administrateur.</span>' +
+              '</div>' +
+              '<span class="badge bg-warning text-dark px-3 py-2">Diffusion arrêtée</span>' +
+            '</div>';
+          }
+          setTimeout(function () {
+            window.location.reload();
+          }, 800);
+        })
+        .catch(function () {
+          window.location.reload();
+        });
+      });
+    }
 
     if (disconnectBtn && disconnectUrl) {
       disconnectBtn.addEventListener("click", function (e) {
