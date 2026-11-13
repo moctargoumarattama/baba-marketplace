@@ -100,7 +100,7 @@
           <span>Ajouter</span>
         </button>
       </div>
-      <p class="vpm-help">Jusqu’à 4 photos, 15 Mo au total pour les nouvelles photos.</p>
+      <p class="vpm-help">Jusqu’à 4 photos (JPG, PNG ou WebP). Vos photos sont automatiquement optimisées pour un enregistrement rapide.</p>
       {{ field_error('images') }}
     </section>
     <section class="vpm-video-section" aria-labelledby="vpmVideoTitle">
@@ -140,7 +140,8 @@
     {% endfor %}
   },
   "maxImages": 4,
-  "maxTotalBytes": 15728640,
+  "maxTotalBytes": 26214400,
+  "maxRequestBytes": 83886080,
   "maxVideoBytes": {{ (modal_video_mb * 1024 * 1024)|tojson }},
   "maxVideoMB": {{ modal_video_mb|tojson }},
   "availableKinds": {{ modal_kinds|tojson }},

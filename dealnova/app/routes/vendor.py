@@ -62,7 +62,7 @@ PROMO_MIN_PERCENT = 5
 
 ALLOWED = {"png", "jpg", "jpeg", "webp"}
 MAX_PRODUCT_IMAGES = 4
-MAX_PRODUCT_IMAGES_TOTAL_BYTES = 15 * 1024 * 1024
+MAX_PRODUCT_IMAGES_TOTAL_BYTES = 25 * 1024 * 1024
 MAX_PRODUCT_VIDEOS = 1
 PRODUCT_PURGE_GRACE_DAYS = 21
 ACTIVE_ORDER_STATUSES = {"pending", "paid", "processing", "shipping", "shipped"}
@@ -1621,7 +1621,7 @@ def _product_form(product=None):
         err_type = exc.__class__.__name__
         err_detail = str(exc).strip()
         if isinstance(exc, (OSError, PermissionError)):
-            cause = "Erreur de stockage serveur : impossible d'enregistrer les médias (dossier inaccessible ou espace disque insuffisant)."
+            cause = "Erreur de stockage serveur : impossible d'enregistrer les médias pour le moment."
         elif "IntegrityError" in err_type:
             if "category_id" in err_detail.lower():
                 cause = "La catégorie sélectionnée n'est plus valide ou n'existe plus."
@@ -1630,13 +1630,13 @@ def _product_form(product=None):
             elif "duplicate" in err_detail.lower() or "unique" in err_detail.lower():
                 cause = "Une offre avec ce nom ou ces références existe déjà."
             else:
-                cause = f"Contrainte de base de données non respectée : {err_detail[:120]}"
+                cause = "Une information saisie entre en conflit avec une offre existante ou les paramètres de votre boutique."
         elif "OperationalError" in err_type or "locked" in err_detail.lower():
-            cause = "La base de données est temporairement occupée. Vos données sont conservées, renvoyez le formulaire."
+            cause = "Le serveur est temporairement occupé. Vos données sont conservées, renvoyez le formulaire."
         elif "DataError" in err_type:
             cause = "Une information saisie dépasse la longueur autorisée ou son format est incompatible."
         else:
-            cause = f"L'enregistrement a échoué : {err_detail if err_detail else err_type}"
+            cause = "Un incident technique temporaire est survenu lors de l'enregistrement de votre offre."
         return reject(f"{cause} (Votre saisie est conservée)", status=500)
 
     # Commit succeeded. Secondary cleanup/cache/audit errors must never ask for another POST.

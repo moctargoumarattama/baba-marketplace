@@ -88,18 +88,41 @@
 
   function showError(message, redirectUrl) {
     const target = form ? form.querySelector("#vpmFormError") : content;
+    if (!target) return;
     target.replaceChildren();
     const copy = document.createElement("p");
     copy.textContent = message || "Impossible d’enregistrer. Réessayez dans quelques instants.";
     target.appendChild(copy);
+
+    const actions = document.createElement("div");
+    actions.className = "d-flex align-items-center gap-2 mt-2 flex-wrap";
+
+    if (form) {
+      const retryBtn = document.createElement("button");
+      retryBtn.type = "button";
+      retryBtn.className = "vpm-button vpm-button-secondary";
+      retryBtn.dataset.vpmRetrySubmit = "1";
+      retryBtn.textContent = "Réessayer";
+      retryBtn.addEventListener("click", () => {
+        target.hidden = true;
+        saveOffer(new Event("submit"));
+      });
+      actions.appendChild(retryBtn);
+    }
+
     const href = redirectUrl && safeLink(redirectUrl);
     if (href) {
       const link = document.createElement("a");
       link.href = href;
       link.target = "_blank";
       link.rel = "noopener";
+      link.className = "vpm-error-link";
       link.textContent = "Ouvrir la page dans un autre onglet";
-      target.appendChild(link);
+      actions.appendChild(link);
+    }
+
+    if (actions.hasChildNodes()) {
+      target.appendChild(actions);
     }
     target.hidden = false;
     if (!form) {
@@ -337,19 +360,122 @@
     return (config.existingImages || []).filter((entry) => !removed.has(String(entry.id))).length;
   }
 
-  function addPhotos(files) {
+  function compressImageFile(file, maxDimension = 1600, quality = 0.82) {
+    if (!file) return Promise.resolve(file);
+    const isImage = (file.type && /^image\/(jpeg|png|webp)$/i.test(file.type)) || /\.(jpe?g|png|webp)$/i.test(file.name);
+    if (!isImage) return Promise.resolve(file);
+    if (file.size <= 350 * 1024 && !file.name.toLowerCase().endsWith(".png")) {
+      return Promise.resolve(file);
+    }
+    return new Promise((resolve) => {
+      const img = new Image();
+      const objectUrl = URL.createObjectURL(file);
+      let settled = false;
+      function done(res) {
+        if (settled) return;
+        settled = true;
+        try { URL.revokeObjectURL(objectUrl); } catch (_e) {}
+        resolve(res);
+      }
+      const timer = setTimeout(() => done(file), 4000);
+      img.onload = () => {
+        clearTimeout(timer);
+        let width = img.naturalWidth || img.width;
+        let height = img.naturalHeight || img.height;
+        if (!width || !height) return done(file);
+
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          } else {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        } else if (file.size <= 450 * 1024 && !file.name.toLowerCase().endsWith(".png")) {
+          return done(file);
+        }
+
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return done(file);
+
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const targetMime = "image/jpeg";
+        const newName = file.name.replace(/\.[^/.]+$/, "") + ".jpg";
+
+        canvas.toBlob(
+          (blob) => {
+            if (!blob || blob.size >= file.size) return done(file);
+            try {
+              const compFile = new File([blob], newName, { type: targetMime, lastModified: Date.now() });
+              done(compFile);
+            } catch (_err) {
+              blob.name = newName;
+              blob.lastModified = Date.now();
+              done(blob);
+            }
+          },
+          targetMime,
+          quality
+        );
+      };
+      img.onerror = () => {
+        clearTimeout(timer);
+        done(file);
+      };
+      img.src = objectUrl;
+    });
+  }
+
+  async function addPhotos(files) {
     clearFieldError("images");
     let message = "";
-    for (const file of Array.from(files || [])) {
-      const duplicate = photos.some((entry) => entry.file.name === file.name && entry.file.size === file.size && entry.file.lastModified === file.lastModified);
+    const list = Array.from(files || []);
+    if (!list.length) return;
+
+    setStatus("Optimisation des photos…");
+    for (const rawFile of list) {
+      if (photos.length + keptImageCount() >= config.maxImages) {
+        message = "Vous pouvez conserver jusqu’à " + config.maxImages + " photos. Retirez une photo avant d’en ajouter une autre.";
+        break;
+      }
+      if (!/\.(jpe?g|png|webp)$/i.test(rawFile.name) || (rawFile.type && !/^image\/(jpeg|png|webp)$/i.test(rawFile.type))) {
+        message = "Choisissez une photo JPG, PNG ou WebP.";
+        continue;
+      }
+      if (!rawFile.size) {
+        message = "Cette photo est vide. Choisissez un autre fichier.";
+        continue;
+      }
+
+      let file = rawFile;
+      try {
+        file = await compressImageFile(rawFile);
+      } catch (_e) {
+        file = rawFile;
+      }
+
+      const duplicate = photos.some((entry) => entry.file.name === file.name && entry.file.size === file.size);
       if (duplicate) continue;
-      if (!/\.(jpe?g|png|webp)$/i.test(file.name) || (file.type && !/^image\/(jpeg|png|webp)$/i.test(file.type))) message = "Choisissez une photo JPG, PNG ou WebP.";
-      else if (!file.size) message = "Cette photo est vide. Choisissez un autre fichier.";
-      else if (photos.length + keptImageCount() >= config.maxImages) message = "Vous pouvez conserver jusqu’à " + config.maxImages + " photos. Retirez une photo avant d’en ajouter une autre.";
-      else if (config.maxImageBytes && file.size > config.maxImageBytes) message = "Chaque photo doit faire moins de " + Math.round(config.maxImageBytes / 1024 / 1024) + " Mo.";
-      else if (photos.reduce((sum, entry) => sum + entry.file.size, file.size) > config.maxTotalBytes) message = "Les photos doivent faire moins de 15 Mo au total.";
-      else photos.push({ file, url: URL.createObjectURL(file) });
+
+      if (config.maxImageBytes && file.size > config.maxImageBytes) {
+        message = "Chaque photo doit faire moins de " + Math.round(config.maxImageBytes / 1024 / 1024) + " Mo.";
+        continue;
+      }
+      if (photos.reduce((sum, entry) => sum + entry.file.size, file.size) > config.maxTotalBytes) {
+        message = "Les photos dépassent la taille autorisée. Retirez une photo pour continuer.";
+        continue;
+      }
+      photos.push({ file, url: URL.createObjectURL(file) });
+      renderPhotos();
     }
+    setStatus("");
     form.querySelector("#vpmImages").value = "";
     renderPhotos();
     if (message) fieldError("images", message);
@@ -381,7 +507,7 @@
     const cfgNode = content.querySelector("#vpmFormConfig");
     if (!form || !cfgNode) throw new Error("invalid_form");
     config = JSON.parse(cfgNode.textContent);
-    config = Object.assign({ maxImages: 4, maxTotalBytes: createType === "location" ? Infinity : 15 * 1024 * 1024, maxVideoBytes: 30 * 1024 * 1024, maxVideoMB: 30 }, config);
+    config = Object.assign({ maxImages: 4, maxTotalBytes: createType === "location" ? Infinity : 25 * 1024 * 1024, maxVideoBytes: 30 * 1024 * 1024, maxVideoMB: 30 }, config);
     formMode = config.mode === "edit" ? "edit" : "create";
     createType = config.formType === "location" ? "location" : "product";
     headers["X-Vendor-Modal"] = createType + "-" + formMode;
@@ -567,10 +693,26 @@
     }
   }
 
-  function saveOffer(event) {
+  async function saveOffer(event) {
     event.preventDefault();
     if (busy || !validateForm()) return;
-    if (navigator.onLine === false) { showError("Vous êtes hors ligne. Votre saisie est conservée ; reconnectez-vous pour enregistrer."); return; }
+    if (navigator.onLine === false) { showError("Vous êtes hors ligne. Vos saisies et photos sont conservées ; reconnectez-vous pour enregistrer."); return; }
+
+    setBusy(true);
+    setStatus("Préparation des fichiers…");
+    for (let i = 0; i < photos.length; i++) {
+      if (photos[i].file && photos[i].file.size > 500 * 1024) {
+        try {
+          const comp = await compressImageFile(photos[i].file);
+          if (comp && comp !== photos[i].file) {
+            photos[i].file = comp;
+            try { URL.revokeObjectURL(photos[i].url); } catch (_e) {}
+            photos[i].url = URL.createObjectURL(comp);
+          }
+        } catch (_e) {}
+      }
+    }
+
     const body = new FormData(form);
     body.delete("images");
     body.delete("video");
@@ -579,10 +721,11 @@
     if (createType === "product" && currentKind() === "service") body.set("stock", "0");
     const uploadBytes = photos.reduce((sum, entry) => sum + entry.file.size, video?.file.size || 0);
     if (config.maxRequestBytes && uploadBytes + 65536 > config.maxRequestBytes) {
+      setBusy(false);
+      setStatus("");
       showError("L’ensemble des fichiers dépasse la limite de " + Math.floor(config.maxRequestBytes / 1024 / 1024) + " Mo. Réduisez leur taille avant de publier.");
       return;
     }
-    setBusy(true);
     setStatus("Envoi en cours…");
     const xhr = new XMLHttpRequest();
     xhr.open("POST", form.action);
@@ -628,15 +771,15 @@
       let message = data?.message;
       if (!message) {
         if (xhr.status === 413) {
-          message = "Les fichiers sont trop volumineux pour le serveur (erreur 413). Réduisez la taille de vos photos.";
+          message = "Les fichiers sont trop volumineux pour le serveur (erreur 413). Vos saisies sont conservées ; réessayez ou retirez une vidéo volumineuse.";
         } else if (xhr.status === 403) {
-          message = "Action non autorisée (erreur 403). Vérifiez les autorisations de votre boutique.";
+          message = "Action non autorisée. Vérifiez les autorisations de votre boutique ou reconnectez-vous.";
         } else if (xhr.status === 409) {
-          message = "Informations manquantes sur votre boutique (erreur 409). Renseignez l'adresse et le téléphone de votre boutique.";
+          message = "Informations manquantes sur votre boutique. Renseignez l'adresse et le téléphone de votre boutique pour continuer.";
         } else if (xhr.status === 500) {
-          message = "Erreur technique du serveur (erreur 500). Votre saisie a été conservée.";
+          message = "Le serveur a rencontré une difficulté technique temporaire. Vos saisies sont conservées, cliquez sur « Réessayer » pour enregistrer.";
         } else {
-          message = "La session ou la connexion a été interrompue (statut " + (xhr.status || "inconnu") + "). Votre saisie est conservée.";
+          message = "La session ou la connexion a été interrompue (statut " + (xhr.status || "inconnu") + "). Vos saisies sont conservées, cliquez sur « Réessayer ».";
         }
       }
       showError(message, data?.redirect_url);
@@ -659,11 +802,15 @@
     };
     xhr.onerror = () => {
       if (!finish()) return;
-      showError("Échec de connexion réseau au serveur BabaMarket. Vos saisies sont conservées. Vérifiez votre connexion Internet.", createType === "location" ? "/owner/locations" : "/vendor/catalog");
+      const isHeavy = uploadBytes > 3 * 1024 * 1024;
+      const networkHelp = isHeavy
+        ? "La connexion avec le serveur a été interrompue pendant l'envoi des fichiers. Vos saisies et vos photos sont conservées. Cliquez sur « Réessayer » pour relancer l'enregistrement."
+        : "Échec de connexion réseau au serveur BabaMarket. Vos saisies et vos photos sont conservées. Cliquez sur « Réessayer » pour relancer l'enregistrement.";
+      showError(networkHelp, createType === "location" ? "/owner/locations" : "/vendor/catalog");
     };
     xhr.ontimeout = () => {
       if (!finish()) return;
-      showError("Délai de connexion dépassé (timeout). L'envoi a pris trop de temps. Vos données sont conservées.", createType === "location" ? "/owner/locations" : "/vendor/catalog");
+      showError("Délai de connexion dépassé (timeout). L'envoi a pris trop de temps. Vos données et photos sont conservées, cliquez sur « Réessayer ».", createType === "location" ? "/owner/locations" : "/vendor/catalog");
     };
     xhr.onabort = () => {
       if (!finish()) return;
