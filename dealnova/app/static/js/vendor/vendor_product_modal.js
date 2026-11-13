@@ -928,24 +928,54 @@
     if (active) progress.removeAttribute("value");
   }
 
+  function syncCsrfToken(token) {
+    if (!token || !form) return false;
+    const csrfInput = form.elements.namedItem("csrf_token");
+    if (csrfInput) csrfInput.value = token;
+    document.querySelectorAll('input[name="csrf_token"]').forEach((node) => { node.value = token; });
+    const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+    if (csrfMeta) csrfMeta.content = token;
+    return true;
+  }
+
+  async function fetchFreshCsrfToken() {
+    const response = await fetch(formUrl(), { headers, credentials: "same-origin", cache: "no-store" });
+    const isJson = response.headers.get("content-type")?.includes("application/json");
+    const data = isJson ? await response.json() : null;
+    const parsed = data?.html ? new DOMParser().parseFromString(data.html, "text/html") : null;
+    const token = parsed?.querySelector('[name="csrf_token"]')?.value || "";
+    const loginRedirect = response.redirected && /\/(login|connexion)\b/i.test(response.url || "");
+    if (!response.ok || !data?.success || !token) {
+      return {
+        ok: false,
+        status: response.status,
+        redirectUrl: data?.redirect_url || (loginRedirect ? response.url : "/login"),
+        message: data?.message || "Votre session a expiré. Connectez-vous de nouveau pour continuer (vos saisies sont conservées localement).",
+      };
+    }
+    return { ok: true, token };
+  }
+
+  function diagnosticSuffix(xhr, data, redirected, contentType) {
+    const parts = ["HTTP " + (xhr.status || "0")];
+    if (data?.error && data.error !== "http_error") parts.push(String(data.error).toUpperCase());
+    else if (redirected) parts.push("Redirection");
+    else if (contentType.includes("text/html")) parts.push("HTML");
+    return " [Réf: " + parts.join(" / ") + "]";
+  }
+
   async function refreshSession(button) {
     if (busy || !form) return;
     button.disabled = true;
     const currentForm = form;
     try {
-      const response = await fetch(formUrl(), { headers, credentials: "same-origin", cache: "no-store" });
-      const data = response.headers.get("content-type")?.includes("application/json") ? await response.json() : null;
+      const fresh = await fetchFreshCsrfToken();
       if (form !== currentForm || (!standalone && !dialog.open) || phase === "closing") return;
-      const parsed = data?.html ? new DOMParser().parseFromString(data.html, "text/html") : null;
-      const token = parsed?.querySelector('[name="csrf_token"]')?.value;
-      if (!response.ok || !data?.success || !token) {
-        showError(data?.message || "Connectez-vous de nouveau pour continuer. Votre saisie est conservée.", data?.redirect_url);
+      if (!fresh.ok) {
+        showError(fresh.message, fresh.redirectUrl);
         return;
       }
-      form.elements.namedItem("csrf_token").value = token;
-      document.querySelectorAll('input[name="csrf_token"]').forEach((node) => { node.value = token; });
-      const csrfMeta = document.querySelector('meta[name="csrf-token"]');
-      if (csrfMeta) csrfMeta.content = token;
+      syncCsrfToken(fresh.token);
       form.querySelector("#vpmFormError").hidden = true;
       setStatus("Session actualisée. Vous pouvez réessayer d’enregistrer.");
     } catch (_error) {
@@ -992,99 +1022,157 @@
       showError("L’ensemble des fichiers dépasse la limite de " + Math.floor(config.maxRequestBytes / 1024 / 1024) + " Mo. Réduisez leur taille avant de publier.");
       return;
     }
-    setStatus("Envoi en cours…");
-    const xhr = new XMLHttpRequest();
-    xhr.open("POST", form.action);
-    xhr.timeout = 180000;
-    Object.entries(headers).forEach(([key, value]) => xhr.setRequestHeader(key, value));
-    const token = body.get("csrf_token");
-    if (token) xhr.setRequestHeader("X-CSRFToken", token);
-    xhr.upload.onprogress = (event) => {
-      if (!event.lengthComputable) return;
-      const percent = Math.min(100, Math.round(event.loaded * 100 / event.total));
-      progress.value = percent;
-      setStatus(percent < 100 ? "Envoi des fichiers… " + percent + " %" : "Enregistrement en cours…");
-    };
-    let settled = false;
-    function finish() {
-      if (settled) return false;
-      settled = true;
-      setBusy(false);
-      setStatus("");
-      return true;
+
+    const currentForm = form;
+    const actionPathname = (() => {
+      try { return new URL(form.action, location.href).pathname; } catch (_e) { return ""; }
+    })();
+
+    function appendRefreshButton() {
+      const errRoot = form?.querySelector("#vpmFormError");
+      if (!errRoot || errRoot.querySelector("[data-vpm-refresh-session]")) return;
+      const refresh = document.createElement("button");
+      refresh.type = "button";
+      refresh.className = "vpm-button vpm-button-secondary";
+      refresh.dataset.vpmRefreshSession = "1";
+      refresh.textContent = "Actualiser la session";
+      (errRoot.querySelector(".vpm-error-actions") || errRoot).appendChild(refresh);
     }
-    xhr.onload = () => {
-      if (!finish()) return;
-      let data = null;
-      try { data = JSON.parse(xhr.responseText); } catch (_error) { /* Non-JSON includes expired sessions and upload limits. */ }
-      if (xhr.status >= 200 && xhr.status < 300 && data?.success && (createType === "location" ? data.listing : data.product)) {
-        initialValues = signature();
-        primaryChoice = null;
-        confirmedLeave = true;
-        if (formMode === "create") clearDraft();
-        if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+
+    function transmitOffer(allowCsrfRetry) {
+      setStatus("Envoi en cours…");
+      progress.value = 0;
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", form.action);
+      xhr.timeout = 180000;
+      headers["X-Vendor-Modal"] = createType + "-" + formMode;
+      Object.entries(headers).forEach(([key, value]) => xhr.setRequestHeader(key, value));
+      const token = body.get("csrf_token");
+      if (token) xhr.setRequestHeader("X-CSRFToken", token);
+      xhr.upload.onprogress = (ev) => {
+        if (!ev.lengthComputable) return;
+        const percent = Math.min(100, Math.round(ev.loaded * 100 / ev.total));
+        progress.value = percent;
+        setStatus(percent < 100 ? "Envoi des fichiers… " + percent + " %" : "Enregistrement en cours…");
+      };
+      let settled = false;
+      function finish() {
+        if (settled) return false;
+        settled = true;
+        setBusy(false);
+        setStatus("");
+        return true;
+      }
+      xhr.onload = async () => {
+        let data = null;
+        try { data = JSON.parse(xhr.responseText); } catch (_error) { /* Non-JSON includes expired sessions, redirects, and proxy limits. */ }
+        if (xhr.status >= 200 && xhr.status < 300 && data?.success && (createType === "location" ? data.listing : data.product)) {
+          if (!finish()) return;
+          initialValues = signature();
+          primaryChoice = null;
+          confirmedLeave = true;
+          if (formMode === "create") clearDraft();
+          if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+            try {
+              navigator.serviceWorker.controller.postMessage({ type: "BM_CLEAR_PUBLIC_PAGE_CACHE" });
+            } catch (_e) {}
+          }
+          if (standalone) { window.location.assign(safeLink(dialog.dataset.backUrl) || "/vendor/dashboard"); return; }
+          document.dispatchEvent(new CustomEvent("vendor:" + createType + (formMode === "edit" ? "-updated" : "-created"), { detail: data }));
+          closeDialog(true);
+          const message = [data.message || (formMode === "edit" ? "Modifications enregistrées." : "Offre créée."), ...(data.notices || [])].join(" ");
+          if (typeof window.BMTriggerHaptic === "function") window.BMTriggerHaptic("heavy");
+          if (window.VendorUI?.toast) window.VendorUI.toast(message, "success");
+          else window.BMCoreUI?.showToast?.(message, "success");
+          return;
+        }
+
+        // Silent single recovery if CSRF token rolled/expired while browser session is still valid.
+        if (allowCsrfRetry && xhr.status === 400 && data?.error === "csrf") {
           try {
-            navigator.serviceWorker.controller.postMessage({ type: "BM_CLEAR_PUBLIC_PAGE_CACHE" });
-          } catch (_e) {}
+            setStatus("Actualisation de la session…");
+            progress.removeAttribute("value");
+            const fresh = await fetchFreshCsrfToken();
+            if (form !== currentForm || (!standalone && !dialog.open) || phase === "closing") { finish(); return; }
+            if (fresh.ok && fresh.token) {
+              syncCsrfToken(fresh.token);
+              body.set("csrf_token", fresh.token);
+              transmitOffer(false);
+              return;
+            }
+            if (!finish()) return;
+            showError(fresh.message + " [Réf: HTTP " + (fresh.status || xhr.status) + " / Session]", fresh.redirectUrl);
+            appendRefreshButton();
+            return;
+          } catch (_refreshError) {
+            // Fall through to standard error presentation below.
+          }
         }
-        if (standalone) { window.location.assign(safeLink(dialog.dataset.backUrl) || "/vendor/dashboard"); return; }
-        document.dispatchEvent(new CustomEvent("vendor:" + createType + (formMode === "edit" ? "-updated" : "-created"), { detail: data }));
-        closeDialog(true);
-        const message = [data.message || (formMode === "edit" ? "Modifications enregistrées." : "Offre créée."), ...(data.notices || [])].join(" ");
-        if (typeof window.BMTriggerHaptic === "function") window.BMTriggerHaptic("heavy");
-        if (window.VendorUI?.toast) window.VendorUI.toast(message, "success");
-        else window.BMCoreUI?.showToast?.(message, "success");
-        return;
-      }
-      let message = data?.message;
-      if (!message) {
-        if (xhr.status === 413) {
-          message = "Vos photos ou votre vidéo dépassent la taille maximale acceptée. Vos saisies sont conservées : retirez la vidéo ou envoyez moins de photos (max. 4 photos et 15 Mo), puis cliquez sur « Réessayer ».";
+
+        if (!finish()) return;
+        const contentType = (xhr.getResponseHeader("content-type") || "").toLowerCase();
+        const finalPath = (() => {
+          try { return xhr.responseURL ? new URL(xhr.responseURL, location.href).pathname : ""; } catch (_e) { return ""; }
+        })();
+        const redirected = !!(xhr.responseURL && finalPath && actionPathname && finalPath !== actionPathname);
+        const isLoginRedirect = redirected && /\/(login|connexion)\b/i.test(finalPath);
+        const ref = diagnosticSuffix(xhr, data, redirected, contentType);
+        let redirectUrl = data?.redirect_url || (isLoginRedirect ? xhr.responseURL : null);
+        let message = data?.message;
+        if (message) {
+          if (xhr.status !== 422 && !message.includes("[Réf:")) message += ref;
+        } else if (isLoginRedirect || xhr.status === 401) {
+          message = "Votre session a expiré. Connectez-vous de nouveau dans un autre onglet puis cliquez sur « Réessayer » (vos saisies texte restent conservées)." + ref;
+          redirectUrl = redirectUrl || "/login";
+        } else if (xhr.status === 413) {
+          message = "Vos photos ou votre vidéo dépassent la taille maximale acceptée. Vos saisies sont conservées : retirez la vidéo ou envoyez moins de photos (max. 4 photos et 15 Mo), puis cliquez sur « Réessayer »." + ref;
         } else if (xhr.status === 403) {
-          message = "Action refusée pour votre session ou votre boutique. Actualisez votre session ci-dessous, vérifiez votre boutique dans Ma boutique ou reconnectez-vous.";
+          message = "Action refusée pour votre session ou votre boutique. Actualisez votre session ci-dessous, vérifiez votre boutique dans Ma boutique ou reconnectez-vous." + ref;
         } else if (xhr.status === 409) {
-          message = "Informations manquantes sur votre boutique. Complétez l’adresse et le téléphone dans Ma boutique puis réessayez.";
-        } else if (xhr.status === 500) {
-          message = "L’enregistrement n’a pas pu aboutir temporairement. Vos saisies et photos sont conservées : cliquez sur « Réessayer », ou contactez le support si cela persiste.";
+          message = "Informations manquantes sur votre boutique. Complétez l’adresse et le téléphone dans Ma boutique puis réessayez." + ref;
+        } else if (xhr.status === 408 || xhr.status === 429 || xhr.status === 502 || xhr.status === 503 || xhr.status === 504) {
+          message = "Le serveur met plus de temps que prévu à répondre. Vos saisies et photos sont conservées : patientez quelques secondes puis cliquez sur « Réessayer » (ou allégez vos photos)." + ref;
+        } else if (xhr.status === 400) {
+          message = "La session du formulaire a expiré ou la requête n’a pas abouti. Cliquez sur « Actualiser la session » ci-dessous puis sur « Réessayer » (vos saisies sont conservées)." + ref;
+        } else if (xhr.status >= 500) {
+          message = "L’enregistrement n’a pas pu aboutir temporairement. Vos saisies et photos sont conservées : cliquez sur « Réessayer », ou contactez le support si cela persiste." + ref;
         } else {
-          message = "Votre session ou la connexion a été interrompue avant la fin de l’envoi. Vos saisies sont conservées : cliquez sur « Réessayer » ou actualisez votre session ci-dessous.";
+          message = "Votre session ou la connexion a été interrompue avant la fin de l’envoi. Vos saisies sont conservées : cliquez sur « Réessayer » ou actualisez votre session ci-dessous." + ref;
         }
-      }
-      showError(message, data?.redirect_url);
-      if (xhr.status === 400 && !data) {
-        const refresh = document.createElement("button");
-        refresh.type = "button";
-        refresh.className = "vpm-button vpm-button-secondary";
-        refresh.dataset.vpmRefreshSession = "1";
-        refresh.textContent = "Actualiser la session";
-        form.querySelector("#vpmFormError").appendChild(refresh);
-      }
-      let first = null;
-      Object.entries(data?.errors || {}).forEach(([name, error]) => {
-        fieldError(name, String(error));
-        const field = form.elements.namedItem(name);
-        if (!first && field instanceof HTMLElement && field.type !== "file") first = field;
-      });
-      if (first) first.focus();
-      else form.querySelector("#vpmFormError").scrollIntoView({ block: "nearest" });
-    };
-    xhr.onerror = () => {
-      if (!finish()) return;
-      const isHeavy = uploadBytes > 3 * 1024 * 1024;
-      const networkHelp = isHeavy
-        ? "La connexion avec le serveur a été interrompue pendant l'envoi des fichiers. Vos saisies et vos photos sont conservées : vérifiez votre connexion puis cliquez sur « Réessayer » (ou allégez vos fichiers)."
-        : "Échec de connexion réseau au serveur BabaMarket. Vos saisies et vos photos sont conservées : vérifiez votre connexion Internet puis cliquez sur « Réessayer ».";
-      showError(networkHelp, createType === "location" ? "/owner/locations" : "/vendor/catalog");
-    };
-    xhr.ontimeout = () => {
-      if (!finish()) return;
-      showError("L’envoi a pris trop de temps. Vos saisies et photos sont conservées : vérifiez votre connexion ou réduisez la taille de vos photos/vidéo, puis cliquez sur « Réessayer ».", createType === "location" ? "/owner/locations" : "/vendor/catalog");
-    };
-    xhr.onabort = () => {
-      if (!finish()) return;
-      showError("L’envoi du formulaire a été interrompu. Vos saisies sont conservées : cliquez sur « Réessayer » pour enregistrer.", createType === "location" ? "/owner/locations" : "/vendor/catalog");
-    };
-    xhr.send(body);
+        showError(message, redirectUrl);
+        if (xhr.status === 400 || xhr.status === 401 || data?.error === "csrf" || (!data && (redirected || xhr.status < 300 || contentType.includes("text/html")))) {
+          appendRefreshButton();
+        }
+        let first = null;
+        Object.entries(data?.errors || {}).forEach(([name, error]) => {
+          fieldError(name, String(error));
+          const field = form.elements.namedItem(name);
+          if (!first && field instanceof HTMLElement && field.type !== "file") first = field;
+        });
+        if (first) first.focus();
+        else form.querySelector("#vpmFormError").scrollIntoView({ block: "nearest" });
+      };
+      xhr.onerror = () => {
+        if (!finish()) return;
+        const sizeKo = Math.round(uploadBytes / 1024);
+        const isHeavy = uploadBytes > 3 * 1024 * 1024;
+        const networkHelp = (isHeavy
+          ? "La connexion avec le serveur a été interrompue pendant l'envoi des fichiers. Vos saisies et vos photos sont conservées : vérifiez votre connexion puis cliquez sur « Réessayer » (ou allégez vos fichiers)."
+          : "Échec de connexion réseau au serveur BabaMarket. Vos saisies et vos photos sont conservées : vérifiez votre connexion Internet puis cliquez sur « Réessayer ».") + " [Réf: Réseau / " + sizeKo + " Ko]";
+        showError(networkHelp, createType === "location" ? "/owner/locations" : "/vendor/catalog");
+      };
+      xhr.ontimeout = () => {
+        if (!finish()) return;
+        showError("L’envoi a pris trop de temps. Vos saisies et photos sont conservées : vérifiez votre connexion ou réduisez la taille de vos photos/vidéo, puis cliquez sur « Réessayer ». [Réf: Timeout]", createType === "location" ? "/owner/locations" : "/vendor/catalog");
+      };
+      xhr.onabort = () => {
+        if (!finish()) return;
+        showError("L’envoi du formulaire a été interrompu. Vos saisies sont conservées : cliquez sur « Réessayer » pour enregistrer. [Réf: Annulé]", createType === "location" ? "/owner/locations" : "/vendor/catalog");
+      };
+      xhr.send(body);
+    }
+
+    transmitOffer(true);
   }
 
   document.addEventListener("click", (event) => {
@@ -1200,6 +1288,11 @@
   window.visualViewport?.addEventListener("scroll", scheduleViewport, { passive: true });
   if (standalone) {
     editUrl = content.querySelector("form")?.action;
+    const standalonePath = (() => {
+      try { return editUrl ? new URL(editUrl, location.href).pathname : ""; } catch (_e) { return ""; }
+    })();
+    formMode = /\/\d+\/edit$/.test(standalonePath) ? "edit" : "create";
+    headers["X-Vendor-Modal"] = createType + "-" + formMode;
     bindForm();
     return;
   }

@@ -221,6 +221,14 @@ def guard_shop_settings_modal():
 @login_required
 def restrict_vendor():
     if getattr(current_user, "role", None) != "vendor":
+        if _is_product_form_modal_request() or _is_ajax_request():
+            return _product_form_json(
+                {
+                    "success": False,
+                    "message": "Accès réservé aux comptes vendeurs. Reconnectez-vous avec votre compte vendeur pour continuer.",
+                },
+                403,
+            )
         flash("Accès réservé aux vendeurs.", "warning")
         return redirect(url_for("shop.home"))
 
@@ -1577,7 +1585,18 @@ def _product_form(product=None):
 
     def reject(message, *, field=None, status=422, endpoint=None):
         errors = {field: message} if field else {}
-        if modal_request:
+        try:
+            current_app.logger.info(
+                "[vendor] product_form.rejected vendor_id=%s mode=%s status=%s field=%s modal=%s",
+                vendor_id,
+                "edit" if editing else "create",
+                status,
+                field or "-",
+                modal_request,
+            )
+        except Exception:
+            pass
+        if modal_request or _is_ajax_request():
             payload = {"success": False, "message": message, "errors": errors}
             if endpoint:
                 payload["redirect_url"] = url_for(endpoint)
@@ -1611,13 +1630,30 @@ def _product_form(product=None):
                 "vendor/partials/_product_create_modal.html", **_product_form_context(product, shop),
             )})
         if request.args.get("standalone") == "1":
-            return render_template("vendor/product_form.html", **_product_form_context(product, shop))
+            response = current_app.make_response(
+                render_template("vendor/product_form.html", **_product_form_context(product, shop))
+            )
+            response.headers["Cache-Control"] = "private, no-store, max-age=0"
+            response.headers["Vary"] = "Cookie, X-Vendor-Modal"
+            return response
         response = redirect(url_for("vendor.dashboard", **(
             {"edit_product": product.id} if editing else {"new": "product"}
         )), code=303)
         response.headers["Cache-Control"] = "private, no-store, max-age=0"
         response.headers["Vary"] = "Cookie, X-Vendor-Modal"
         return response
+
+    try:
+        current_app.logger.info(
+            "[vendor] product_form.post vendor_id=%s mode=%s modal=%s cl=%s files=%s",
+            vendor_id,
+            "edit" if editing else "create",
+            modal_request,
+            request.content_length,
+            len(request.files.getlist("images")),
+        )
+    except Exception:
+        pass
 
     name = (request.form.get("name") or "").strip()
     description = (request.form.get("description") or "").strip()

@@ -110,6 +110,79 @@ def create_app(config_class=Config):
     login_manager.needs_refresh_message = "Votre session a expiré. Veuillez vous reconnecter."
     login_manager.needs_refresh_message_category = "warning"
     login_manager.session_protection = "basic"
+
+    def _wants_json_response() -> bool:
+        if not request:
+            return False
+        return bool(
+            request.is_json
+            or request.headers.get("X-Requested-With") in ("XMLHttpRequest", "fetch")
+            or bool(request.headers.get("X-Vendor-Modal"))
+            or request.headers.get("X-BM-Shop-Modal") == "1"
+            or "application/json" in (request.headers.get("Accept") or "")
+        )
+
+    def _wants_unauthorized_json_response() -> bool:
+        if not request:
+            return False
+        return bool(
+            request.is_json
+            or bool(request.headers.get("X-Vendor-Modal"))
+            or request.headers.get("X-BM-Shop-Modal") == "1"
+            or "application/json" in (request.headers.get("Accept") or "")
+            or request.headers.get("X-Requested-With") == "fetch"
+            or (request.method not in ("GET", "HEAD") and request.headers.get("X-Requested-With") == "XMLHttpRequest")
+        )
+
+    def _json_error_response(
+        message: str,
+        status: int,
+        *,
+        error: str,
+        redirect_url: str | None = None,
+    ):
+        payload = {"success": False, "error": error, "message": message}
+        if redirect_url:
+            payload["redirect_url"] = redirect_url
+        response = jsonify(payload)
+        response.status_code = status
+        response.headers["Cache-Control"] = "private, no-store, max-age=0"
+        response.headers["Vary"] = "Cookie, X-Vendor-Modal"
+        return response, status
+
+    def _log_http_warning(status_code: int, code: str) -> None:
+        try:
+            current_app.logger.warning(
+                "http.%s code=%s path=%s method=%s endpoint=%s modal=%s ajax=%s cl=%s",
+                status_code,
+                code,
+                request.path if request else None,
+                request.method if request else None,
+                request.endpoint if request else None,
+                request.headers.get("X-Vendor-Modal") if request else None,
+                _wants_json_response(),
+                request.content_length if request else None,
+            )
+        except Exception:
+            pass
+
+    @login_manager.unauthorized_handler
+    def handle_unauthorized():
+        if _wants_unauthorized_json_response():
+            _log_http_warning(401, "unauthorized")
+            next_target = request.full_path.rstrip("?") if request.method == "GET" else None
+            login_target = url_for("auth.login", next=next_target) if next_target else url_for("auth.login")
+            return _json_error_response(
+                "Votre session a expiré. Connectez-vous de nouveau pour continuer (vos saisies sont conservées localement).",
+                401,
+                error="unauthorized",
+                redirect_url=login_target,
+            )
+        from flask_login import login_url as build_login_url
+
+        if login_manager.login_message:
+            flash(login_manager.login_message, login_manager.login_message_category or "warning")
+        return redirect(build_login_url(login_manager.login_view, request.url))
     cache.init_app(app)
     with app.app_context():
         logging_service.setup_logging()
@@ -202,18 +275,40 @@ def create_app(config_class=Config):
         return redirect(target, code=301)
 
 
+    def _handle_client_error(status_code: int, error_code: str, json_message: str, template_name: str):
+        _log_http_warning(status_code, error_code)
+        if _wants_json_response():
+            redirect_url = url_for("auth.login") if status_code == 401 else None
+            return _json_error_response(json_message, status_code, error=error_code, redirect_url=redirect_url)
+        return render_template(template_name), status_code
+
     # Handlers d'erreur
     @app.errorhandler(400)
     def bad_request_error(error):
-        return render_template("errors/400.html"), 400
+        return _handle_client_error(
+            400,
+            "bad_request",
+            "La requête est incomplète ou votre session de formulaire a expiré. Cliquez sur « Actualiser la session » ou rechargez la page puis réessayez.",
+            "errors/400.html",
+        )
 
     @app.errorhandler(401)
     def unauthorized_error(error):
-        return render_template("errors/401.html"), 401
+        return _handle_client_error(
+            401,
+            "unauthorized",
+            "Votre session a expiré. Connectez-vous de nouveau pour continuer (vos saisies sont conservées localement).",
+            "errors/401.html",
+        )
 
     @app.errorhandler(403)
     def forbidden_error(error):
-        return render_template("errors/403.html"), 403
+        return _handle_client_error(
+            403,
+            "forbidden",
+            "Action refusée pour votre session ou votre boutique. Actualisez votre session ci-dessous, vérifiez votre boutique dans Ma boutique ou reconnectez-vous.",
+            "errors/403.html",
+        )
 
     @app.errorhandler(404)
     def not_found_error(error):
@@ -221,11 +316,23 @@ def create_app(config_class=Config):
 
     @app.errorhandler(429)
     def rate_limit_error(error):
-        return render_template("errors/429.html"), 429
+        return _handle_client_error(
+            429,
+            "rate_limited",
+            "Trop de tentatives en peu de temps. Patientez quelques secondes puis cliquez sur « Réessayer ».",
+            "errors/429.html",
+        )
 
     @app.errorhandler(413)
     def payload_too_large_error(error):
-        flash("Fichiers trop volumineux pour la limite serveur actuelle. Rduisez la taille ou contactez l'admin.", "warning")
+        _log_http_warning(413, "payload_too_large")
+        if _wants_json_response():
+            return _json_error_response(
+                "Vos photos ou votre vidéo dépassent la taille maximale acceptée. Retirez la vidéo ou réduisez le nombre/poids de vos photos (max. 4 photos et 15 Mo), puis cliquez sur « Réessayer ».",
+                413,
+                error="payload_too_large",
+            )
+        flash("Fichiers trop volumineux pour la limite serveur actuelle. Réduisez la taille ou contactez l'admin.", "warning")
         return redirect(request.referrer or url_for("rentals.owner_location_new"))
 
     @app.errorhandler(500)
@@ -255,6 +362,12 @@ def create_app(config_class=Config):
             )
         except Exception:
             pass
+        if _wants_json_response():
+            return _json_error_response(
+                "L’enregistrement n’a pas pu aboutir temporairement. Vos saisies et photos sont conservées : cliquez sur « Réessayer », ou contactez le support si cela persiste.",
+                500,
+                error="server_error",
+            )
         return render_template("errors/500.html"), 500
 
     @app.context_processor
@@ -624,19 +737,29 @@ def create_app(config_class=Config):
         if request.endpoint.endswith(".static"):
             return None
         token = (
-            request.form.get("csrf_token")
-            or request.headers.get("X-CSRFToken")
+            request.headers.get("X-CSRFToken")
             or request.headers.get("X-CSRF-Token")
+            or request.form.get("csrf_token")
         )
         try:
             validate_csrf(token)
         except ValidationError:
-            if (
-                request.is_json
-                or request.headers.get("X-Requested-With") in ("XMLHttpRequest", "fetch")
-                or "application/json" in (request.headers.get("Accept") or "")
-            ):
-                return jsonify({"error": "csrf"}), 400
+            app.logger.warning(
+                "security.csrf_failed path=%s endpoint=%s method=%s ajax=%s has_cookie=%s has_header=%s cl=%s",
+                request.path,
+                request.endpoint,
+                request.method,
+                _wants_json_response(),
+                bool(request.cookies),
+                bool(request.headers.get("X-CSRFToken") or request.headers.get("X-CSRF-Token")),
+                request.content_length,
+            )
+            if _wants_json_response():
+                return _json_error_response(
+                    "Votre session de formulaire a expiré ou a été interrompue. Cliquez sur « Actualiser la session » ou reconnectez-vous pour enregistrer sans perdre vos saisies.",
+                    400,
+                    error="csrf",
+                )
             flash("Session expirée ou action non autorisée.", "danger")
             if request.path.startswith("/cart/checkout"):
                 return redirect(url_for("cart.checkout"))

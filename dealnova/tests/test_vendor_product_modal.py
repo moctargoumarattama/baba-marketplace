@@ -324,3 +324,82 @@ def test_inactive_shop_guides_vendor_to_reactivate_instead_of_false_pending_or_o
     assert reopen_resp.is_json and reopen_resp.json["success"] is False
     assert reopen_resp.json["action_url"].endswith("/vendor/shop/manage#shopAdvancedOptions")
     assert "Ma boutique" in reopen_resp.json["message"]
+
+
+def test_csrf_failure_for_modal_returns_actionable_json_and_logs_warning(vendor_modal, caplog):
+    with caplog.at_level("WARNING"):
+        response = _post(vendor_modal, csrf_token="expired-modal-token")
+    assert response.status_code == 400
+    assert response.is_json
+    assert response.json["success"] is False
+    assert response.json["error"] == "csrf"
+    assert "Actualiser la session" in response.json["message"]
+    assert any("security.csrf_failed" in rec.getMessage() for rec in caplog.records)
+    assert all("expired-modal-token" not in rec.getMessage() for rec in caplog.records)
+
+
+def test_valid_csrf_header_allows_submission_before_form_token_lookup(vendor_modal):
+    payload = _payload(vendor_modal)
+    payload.pop("csrf_token", None)
+    headers = {**MODAL_HEADERS, "X-CSRFToken": vendor_modal.csrf}
+    response = vendor_modal.client.post("/vendor/product/new", data=payload, headers=headers)
+    assert response.status_code == 201
+    assert response.json["success"] is True
+
+
+def test_oversized_modal_upload_returns_json_413_instead_of_redirect(vendor_modal):
+    vendor_modal.app.config["MAX_CONTENT_LENGTH"] = 512
+    headers = {**MODAL_HEADERS, "X-CSRFToken": vendor_modal.csrf}
+    response = vendor_modal.client.post(
+        "/vendor/product/new",
+        data=_payload(vendor_modal, images=(BytesIO(b"x" * 2048), "large.png")),
+        headers=headers,
+    )
+    assert response.status_code == 413
+    assert response.is_json
+    assert response.json["success"] is False
+    assert response.json["error"] == "payload_too_large"
+    assert "taille maximale" in response.json["message"]
+
+
+def test_unauthenticated_and_non_vendor_ajax_requests_return_json_errors(vendor_modal):
+    from dealnova.app.models.user import User
+
+    guest_client = vendor_modal.app.test_client()
+    guest_resp = guest_client.get(
+        "/vendor/dashboard",
+        headers={"X-Requested-With": "fetch", "Accept": "application/json"},
+    )
+    assert guest_resp.status_code == 401
+    assert guest_resp.is_json
+    assert guest_resp.json["success"] is False
+    assert guest_resp.json["error"] == "unauthorized"
+    assert "/login" in guest_resp.json.get("redirect_url", "")
+
+    with vendor_modal.app.app_context():
+        user = vendor_modal.db.session.get(User, vendor_modal.ids.vendor)
+        user.role = "admin"
+        vendor_modal.db.session.commit()
+    role_resp = vendor_modal.client.post(
+        "/vendor/product/new",
+        data=_payload(vendor_modal),
+        headers={"X-Requested-With": "fetch", "Accept": "application/json"},
+    )
+    assert role_resp.status_code == 403
+    assert role_resp.is_json and role_resp.json["success"] is False
+
+
+def test_modal_js_includes_silent_csrf_retry_and_cache_bust_version(vendor_modal):
+    root = Path(__file__).resolve().parents[1] / "app"
+    js_text = (root / "static" / "js" / "vendor" / "vendor_product_modal.js").read_text(encoding="utf-8")
+    for token in ("fetchFreshCsrfToken", "transmitOffer", "syncCsrfToken", "diagnosticSuffix", "isLoginRedirect"):
+        assert token in js_text
+    for rel in (
+        "templates/vendor/dashboard.html",
+        "templates/vendor/catalog.html",
+        "templates/locations/owner_index.html",
+        "templates/vendor/partials/_form_page.html",
+    ):
+        tpl = (root / rel).read_text(encoding="utf-8")
+        assert "-forms-v8" in tpl
+        assert "-forms-v7" not in tpl
