@@ -375,13 +375,14 @@
       const response = await fetch(action, { method: "POST", body, signal: active.signal, credentials: "same-origin", cache: "no-store",
         headers: { "X-Requested-With": "XMLHttpRequest", Accept: "application/json" } });
       const data = response.headers.get("content-type")?.includes("application/json") ? await response.json() : null;
-      if (!response.ok || !data?.success) throw new Error("save_failed");
+      if (!response.ok || !data?.success) throw new Error(data?.message || "save_failed");
       pendingRead = { url: formUrl(currentPage()).href, mode: "replace" };
       window.BMVendorWorkspace.closeDialog();
       window.VendorUI?.toast?.(data.message || "Offre retirée.", "success");
-    } catch (_error) {
+    } catch (error) {
       verifyDelete = true;
-      deleteError.textContent = "L’action n’a pas pu être confirmée. Vérifiez la liste avant de réessayer.";
+      const customMessage = error instanceof Error && error.message && error.message !== "save_failed" && error.name !== "AbortError" ? error.message : "";
+      deleteError.textContent = customMessage || "L’action n’a pas pu être confirmée. Vérifiez la liste avant de réessayer.";
       deleteError.hidden = false;
     } finally {
       clearTimeout(timeout);

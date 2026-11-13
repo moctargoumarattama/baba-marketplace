@@ -4,8 +4,10 @@ from flask_login import login_required, current_user
 from ..extensions import db
 from ..models.product import Product
 from ..models.category import Category
+from ..models.featured_item import FeaturedItem
 from ..models.shop import SHOP_TYPE_LABELS, Shop, shop_type_from_product_kind
 from ..models.promo import Promo
+from ..models.review import Review
 from ..models.order import Order, OrderItem
 from ..models.booking import Booking
 from ..models.user import User
@@ -2097,78 +2099,143 @@ def product_promotion_disable(pid):
 @bp.route("/product/<int:pid>/delete", methods=["POST"])
 @login_required
 def product_delete(pid):
-    product = Product.query.get_or_404(pid)
+    def _respond(
+        success: bool,
+        message: str,
+        *,
+        status: int = 200,
+        disabled: bool | None = None,
+        category: str = "success",
+    ):
+        if _is_ajax_request():
+            payload = {"success": success, "message": message}
+            if success:
+                payload["product_id"] = pid
+            if disabled is not None:
+                payload["disabled"] = disabled
+            return jsonify(payload), status
+        flash(message, category)
+        return redirect(url_for("vendor.dashboard"))
+
+    product = db.session.get(Product, pid)
+    if product is None:
+        return _respond(
+            False,
+            "Cette offre est introuvable ou a déjà été retirée. Actualisez votre catalogue.",
+            status=404,
+            category="warning",
+        )
 
     # Vérifier les permissions
     if current_user.role != "admin" and product.vendor_id != current_user.id:
-        if _is_ajax_request():
-            return jsonify(success=False, message="Interdit"), 403
-        flash("Interdit", "danger")
-        return redirect(url_for("vendor.dashboard"))
+        return _respond(
+            False,
+            "Vous ne pouvez supprimer que les offres de votre boutique. Actualisez votre catalogue ou reconnectez-vous.",
+            status=403,
+            category="danger",
+        )
 
-    # Vérifier si le produit a déjà été commandé (peu importe le statut)
-    a_deja_ete_vendu = db.session.query(OrderItem.id).filter(
-        OrderItem.product_id == product.id
-    ).first() is not None
+    product_name = product.name
+    product_price = product.price
+    vendor_id = product.vendor_id
+    is_service = product.kind == "service"
 
-    if a_deja_ete_vendu:
-        # Cas 1 : Le produit a déjà été vendu → on désactive seulement
+    # Conserver l'historique commercial si l'offre a déjà des commandes ou des réservations
+    has_order = db.session.query(OrderItem.id).filter(OrderItem.product_id == product.id).first() is not None
+    has_booking = db.session.query(Booking.id).filter(Booking.product_id == product.id).first() is not None
+
+    if has_order or has_booking:
         ancien_etat = product.is_active
         product.is_active = False
-        db.session.commit()
+        FeaturedItem.query.filter(
+            FeaturedItem.product_id == product.id,
+            FeaturedItem.target_type == FeaturedItem.TARGET_PRODUCT,
+            FeaturedItem.is_active == True,
+        ).update({"is_active": False}, synchronize_session=False)
+        try:
+            db.session.commit()
+        except SQLAlchemyError:
+            safe_session_rollback()
+            current_app.logger.exception(
+                "vendor.product_disable.db_error",
+                extra={"product_id": pid, "vendor_id": vendor_id},
+            )
+            return _respond(
+                False,
+                "Impossible de désactiver cette offre pour le moment. Actualisez votre catalogue et réessayez, ou passez-la en « Inactif » depuis « Modifier ».",
+                status=500,
+                category="danger",
+            )
         bump_catalog_version()
-        
-        # Log de l'action
+
         try:
             log_access(
                 "disable_product",
                 "product",
-                product.id,
+                pid,
                 success=True,
-                changes={"name": product.name, "was_active": ancien_etat, "now_active": False}
+                changes={
+                    "name": product_name,
+                    "was_active": ancien_etat,
+                    "now_active": False,
+                    "has_orders": has_order,
+                    "has_bookings": has_booking,
+                },
             )
         except (SQLAlchemyError, ValueError):
             current_app.logger.exception(
                 "vendor.product_disable.audit_log_failed",
-                extra={"product_id": product.id, "vendor_id": product.vendor_id},
+                extra={"product_id": pid, "vendor_id": vendor_id},
             )
-        
-        if _is_ajax_request():
-            return jsonify(success=True, product_id=product.id, disabled=True, message="Produit désactivé (historique conservé)")
-        
-        flash("Produit désactivé (historique des commandes conservé)", "success")
-        return redirect(url_for("vendor.dashboard"))
-    
-    # Cas 2 : Le produit n'a JAMAIS été commandé → on peut supprimer
-    # Note : pas besoin de supprimer les order_item car ils n'existent pas
-    
-    # Sauvegarde des infos pour le log avant suppression
-    product_name = product.name
-    product_price = product.price
-    
+
+        if has_order and has_booking:
+            msg = "Offre désactivée (historique des commandes et réservations conservé)."
+        elif has_booking:
+            msg = "Service désactivé (historique des réservations conservé)."
+        else:
+            msg = "Produit désactivé (historique des commandes conservé)."
+        return _respond(True, msg, disabled=True, category="success")
+
+    # Aucune commande ni réservation associée : détacher les mises en avant et supprimer avis/promos avant suppression définitive
+    FeaturedItem.query.filter(
+        FeaturedItem.product_id == product.id,
+    ).update({"is_active": False, "product_id": None}, synchronize_session=False)
+    for review in list(product.reviews):
+        db.session.delete(review)
+
     db.session.delete(product)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except SQLAlchemyError:
+        safe_session_rollback()
+        current_app.logger.exception(
+            "vendor.product_delete.db_error",
+            extra={"product_id": pid, "vendor_id": vendor_id},
+        )
+        return _respond(
+            False,
+            "Impossible de supprimer définitivement cette offre pour le moment. Actualisez votre catalogue ou désactivez-la depuis « Modifier ».",
+            status=500,
+            category="danger",
+        )
     bump_catalog_version()
 
     try:
         log_access(
             "delete_product",
             "product",
-            pid,  # Note: on utilise pid car product.id n'est plus disponible après commit
+            pid,
             success=True,
-            changes={"name": product_name, "price": product_price}
+            changes={"name": product_name, "price": product_price},
         )
     except (SQLAlchemyError, ValueError):
         current_app.logger.exception(
             "vendor.product_delete.audit_log_failed",
-            extra={"product_id": pid, "vendor_id": product.vendor_id if product else None},
+            extra={"product_id": pid, "vendor_id": vendor_id},
         )
 
-    if _is_ajax_request():
-        return jsonify(success=True, product_id=pid, message="Produit supprimé définitivement")
-
-    flash("Produit supprimé définitivement (aucune commande associée).", "success")
-    return redirect(url_for("vendor.dashboard"))
+    success_msg = "Service supprimé définitivement." if is_service else "Produit supprimé définitivement."
+    return _respond(True, success_msg, category="success")
 
 
 @bp.route("/product/<int:pid>/quick-stock", methods=["POST"])

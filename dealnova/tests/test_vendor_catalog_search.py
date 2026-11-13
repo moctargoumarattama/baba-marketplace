@@ -349,3 +349,216 @@ def test_quick_stock_enforces_ownership_kind_and_csrf(catalog):
         headers=ajax_headers,
     )
     assert foreign_resp.status_code == 403 and foreign_resp.json["success"] is False
+
+
+def test_product_delete_preserves_booking_and_order_history(catalog):
+    from dealnova.app.models.booking import Booking
+    from dealnova.app.models.featured_item import FeaturedItem
+    from dealnova.app.models.order import Order, OrderItem
+    from dealnova.app.models.product import Product
+
+    csrf = _catalog_csrf(catalog)
+    ajax_headers = {"X-Requested-With": "XMLHttpRequest", "Accept": "application/json"}
+    created = {"bookings": [], "order_items": [], "orders": [], "featured": [], "products": []}
+
+    with catalog.app.app_context():
+        booked_service = Product(
+            name="Service réservé",
+            kind="service",
+            price=120,
+            price_cents_value=12000,
+            stock=0,
+            vendor_id=catalog.ids.vendor,
+            shop_id=catalog.ids.shop,
+            category_id=catalog.ids.service,
+            is_active=True,
+        )
+        ordered_product = Product(
+            name="Produit commandé",
+            kind="physical",
+            price=80,
+            price_cents_value=8000,
+            stock=5,
+            vendor_id=catalog.ids.vendor,
+            shop_id=catalog.ids.shop,
+            category_id=catalog.ids.physical,
+            is_active=True,
+        )
+        catalog.db.session.add_all([booked_service, ordered_product])
+        catalog.db.session.flush()
+        booking = Booking(
+            buyer_id=catalog.target.customer,
+            product_id=booked_service.id,
+            shop_id=catalog.ids.shop,
+            full_name="Client Test",
+            phone="0600000000",
+            status="pending",
+        )
+        featured = FeaturedItem(
+            target_type=FeaturedItem.TARGET_PRODUCT,
+            product_id=booked_service.id,
+            vendor_id=catalog.ids.vendor,
+            is_active=True,
+        )
+        order = Order(
+            buyer_id=catalog.target.customer,
+            full_name="Client Commande",
+            phone="0611111111",
+            address="Rabat",
+            city="Rabat",
+            status="pending",
+            total=8000,
+        )
+        catalog.db.session.add_all([booking, featured, order])
+        catalog.db.session.flush()
+        order_item = OrderItem(order_id=order.id, product_id=ordered_product.id, quantity=1, price=8000)
+        catalog.db.session.add(order_item)
+        catalog.db.session.commit()
+        booked_id = booked_service.id
+        ordered_id = ordered_product.id
+        created["bookings"].append(booking.id)
+        created["featured"].append(featured.id)
+        created["order_items"].append(order_item.id)
+        created["orders"].append(order.id)
+        created["products"].extend([booked_id, ordered_id])
+
+    try:
+        booking_resp = catalog.client.post(
+            f"/vendor/product/{booked_id}/delete",
+            data={"csrf_token": csrf},
+            headers=ajax_headers,
+        )
+        assert booking_resp.status_code == 200
+        assert booking_resp.json["success"] is True
+        assert booking_resp.json["disabled"] is True
+        assert "réservations conservé" in booking_resp.json["message"]
+
+        order_resp = catalog.client.post(
+            f"/vendor/product/{ordered_id}/delete",
+            data={"csrf_token": csrf},
+            headers=ajax_headers,
+        )
+        assert order_resp.status_code == 200
+        assert order_resp.json["success"] is True
+        assert order_resp.json["disabled"] is True
+        assert "commandes conservé" in order_resp.json["message"]
+
+        with catalog.app.app_context():
+            assert catalog.db.session.get(Product, booked_id).is_active is False
+            assert catalog.db.session.get(Booking, created["bookings"][0]).product_id == booked_id
+            assert catalog.db.session.get(FeaturedItem, created["featured"][0]).is_active is False
+            assert catalog.db.session.get(Product, ordered_id).is_active is False
+            assert catalog.db.session.get(OrderItem, created["order_items"][0]).product_id == ordered_id
+    finally:
+        with catalog.app.app_context():
+            for row_id in created["bookings"]:
+                row = catalog.db.session.get(Booking, row_id)
+                if row is not None:
+                    catalog.db.session.delete(row)
+            for row_id in created["order_items"]:
+                row = catalog.db.session.get(OrderItem, row_id)
+                if row is not None:
+                    catalog.db.session.delete(row)
+            for row_id in created["orders"]:
+                row = catalog.db.session.get(Order, row_id)
+                if row is not None:
+                    catalog.db.session.delete(row)
+            for row_id in created["featured"]:
+                row = catalog.db.session.get(FeaturedItem, row_id)
+                if row is not None:
+                    catalog.db.session.delete(row)
+            for row_id in created["products"]:
+                row = catalog.db.session.get(Product, row_id)
+                if row is not None:
+                    catalog.db.session.delete(row)
+            catalog.db.session.commit()
+
+
+def test_product_delete_permanently_deletes_unbooked_offer_and_dependencies(catalog):
+    from dealnova.app.models.featured_item import FeaturedItem
+    from dealnova.app.models.product import Product
+    from dealnova.app.models.promo import Promo
+    from dealnova.app.models.review import Review
+
+    csrf = _catalog_csrf(catalog)
+    ajax_headers = {"X-Requested-With": "XMLHttpRequest", "Accept": "application/json"}
+    featured_id = None
+    review_id = None
+    promo_id = None
+    target_id = None
+
+    with catalog.app.app_context():
+        ephemeral = Product(
+            name="Offre supprimable avec dépendances",
+            kind="physical",
+            price=45,
+            price_cents_value=4500,
+            stock=3,
+            vendor_id=catalog.ids.vendor,
+            shop_id=catalog.ids.shop,
+            category_id=catalog.ids.physical,
+            is_active=True,
+        )
+        catalog.db.session.add(ephemeral)
+        catalog.db.session.flush()
+        target_id = ephemeral.id
+
+        review = Review(product_id=target_id, user_id=catalog.target.customer, rating=5, comment="Top")
+        promo = Promo(
+            product_id=target_id,
+            type="percentage",
+            value=10,
+            end_date=datetime.utcnow() + timedelta(days=5),
+            status=Promo.STATUS_APPROVED,
+        )
+        featured = FeaturedItem(
+            target_type=FeaturedItem.TARGET_PRODUCT,
+            product_id=target_id,
+            vendor_id=catalog.ids.vendor,
+            is_active=True,
+        )
+        catalog.db.session.add_all([review, promo, featured])
+        catalog.db.session.commit()
+        review_id, promo_id, featured_id = review.id, promo.id, featured.id
+
+    try:
+        delete_resp = catalog.client.post(
+            f"/vendor/product/{target_id}/delete",
+            data={"csrf_token": csrf},
+            headers=ajax_headers,
+        )
+        assert delete_resp.status_code == 200
+        assert delete_resp.json["success"] is True
+        assert delete_resp.json.get("disabled") is None
+        assert "supprimé définitivement" in delete_resp.json["message"]
+
+        with catalog.app.app_context():
+            assert catalog.db.session.get(Product, target_id) is None
+            assert catalog.db.session.get(Review, review_id) is None
+            assert catalog.db.session.get(Promo, promo_id) is None
+            detached_featured = catalog.db.session.get(FeaturedItem, featured_id)
+            assert detached_featured is not None
+            assert detached_featured.product_id is None
+            assert detached_featured.is_active is False
+
+        foreign_resp = catalog.client.post(
+            f"/vendor/product/{catalog.target.foreign}/delete",
+            data={"csrf_token": csrf},
+            headers=ajax_headers,
+        )
+        assert foreign_resp.status_code == 403 and foreign_resp.json["success"] is False
+
+        missing_resp = catalog.client.post(
+            "/vendor/product/9999999/delete",
+            data={"csrf_token": csrf},
+            headers=ajax_headers,
+        )
+        assert missing_resp.status_code == 404 and missing_resp.json["success"] is False
+    finally:
+        with catalog.app.app_context():
+            for model, row_id in ((Review, review_id), (Promo, promo_id), (FeaturedItem, featured_id), (Product, target_id)):
+                if row_id is not None:
+                    row = catalog.db.session.get(model, row_id)
+                    if row is not None:
+                        catalog.db.session.delete(row)
+            catalog.db.session.commit()
