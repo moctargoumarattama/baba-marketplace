@@ -10,13 +10,21 @@
   --listing-soft: #f1f4ea;
   color: var(--listing-ink);
   width: 100%;
-  max-width: 1180px;
   margin: 0 auto;
-  padding: 28px 24px 40px;
   min-height: 0;
   background: none;
   border-radius: 0;
   box-shadow: none;
+}
+.shops-container,
+.shop-detail-page {
+  max-width: none;
+  padding: 24px clamp(14px, 3vw, 48px) 32px;
+}
+.public-rentals-index,
+.public-rental-detail {
+  max-width: 1180px;
+  padding: 28px 24px 40px;
 }
 .public-listings-back,
 .shop-detail-page .shop-back-btn,
@@ -37,7 +45,7 @@
   font-weight: 650; letter-spacing: -1.3px; text-wrap: balance;
 }
 .shops-container .shops-subtitle { color: var(--listing-muted); font-size: 16px; line-height: 1.65; margin: 0; }
-.shops-container .search-container-shops { max-width: 680px; margin: 0 0 20px; }
+.shops-container .search-container-shops { width: 100%; max-width: none; margin: 0 0 20px; }
 .shops-container .search-wrapper-shops {
   display: flex; gap: 8px; padding: 6px; border: 1px solid var(--listing-border);
   border-radius: 14px; background: #fff; box-shadow: none; transform: none;
@@ -55,10 +63,10 @@
 .shops-container .kind-chip.active { background: var(--listing-green); border-color: var(--listing-green); color: #fff; box-shadow: none; }
 .shops-container .kind-chip i { color: inherit; font-size: 15px; }
 .shops-container .shops-results-summary { color: var(--listing-muted); font-size: 14px; margin: 0 0 16px; }
-.shops-container .shops-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; padding: 0; }
+.shops-container .shops-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); gap: 18px; align-items: stretch; padding: 0; }
 .shops-container .shop-card {
   display: flex; flex-direction: column; min-width: 0; margin: 0; border: 1px solid var(--listing-border);
-  border-radius: 18px; background: #fff; overflow: hidden; box-shadow: 0 5px 20px #25473405;
+  border-radius: 15px; background: #fff; overflow: hidden; box-shadow: 0 2px 8px #17221d04;
   animation: none; transform: none; transition: border-color .2s ease, box-shadow .2s ease;
 }
 .shops-container .shop-card:hover { transform: none; border-color: #b3cbb8; box-shadow: 0 8px 24px #2547340a; }
@@ -67,18 +75,18 @@
 .shops-container .shop-banner::after,
 .shops-container .shop-visit-btn::after,
 .shops-container .shop-banner-overlay { display: none; }
-.shops-container .shop-banner { display: block; height: 210px; min-height: 0; background: var(--listing-soft); border-radius: 0; color: var(--listing-ink); text-decoration: none; }
-.shops-container .shop-banner-image { display: block; width: 100%; height: 100%; object-fit: cover; background: var(--listing-soft); border-radius: 0; }
-.shops-container .shop-banner-image.is-logo-banner { object-fit: contain; padding: 22px; background: var(--listing-soft); }
-.shops-container .shop-banner-initials { color: var(--listing-green); background: var(--listing-soft); font-size: 52px; font-weight: 600; letter-spacing: -2px; }
+.shops-container .shop-banner { position: relative; display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; min-height: 0; background: var(--listing-soft); border-radius: 0; color: var(--listing-ink); text-decoration: none; }
+.shops-container .shop-banner-image { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: cover; background: var(--listing-soft); border-radius: 0; box-sizing: border-box; }
+.shops-container .shop-banner-image.is-logo-banner { object-fit: contain; padding: 20px; background: var(--listing-soft); }
+.shops-container .shop-banner-initials { color: var(--listing-green); background: var(--listing-soft); font-size: 44px; font-weight: 600; letter-spacing: -2px; }
 .shops-container .open-badge,
 .shops-container .verified-badge { min-height: 30px; padding: 6px 10px; border: 0; border-radius: 7px; font-size: 12px; line-height: 1.3; box-shadow: none; backdrop-filter: none; animation: none; }
 .shops-container .open-badge { top: 12px; left: 12px; background: #fff; color: var(--listing-green); }
 .shops-container .open-badge.closed { color: #6b6155; background: #fff; }
 .shops-container .verified-badge { top: auto; bottom: 12px; right: 12px; background: #fff; color: var(--listing-green); }
 .shops-container .shop-banner .promo-badge { display: none; }
-.shops-container .shop-card-content { display: flex; flex-direction: column; flex: 1; padding: 22px; background: #fff; backdrop-filter: none; }
-.shops-container .shop-name { margin: 0 0 10px; font-size: 21px; font-weight: 650; line-height: 1.35; }
+.shops-container .shop-card-content { display: flex; flex-direction: column; flex: 1; padding: 16px; background: #fff; backdrop-filter: none; }
+.shops-container .shop-name { margin: 0 0 8px; font-size: 17px; font-weight: 650; line-height: 1.35; overflow-wrap: anywhere; }
 .shops-container .shop-name a { color: var(--listing-ink); text-decoration: none; }
 .shops-container .shop-description { order: 1; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; height: auto; min-height: 44px; margin: 0 0 14px; overflow: hidden; color: var(--listing-muted); font-size: 14px; line-height: 1.6; }
 .shops-container .shop-type-badges { order: 2; display: flex; flex-wrap: wrap; gap: 5px 12px; margin: 0 0 12px; }
@@ -110,7 +118,55 @@
 /* Shop pages keep their existing filters and pagination, with larger readable controls. */
 body[data-public-refresh="1"]:has(.shop-detail-page) { background: #fafaf4; }
 .shop-detail-page { overflow: visible; padding-top: 24px !important; }
-body[data-public-refresh="1"] .shop-detail-page.container { max-width: 1180px; padding: 28px 24px 40px !important; background: transparent !important; }
+body[data-public-refresh="1"] .shop-detail-page.container { width: 100%; max-width: none; padding: 24px clamp(14px, 3vw, 48px) 32px !important; background: transparent !important; }
+@media (min-width: 992px) {
+  .shop-detail-page #shopCatalogRow {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: flex-start;
+  }
+  .shop-detail-page #shopCatalogPanel {
+    flex: 0 0 280px;
+    width: 280px;
+    max-width: 280px;
+  }
+  .shop-detail-page #shopCatalogResults {
+    flex: 1 1 0%;
+    width: auto;
+    min-width: 0;
+    max-width: 100%;
+  }
+}
+@media (min-width: 768px) {
+  .shop-detail-page #productsGrid.products-grid-premium {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+    gap: 18px;
+    align-items: stretch;
+    width: 100%;
+    margin-inline: 0;
+    margin-top: 0;
+    --bs-gutter-x: 0;
+    --bs-gutter-y: 0;
+  }
+  .shop-detail-page #productsGrid.products-grid-premium.d-none {
+    display: none !important;
+  }
+  .shop-detail-page #productsGrid.products-grid-premium > .col {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    flex: none;
+    padding: 0;
+    margin: 0 !important;
+  }
+  .shop-detail-page #shopLocationPanel .shop-location-grid {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
+    gap: 18px;
+  }
+}
 .shop-detail-page .shop-back-btn { background: transparent !important; border: 0 !important; box-shadow: none !important; color: var(--listing-muted) !important; }
 .shop-detail-page::before { display: none; }
 .shop-detail-page .shop-hero-card { border: 1px solid var(--listing-border) !important; border-radius: 20px !important; background: #fff; box-shadow: none !important; }
@@ -161,11 +217,11 @@ body[data-public-refresh="1"] .shop-detail-page.container { max-width: 1180px; p
 .shop-detail-page .results-header h4 { font-size: 22px; font-weight: 650; color: var(--listing-ink); }
 .shop-detail-page .results-header h4::after { display: none; }
 .shop-detail-page .results-header small { font-size: 14px; }
-.shop-detail-page .products-grid-premium .card { border: 1px solid var(--listing-border) !important; border-radius: 15px !important; box-shadow: none !important; transform: none; animation: none; }
+.shop-detail-page .products-grid-premium .card { min-width: 0; border: 1px solid var(--listing-border) !important; border-radius: 15px !important; box-shadow: none !important; transform: none; animation: none; }
 .shop-detail-page .products-grid-premium .card::after { display: none; }
 .shop-detail-page .products-grid-premium .product-image { width: 100%; height: auto; aspect-ratio: 1.2; object-fit: cover; background: var(--listing-soft); }
 .shop-detail-page .products-grid-premium .card-body { padding: 14px !important; }
-.shop-detail-page .products-grid-premium .card-title { font-size: 15px; line-height: 1.45; min-height: 2.9em; }
+.shop-detail-page .products-grid-premium .card-title { font-size: 15px; line-height: 1.45; min-height: 2.9em; overflow-wrap: anywhere; }
 .shop-detail-page .products-grid-premium .product-desc { font-size: 13px; line-height: 1.5; }
 .shop-detail-page .products-grid-premium .fw-bold.text-primary.fs-5 { font-size: 20px !important; color: var(--listing-green) !important; }
 .shop-detail-page .products-grid-premium .product-slide-control { width: 36px; height: 44px; }
@@ -190,10 +246,10 @@ body[data-public-refresh="1"] .shop-detail-page.container { max-width: 1180px; p
 .public-rentals-index .filter-wrap .form-select { min-height: 48px; border-radius: 10px; border-color: var(--listing-border); font-size: 16px; }
 .public-rentals-index .btn-clear-search { min-height: 44px; padding: 10px 14px; border-radius: 10px; background: var(--listing-soft); color: var(--listing-green); border: 0; box-shadow: none; animation: none; }
 .public-rentals-index .filter-foot-note { color: var(--listing-muted); font-size: 13px; }
-.public-rentals-index .rentals-grid,
-.shop-detail-page .rentals-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px; }
+.public-rentals-index .rentals-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px; }
+.shop-detail-page .rentals-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); gap: 18px; }
 .public-rentals-index .rental-card,
-.shop-detail-page .rental-card { border: 1px solid var(--listing-border); border-radius: 16px; background: #fff; box-shadow: none; transform: none; animation: none; overflow: hidden; }
+.shop-detail-page .rental-card { min-width: 0; border: 1px solid var(--listing-border); border-radius: 16px; background: #fff; box-shadow: none; transform: none; animation: none; overflow: hidden; }
 .public-rentals-index .rental-media,
 .shop-detail-page .rental-media { height: 210px; border-radius: 0; background: var(--listing-soft); }
 .public-rentals-index .rental-body,
@@ -268,8 +324,9 @@ body[data-public-refresh="1"] .shop-detail-page.container { max-width: 1180px; p
   .shops-container .kind-filter { gap: 7px; }
   .shops-container .kind-chip { font-size: 13px; padding: 10px 13px; }
   .shops-container .shops-grid { grid-template-columns: minmax(0, 1fr); gap: 20px; }
-  .shops-container .shop-banner { height: 210px; }
+  .shops-container .shop-banner { height: 210px; aspect-ratio: auto; }
   .shops-container .shop-card-content { padding: 20px; }
+  .shops-container .shop-name { font-size: 20px; }
   .shops-container .pagination-shops { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; }
   .shops-container .pagination-pages { order: 3; width: 100%; justify-content: center; }
   .shops-container .page-link-shops { font-size: 13px; }

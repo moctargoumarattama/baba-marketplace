@@ -9,6 +9,14 @@ def _shops_css() -> str:
     return (ROOT / "app/static/css/pages/shops_page.css").read_text(encoding="utf-8-sig")
 
 
+def _public_listings_css() -> str:
+    return (ROOT / "app/static/css/pages/public_listings_refresh.css").read_text(encoding="utf-8-sig")
+
+
+def _public_catalog_css() -> str:
+    return (ROOT / "app/static/css/pages/public_catalog.css").read_text(encoding="utf-8-sig")
+
+
 def _rule_block(css: str, selector: str) -> str:
     match = re.search(rf"(?m)^\s*{re.escape(selector)}\s*\{{", css)
     assert match, f"Missing CSS rule for {selector}"
@@ -74,3 +82,48 @@ def test_shop_name_zone_keeps_stable_height_with_long_titles():
     assert "-webkit-line-clamp: 2;" in name_link_block
     assert "-webkit-box-orient: vertical;" in name_link_block
     assert "overflow-wrap: anywhere;" in name_link_block
+
+
+def test_shops_and_shop_detail_match_public_catalog_full_width_desktop_grid():
+    listings_css = _public_listings_css()
+    catalog_css = _public_catalog_css()
+
+    assert "padding: 24px clamp(14px, 3vw, 48px) 32px;" in catalog_css
+
+    wide_container_block = _rule_block(listings_css, ".shops-container,\n.shop-detail-page")
+    assert "max-width: none;" in wide_container_block
+    assert "padding: 24px clamp(14px, 3vw, 48px) 32px;" in wide_container_block
+
+    detail_container_block = _rule_block(listings_css, 'body[data-public-refresh="1"] .shop-detail-page.container')
+    assert "width: 100%;" in detail_container_block
+    assert "max-width: none;" in detail_container_block
+    assert "padding: 24px clamp(14px, 3vw, 48px) 32px !important;" in detail_container_block
+
+    shops_search_block = _rule_block(listings_css, ".shops-container .search-container-shops")
+    assert "width: 100%;" in shops_search_block
+    assert "max-width: none;" in shops_search_block
+
+    shops_grid_block = _rule_block(listings_css, ".shops-container .shops-grid")
+    assert "display: grid;" in shops_grid_block
+    assert "grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));" in shops_grid_block
+    assert "gap: 18px;" in shops_grid_block
+
+    desktop_products_media = listings_css[listings_css.index("@media (min-width: 768px)"):]
+    assert ".shop-detail-page #productsGrid.products-grid-premium" in desktop_products_media
+    assert "grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));" in desktop_products_media
+    assert ".shop-detail-page #productsGrid.products-grid-premium.d-none" in desktop_products_media
+    assert "display: none !important;" in desktop_products_media
+    assert ".shop-detail-page #productsGrid.products-grid-premium > .col" in desktop_products_media
+    assert "max-width: 100%;" in desktop_products_media
+    assert "margin: 0 !important;" in desktop_products_media
+
+    desktop_sidebar_media = listings_css[listings_css.index("@media (min-width: 992px)"):]
+    assert ".shop-detail-page #shopCatalogPanel" in desktop_sidebar_media
+    assert "flex: 0 0 280px;" in desktop_sidebar_media
+    assert ".shop-detail-page #shopCatalogResults" in desktop_sidebar_media
+    assert "min-width: 0;" in desktop_sidebar_media
+
+    shops_tpl = (ROOT / "app/templates/shop/shops.html").read_text(encoding="utf-8-sig")
+    detail_tpl = (ROOT / "app/templates/shop/shop_detail.html").read_text(encoding="utf-8-sig")
+    assert "css/pages/public_listings_refresh.css" in shops_tpl
+    assert "css/pages/public_listings_refresh.css" in detail_tpl
