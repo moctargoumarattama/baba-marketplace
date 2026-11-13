@@ -236,3 +236,31 @@ def test_vendor_access_form_is_compact_and_mobile_adaptive():
     assert "Creer mon espace vendeur" in template
     assert "Validation admin avant activation." not in template
     assert "Votre demande sera verifiee par un admin/gestionnaire" not in template
+
+
+def test_vendor_comfort_features_are_modern_non_annoying_and_wired():
+    dialog = _read("app/templates/vendor/partials/_product_create_dialog.html")
+    form_page = _read("app/templates/vendor/partials/_form_page.html")
+    modal_partial = _read("app/templates/vendor/partials/_product_create_modal.html")
+    modal_js = _read("app/static/js/vendor/vendor_product_modal.js")
+    modal_css = _read("app/static/css/vendor/vendor_product_modal.css")
+    catalog_partial = _read("app/templates/vendor/partials/_catalog_results.html")
+    catalog_js = _read("app/static/js/pages/vendor/catalog_page.js")
+    dashboard_tpl = _read("app/templates/vendor/dashboard.html")
+    dashboard_js = _read("app/static/js/pages/vendor/dashboard_page.js")
+
+    assert "data-support-url=" in dialog and "data-draft-scope=" in dialog
+    assert "data-support-url=" in form_page and "data-draft-scope=" in form_page
+    assert 'id="vpmDraftBar"' in modal_partial
+    for symbol in ("supportHref", "offerDraftRestore", "data-vpm-cover-existing", "data-vpm-cover-new", "primary_image"):
+        assert symbol in modal_js
+    for selector in (".vpm-error-actions", ".vpm-support-link", ".vpm-draft-bar", ".vpm-cover-pill", ".vpm-cover-btn"):
+        assert selector in modal_css
+    assert "data-catalog-quick-stock" in catalog_partial
+    assert "data-catalog-quick-stock-trigger" in catalog_partial
+    assert "submitQuickStock" in catalog_js
+    assert 'id="vdSetupChecklist"' in dashboard_tpl
+    assert "data-vd-checklist-dismiss" in dashboard_tpl
+    assert "bmVdChecklistDismissed:" in dashboard_js
+    for content in (catalog_partial, catalog_js, dashboard_tpl, dashboard_js):
+        assert "fas fa-" not in content

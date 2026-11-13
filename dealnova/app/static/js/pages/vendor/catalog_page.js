@@ -184,9 +184,138 @@
   category.addEventListener("change", () => { cancelRead(); readCatalogue(formUrl().href, "push"); });
   form.addEventListener("submit", (event) => { event.preventDefault(); cancelRead(); readCatalogue(formUrl().href, "replace"); });
 
+  function updateStockButton(btn, outOfStock, title) {
+    if (!btn) return;
+    btn.classList.toggle("is-restock", outOfStock);
+    btn.classList.toggle("is-out", !outOfStock);
+    if (btn.hasAttribute("title")) {
+      btn.title = outOfStock ? "Remettre rapidement en stock" : "Marquer temporairement en rupture";
+    }
+    btn.setAttribute("aria-label", (outOfStock ? "Remettre " : "Marquer ") + title + (outOfStock ? " en stock" : " en rupture"));
+    const icon = btn.querySelector("i");
+    if (icon) {
+      icon.className = "bi " + (outOfStock ? "bi-arrow-clockwise" : "bi-pause-circle");
+    }
+    const label = btn.querySelector("span");
+    if (label) label.textContent = outOfStock ? "Dispo" : "Rupture";
+  }
+
+  function applyQuickStockUI(card, productData, previousStock) {
+    if (!card || !productData) return;
+    const stock = Number(productData.stock || 0);
+    const outOfStock = stock <= 0;
+    const threshold = Number(productData.low_stock_threshold ?? 5);
+    if (previousStock > 0 && outOfStock) card.dataset.previousStock = String(previousStock);
+    else if (!outOfStock) delete card.dataset.previousStock;
+
+    const offerTitle = card.querySelector(".catalog-card-title")?.textContent.trim() || "cette offre";
+    const stockCell = card.querySelector("[data-catalog-stock-cell]");
+    if (stockCell) {
+      stockCell.classList.toggle("is-empty", outOfStock);
+      stockCell.classList.toggle("is-low", !outOfStock && stock <= threshold);
+      const qtyNode = stockCell.querySelector("[data-catalog-stock-qty]");
+      if (qtyNode) qtyNode.textContent = outOfStock ? "Rupture" : String(stock);
+    }
+    const shortStock = card.querySelector("[data-catalog-stock-short]");
+    if (shortStock) shortStock.textContent = outOfStock ? " · Rupture" : " · Stock : " + String(stock);
+
+    const stockForm = card.querySelector("[data-catalog-quick-stock]");
+    if (stockForm) {
+      stockForm.dataset.stock = String(stock);
+      const modeInput = stockForm.querySelector('input[name="mode"]');
+      if (modeInput) modeInput.value = outOfStock ? "available" : "out";
+      updateStockButton(stockForm.querySelector("button"), outOfStock, offerTitle);
+    }
+    updateStockButton(card.querySelector("[data-catalog-quick-stock-trigger]"), outOfStock, offerTitle);
+
+    const stateBadge = card.querySelector("[data-catalog-state]");
+    const stateLabel = card.querySelector("[data-catalog-state-label]");
+    if (stateBadge) {
+      stateBadge.classList.toggle("is-active", !!productData.is_active);
+      stateBadge.classList.toggle("is-inactive", !productData.is_active);
+    }
+    if (stateLabel) stateLabel.textContent = productData.is_active ? "En ligne" : "À compléter";
+
+    const copyBox = card.querySelector(".catalog-product-copy");
+    let reasonNode = card.querySelector("[data-catalog-block-reason]");
+    const reasons = Array.isArray(productData.block_reasons) ? productData.block_reasons : [];
+    if (!productData.is_active && reasons.length && copyBox) {
+      if (!reasonNode) {
+        reasonNode = document.createElement("p");
+        reasonNode.className = "catalog-block-reason";
+        reasonNode.dataset.catalogBlockReason = "1";
+        copyBox.appendChild(reasonNode);
+      }
+      reasonNode.textContent = reasons.join(", ");
+      reasonNode.hidden = false;
+    } else if (reasonNode) {
+      reasonNode.hidden = true;
+    }
+  }
+
+  async function submitQuickStock(stockForm) {
+    if (!(stockForm instanceof HTMLFormElement) || writing || stockForm.dataset.busy === "1") return;
+    const action = new URL(stockForm.action, location.href);
+    if (action.origin !== location.origin || !/^\/vendor\/product\/\d+\/quick-stock$/.test(action.pathname)) return;
+    const card = stockForm.closest("[data-catalog-card]");
+    const previousStock = Number(stockForm.dataset.stock || 0);
+    const body = new FormData(stockForm);
+    const mode = String(body.get("mode") || "toggle");
+    if (mode === "available" && card?.dataset.previousStock && /^\d+$/.test(card.dataset.previousStock)) {
+      body.set("restore_stock", card.dataset.previousStock);
+    }
+
+    const desktopBtn = stockForm.querySelector("button");
+    const mobileBtn = card?.querySelector("[data-catalog-quick-stock-trigger]");
+    stockForm.dataset.busy = "1";
+    if (desktopBtn) desktopBtn.disabled = true;
+    if (mobileBtn) mobileBtn.disabled = true;
+
+    const active = new AbortController();
+    const timeout = setTimeout(() => active.abort(), 15000);
+    try {
+      const response = await fetch(action, {
+        method: "POST",
+        body,
+        signal: active.signal,
+        credentials: "same-origin",
+        cache: "no-store",
+        headers: { "X-Requested-With": "XMLHttpRequest", Accept: "application/json" },
+      });
+      const data = response.headers.get("content-type")?.includes("application/json") ? await response.json() : null;
+      if (!response.ok || !data?.success || !data.product) {
+        throw new Error(data?.message || "save_failed");
+      }
+      applyQuickStockUI(card, data.product, previousStock);
+      syncSummary(data);
+      const toastMsg = data.message || "Stock mis à jour.";
+      if (window.VendorUI?.toast) window.VendorUI.toast(toastMsg, "success");
+      else if (window.BMCoreUI?.showToast) window.BMCoreUI.showToast(toastMsg, "success");
+      else message(toastMsg, false, false);
+    } catch (err) {
+      const errMsg = err?.message && err.message !== "save_failed" && err.name !== "AbortError"
+        ? err.message
+        : "Impossible de modifier le stock pour le moment. Réessayez.";
+      message(errMsg, true, false);
+    } finally {
+      clearTimeout(timeout);
+      delete stockForm.dataset.busy;
+      if (desktopBtn) desktopBtn.disabled = false;
+      if (mobileBtn) mobileBtn.disabled = false;
+    }
+  }
+
   document.addEventListener("click", (event) => {
     const target = event.target;
     if (!(target instanceof Element)) return;
+    const quickTrigger = target.closest("[data-catalog-quick-stock-trigger]");
+    if (quickTrigger) {
+      event.preventDefault();
+      const card = quickTrigger.closest("[data-catalog-card]");
+      const quickForm = card?.querySelector("[data-catalog-quick-stock]");
+      if (quickForm) submitQuickStock(quickForm);
+      return;
+    }
     if (target.closest("[data-catalog-reset]")) { resetFilters(event); return; }
     const pageLink = target.closest("[data-catalog-page-link]");
     if (pageLink && !pageLink.hasAttribute("aria-disabled") && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey && event.button === 0) {
@@ -206,7 +335,13 @@
   });
   document.addEventListener("submit", (event) => {
     const candidate = event.target;
-    if (!(candidate instanceof HTMLFormElement) || !candidate.matches("[data-catalog-delete]")) return;
+    if (!(candidate instanceof HTMLFormElement)) return;
+    if (candidate.matches("[data-catalog-quick-stock]")) {
+      event.preventDefault();
+      submitQuickStock(candidate);
+      return;
+    }
+    if (!candidate.matches("[data-catalog-delete]")) return;
     if (!window.BMVendorWorkspace || typeof deleteDialog.showModal !== "function") return;
     event.preventDefault();
     if (writing) return;

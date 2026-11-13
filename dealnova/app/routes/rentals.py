@@ -939,7 +939,7 @@ def _owner_location_form(listing_id: int | None = None):
             safe_session_rollback()
             _cleanup_location_files(saved_files)
             current_app.logger.exception("Unexpected error saving listing owner_id=%s", owner_id)
-            return reject("L'enregistrement a échoué. Votre saisie est conservée, réessayez dans quelques instants.", status=500)
+            return reject("L'enregistrement n’a pas pu aboutir pour le moment. Votre saisie est conservée : cliquez sur « Réessayer » ou contactez le support si cela persiste.", status=500)
 
         # Existing files remain usable if validation, uploads or the transaction fail.
         _cleanup_location_files(removed_files)

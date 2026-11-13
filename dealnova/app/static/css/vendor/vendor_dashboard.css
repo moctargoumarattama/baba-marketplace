@@ -360,6 +360,14 @@ shared forms and other vendor pages keep their own styles. */
     overflow-wrap:anywhere;
 }
 
+.bm-vendor-dashboard .vd-shop-feedback a {
+    display:inline-block;
+    margin-left:4px;
+    color:var(--vd-green);
+    font-weight:700;
+    text-decoration:underline;
+}
+
 .bm-vendor-dashboard .vd-shell:not(.vd-enhanced) [data-vd-dialog] {
     display:none;
 }
@@ -772,6 +780,135 @@ shared forms and other vendor pages keep their own styles. */
     background:#fff;
     color:#526b5b;
     font-size:12px;
+}
+
+.bm-vendor-dashboard .vd-setup-card {
+    margin:0 0 18px;
+    padding:14px 16px;
+    border:1px solid var(--vd-border);
+    border-radius:14px;
+    background:#fff;
+}
+
+.bm-vendor-dashboard .vd-setup-card[hidden] {
+    display:none!important;
+}
+
+.bm-vendor-dashboard .vd-setup-card.is-blocker {
+    border-color:#ebd296;
+    background:#fffcf2;
+}
+
+.bm-vendor-dashboard .vd-setup-head {
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    margin-bottom:10px;
+}
+
+.bm-vendor-dashboard .vd-setup-badge {
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    color:var(--vd-green);
+    font-size:11px;
+    font-weight:700;
+    letter-spacing:.1px;
+}
+
+.bm-vendor-dashboard .vd-setup-card.is-blocker .vd-setup-badge {
+    color:#8c5e14;
+}
+
+.bm-vendor-dashboard .vd-setup-dismiss {
+    display:grid;
+    place-items:center;
+    width:32px;
+    height:32px;
+    padding:0;
+    border:0;
+    border-radius:8px;
+    background:transparent;
+    color:var(--vd-muted);
+    cursor:pointer;
+}
+
+.bm-vendor-dashboard .vd-setup-dismiss:hover {
+    background:#eef3ec;
+    color:var(--vd-ink);
+}
+
+.bm-vendor-dashboard .vd-setup-list {
+    display:grid;
+    gap:8px;
+    margin:0;
+    padding:0;
+    list-style:none;
+}
+
+.bm-vendor-dashboard .vd-setup-item {
+    display:flex;
+    align-items:center;
+    gap:11px;
+    padding:9px 12px;
+    border-radius:10px;
+    background:#f7faf6;
+}
+
+.bm-vendor-dashboard .vd-setup-card.is-blocker .vd-setup-item.is-blocker {
+    background:#fff3d6;
+}
+
+.bm-vendor-dashboard .vd-setup-icon {
+    flex:0 0 auto;
+    font-size:16px;
+    color:var(--vd-green);
+}
+
+.bm-vendor-dashboard .vd-setup-item:is(.is-blocker,.is-warning) .vd-setup-icon {
+    color:#9d6a16;
+}
+
+.bm-vendor-dashboard .vd-setup-copy {
+    flex:1 1 auto;
+    min-width:0;
+}
+
+.bm-vendor-dashboard .vd-setup-copy strong {
+    display:block;
+    color:var(--vd-ink);
+    font-size:12px;
+    font-weight:700;
+    line-height:1.35;
+}
+
+.bm-vendor-dashboard .vd-setup-copy p {
+    margin:2px 0 0;
+    color:var(--vd-muted);
+    font-size:11px;
+    line-height:1.4;
+}
+
+.bm-vendor-dashboard .vd-setup-cta {
+    flex:0 0 auto;
+    display:inline-flex;
+    align-items:center;
+    gap:5px;
+    min-height:36px;
+    padding:6px 12px;
+    border:1px solid #cce0d4;
+    border-radius:9px;
+    background:#fff;
+    color:var(--vd-green);
+    font-size:11px;
+    font-weight:700;
+    white-space:nowrap;
+}
+
+.bm-vendor-dashboard .vd-setup-cta:hover {
+    border-color:var(--vd-green);
+    background:#edf6f1;
 }
 
 .bm-vendor-dashboard .vd-bottom-nav {
@@ -1557,6 +1694,14 @@ shared forms and other vendor pages keep their own styles. */
     .bm-vendor-dashboard .today-pager-btn {
         padding-inline:8px;
         font-size:10px;
+    }
+    .bm-vendor-dashboard .vd-setup-item {
+        flex-wrap:wrap;
+        gap:8px;
+    }
+    .bm-vendor-dashboard .vd-setup-cta {
+        min-height:40px;
+        margin-left:auto;
     }
 }
 

@@ -12,6 +12,7 @@
 <form id="vendorCreateForm" class="vpm-form" method="post" action="{{ form_action|default(url_for('vendor.product_new', standalone=1)) }}" enctype="multipart/form-data">
   {% include "partials/_csrf.html" %}
   <div id="vpmFormError" class="vpm-form-error" role="alert" {% if not form_error|default('') %}hidden{% endif %}>{{ form_error|default('') or '' }}</div>
+  <div id="vpmDraftBar" class="vpm-draft-bar" role="status" hidden></div>
   {% if editing and not product.is_active and catalog_block_reasons %}
   <div class="vpm-catalog-warning" role="status">
     <strong>Cette offre est masquée.</strong>

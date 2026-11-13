@@ -268,3 +268,50 @@ def test_incomplete_image_variants_are_removed_without_touching_existing_media(t
     assert {file.name: file.read_bytes() for file in tmp_path.iterdir()} == {
         "previous.webp": b"existing media must stay usable",
     }
+
+
+def test_product_cover_selection_reorders_images_and_rejects_tampered_target(owner_modal):
+    from dealnova.app.models.product import Product
+
+    payload = product_payload(owner_modal)
+    created = owner_modal.client.post(
+        "/vendor/product/new",
+        headers=_headers("product", "create"),
+        data={**payload, "images": [(_image(), "first.png"), (_image(), "second.png")]},
+    )
+    assert created.status_code == 201
+    pid = created.json["product"]["id"]
+
+    with owner_modal.app.app_context():
+        originals = owner_modal.db.session.get(Product, pid).image_file.split("|")
+    assert len(originals) == 2
+
+    promoted_existing = owner_modal.client.post(
+        f"/vendor/product/{pid}/edit",
+        headers=_headers("product"),
+        data={**payload, "primary_image": f"existing:{originals[1]}"},
+    )
+    assert promoted_existing.status_code == 200 and promoted_existing.json["success"] is True
+    with owner_modal.app.app_context():
+        reordered = owner_modal.db.session.get(Product, pid).image_file.split("|")
+    assert reordered == [originals[1], originals[0]]
+    assert all((owner_modal.uploads / name).is_file() for name in originals)
+
+    rejected = owner_modal.client.post(
+        f"/vendor/product/{pid}/edit",
+        headers=_headers("product"),
+        data={**payload, "primary_image": "existing:tampered.webp"},
+    )
+    assert rejected.status_code == 422 and "images" in rejected.json["errors"]
+
+    promoted_new = owner_modal.client.post(
+        f"/vendor/product/{pid}/edit",
+        headers=_headers("product"),
+        data={**payload, "primary_image": "new:0", "images": [(_image(), "third.png")]},
+    )
+    assert promoted_new.status_code == 200 and promoted_new.json["success"] is True
+    with owner_modal.app.app_context():
+        with_new_cover = owner_modal.db.session.get(Product, pid).image_file.split("|")
+    assert len(with_new_cover) == 3
+    assert with_new_cover[0] not in originals
+    assert originals[1] in with_new_cover and originals[0] in with_new_cover

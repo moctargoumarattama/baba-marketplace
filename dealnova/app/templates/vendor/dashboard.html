@@ -14,8 +14,8 @@
 {% block body_attrs %}class="bm-vendor-dashboard"{% endblock %}
 {% block head %}
 {{ super() }}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/vendor_dashboard.css', v=app_static_version ~ '-dashboard-v8-safearea') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/vendor_product_modal.css', v=app_static_version ~ '-forms-v5') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/vendor_dashboard.css', v=app_static_version ~ '-dashboard-v9') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/vendor_product_modal.css', v=app_static_version ~ '-forms-v7') }}">
 {% endblock %}
 {% block content %}
 <div class="vd-shell vendor-daily-dashboard">
@@ -37,6 +37,25 @@
     </section>
     {% endif %}
     {% if featured_shop_notice %}<p class="vd-notice"><i class="bi bi-star" aria-hidden="true"></i>Boutique mise en avant jusqu’au {{ featured_shop_notice.ends_at.strftime('%d/%m/%Y à %H:%M') }}.</p>{% endif %}
+    {% if setup_checklist and setup_checklist['items'] %}
+    <section id="vdSetupChecklist" class="vd-setup-card{% if setup_checklist.has_blocker %} is-blocker{% endif %}" data-vd-checklist data-checklist-sig="{{ setup_checklist.signature }}" data-vendor-id="{{ current_user.id }}"{% if setup_checklist.dismissible %} data-vd-checklist-dismissible="1"{% endif %} aria-label="Vérifications de la boutique">
+      <div class="vd-setup-head">
+        <span class="vd-setup-badge"><i class="bi bi-{{ 'exclamation-triangle' if setup_checklist.has_blocker else 'info-circle' }}" aria-hidden="true"></i>{{ 'Action recommandée' if setup_checklist.has_blocker else 'Pour optimiser vos ventes' }}</span>
+        {% if setup_checklist.dismissible %}<button type="button" class="vd-setup-dismiss" data-vd-checklist-dismiss aria-label="Masquer ce conseil"><i class="bi bi-x-lg" aria-hidden="true"></i></button>{% endif %}
+      </div>
+      <ul class="vd-setup-list">
+        {% for item in setup_checklist['items'] %}
+        <li class="vd-setup-item is-{{ item.level }}">
+          <i class="bi {{ item.icon }} vd-setup-icon" aria-hidden="true"></i>
+          <div class="vd-setup-copy"><strong>{{ item.title }}</strong><p>{{ item.detail }}</p></div>
+          {% if item.action_url and item.action_label %}
+          <a class="vd-setup-cta" href="{{ item.action_url }}"{% if item.modal_create %} data-vendor-product-create data-stop-nav aria-haspopup="dialog" aria-controls="vendorProductDialog"{% endif %}>{{ item.action_label }} <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
     <section class="vd-kpis stats-grid" aria-label="Vue d’ensemble de l’activité">
       {% if allows_products %}
       <div class="vd-kpi stat-card"><span class="vd-kpi-icon" aria-hidden="true"><i class="bi bi-cart3"></i></span><div><div class="vd-kpi-label">Commandes</div><div class="stat-value" id="statOrders">{{ total_orders }}</div><div class="vd-kpi-note">Depuis le début</div></div></div>
@@ -87,9 +106,9 @@
 <dialog id="vendorDashboardNotifications" class="vd-choice-dialog" aria-labelledby="vdNotificationsTitle"><div class="vd-choice-panel"><header class="vd-choice-header"><h2 id="vdNotificationsTitle">Notifications</h2><button type="button" class="vd-icon-button" data-vd-close aria-label="Fermer"><i class="bi bi-x-lg" aria-hidden="true"></i></button></header><div class="vd-notification-options"><p>Recevez les nouvelles commandes et les demandes de rendez-vous.</p><button type="button" class="vd-nav-link vendor-push-status" id="vendorPushStatus"><i class="bi bi-phone" aria-hidden="true"></i><span>Activer les alertes téléphone</span></button><button type="button" class="vd-nav-link sound-toggle" id="soundToggle" title="Activer ou couper le son"><i class="bi bi-volume-up" aria-hidden="true"></i><span>Son des notifications</span></button><div id="vendorSoundPromptMount" class="vendor-sound-prompt-mount" aria-live="polite"></div></div></div></dialog>
 <div class="stock-toast" id="stockToast" role="status"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i><div><strong>Stock faible</strong><p id="stockToastText"></p></div></div>
 <div class="stock-toast order-toast" id="orderToast" role="status"><i class="bi bi-bell" aria-hidden="true"></i><div><strong id="orderToastTitle">Nouvelle commande</strong><p id="orderToastText"></p></div></div>
-<script src="{{ url_for('static', filename='js/pages/vendor/dashboard_layout.js', v=app_static_version ~ '-dashboard-v5') }}" defer></script>
-<script src="{{ url_for('static', filename='js/pages/vendor/dashboard_page.js', v=app_static_version ~ '-dashboard-v5') }}" defer></script>
-{% if allows_catalog or allows_location %}<script src="{{ url_for('static', filename='js/vendor/vendor_product_modal.js', v=app_static_version ~ '-forms-v5') }}" defer></script>{% endif %}
+<script src="{{ url_for('static', filename='js/pages/vendor/dashboard_layout.js', v=app_static_version ~ '-dashboard-v9') }}" defer></script>
+<script src="{{ url_for('static', filename='js/pages/vendor/dashboard_page.js', v=app_static_version ~ '-dashboard-v9') }}" defer></script>
+{% if allows_catalog or allows_location %}<script src="{{ url_for('static', filename='js/vendor/vendor_product_modal.js', v=app_static_version ~ '-forms-v7') }}" defer></script>{% endif %}
 {% endblock %}
 
 

@@ -191,9 +191,12 @@ def guard_product_form_modal():
             401,
         )
     if getattr(current_user, "role", None) != "vendor":
-        role_label = getattr(current_user, "role", "inconnu")
         return _product_form_json(
-            {"success": False, "message": f"Accès réservé aux vendeurs. Votre compte actuel a le rôle '{role_label}'."},
+            {
+                "success": False,
+                "message": "Accès réservé aux comptes vendeurs. Connectez-vous avec votre compte vendeur pour ajouter ou modifier une offre.",
+                "redirect_url": url_for("auth.login", next=url_for("vendor.dashboard")),
+            },
             403,
         )
 
@@ -720,6 +723,113 @@ def _shop_has_required_contact_details(shop: Shop | None) -> bool:
         return True
     return bool((getattr(shop, "contact_phone", "") or "").strip() and (getattr(shop, "address", "") or "").strip())
 
+
+def _low_stock_threshold(settings: PlatformSettings | None = None) -> int:
+    """Safely normalize the configured low stock alert threshold."""
+    cfg = settings or PlatformSettings.get()
+    try:
+        threshold = int(cfg.low_stock_threshold or 5)
+    except (TypeError, ValueError):
+        threshold = 5
+    return max(0, threshold)
+
+
+def _catalog_summary_stats(query) -> dict[str, int]:
+    """Return consistent catalog summary counts across full views and quick actions."""
+    summary_row = query.with_entities(
+        db.func.count(Product.id),
+        db.func.sum(case((Product.is_active.is_(True), 1), else_=0)),
+        db.func.sum(case((Product.kind == "service", 1), else_=0)),
+        db.func.sum(case((Product.kind != "service", 1), else_=0)),
+    ).one()
+    total_products, active_products, service_total, physical_total = (int(value or 0) for value in summary_row)
+    return {
+        "total": total_products,
+        "active": active_products,
+        "inactive": max(0, total_products - active_products),
+        "physical": physical_total,
+        "service": service_total,
+    }
+
+
+def _dashboard_setup_checklist(
+    shop: Shop | None,
+    *,
+    allows_catalog: bool,
+    inactive_count: int,
+    total_offers: int,
+    shop_is_open: bool,
+) -> dict:
+    """Build discreet, actionable readiness reminders only when real gaps exist."""
+    if not shop:
+        return {"items": [], "dismissible": False, "has_blocker": False, "signature": ""}
+    items: list[dict] = []
+    if not shop.is_active:
+        items.append({
+            "key": "shop_inactive",
+            "level": "blocker",
+            "icon": "bi-eye-slash",
+            "title": "Boutique désactivée",
+            "detail": "Votre boutique est actuellement masquée aux clients. Réactivez-la dans Ma boutique → Options avancées, ou contactez le support si le blocage persiste.",
+            "action_label": "Réactiver dans Ma boutique",
+            "action_url": f"{url_for('vendor.manage_shop')}#shopAdvancedOptions",
+        })
+    if _shop_requires_contact_details(shop) and not _shop_has_required_contact_details(shop):
+        missing = []
+        if not (getattr(shop, "contact_phone", "") or "").strip():
+            missing.append("téléphone")
+        if not (getattr(shop, "address", "") or "").strip():
+            missing.append("adresse")
+        missing_label = " et ".join(missing)
+        items.append({
+            "key": "missing_contact",
+            "level": "blocker",
+            "icon": "bi-geo-alt",
+            "title": f"Coordonnées manquantes ({missing_label})",
+            "detail": "Renseignez-les pour pouvoir ajouter ou modifier vos offres sans blocage.",
+            "action_label": "Compléter",
+            "action_url": url_for("vendor.edit_shop"),
+        })
+    if allows_catalog and inactive_count > 0:
+        noun = "offre à compléter" if inactive_count == 1 else "offres à compléter"
+        items.append({
+            "key": f"inactive_{inactive_count}",
+            "level": "warning",
+            "icon": "bi-eye-slash",
+            "title": f"{inactive_count} {noun}",
+            "detail": "Vérifiez et complétez ces fiches pour les remettre en ligne.",
+            "action_label": "Compléter",
+            "action_url": url_for("vendor.catalog", status="inactive"),
+        })
+    if allows_catalog and total_offers == 0 and _shop_has_required_contact_details(shop) and shop.is_active:
+        items.append({
+            "key": "first_offer",
+            "level": "tip",
+            "icon": "bi-plus-circle",
+            "title": "Publiez votre première offre",
+            "detail": "Ajoutez un premier produit ou service pour apparaître dans le catalogue public.",
+            "action_label": "Créer une offre",
+            "action_url": url_for("vendor.product_new", standalone=1),
+            "modal_create": True,
+        })
+    if not shop_is_open and shop.is_active and not items:
+        items.append({
+            "key": "shop_paused",
+            "level": "tip",
+            "icon": "bi-pause-circle",
+            "title": "Boutique actuellement en pause",
+            "detail": "Pensez à rouvrir votre boutique lorsque vous êtes prêt à recevoir des commandes.",
+            "action_label": None,
+            "action_url": None,
+        })
+    has_blocker = any(item["level"] == "blocker" for item in items)
+    return {
+        "items": items,
+        "dismissible": bool(items) and not has_blocker,
+        "has_blocker": has_blocker,
+        "signature": "|".join(item["key"] for item in items),
+    }
+
 # ==================== DASHBOARD & GESTION PRODUITS ====================
 
 @bp.route("/dashboard")
@@ -905,6 +1015,22 @@ def dashboard():
         today_locations_count = 0
 
     shop_is_open = shop_is_currently_open(shop, default_if_missing=True)
+    inactive_offers_count = (
+        _scope_catalog_query(
+            Product.query.filter_by(vendor_id=current_user.id, is_active=False),
+            allows_products,
+            allows_services,
+        ).count()
+        if allows_catalog
+        else 0
+    )
+    setup_checklist = _dashboard_setup_checklist(
+        shop,
+        allows_catalog=allows_catalog,
+        inactive_count=inactive_offers_count,
+        total_offers=total_products,
+        shop_is_open=shop_is_open,
+    )
     return render_template(
         "vendor/dashboard.html",
         products=products,
@@ -920,6 +1046,7 @@ def dashboard():
         total_orders=total_orders,
         total_revenue=total_revenue,
         shop_is_open=shop_is_open,
+        setup_checklist=setup_checklist,
         recent_orders=recent_orders,
         recent_orders_count=recent_orders_pagination["count"],
         recent_orders_pagination=recent_orders_pagination,
@@ -1092,21 +1219,14 @@ def catalog():
     product_promos = _product_promo_snapshot(products)
 
     settings = PlatformSettings.get()
-    try:
-        low_stock_threshold = int(settings.low_stock_threshold or 5)
-    except (TypeError, ValueError):
-        low_stock_threshold = 5
-    if low_stock_threshold < 0:
-        low_stock_threshold = 0
+    low_stock_threshold = _low_stock_threshold(settings)
 
-    summary_row = summary_query.with_entities(
-        db.func.count(Product.id),
-        db.func.sum(case((Product.is_active.is_(True), 1), else_=0)),
-        db.func.sum(case((Product.kind == "service", 1), else_=0)),
-        db.func.sum(case((Product.kind != "service", 1), else_=0)),
-    ).one()
-    total_products, active_products, service_total, physical_total = (int(value or 0) for value in summary_row)
-    inactive_products = max(0, total_products - active_products)
+    summary_stats = _catalog_summary_stats(summary_query)
+    total_products = summary_stats["total"]
+    active_products = summary_stats["active"]
+    inactive_products = summary_stats["inactive"]
+    service_total = summary_stats["service"]
+    physical_total = summary_stats["physical"]
 
     pagination_args = request.args.to_dict(flat=True)
     pagination_args.pop("page", None)
@@ -1470,13 +1590,12 @@ def _product_form(product=None):
         )), status
 
     if not shop:
-        return reject("Votre boutique doit être créée par l’administration avant de pouvoir gérer des offres.", status=403, endpoint="vendor.manage_shop")
+        return reject("Aucune boutique active n’est liée à ce compte. Ouvrez Ma boutique ou contactez le support pour vérifier votre espace.", status=403, endpoint="vendor.manage_shop")
     if not shop_allows_any(shop, "products", "services"):
-        allowed = getattr(shop, "primary_type", "") or "autres"
-        return reject(f"Votre boutique n'est pas autorisée à gérer des produits ou services (type de boutique : {allowed}).", status=403, endpoint="vendor.manage_shop")
+        return reject("Votre boutique n’est pas configurée pour les produits ou services. Contactez le support depuis Ma boutique pour activer cette activité.", status=403, endpoint="vendor.manage_shop")
     if editing and not shop_allows_any(shop, shop_type_from_product_kind(product.kind)):
         expected_kind = "un service" if product.kind == "service" else "un produit physique"
-        return reject(f"Votre boutique n'autorise pas la modification de cette offre ({expected_kind}).", status=403, endpoint="vendor.manage_shop")
+        return reject(f"Votre boutique n’est pas configurée pour modifier {expected_kind}. Contactez le support depuis Ma boutique si vous souhaitez activer cette activité.", status=403, endpoint="vendor.manage_shop")
     if not _shop_has_required_contact_details(shop):
         missing = []
         if not (getattr(shop, "contact_phone", "") or "").strip():
@@ -1509,7 +1628,7 @@ def _product_form(product=None):
         return reject("Choisissez un produit ou un service.", field="kind")
     if not shop_allows_any(shop, shop_type_from_product_kind(kind)):
         kind_label = "des services" if kind == "service" else "des produits physiques"
-        return reject(f"Votre boutique n'est pas autorisée à publier {kind_label}. Modifiez les activités autorisées de votre boutique.", field="kind", status=403)
+        return reject(f"Votre boutique n’est pas configurée pour publier {kind_label}. Choisissez un type d’offre autorisé ou contactez le support depuis Ma boutique.", field="kind", status=403)
     price = (request.form.get("price") or "").strip().replace(",", ".")
     try:
         amount = Decimal(price)
@@ -1549,6 +1668,13 @@ def _product_form(product=None):
     if removed_images.difference(existing_images):
         return reject("Une photo sélectionnée ne correspond plus à cette offre. Rouvrez le formulaire.", field="images")
     kept_images = [name for name in existing_images if name not in removed_images]
+    primary_choice = (request.form.get("primary_image") or "").strip()
+    if primary_choice.startswith("existing:"):
+        target_existing = primary_choice[len("existing:"):].strip()
+        if target_existing not in existing_images:
+            return reject("La photo principale sélectionnée ne correspond plus à cette offre. Rouvrez le formulaire.", field="images")
+    elif primary_choice.startswith("new:") and not primary_choice[len("new:"):].strip().isdigit():
+        return reject("La sélection de photo principale est invalide.", field="images")
     remove_video = request.form.get("delete_video") == "1" or request.form.get("remove_video") == "1"
     files = [f for f in request.files.getlist("images") if f and (f.filename or "").strip()]
     video_files = [f for f in request.files.getlist("video") if f and (f.filename or "").strip()]
@@ -1596,7 +1722,17 @@ def _product_form(product=None):
         set_product_price(product, price)
         product.stock = stock
         product.category_id = category.id
-        product.image_file = "|".join(kept_images + filenames) or None
+        ordered_images = kept_images + filenames
+        if primary_choice.startswith("existing:"):
+            target_existing = primary_choice[len("existing:"):].strip()
+            if target_existing in kept_images:
+                ordered_images = [target_existing] + [name for name in ordered_images if name != target_existing]
+        elif primary_choice.startswith("new:"):
+            idx_val = int(primary_choice[len("new:"):].strip())
+            if 0 <= idx_val < len(filenames):
+                chosen = filenames[idx_val]
+                ordered_images = [chosen] + [name for name in ordered_images if name != chosen]
+        product.image_file = "|".join(ordered_images) or None
         product.video_file = new_video or (None if remove_video else old_video)
         auto_reactivated = bool(editing and not product.is_active and not _catalog_block_reasons(product) and shop.is_active)
         if auto_reactivated:
@@ -1621,22 +1757,22 @@ def _product_form(product=None):
         err_type = exc.__class__.__name__
         err_detail = str(exc).strip()
         if isinstance(exc, (OSError, PermissionError)):
-            cause = "Erreur de stockage serveur : impossible d'enregistrer les médias pour le moment."
+            cause = "Impossible d’enregistrer vos photos ou votre vidéo pour le moment. Réessayez dans quelques instants ou retirez un fichier volumineux ; si cela continue, contactez le support."
         elif "IntegrityError" in err_type:
             if "category_id" in err_detail.lower():
-                cause = "La catégorie sélectionnée n'est plus valide ou n'existe plus."
+                cause = "La catégorie sélectionnée n’est plus disponible. Choisissez une autre catégorie dans la liste puis enregistrez à nouveau."
             elif "shop_id" in err_detail.lower():
-                cause = "La boutique associée est introuvable ou inactive."
+                cause = "Votre boutique est actuellement désactivée ou inaccessible. Vérifiez sa visibilité dans Ma boutique → Options avancées ou contactez le support."
             elif "duplicate" in err_detail.lower() or "unique" in err_detail.lower():
-                cause = "Une offre avec ce nom ou ces références existe déjà."
+                cause = "Une offre avec ce nom ou ces informations existe déjà. Modifiez légèrement le nom ou mettez à jour la fiche depuis votre Catalogue."
             else:
-                cause = "Une information saisie entre en conflit avec une offre existante ou les paramètres de votre boutique."
+                cause = "Certaines informations saisies entrent en conflit avec vos offres ou paramètres actuels. Vérifiez les champs puis réessayez."
         elif "OperationalError" in err_type or "locked" in err_detail.lower():
-            cause = "Le serveur est temporairement occupé. Vos données sont conservées, renvoyez le formulaire."
+            cause = "Le service est temporairement très sollicité. Patientez quelques secondes puis cliquez sur « Réessayer »."
         elif "DataError" in err_type:
-            cause = "Une information saisie dépasse la longueur autorisée ou son format est incompatible."
+            cause = "Une information saisie dépasse la taille ou la valeur autorisée. Raccourcissez le texte ou vérifiez les montants puis réessayez."
         else:
-            cause = "Un incident technique temporaire est survenu lors de l'enregistrement de votre offre."
+            cause = "L’enregistrement n’a pas pu aboutir pour le moment. Cliquez sur « Réessayer » ou contactez le support si le problème persiste."
         return reject(f"{cause} (Votre saisie est conservée)", status=500)
 
     # Commit succeeded. Secondary cleanup/cache/audit errors must never ask for another POST.
@@ -1998,6 +2134,114 @@ def product_delete(pid):
     flash("Produit supprimé définitivement (aucune commande associée).", "success")
     return redirect(url_for("vendor.dashboard"))
 
+
+@bp.route("/product/<int:pid>/quick-stock", methods=["POST"])
+@login_required
+def product_quick_stock(pid):
+    """Toggle a physical product between out-of-stock (0) and available without leaving catalog."""
+    product = Product.query.get_or_404(pid)
+    if current_user.role != "admin" and product.vendor_id != current_user.id:
+        if _is_ajax_request():
+            return jsonify(success=False, message="Vous ne pouvez modifier que le stock des offres de votre boutique. Actualisez votre catalogue ou reconnectez-vous."), 403
+        flash("Vous ne pouvez modifier que le stock des offres de votre boutique.", "warning")
+        return redirect(url_for("vendor.catalog"))
+
+    if product.kind == "service":
+        message = "Le stock ne s’applique pas aux services."
+        if _is_ajax_request():
+            return jsonify(success=False, message=message), 422
+        flash(message, "warning")
+        return redirect(url_for("vendor.catalog"))
+
+    shop = product.shop or Shop.query.filter_by(vendor_id=product.vendor_id).first()
+    if not shop or not shop_allows_any(shop, "products"):
+        message = "Votre boutique n’autorise pas la gestion du stock des produits. Contactez le support depuis Ma boutique si besoin."
+        if _is_ajax_request():
+            return jsonify(success=False, message=message), 403
+        flash(message, "warning")
+        return redirect(url_for("vendor.catalog"))
+
+    mode = (request.form.get("mode") or "toggle").strip().lower()
+    if mode not in ("toggle", "out", "available"):
+        mode = "toggle"
+
+    old_stock = int(product.stock or 0)
+    going_out = (mode == "out") or (mode == "toggle" and old_stock > 0)
+    restore_raw = (request.form.get("restore_stock") or "").strip()
+    try:
+        restore_qty = int(restore_raw) if restore_raw else 1
+    except (TypeError, ValueError):
+        restore_qty = 1
+    if not 1 <= restore_qty <= 999999:
+        restore_qty = 1
+
+    new_stock = 0 if going_out else restore_qty
+    product.stock = new_stock
+    auto_reactivated = bool(
+        not going_out
+        and not product.is_active
+        and not _catalog_block_reasons(product)
+        and shop.is_active
+    )
+    if auto_reactivated:
+        product.is_active = True
+
+    try:
+        db.session.commit()
+    except SQLAlchemyError:
+        safe_session_rollback()
+        current_app.logger.exception("vendor.product_quick_stock.failed product_id=%s", pid)
+        if _is_ajax_request():
+            return jsonify(success=False, message="Impossible de mettre à jour le stock pour le moment. Vérifiez votre connexion et réessayez, ou modifiez l’offre depuis son formulaire."), 500
+        flash("Impossible de mettre à jour le stock pour le moment. Vérifiez votre connexion et réessayez.", "danger")
+        return redirect(url_for("vendor.catalog"))
+
+    bump_catalog_version()
+    try:
+        log_access(
+            "quick_stock_product",
+            "product",
+            product.id,
+            success=True,
+            changes={"old_stock": old_stock, "new_stock": new_stock, "auto_reactivated": auto_reactivated},
+        )
+    except (SQLAlchemyError, ValueError):
+        current_app.logger.exception("vendor.product_quick_stock.audit_log_failed product_id=%s", pid)
+
+    flags = _vendor_type_flags(shop)
+    summary = _catalog_summary_stats(
+        _scope_catalog_query(
+            Product.query.filter(Product.vendor_id == product.vendor_id),
+            flags["allows_products"],
+            flags["allows_services"],
+        )
+    )
+    threshold = _low_stock_threshold()
+    block_reasons = _catalog_block_reasons(product)
+    if going_out:
+        message = "Produit marqué en rupture."
+    elif auto_reactivated:
+        message = f"Stock remis à {new_stock} et offre réactivée."
+    else:
+        message = f"Stock remis à {new_stock}."
+
+    if _is_ajax_request():
+        return jsonify(
+            success=True,
+            message=message,
+            product={
+                "id": product.id,
+                "stock": int(product.stock or 0),
+                "is_active": bool(product.is_active),
+                "block_reasons": block_reasons,
+                "low_stock_threshold": threshold,
+            },
+            summary=summary,
+        )
+
+    flash(message, "success")
+    return redirect(url_for("vendor.catalog"))
+
 # ==================== GESTION BOUTIQUE ====================
 
 MAX_SHOP_LOGO_BYTES = 5 * 1024 * 1024
@@ -2205,7 +2449,7 @@ def edit_shop():
         if new_logo:
             _cleanup_product_media([new_logo], None)
         current_app.logger.exception("vendor.edit_shop.failed shop_id=%s", shop.id)
-        return _shop_form_reject(shop, {"form": "L’enregistrement a échoué. Votre saisie est conservée, réessayez."},
+        return _shop_form_reject(shop, {"form": "L’enregistrement a échoué temporairement. Votre saisie est conservée : vérifiez votre connexion et réessayez, ou contactez le support si cela persiste."},
                                  values=submitted, status=500)
     old_logo = before["logo"]
     if old_logo and old_logo != shop.logo:
@@ -2278,7 +2522,7 @@ def request_locked_shop_change():
     except Exception:
         safe_session_rollback()
         current_app.logger.exception("vendor.request_locked_shop_change.failed shop_id=%s", shop.id)
-        return _shop_form_reject(shop, {"form": "Impossible d’envoyer la demande. Réessayez dans quelques instants."},
+        return _shop_form_reject(shop, {"form": "Impossible d’envoyer votre demande pour le moment. Votre saisie est conservée : réessayez dans quelques instants ou contactez le support sur WhatsApp."},
                                  values=values, change=True, status=500)
     try:
         notify_admin_vendor_change_request(change_request)
@@ -2314,7 +2558,7 @@ def update_service_location():
     except Exception:
         safe_session_rollback()
         current_app.logger.exception("vendor.update_service_location.failed shop_id=%s", shop.id)
-        return _shop_form_reject(shop, {"form": "Impossible d’enregistrer l’adresse. Réessayez."}, status=500)
+        return _shop_form_reject(shop, {"form": "Impossible d’enregistrer l’adresse pour le moment. Vérifiez votre connexion et réessayez."}, status=500)
     _shop_settings_post_commit(shop.id, "update_shop_location", {"fields": list(values)})
     return _shop_settings_success(shop, "L’adresse et la position ont été enregistrées.",
                                   service_latitude=shop.service_latitude, service_longitude=shop.service_longitude,
@@ -2339,7 +2583,7 @@ def toggle_shop_status():
     except Exception:
         safe_session_rollback()
         current_app.logger.exception("vendor.toggle_shop_status.failed shop_id=%s", shop.id)
-        return _shop_form_reject(shop, {"form": "Impossible de modifier la visibilité. Réessayez."}, status=500)
+        return _shop_form_reject(shop, {"form": "Impossible de modifier la visibilité pour le moment. Actualisez la page et réessayez, ou contactez le support si cela persiste."}, status=500)
     _shop_settings_post_commit(shop.id, "toggle_shop", {"is_active": target})
     return _shop_settings_success(shop, "Votre boutique est visible." if target else "Votre boutique est masquée.",
                                   shop_id=shop.id, is_active=target)
@@ -2352,19 +2596,31 @@ def set_shop_open_state():
     shop = Shop.query.filter_by(vendor_id=current_user.id).first()
     if not shop:
         if _is_ajax_request():
-            return jsonify(success=False, message="Boutique non trouvee"), 404
-        flash("Boutique non trouvee", "danger")
+            return jsonify(success=False, message="Boutique introuvable. Ouvrez Ma boutique ou contactez le support."), 404
+        flash("Boutique introuvable. Ouvrez Ma boutique ou contactez le support.", "danger")
         return redirect(request.referrer or url_for("vendor.dashboard"))
 
     state = (request.form.get("state") or "").strip().lower()
     if state not in ("open", "closed"):
         if _is_ajax_request():
-            return jsonify(success=False, message="Etat invalide"), 400
-        flash("Etat invalide.", "warning")
+            return jsonify(success=False, message="Action non reconnue. Actualisez la page puis réessayez."), 400
+        flash("Action non reconnue. Actualisez la page puis réessayez.", "warning")
         return redirect(request.referrer or url_for("vendor.dashboard"))
 
     now = datetime.utcnow()
     if state == "open":
+        if not shop.is_active:
+            manage_url = f"{url_for('vendor.manage_shop')}#shopAdvancedOptions"
+            msg = "Votre boutique est désactivée et masquée aux clients. Réactivez-la d’abord dans Ma boutique → Options avancées."
+            if _is_ajax_request():
+                return jsonify(
+                    success=False,
+                    message=msg,
+                    action_label="Réactiver dans Ma boutique",
+                    action_url=manage_url,
+                ), 409
+            flash(msg, "warning")
+            return redirect(manage_url)
         shop.is_open = True
         shop.closed_until = None
         shop.closed_note = None

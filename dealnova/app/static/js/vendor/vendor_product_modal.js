@@ -59,6 +59,7 @@
   let initialValues = "";
   let photos = [];
   let video = null;
+  let primaryChoice = null;
   let opener = null;
   let confirmOpener = null;
   let scrollSnapshot = null;
@@ -70,6 +71,8 @@
   let restoringHistory = false;
   let closeWhenHistoryRestored = false;
   let disabledControls = [];
+  let draftTimer = 0;
+  const draftMaxAgeMs = 7 * 24 * 60 * 60 * 1000;
   const categoryMemory = { physical: "", service: "" };
   const headers = { "X-Vendor-Modal": createType + "-create", "X-Requested-With": "fetch", Accept: "application/json" };
 
@@ -86,6 +89,181 @@
     }
   }
 
+  function draftKey() {
+    const scope = (dialog.dataset.draftScope || "vendor").replace(/[^a-zA-Z0-9_-]/g, "");
+    return "bmVpmDraft:" + scope + ":" + createType;
+  }
+
+  function readDraft() {
+    try {
+      const raw = window.localStorage.getItem(draftKey());
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object" || parsed.version !== 1 || typeof parsed.fields !== "object") return null;
+      if (!parsed.savedAt || (Date.now() - Number(parsed.savedAt)) > draftMaxAgeMs) {
+        window.localStorage.removeItem(draftKey());
+        return null;
+      }
+      return parsed;
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  function clearDraft() {
+    window.clearTimeout(draftTimer);
+    draftTimer = 0;
+    try { window.localStorage.removeItem(draftKey()); } catch (_error) {}
+  }
+
+  function collectDraftFields() {
+    if (!form || formMode !== "create") return null;
+    const fields = {};
+    let hasContent = false;
+    Array.from(form.elements).forEach((field) => {
+      if (!field.name || field.type === "file" || field.name === "csrf_token" || field.name === "primary_image" || field.disabled) return;
+      if (/^(radio|checkbox)$/.test(field.type) && !field.checked) return;
+      const value = String(field.value || "");
+      fields[field.name] = value;
+      if (["name", "title", "description", "price", "rent", "city", "area", "deposit", "owner_fee", "owner_fee_text"].includes(field.name) && value.trim()) {
+        hasContent = true;
+      }
+      if (field.name === "category_id" && value.trim()) hasContent = true;
+      if (field.name === "stock" && Number(value) > 0) hasContent = true;
+    });
+    if (!hasContent) return null;
+    return {
+      version: 1,
+      savedAt: Date.now(),
+      title: String(fields.name || fields.title || "").trim().slice(0, 60),
+      hadPhotos: photos.length > 0,
+      fields,
+    };
+  }
+
+  function scheduleDraftSave() {
+    if (!form || formMode !== "create") return;
+    window.clearTimeout(draftTimer);
+    draftTimer = window.setTimeout(() => {
+      draftTimer = 0;
+      const payload = collectDraftFields();
+      try {
+        if (payload) window.localStorage.setItem(draftKey(), JSON.stringify(payload));
+        else window.localStorage.removeItem(draftKey());
+      } catch (_error) {}
+    }, 350);
+  }
+
+  function applyDraft(draft) {
+    if (!form || !draft?.fields) return;
+    const fields = draft.fields;
+    if (createType === "product" && fields.kind) {
+      const kindControl = form.querySelector('[name="kind"][value="' + fields.kind + '"]');
+      if (kindControl && !kindControl.disabled && kindControl.type === "radio") {
+        kindControl.checked = true;
+        syncKind(form.dataset.kind);
+      }
+    }
+    if (createType === "location") {
+      if (fields.listing_type) {
+        const lt = form.querySelector('[name="listing_type"][value="' + fields.listing_type + '"]');
+        if (lt && !lt.disabled) lt.checked = true;
+      }
+      if (fields.deposit_required) {
+        const dr = form.elements.namedItem("deposit_required");
+        if (dr) dr.value = fields.deposit_required;
+      }
+      syncLocation();
+    }
+    Object.entries(fields).forEach(([name, value]) => {
+      if (["kind", "listing_type", "deposit_required"].includes(name)) return;
+      const control = form.elements.namedItem(name);
+      if (!control) return;
+      if (control instanceof RadioNodeList) {
+        Array.from(control).forEach((el) => { el.checked = el.value === value; });
+      } else if (control.type !== "file" && control.type !== "hidden") {
+        control.value = value;
+      }
+      clearFieldError(name);
+    });
+    if (createType === "product") {
+      categoryMemory[currentKind()] = form.elements.namedItem("category_id")?.value || "";
+    }
+    if (createType === "location") syncLocation();
+    setStatus("Brouillon restauré." + (draft.hadPhotos ? " Pensez à rajouter vos photos si nécessaire." : ""));
+    form.elements.namedItem(createType === "location" ? "title" : "name")?.focus({ preventScroll: true });
+  }
+
+  function offerDraftRestore() {
+    if (!form || formMode !== "create") return;
+    const errBox = form.querySelector("#vpmFormError");
+    if (errBox && !errBox.hidden) return;
+    const draft = readDraft();
+    if (!draft) return;
+    let bar = form.querySelector("#vpmDraftBar");
+    if (!bar) {
+      bar = document.createElement("div");
+      bar.id = "vpmDraftBar";
+      bar.className = "vpm-draft-bar";
+      bar.setAttribute("role", "status");
+      if (errBox && errBox.parentNode) errBox.after(bar);
+      else form.prepend(bar);
+    }
+    bar.replaceChildren();
+    const copy = document.createElement("div");
+    copy.className = "vpm-draft-copy";
+    const strong = document.createElement("strong");
+    strong.textContent = "Brouillon retrouvé";
+    const detail = document.createElement("span");
+    detail.textContent = (draft.title ? "« " + draft.title + " »" : "Saisie précédente prête à être reprise") + (draft.hadPhotos ? " · photos à resélectionner" : "");
+    copy.append(strong, detail);
+
+    const actions = document.createElement("div");
+    actions.className = "vpm-draft-actions";
+    const restoreBtn = document.createElement("button");
+    restoreBtn.type = "button";
+    restoreBtn.className = "vpm-draft-btn";
+    restoreBtn.dataset.vpmRestoreDraft = "1";
+    restoreBtn.textContent = "Restaurer";
+    restoreBtn.addEventListener("click", () => {
+      applyDraft(draft);
+      bar.hidden = true;
+      bar.replaceChildren();
+    });
+    const dismissBtn = document.createElement("button");
+    dismissBtn.type = "button";
+    dismissBtn.className = "vpm-draft-dismiss";
+    dismissBtn.dataset.vpmIgnoreDraft = "1";
+    dismissBtn.textContent = "Ignorer";
+    dismissBtn.addEventListener("click", () => {
+      clearDraft();
+      bar.hidden = true;
+      bar.replaceChildren();
+    });
+    actions.append(restoreBtn, dismissBtn);
+    bar.append(copy, actions);
+    bar.hidden = false;
+  }
+
+  function supportHref(errorMessage) {
+    const raw = createType === "location" ? (dialog.dataset.locationSupportUrl || dialog.dataset.supportUrl) : dialog.dataset.supportUrl;
+    const base = raw && safeLink(raw);
+    if (!base) return null;
+    try {
+      const target = new URL(base, window.location.href);
+      target.searchParams.set("page", createType === "location" ? "Formulaire location" : "Formulaire produit");
+      target.searchParams.set("source", "modal-error");
+      target.searchParams.set("issue_type", "blocage_publication");
+      const offerName = form?.elements.namedItem(createType === "location" ? "title" : "name")?.value?.trim();
+      if (offerName) target.searchParams.set("item", offerName.slice(0, 120));
+      if (errorMessage) target.searchParams.set("details", String(errorMessage).slice(0, 260));
+      target.searchParams.set("back", window.location.pathname + window.location.search);
+      return target.href;
+    } catch (_error) {
+      return base;
+    }
+  }
+
   function showError(message, redirectUrl) {
     const target = form ? form.querySelector("#vpmFormError") : content;
     if (!target) return;
@@ -95,7 +273,7 @@
     target.appendChild(copy);
 
     const actions = document.createElement("div");
-    actions.className = "d-flex align-items-center gap-2 mt-2 flex-wrap";
+    actions.className = "vpm-error-actions";
 
     if (form) {
       const retryBtn = document.createElement("button");
@@ -119,6 +297,18 @@
       link.className = "vpm-error-link";
       link.textContent = "Ouvrir la page dans un autre onglet";
       actions.appendChild(link);
+    }
+
+    const helpUrl = supportHref(message);
+    if (helpUrl) {
+      const supportLink = document.createElement("a");
+      supportLink.href = helpUrl;
+      supportLink.target = "_blank";
+      supportLink.rel = "noopener";
+      supportLink.className = "vpm-support-link";
+      supportLink.dataset.vpmSupportLink = "1";
+      supportLink.textContent = "Contacter le support";
+      actions.appendChild(supportLink);
     }
 
     if (actions.hasChildNodes()) {
@@ -148,7 +338,7 @@
   }
 
   function isDirty() {
-    return !!form && (signature() !== initialValues || photos.length > 0 || !!video);
+    return !!form && (signature() !== initialValues || photos.length > 0 || !!video || primaryChoice !== null);
   }
 
   function updateViewport() {
@@ -219,6 +409,7 @@
     photos = [];
     if (video) URL.revokeObjectURL(video.url);
     video = null;
+    primaryChoice = null;
   }
 
   function setConfirm(open) {
@@ -334,9 +525,59 @@
     const grid = document.getElementById("vpmImagePreviews");
     grid.querySelectorAll(".vpm-image-preview").forEach((node) => node.remove());
     const add = form.querySelector("[data-vpm-add-images]");
+    const existingNodes = Array.from(form.querySelectorAll(".vpm-existing-image"));
+    const keptExisting = existingNodes.filter((wrap) => {
+      const box = wrap.querySelector('[name="delete_images"]');
+      return box && !box.checked;
+    });
+    const totalVisible = keptExisting.length + photos.length;
+    let activeCover = null;
+    if (primaryChoice?.kind === "existing") {
+      const match = keptExisting.find((wrap) => String(wrap.dataset.vpmExistingImage || wrap.dataset.mediaId || "") === primaryChoice.id);
+      if (match) activeCover = { kind: "existing", id: primaryChoice.id };
+      else primaryChoice = null;
+    } else if (primaryChoice?.kind === "new") {
+      if (photos.length > 0) activeCover = { kind: "new", index: 0 };
+      else primaryChoice = null;
+    }
+    if (!activeCover && totalVisible > 0) {
+      if (keptExisting.length > 0) {
+        activeCover = { kind: "existing", id: String(keptExisting[0].dataset.vpmExistingImage || keptExisting[0].dataset.mediaId || "") };
+      } else {
+        activeCover = { kind: "new", index: 0 };
+      }
+    }
+
+    existingNodes.forEach((wrap) => {
+      wrap.querySelectorAll(".vpm-cover-pill, .vpm-cover-btn").forEach((node) => node.remove());
+      wrap.classList.remove("is-cover");
+      const box = wrap.querySelector('[name="delete_images"]');
+      const removed = !!(box && box.checked);
+      wrap.classList.toggle("is-removed", removed);
+      if (removed || totalVisible === 0) return;
+      const id = String(wrap.dataset.vpmExistingImage || wrap.dataset.mediaId || "");
+      const isCover = activeCover?.kind === "existing" && activeCover.id === id;
+      if (isCover) {
+        wrap.classList.add("is-cover");
+        const pill = document.createElement("span");
+        pill.className = "vpm-cover-pill";
+        pill.textContent = "Principale";
+        wrap.appendChild(pill);
+      } else if (createType === "product" && totalVisible > 1 && id) {
+        const coverBtn = document.createElement("button");
+        coverBtn.type = "button";
+        coverBtn.className = "vpm-cover-btn";
+        coverBtn.dataset.vpmCoverExisting = id;
+        coverBtn.setAttribute("aria-label", "Définir comme photo principale");
+        coverBtn.textContent = "★ Principale";
+        wrap.appendChild(coverBtn);
+      }
+    });
+
     photos.forEach((entry, index) => {
       const tile = document.createElement("div");
-      tile.className = "vpm-image-preview";
+      const isCover = activeCover?.kind === "new" && index === 0;
+      tile.className = "vpm-image-preview" + (isCover ? " is-cover" : "");
       const image = document.createElement("img");
       image.src = entry.url;
       image.alt = entry.file.name;
@@ -346,13 +587,26 @@
       remove.dataset.vpmRemoveImage = String(index);
       remove.setAttribute("aria-label", "Retirer la photo " + (index + 1));
       tile.append(image, remove);
+      if (isCover) {
+        const pill = document.createElement("span");
+        pill.className = "vpm-cover-pill";
+        pill.textContent = "Principale";
+        tile.appendChild(pill);
+      } else if (totalVisible > 1 && (createType === "product" || keptExisting.length === 0)) {
+        const coverBtn = document.createElement("button");
+        coverBtn.type = "button";
+        coverBtn.className = "vpm-cover-btn";
+        coverBtn.dataset.vpmCoverNew = String(index);
+        coverBtn.setAttribute("aria-label", "Définir la photo " + (index + 1) + " comme photo principale");
+        coverBtn.textContent = "★ Principale";
+        tile.appendChild(coverBtn);
+      }
       if (add.parentElement === grid) grid.insertBefore(tile, add);
       else grid.appendChild(tile);
     });
     const count = photos.length + keptImageCount();
     document.getElementById("vpmImageCount").textContent = count + " / " + config.maxImages;
     add.hidden = count >= config.maxImages;
-    form.querySelectorAll('[name="delete_images"]').forEach((field) => field.closest(".vpm-existing-image")?.classList.toggle("is-removed", field.checked));
   }
 
   function keptImageCount() {
@@ -478,6 +732,7 @@
     setStatus("");
     form.querySelector("#vpmImages").value = "";
     renderPhotos();
+    scheduleDraftSave();
     if (message) fieldError("images", message);
   }
 
@@ -510,6 +765,7 @@
     config = Object.assign({ maxImages: 4, maxTotalBytes: createType === "location" ? Infinity : 25 * 1024 * 1024, maxVideoBytes: 30 * 1024 * 1024, maxVideoMB: 30 }, config);
     formMode = config.mode === "edit" ? "edit" : "create";
     createType = config.formType === "location" ? "location" : "product";
+    primaryChoice = null;
     headers["X-Vendor-Modal"] = createType + "-" + formMode;
     dialog.classList.add("vpm-enhanced");
     form.noValidate = true;
@@ -533,18 +789,24 @@
     renderPhotos();
     submitLabel.textContent = saveLabel();
     initialValues = signature();
+    offerDraftRestore();
     form.addEventListener("change", (event) => {
       const field = event.target;
       if (field.name === "kind") syncKind(form.dataset.kind);
       if (createType === "location" && ["listing_type", "deposit_required"].includes(field.name)) syncLocation();
       if (field.id === "vpmImages") addPhotos(field.files);
       if (field.id === "vpmVideo") setVideo(field.files?.[0]);
-      if (field.name === "delete_images") renderPhotos();
+      if (field.name === "delete_images") {
+        if (field.checked && primaryChoice?.kind === "existing" && String(field.value) === primaryChoice.id) primaryChoice = null;
+        renderPhotos();
+      }
       if (field.name === "delete_video") field.closest(".vpm-existing-video")?.classList.toggle("is-removed", field.checked);
+      scheduleDraftSave();
     });
     form.addEventListener("input", (event) => {
       clearFieldError(event.target.name);
       if (createType === "location" && event.target.name === "owner_fee") syncLocation();
+      scheduleDraftSave();
     });
     form.addEventListener("submit", saveOffer);
     submit.disabled = false;
@@ -718,6 +980,10 @@
     body.delete("video");
     photos.forEach((entry) => body.append("images", entry.file, entry.file.name));
     if (video) body.append("video", video.file, video.file.name);
+    if (createType === "product" && primaryChoice) {
+      if (primaryChoice.kind === "existing") body.set("primary_image", "existing:" + primaryChoice.id);
+      else if (primaryChoice.kind === "new" && photos.length > 0) body.set("primary_image", "new:0");
+    }
     if (createType === "product" && currentKind() === "service") body.set("stock", "0");
     const uploadBytes = photos.reduce((sum, entry) => sum + entry.file.size, video?.file.size || 0);
     if (config.maxRequestBytes && uploadBytes + 65536 > config.maxRequestBytes) {
@@ -753,7 +1019,9 @@
       try { data = JSON.parse(xhr.responseText); } catch (_error) { /* Non-JSON includes expired sessions and upload limits. */ }
       if (xhr.status >= 200 && xhr.status < 300 && data?.success && (createType === "location" ? data.listing : data.product)) {
         initialValues = signature();
+        primaryChoice = null;
         confirmedLeave = true;
+        if (formMode === "create") clearDraft();
         if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
           try {
             navigator.serviceWorker.controller.postMessage({ type: "BM_CLEAR_PUBLIC_PAGE_CACHE" });
@@ -771,15 +1039,15 @@
       let message = data?.message;
       if (!message) {
         if (xhr.status === 413) {
-          message = "Les fichiers sont trop volumineux pour le serveur (erreur 413). Vos saisies sont conservées ; réessayez ou retirez une vidéo volumineuse.";
+          message = "Vos photos ou votre vidéo dépassent la taille maximale acceptée. Vos saisies sont conservées : retirez la vidéo ou envoyez moins de photos (max. 4 photos et 15 Mo), puis cliquez sur « Réessayer ».";
         } else if (xhr.status === 403) {
-          message = "Action non autorisée. Vérifiez les autorisations de votre boutique ou reconnectez-vous.";
+          message = "Action refusée pour votre session ou votre boutique. Actualisez votre session ci-dessous, vérifiez votre boutique dans Ma boutique ou reconnectez-vous.";
         } else if (xhr.status === 409) {
-          message = "Informations manquantes sur votre boutique. Renseignez l'adresse et le téléphone de votre boutique pour continuer.";
+          message = "Informations manquantes sur votre boutique. Complétez l’adresse et le téléphone dans Ma boutique puis réessayez.";
         } else if (xhr.status === 500) {
-          message = "Le serveur a rencontré une difficulté technique temporaire. Vos saisies sont conservées, cliquez sur « Réessayer » pour enregistrer.";
+          message = "L’enregistrement n’a pas pu aboutir temporairement. Vos saisies et photos sont conservées : cliquez sur « Réessayer », ou contactez le support si cela persiste.";
         } else {
-          message = "La session ou la connexion a été interrompue (statut " + (xhr.status || "inconnu") + "). Vos saisies sont conservées, cliquez sur « Réessayer ».";
+          message = "Votre session ou la connexion a été interrompue avant la fin de l’envoi. Vos saisies sont conservées : cliquez sur « Réessayer » ou actualisez votre session ci-dessous.";
         }
       }
       showError(message, data?.redirect_url);
@@ -804,17 +1072,17 @@
       if (!finish()) return;
       const isHeavy = uploadBytes > 3 * 1024 * 1024;
       const networkHelp = isHeavy
-        ? "La connexion avec le serveur a été interrompue pendant l'envoi des fichiers. Vos saisies et vos photos sont conservées. Cliquez sur « Réessayer » pour relancer l'enregistrement."
-        : "Échec de connexion réseau au serveur BabaMarket. Vos saisies et vos photos sont conservées. Cliquez sur « Réessayer » pour relancer l'enregistrement.";
+        ? "La connexion avec le serveur a été interrompue pendant l'envoi des fichiers. Vos saisies et vos photos sont conservées : vérifiez votre connexion puis cliquez sur « Réessayer » (ou allégez vos fichiers)."
+        : "Échec de connexion réseau au serveur BabaMarket. Vos saisies et vos photos sont conservées : vérifiez votre connexion Internet puis cliquez sur « Réessayer ».";
       showError(networkHelp, createType === "location" ? "/owner/locations" : "/vendor/catalog");
     };
     xhr.ontimeout = () => {
       if (!finish()) return;
-      showError("Délai de connexion dépassé (timeout). L'envoi a pris trop de temps. Vos données et photos sont conservées, cliquez sur « Réessayer ».", createType === "location" ? "/owner/locations" : "/vendor/catalog");
+      showError("L’envoi a pris trop de temps. Vos saisies et photos sont conservées : vérifiez votre connexion ou réduisez la taille de vos photos/vidéo, puis cliquez sur « Réessayer ».", createType === "location" ? "/owner/locations" : "/vendor/catalog");
     };
     xhr.onabort = () => {
       if (!finish()) return;
-      showError("L'envoi du formulaire a été interrompu. Vos données sont conservées.", createType === "location" ? "/owner/locations" : "/vendor/catalog");
+      showError("L’envoi du formulaire a été interrompu. Vos saisies sont conservées : cliquez sur « Réessayer » pour enregistrer.", createType === "location" ? "/owner/locations" : "/vendor/catalog");
     };
     xhr.send(body);
   }
@@ -839,18 +1107,44 @@
     const target = event.target;
     if (target.closest("[data-vpm-close]")) requestClose();
     else if (target.closest("[data-vpm-keep]")) setConfirm(false);
-    else if (target.closest("[data-vpm-discard]")) { confirmedLeave = true; closeDialog(true); }
+    else if (target.closest("[data-vpm-discard]")) { confirmedLeave = true; if (formMode === "create") clearDraft(); closeDialog(true); }
     else if (target.closest("[data-vpm-retry]")) loadForm();
     else if (target.closest("[data-vpm-refresh-session]")) refreshSession(target.closest("[data-vpm-refresh-session]"));
     else if (target.closest("[data-vpm-add-images]")) form.querySelector("#vpmImages").click();
     else if (target.closest("[data-vpm-add-video]")) form.querySelector("#vpmVideo").click();
     else if (target.closest("[data-vpm-remove-video]")) setVideo(null);
+    else if (target.closest("[data-vpm-cover-existing]")) {
+      const id = String(target.closest("[data-vpm-cover-existing]").dataset.vpmCoverExisting || "");
+      const wrap = Array.from(form.querySelectorAll(".vpm-existing-image")).find((n) => String(n.dataset.vpmExistingImage || n.dataset.mediaId || "") === id);
+      const box = wrap?.querySelector('[name="delete_images"]');
+      if (box) box.checked = false;
+      primaryChoice = id ? { kind: "existing", id } : null;
+      clearFieldError("images");
+      renderPhotos();
+      setStatus("Photo principale définie.");
+    }
+    else if (target.closest("[data-vpm-cover-new]")) {
+      const index = Number(target.closest("[data-vpm-cover-new]").dataset.vpmCoverNew);
+      if (Number.isInteger(index) && index >= 0 && index < photos.length) {
+        if (index > 0) {
+          const picked = photos.splice(index, 1)[0];
+          photos.unshift(picked);
+        }
+        primaryChoice = { kind: "new", index: 0 };
+        clearFieldError("images");
+        renderPhotos();
+        scheduleDraftSave();
+        setStatus("Photo principale définie.");
+      }
+    }
     else if (target.closest("[data-vpm-remove-image]")) {
       const index = Number(target.closest("[data-vpm-remove-image]").dataset.vpmRemoveImage);
       const entry = photos.splice(index, 1)[0];
       if (entry) URL.revokeObjectURL(entry.url);
+      if (index === 0 && primaryChoice?.kind === "new") primaryChoice = null;
       clearFieldError("images");
       renderPhotos();
+      scheduleDraftSave();
       form.querySelector("[data-vpm-add-images]").focus({ preventScroll: true });
     }
     // Backdrop clicks deliberately keep a form open to prevent accidental data loss.

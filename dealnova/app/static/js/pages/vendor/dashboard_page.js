@@ -61,6 +61,25 @@
     }
 
     const VendorUI = window.VendorUI || {};
+    const setupChecklist = document.getElementById('vdSetupChecklist');
+    if (setupChecklist) {
+        const checklistSig = setupChecklist.dataset.checklistSig || '';
+        const checklistDismissBtn = setupChecklist.querySelector('[data-vd-checklist-dismiss]');
+        const checklistDismissKey = 'bmVdChecklistDismissed:' + cfg.vendorId;
+        if (checklistDismissBtn && checklistSig) {
+            try {
+                if (window.localStorage.getItem(checklistDismissKey) === checklistSig) {
+                    setupChecklist.hidden = true;
+                }
+            } catch (_e) {}
+            checklistDismissBtn.addEventListener('click', function() {
+                setupChecklist.hidden = true;
+                try {
+                    window.localStorage.setItem(checklistDismissKey, checklistSig);
+                } catch (_e) {}
+            });
+        }
+    }
     const prefetchApi = window.BMIntentPrefetch || null;
     const perfFlags = window.BM_PERF_FLAGS || {};
     const interactionFeedbackEnabled = perfFlags.interactionFeedback !== false;
@@ -395,7 +414,12 @@
                 });
                 const data = response.headers.get('content-type')?.includes('application/json') ? await response.json() : null;
                 if (!response.ok || !data?.success || typeof data.is_open !== 'boolean') {
-                    throw new Error(data?.message || 'Impossible de modifier l’état de la boutique. Vérifiez votre connexion et votre session.');
+                    const err = new Error(data?.message || 'Impossible de modifier l’état de la boutique. Vérifiez votre connexion et votre session.');
+                    if (typeof data?.action_url === 'string' && data.action_url.startsWith('/')) {
+                        err.actionUrl = data.action_url;
+                        err.actionLabel = String(data.action_label || 'Ouvrir Ma boutique');
+                    }
+                    throw err;
                 }
                 const open = data.is_open;
                 pill.className = 'status-pill ' + (open ? 'open' : 'closed');
@@ -408,9 +432,17 @@
                 input.value = open ? 'closed' : 'open';
                 feedback.textContent = open ? 'Votre boutique est ouverte.' : 'Votre boutique est en pause.';
             } catch (error) {
-                feedback.textContent = error.name === 'AbortError'
+                const msg = error.name === 'AbortError'
                     ? 'La connexion a été interrompue. Actualisez la page pour vérifier l’état de votre boutique.'
-                    : error.message || 'Impossible de modifier l’état de la boutique.';
+                    : error.message || 'Impossible de modifier l’état de la boutique. Vérifiez votre connexion et réessayez.';
+                if (error.actionUrl) {
+                    const link = document.createElement('a');
+                    link.href = error.actionUrl;
+                    link.textContent = error.actionLabel || 'Ma boutique';
+                    feedback.replaceChildren(document.createTextNode(msg + ' '), link);
+                } else {
+                    feedback.textContent = msg;
+                }
             } finally {
                 window.clearTimeout(timeout);
                 saving = false;

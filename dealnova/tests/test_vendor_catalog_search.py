@@ -268,3 +268,84 @@ def test_catalogue_requires_vendor_access(catalog, role):
     response = catalog.client.get("/vendor/catalog", headers=PARTIAL_HEADERS)
     assert response.status_code in (302, 303)
     assert not response.is_json
+
+
+def _catalog_csrf(fixture):
+    import re
+    page = fixture.client.get("/vendor/catalog").get_data(as_text=True)
+    match = re.search(r'<meta name="csrf-token" content="([^"]+)"', page)
+    assert match, "Catalog page must expose a CSRF meta token"
+    return match.group(1)
+
+
+def test_quick_stock_toggle_updates_stock_status_and_summary(catalog):
+    from dealnova.app.models.product import Product
+
+    csrf = _catalog_csrf(catalog)
+    ajax_headers = {"X-Requested-With": "XMLHttpRequest", "Accept": "application/json"}
+    with catalog.app.app_context():
+        target = catalog.db.session.get(Product, catalog.target.coffee)
+        saved_state = (target.stock, target.is_active)
+
+    try:
+        out_resp = catalog.client.post(
+            f"/vendor/product/{catalog.target.coffee}/quick-stock",
+            data={"csrf_token": csrf, "mode": "out"},
+            headers=ajax_headers,
+        )
+        assert out_resp.status_code == 200 and out_resp.json["success"] is True
+        assert out_resp.json["product"]["stock"] == 0
+        assert out_resp.json["summary"]["total"] == 30
+
+        restore_resp = catalog.client.post(
+            f"/vendor/product/{catalog.target.coffee}/quick-stock",
+            data={"csrf_token": csrf, "mode": "available", "restore_stock": "4"},
+            headers=ajax_headers,
+        )
+        assert restore_resp.status_code == 200 and restore_resp.json["product"]["stock"] == 4
+
+        with catalog.app.app_context():
+            target = catalog.db.session.get(Product, catalog.target.coffee)
+            target.stock = 0
+            target.is_active = False
+            catalog.db.session.commit()
+
+        reactivate_resp = catalog.client.post(
+            f"/vendor/product/{catalog.target.coffee}/quick-stock",
+            data={"csrf_token": csrf, "mode": "available"},
+            headers=ajax_headers,
+        )
+        assert reactivate_resp.status_code == 200
+        assert reactivate_resp.json["product"]["stock"] == 1
+        assert reactivate_resp.json["product"]["is_active"] is True
+    finally:
+        with catalog.app.app_context():
+            target = catalog.db.session.get(Product, catalog.target.coffee)
+            target.stock, target.is_active = saved_state
+            catalog.db.session.commit()
+
+
+def test_quick_stock_enforces_ownership_kind_and_csrf(catalog):
+    csrf = _catalog_csrf(catalog)
+    ajax_headers = {"X-Requested-With": "XMLHttpRequest", "Accept": "application/json"}
+
+    bad_csrf = catalog.client.post(
+        f"/vendor/product/{catalog.target.coffee}/quick-stock",
+        data={"csrf_token": "expired", "mode": "out"},
+        headers=ajax_headers,
+    )
+    assert bad_csrf.status_code == 400 and bad_csrf.json.get("error") == "csrf"
+
+    service_resp = catalog.client.post(
+        f"/vendor/product/{catalog.target.service}/quick-stock",
+        data={"csrf_token": csrf, "mode": "toggle"},
+        headers=ajax_headers,
+    )
+    assert service_resp.status_code == 422 and service_resp.json["success"] is False
+
+    foreign_resp = catalog.client.post(
+        f"/vendor/product/{catalog.target.foreign}/quick-stock",
+        data={"csrf_token": csrf, "mode": "out"},
+        headers=ajax_headers,
+    )
+    assert foreign_resp.status_code == 403 and foreign_resp.json["success"] is False

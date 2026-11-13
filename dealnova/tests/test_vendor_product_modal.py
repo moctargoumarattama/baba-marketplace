@@ -271,3 +271,56 @@ def test_secondary_cache_failure_does_not_report_false_creation_failure(vendor_m
     assert response.status_code == 201
     assert response.json["success"] is True
     assert _products(vendor_modal) == 1
+
+
+def test_dashboard_setup_checklist_only_renders_for_real_gaps_or_blockers(vendor_modal):
+    from dealnova.app.models.shop import Shop
+
+    empty_dash = vendor_modal.client.get("/vendor/dashboard")
+    empty_html = empty_dash.get_data(as_text=True)
+    assert 'id="vdSetupChecklist"' in empty_html
+    assert 'data-vd-checklist-dismissible="1"' in empty_html
+
+    assert _post(vendor_modal).status_code == 201
+    ready_dash = vendor_modal.client.get("/vendor/dashboard")
+    ready_html = ready_dash.get_data(as_text=True)
+    assert 'id="vdSetupChecklist"' not in ready_html
+
+    with vendor_modal.app.app_context():
+        shop = vendor_modal.db.session.get(Shop, vendor_modal.ids.shop)
+        shop.contact_phone = ""
+        vendor_modal.db.session.commit()
+    blocker_dash = vendor_modal.client.get("/vendor/dashboard")
+    blocker_html = blocker_dash.get_data(as_text=True)
+    assert 'id="vdSetupChecklist"' in blocker_html
+    assert "is-blocker" in blocker_html
+    assert 'data-vd-checklist-dismissible="1"' not in blocker_html
+    assert "/vendor/shop/edit" in blocker_html
+
+
+def test_inactive_shop_guides_vendor_to_reactivate_instead_of_false_pending_or_open(vendor_modal):
+    from dealnova.app.models.shop import Shop
+
+    with vendor_modal.app.app_context():
+        shop = vendor_modal.db.session.get(Shop, vendor_modal.ids.shop)
+        shop.is_active = False
+        shop.is_open = False
+        vendor_modal.db.session.commit()
+
+    dash_html = vendor_modal.client.get("/vendor/dashboard").get_data(as_text=True)
+    assert "Boutique désactivée" in dash_html
+    assert "Boutique en attente d’activation" not in dash_html
+    assert "/vendor/shop/manage#shopAdvancedOptions" in dash_html
+
+    manage_html = vendor_modal.client.get("/vendor/shop/manage").get_data(as_text=True)
+    assert 'id="shopAdvancedOptions" open' in manage_html
+
+    reopen_resp = vendor_modal.client.post(
+        "/vendor/shop/set-open",
+        data={"csrf_token": vendor_modal.csrf, "state": "open"},
+        headers={"X-Requested-With": "XMLHttpRequest", "Accept": "application/json"},
+    )
+    assert reopen_resp.status_code == 409
+    assert reopen_resp.is_json and reopen_resp.json["success"] is False
+    assert reopen_resp.json["action_url"].endswith("/vendor/shop/manage#shopAdvancedOptions")
+    assert "Ma boutique" in reopen_resp.json["message"]
