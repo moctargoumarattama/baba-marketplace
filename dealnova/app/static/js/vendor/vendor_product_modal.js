@@ -914,7 +914,7 @@
   function setBusy(active) {
     busy = active;
     if (active) {
-      disabledControls = Array.from(form.querySelectorAll("input, select, textarea, button")).map((node) => [node, node.disabled]);
+      disabledControls = Array.from(form.querySelectorAll("input:not([type='hidden']), select, textarea, button")).map((node) => [node, node.disabled]);
       disabledControls.forEach(([node]) => { node.disabled = true; });
     } else {
       disabledControls.forEach(([node, disabled]) => { node.disabled = disabled; });
@@ -990,6 +990,9 @@
     if (busy || !validateForm()) return;
     if (navigator.onLine === false) { showError("Vous êtes hors ligne. Vos saisies et photos sont conservées ; reconnectez-vous pour enregistrer."); return; }
 
+    // Capture FormData BEFORE setBusy(true), otherwise disabling inputs strips every field (including csrf_token).
+    const body = new FormData(form);
+    const isServiceOffer = createType === "product" && currentKind() === "service";
     setBusy(true);
     setStatus("Préparation des fichiers…");
     for (let i = 0; i < photos.length; i++) {
@@ -1005,7 +1008,6 @@
       }
     }
 
-    const body = new FormData(form);
     body.delete("images");
     body.delete("video");
     photos.forEach((entry) => body.append("images", entry.file, entry.file.name));
@@ -1014,7 +1016,7 @@
       if (primaryChoice.kind === "existing") body.set("primary_image", "existing:" + primaryChoice.id);
       else if (primaryChoice.kind === "new" && photos.length > 0) body.set("primary_image", "new:0");
     }
-    if (createType === "product" && currentKind() === "service") body.set("stock", "0");
+    if (isServiceOffer) body.set("stock", "0");
     const uploadBytes = photos.reduce((sum, entry) => sum + entry.file.size, video?.file.size || 0);
     if (config.maxRequestBytes && uploadBytes + 65536 > config.maxRequestBytes) {
       setBusy(false);
@@ -1047,8 +1049,14 @@
       xhr.timeout = 180000;
       headers["X-Vendor-Modal"] = createType + "-" + formMode;
       Object.entries(headers).forEach(([key, value]) => xhr.setRequestHeader(key, value));
-      const token = body.get("csrf_token");
-      if (token) xhr.setRequestHeader("X-CSRFToken", token);
+      const token = body.get("csrf_token")
+        || currentForm.elements.namedItem("csrf_token")?.value
+        || document.querySelector('meta[name="csrf-token"]')?.content
+        || "";
+      if (token) {
+        if (!body.get("csrf_token")) body.set("csrf_token", token);
+        xhr.setRequestHeader("X-CSRFToken", token);
+      }
       xhr.upload.onprogress = (ev) => {
         if (!ev.lengthComputable) return;
         const percent = Math.min(100, Math.round(ev.loaded * 100 / ev.total));

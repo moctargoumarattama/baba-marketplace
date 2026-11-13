@@ -394,6 +394,9 @@ def test_modal_js_includes_silent_csrf_retry_and_cache_bust_version(vendor_modal
     js_text = (root / "static" / "js" / "vendor" / "vendor_product_modal.js").read_text(encoding="utf-8")
     for token in ("fetchFreshCsrfToken", "transmitOffer", "syncCsrfToken", "diagnosticSuffix", "isLoginRedirect"):
         assert token in js_text
+    assert "input:not([type='hidden'])" in js_text
+    save_fn = js_text[js_text.index("async function saveOffer"):]
+    assert save_fn.index("const body = new FormData(form);") < save_fn.index("    setBusy(true);")
     for rel in (
         "templates/vendor/dashboard.html",
         "templates/vendor/catalog.html",
@@ -401,5 +404,5 @@ def test_modal_js_includes_silent_csrf_retry_and_cache_bust_version(vendor_modal
         "templates/vendor/partials/_form_page.html",
     ):
         tpl = (root / rel).read_text(encoding="utf-8")
-        assert "-forms-v8" in tpl
-        assert "-forms-v7" not in tpl
+        assert "-forms-v9" in tpl
+        assert "-forms-v8" not in tpl

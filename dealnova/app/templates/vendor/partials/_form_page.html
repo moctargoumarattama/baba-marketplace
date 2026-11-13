@@ -2,7 +2,7 @@
 {% block title %}{{ form_title }} | {{ config.SITE_NAME|trim }}{% endblock %}
 {% block head %}
 {{ super() }}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/vendor_product_modal.css', v=app_static_version ~ '-forms-v8') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/vendor_product_modal.css', v=app_static_version ~ '-forms-v9') }}">
 {% endblock %}
 {% block content %}
 <section id="vendorFormPage" class="vpm-dialog vpm-page" data-default-type="{{ 'location' if 'locations/' in form_partial else 'product' }}" data-support-url="{{ url_for('rentals.owner_support_whatsapp') if 'locations/' in form_partial else url_for('vendor.support_whatsapp') }}" data-draft-scope="{{ current_user.id if current_user and current_user.is_authenticated else 'anon' }}" data-back-url="{{ form_back_url }}">
@@ -14,5 +14,5 @@
 {% endblock %}
 {% block scripts %}
 {{ super() }}
-<script src="{{ url_for('static', filename='js/vendor/vendor_product_modal.js', v=app_static_version ~ '-forms-v8') }}" defer></script>
+<script src="{{ url_for('static', filename='js/vendor/vendor_product_modal.js', v=app_static_version ~ '-forms-v9') }}" defer></script>
 {% endblock %}

@@ -15,7 +15,7 @@
 {% block head %}
 {{ super() }}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/vendor_dashboard.css', v=app_static_version ~ '-dashboard-v9') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/vendor_product_modal.css', v=app_static_version ~ '-forms-v8') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/vendor_product_modal.css', v=app_static_version ~ '-forms-v9') }}">
 {% endblock %}
 {% block content %}
 <div class="vd-shell vendor-daily-dashboard">
@@ -108,7 +108,7 @@
 <div class="stock-toast order-toast" id="orderToast" role="status"><i class="bi bi-bell" aria-hidden="true"></i><div><strong id="orderToastTitle">Nouvelle commande</strong><p id="orderToastText"></p></div></div>
 <script src="{{ url_for('static', filename='js/pages/vendor/dashboard_layout.js', v=app_static_version ~ '-dashboard-v9') }}" defer></script>
 <script src="{{ url_for('static', filename='js/pages/vendor/dashboard_page.js', v=app_static_version ~ '-dashboard-v9') }}" defer></script>
-{% if allows_catalog or allows_location %}<script src="{{ url_for('static', filename='js/vendor/vendor_product_modal.js', v=app_static_version ~ '-forms-v8') }}" defer></script>{% endif %}
+{% if allows_catalog or allows_location %}<script src="{{ url_for('static', filename='js/vendor/vendor_product_modal.js', v=app_static_version ~ '-forms-v9') }}" defer></script>{% endif %}
 {% endblock %}
 
 

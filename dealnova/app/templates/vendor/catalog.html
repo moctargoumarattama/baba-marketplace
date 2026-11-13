@@ -6,7 +6,7 @@
 {{ super() }}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/vendor_dashboard.css', v=app_static_version ~ '-dashboard-v9') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/vendor_catalog.css', v=app_static_version ~ '-catalog-v2') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/vendor_product_modal.css', v=app_static_version ~ '-forms-v8') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/vendor_product_modal.css', v=app_static_version ~ '-forms-v9') }}">
 {% endblock %}
 {% block content %}
 <div class="vd-shell vendor-catalog-page">
@@ -62,5 +62,5 @@
 {% include 'vendor/partials/_product_create_dialog.html' %}
 <script src="{{ url_for('static', filename='js/pages/vendor/dashboard_layout.js', v=app_static_version ~ '-dashboard-v9') }}" defer></script>
 <script src="{{ url_for('static', filename='js/pages/vendor/catalog_page.js', v=app_static_version ~ '-catalog-v2') }}" defer></script>
-<script src="{{ url_for('static', filename='js/vendor/vendor_product_modal.js', v=app_static_version ~ '-forms-v8') }}" defer></script>
+<script src="{{ url_for('static', filename='js/vendor/vendor_product_modal.js', v=app_static_version ~ '-forms-v9') }}" defer></script>
 {% endblock %}
