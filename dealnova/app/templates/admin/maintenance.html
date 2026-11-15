@@ -18,19 +18,6 @@
     --monitor-hero-b: #0b5f7f;
     --monitor-hero-c: #1e3a8a;
   }
-  .maintenance-wrap[data-theme="noc"] {
-    --monitor-bg: #0b1220;
-    --monitor-card: #111b2d;
-    --monitor-border: #23344f;
-    --monitor-muted: #9fb1cc;
-    --monitor-text: #e2e8f0;
-    --monitor-primary: #22d3ee;
-    --monitor-primary-soft: #0f2b40;
-    --monitor-danger: #f87171;
-    --monitor-hero-a: #061326;
-    --monitor-hero-b: #0c1b33;
-    --monitor-hero-c: #123b5a;
-  }
   .maintenance-wrap { display: grid; gap: 1rem; background: var(--monitor-bg); padding: .35rem; border-radius: 18px; }
   .monitor-hero {
     background: linear-gradient(140deg, var(--monitor-hero-a) 0%, var(--monitor-hero-b) 55%, var(--monitor-hero-c) 100%);
@@ -106,13 +93,6 @@
     font-size: 0.8rem;
     font-weight: 600;
   }
-  .maintenance-wrap[data-theme="noc"] .maintenance-badge {
-    background: rgba(56, 189, 248, 0.16);
-    border-color: rgba(103, 232, 249, 0.35);
-  }
-  .maintenance-wrap[data-theme="noc"] .maintenance-badge .next-time {
-    color: #7dd3fc;
-  }
   /* ============================================== */
   
   .card-shell {
@@ -121,23 +101,6 @@
     border-radius: 16px;
     padding: 1rem;
     box-shadow: 0 10px 22px rgba(15, 23, 42, .07);
-  }
-  .theme-toggle {
-    border: 1px solid rgba(226, 232, 240, .35);
-    background: rgba(15, 23, 42, .24);
-    color: #f8fafc;
-    border-radius: 999px;
-    font-weight: 700;
-    font-size: .8rem;
-    padding: .35rem .75rem;
-    display: inline-flex;
-    align-items: center;
-    gap: .35rem;
-    cursor: pointer;
-  }
-  .maintenance-wrap[data-theme="noc"] .theme-toggle {
-    background: rgba(56, 189, 248, .16);
-    border-color: rgba(103, 232, 249, .35);
   }
   .report-top {
     border: 1px solid rgba(15, 118, 110, .28);
@@ -304,19 +267,6 @@
   .maintenance-tab-panel.is-active {
     display: grid;
   }
-  .maintenance-wrap[data-theme="noc"] .maintenance-tabs {
-    background: rgba(15, 26, 45, .9);
-  }
-  .maintenance-wrap[data-theme="noc"] .maintenance-tab {
-    background: #0b1424;
-    border-color: var(--monitor-border);
-    color: #c8d6ea;
-  }
-  .maintenance-wrap[data-theme="noc"] .maintenance-tab.is-active {
-    background: #0891b2;
-    border-color: #67e8f9;
-    color: #ecfeff;
-  }
   .action-box {
     border: 1px solid #e2e8f0;
     border-radius: 14px;
@@ -362,49 +312,6 @@
     border-radius: 12px;
     padding: .75rem;
     background: #fff7f7;
-  }
-  .maintenance-wrap[data-theme="noc"] .restore-box {
-    background: #24131a;
-    border-color: rgba(248, 113, 113, .38);
-  }
-  .maintenance-wrap[data-theme="noc"] .report-item {
-    border-color: var(--monitor-border);
-    background: #0f1a2d;
-  }
-  .maintenance-wrap[data-theme="noc"] .health-item,
-  .maintenance-wrap[data-theme="noc"] .action-box {
-    border-color: var(--monitor-border);
-    background: #0f1a2d;
-  }
-  .maintenance-wrap[data-theme="noc"] .monitor-table thead th {
-    background: #17253c;
-    color: #c8d6ea;
-  }
-  .maintenance-wrap[data-theme="noc"] .monitor-table td {
-    color: #e2e8f0;
-    border-color: var(--monitor-border);
-  }
-  .maintenance-wrap[data-theme="noc"] .form-control,
-  .maintenance-wrap[data-theme="noc"] .form-select,
-  .maintenance-wrap[data-theme="noc"] textarea {
-    background: #0b1424;
-    border-color: var(--monitor-border);
-    color: #dbe7f8;
-  }
-  .maintenance-wrap[data-theme="noc"] .form-control::placeholder,
-  .maintenance-wrap[data-theme="noc"] textarea::placeholder {
-    color: #8ea5c6;
-  }
-  .maintenance-wrap[data-theme="noc"] .btn-outline-primary,
-  .maintenance-wrap[data-theme="noc"] .btn-outline-secondary,
-  .maintenance-wrap[data-theme="noc"] .btn-outline-success,
-  .maintenance-wrap[data-theme="noc"] .btn-outline-danger {
-    border-color: #35537d;
-    color: #c8d9f2;
-  }
-  .maintenance-wrap[data-theme="noc"] .sparkline {
-    background: #1d2c43;
-    border-color: #27415f;
   }
   .report-item strong {
     display: block;
@@ -453,11 +360,6 @@
   .freshness-command code {
     color: inherit;
     font-size: .76rem;
-  }
-  .maintenance-wrap[data-theme="noc"] .freshness-command {
-    background: #0f1a2d;
-    border-color: var(--monitor-border);
-    color: #dbe7f8;
   }
   @media (max-width: 991.98px) {
     .monitor-hero-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -523,9 +425,6 @@
           <span class="next-time">{{ next_maintenance_time }}</span>
           <span class="countdown" id="maintenanceCountdown">(dans {{ next_maintenance_in }})</span>
         </div>
-        <button type="button" class="theme-toggle" id="maintenanceThemeToggle">
-          <i class="bi bi-moon-stars"></i> Theme NOC
-        </button>
       </div>
     </div>
     <p>Centre de supervision maintenance, trafic live, erreurs et operations critiques.</p>
@@ -1126,102 +1025,160 @@
   <section class="card-shell">
     <div class="section-head">
       <div>
-        <h5 class="section-title"><i class="bi bi-clock-history"></i> Historique nettoyage</h5>
-        <p class="section-sub">Derniers nettoyages rapide/complet et indicateurs d'erreurs.</p>
+        <h5 class="section-title"><i class="bi bi-clock-history"></i> Journal d'audit &amp; suppressions</h5>
+        <p class="section-sub">Actions d'administration, connexions et archives de suppression.</p>
       </div>
-      {% if report %}
-        <a class="btn btn-sm btn-outline-primary" href="#last-report">Voir dernier rapport</a>
-      {% else %}
-        <button class="btn btn-sm btn-outline-secondary" type="button" disabled>Voir dernier rapport</button>
-      {% endif %}
-    </div>
-    <div class="report-list">
-      <div class="report-item">
-        <strong>Dernier nettoyage rapide</strong>
-        <span>
-          {% if last_quick_run %}
-            {{ (last_quick_run.finished_at or last_quick_run.started_at).strftime('%d/%m/%Y %H:%M:%S') if (last_quick_run.finished_at or last_quick_run.started_at) else 'Non disponible' }}
-          {% else %}
-            Non disponible
-          {% endif %}
-        </span>
-        <div class="small text-muted mt-1">Duree: {{ last_quick_run.duration_ms if last_quick_run and last_quick_run.duration_ms is not none else 'Non disponible' }} ms</div>
-      </div>
-      <div class="report-item">
-        <strong>Dernier nettoyage complet</strong>
-        <span>
-          {% if last_full_run %}
-            {{ (last_full_run.finished_at or last_full_run.started_at).strftime('%d/%m/%Y %H:%M:%S') if (last_full_run.finished_at or last_full_run.started_at) else 'Non disponible' }}
-          {% else %}
-            Jamais execute
-          {% endif %}
-        </span>
-        <div class="small text-muted mt-1">Duree: {{ (last_full_run.duration_ms ~ ' ms') if last_full_run and last_full_run.duration_ms is not none else '-' }}</div>
-      </div>
-      <div class="report-item">
-        <strong>Erreurs dernier run</strong>
-        <span>{{ last_run.error_count if last_run else 'Non disponible' }}</span>
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <span class="status-pill status-ok">{{ audit_total_logs or 0 }} total</span>
+        <span class="status-pill status-na">{{ audit_logs_7d or 0 }} sur 7j</span>
+        <span class="status-pill {{ 'status-warn' if (deletion_snapshots_count or 0) > 0 else 'status-na' }}">{{ deletion_snapshots_count or 0 }} suppressions</span>
       </div>
     </div>
-  </section>
 
-  <section class="card-shell">
-    <div class="section-head">
-      <div>
-        <h5 class="section-title"><i class="bi bi-terminal"></i> Actions maintenance</h5>
-        <p class="section-sub">Execution HTTP bloquee, commandes CLI recommandees.</p>
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+      <div class="d-flex flex-wrap gap-2">
+        <a href="{{ url_for('admin.maintenance', days=days, tab='logs') }}#maintenance-logs"
+           class="btn btn-sm {{ 'btn-primary' if not audit_current_action and not audit_current_entity and not audit_current_user else 'btn-outline-secondary' }}">
+          Tout
+        </a>
+        <a href="{{ url_for('admin.maintenance', days=days, tab='logs', audit_action='deletion_snapshot') }}#maintenance-logs"
+           class="btn btn-sm {{ 'btn-danger' if audit_current_action == 'deletion_snapshot' else 'btn-outline-danger' }}">
+          <i class="bi bi-trash3"></i> Suppressions ({{ deletion_snapshots_count or 0 }})
+        </a>
+        <a href="{{ url_for('admin.maintenance', days=days, tab='logs', audit_entity='subscription') }}#maintenance-logs"
+           class="btn btn-sm {{ 'btn-primary' if audit_current_entity == 'subscription' else 'btn-outline-secondary' }}">
+          Abonnements
+        </a>
       </div>
+
+      <form method="get" action="{{ url_for('admin.maintenance') }}#maintenance-logs" class="d-flex flex-wrap align-items-center gap-2">
+        <input type="hidden" name="days" value="{{ days }}">
+        <input type="hidden" name="tab" value="logs">
+        <select name="audit_action" class="form-select form-select-sm" style="width: auto; min-width: 150px;" aria-label="Filtrer par action">
+          <option value="">Toutes les actions</option>
+          {% for action in audit_actions %}
+            <option value="{{ action }}" {% if audit_current_action == action %}selected{% endif %}>{{ action }}</option>
+          {% endfor %}
+        </select>
+        <select name="audit_entity" class="form-select form-select-sm" style="width: auto; min-width: 140px;" aria-label="Filtrer par entite">
+          <option value="">Toutes les entités</option>
+          {% for entity in audit_entities %}
+            <option value="{{ entity }}" {% if audit_current_entity == entity %}selected{% endif %}>{{ entity }}</option>
+          {% endfor %}
+        </select>
+        <select name="audit_user" class="form-select form-select-sm" style="width: auto; min-width: 150px;" aria-label="Filtrer par utilisateur">
+          <option value="">Tous les utilisateurs</option>
+          {% for user_id, username in audit_users %}
+            <option value="{{ user_id }}" {% if audit_current_user == user_id %}selected{% endif %}>{{ username }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-sm btn-outline-primary">Filtrer</button>
+        {% if audit_current_action or audit_current_entity or audit_current_user %}
+          <a href="{{ url_for('admin.maintenance', days=days, tab='logs') }}#maintenance-logs" class="btn btn-sm btn-outline-secondary">Réinitialiser</a>
+        {% endif %}
+      </form>
     </div>
-    <div class="actions-grid">
-      <article class="action-box">
-        <h6>Nettoyage rapide (CLI)</h6>
-        <p>Execution hors HTTP uniquement. Cette commande enregistre aussi un rapport persistant.</p>
-        <div class="report-item"><strong>Commande</strong><span><code>flask cleanup --mode quick --days {{ days }}</code></span></div>
-        <form method="post" action="{{ url_for('admin.run_maintenance', mode='quick') }}" class="mt-2">
-          {% include "partials/_csrf.html" %}
-          <input type="hidden" name="days" value="{{ days }}">
-          <button type="submit" class="btn btn-sm btn-outline-primary">Afficher la commande</button>
-        </form>
-      </article>
-      <article class="action-box">
-        <h6>Nettoyage complet (CLI)</h6>
-        <p>Rapide + purge des locations obsoletes + purge des archives + nettoyage des sessions sur disque + purge des erreurs 500 de plus de 7 jours.</p>
-        <div class="report-item"><strong>Commande</strong><span><code>flask cleanup --mode full --days {{ days }}</code></span></div>
-        <form method="post" action="{{ url_for('admin.run_maintenance', mode='full') }}" class="mt-2">
-          {% include "partials/_csrf.html" %}
-          <input type="hidden" name="days" value="{{ days }}">
-          <button type="submit" class="btn btn-sm btn-outline-primary">Afficher la commande</button>
-        </form>
-      </article>
-    </div>
+
+    {% if audit_logs %}
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0 monitor-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Utilisateur</th>
+              <th>Détail lisible</th>
+              <th>Entité</th>
+              <th>IP</th>
+              <th>Statut</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for log in audit_logs %}
+            {% set _asum = (audit_summaries or {}).get(log.id, {}) %}
+            <tr>
+              <td data-label="Date" class="text-nowrap">{{ log.created_at.strftime('%d/%m/%Y %H:%M:%S') if log.created_at else '-' }}</td>
+              <td data-label="Utilisateur">
+                <strong>{{ log.username or 'Système' }}</strong>
+                {% if log.user_role %}<div class="small text-muted">{{ log.user_role }}</div>{% endif %}
+              </td>
+              <td data-label="Détail lisible">
+                <span class="status-pill {% if _asum.get('badge_tone') == 'danger' %}status-danger{% elif _asum.get('badge_tone') == 'warning' %}status-warn{% elif _asum.get('badge_tone') == 'success' %}status-ok{% else %}status-na{% endif %}">
+                  {{ _asum.get('badge_label') or log.action }}
+                </span>
+                <span class="ms-1">{{ _asum.get('summary') or log.action }}</span>
+                {% if log.error_message %}
+                  <div class="small text-danger mt-1">{{ log.error_message }}</div>
+                {% endif %}
+              </td>
+              <td data-label="Entité" class="text-nowrap">
+                {% if log.entity_type %}
+                  <code>{{ log.entity_type }}{% if log.entity_id %} #{{ log.entity_id }}{% endif %}</code>
+                {% else %}
+                  <span class="text-muted">-</span>
+                {% endif %}
+              </td>
+              <td data-label="IP" class="text-nowrap"><code>{{ log.ip_address or '-' }}</code></td>
+              <td data-label="Statut">
+                {% if log.status == 'success' %}
+                  <span class="status-pill status-ok">OK</span>
+                {% else %}
+                  <span class="status-pill status-danger">{{ log.status or 'Erreur' }}</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% if audit_pagination and audit_pagination.pages > 1 %}
+      <nav class="mt-3" aria-label="Pagination audit">
+        <ul class="pagination pagination-sm mb-0 flex-wrap">
+          <li class="page-item {% if not audit_pagination.has_prev %}disabled{% endif %}">
+            <a class="page-link" href="{{ url_for('admin.maintenance', days=days, tab='logs', audit_page=audit_pagination.prev_num, audit_action=audit_current_action, audit_entity=audit_current_entity, audit_user=audit_current_user) }}#maintenance-logs">Prec</a>
+          </li>
+          {% for p in audit_pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+            {% if p %}
+              <li class="page-item {% if p == audit_pagination.page %}active{% endif %}">
+                <a class="page-link" href="{{ url_for('admin.maintenance', days=days, tab='logs', audit_page=p, audit_action=audit_current_action, audit_entity=audit_current_entity, audit_user=audit_current_user) }}#maintenance-logs">{{ p }}</a>
+              </li>
+            {% else %}
+              <li class="page-item disabled"><span class="page-link">…</span></li>
+            {% endif %}
+          {% endfor %}
+          <li class="page-item {% if not audit_pagination.has_next %}disabled{% endif %}">
+            <a class="page-link" href="{{ url_for('admin.maintenance', days=days, tab='logs', audit_page=audit_pagination.next_num, audit_action=audit_current_action, audit_entity=audit_current_entity, audit_user=audit_current_user) }}#maintenance-logs">Suiv</a>
+          </li>
+        </ul>
+      </nav>
+      {% endif %}
+    {% else %}
+      <div class="small text-muted">Aucune entrée d'audit pour ces critères.</div>
+    {% endif %}
   </section>
 
   <section class="card-shell">
     <div class="section-head">
       <div>
         <h5 class="section-title"><i class="bi bi-exclamation-triangle"></i> Erreurs recentes ({{ errors_block.window_days }} jours)</h5>
-        <p class="section-sub">Journal 500 pagine avec actions de purge securisees.</p>
+        <p class="section-sub">Erreurs HTTP 500 enregistrées.</p>
       </div>
-      {% if errors_block.available and errors_block.get('items') %}
-      <form method="post" action="{{ url_for('admin.maintenance_errors_purge') }}" data-confirm-submit="Supprimer toutes les erreurs 500 des {{ errors_block.window_days }} jours ?" class="d-inline-flex align-items-center gap-2">
-        {% include "partials/_csrf.html" %}
-        <input type="hidden" name="days" value="{{ days }}">
-        <input type="hidden" name="errors_page" value="{{ errors_block.page or 1 }}">
-        <button type="submit" class="btn btn-sm btn-outline-danger">
-          <i class="bi bi-trash3"></i> Supprimer toutes ({{ errors_block.window_days }} jours)
-        </button>
-      </form>
-      {% endif %}
-    </div>
-    <div class="report-list">
-      <div class="report-item">
-        <strong>Total 500 ({{ errors_block.window_days }} jours)</strong>
-        <span>{{ errors_block.total_500_last_24h }}</span>
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <span class="status-pill {{ 'status-danger' if (errors_block.total_500_last_24h or 0) > 0 else 'status-ok' }}">{{ errors_block.total_500_last_24h }} erreur(s) 500</span>
+        {% if errors_block.available and errors_block.get('items') %}
+        <form method="post" action="{{ url_for('admin.maintenance_errors_purge') }}" data-confirm-submit="Supprimer toutes les erreurs 500 des {{ errors_block.window_days }} jours ?" class="d-inline-flex align-items-center gap-2">
+          {% include "partials/_csrf.html" %}
+          <input type="hidden" name="days" value="{{ days }}">
+          <input type="hidden" name="errors_page" value="{{ errors_block.page or 1 }}">
+          <button type="submit" class="btn btn-sm btn-outline-danger">
+            <i class="bi bi-trash3"></i> Supprimer toutes ({{ errors_block.window_days }} jours)
+          </button>
+        </form>
+        {% endif %}
       </div>
     </div>
     {% if errors_block.available %}
       {% if errors_block.get('items') %}
-        <div class="table-responsive mt-3">
+        <div class="table-responsive">
           <table class="table table-sm align-middle mb-0 monitor-table">
             <thead>
               <tr>
@@ -1261,29 +1218,71 @@
           <nav class="mt-3" aria-label="Pagination erreurs 500">
             <ul class="pagination pagination-sm mb-0 flex-wrap">
               <li class="page-item {% if not errors_pagination.has_prev %}disabled{% endif %}">
-                <a class="page-link" href="{{ url_for('admin.maintenance', days=days, errors_page=errors_pagination.prev_num) }}">Prec</a>
+                <a class="page-link" href="{{ url_for('admin.maintenance', days=days, tab='logs', errors_page=errors_pagination.prev_num) }}#maintenance-logs">Prec</a>
               </li>
               {% for p in errors_pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
                 {% if p %}
                   <li class="page-item {% if p == errors_pagination.page %}active{% endif %}">
-                    <a class="page-link" href="{{ url_for('admin.maintenance', days=days, errors_page=p) }}">{{ p }}</a>
+                    <a class="page-link" href="{{ url_for('admin.maintenance', days=days, tab='logs', errors_page=p) }}#maintenance-logs">{{ p }}</a>
                   </li>
                 {% else %}
                   <li class="page-item disabled"><span class="page-link">…</span></li>
                 {% endif %}
               {% endfor %}
               <li class="page-item {% if not errors_pagination.has_next %}disabled{% endif %}">
-                <a class="page-link" href="{{ url_for('admin.maintenance', days=days, errors_page=errors_pagination.next_num) }}">Suiv</a>
+                <a class="page-link" href="{{ url_for('admin.maintenance', days=days, tab='logs', errors_page=errors_pagination.next_num) }}#maintenance-logs">Suiv</a>
               </li>
             </ul>
           </nav>
         {% endif %}
       {% else %}
-        <div class="alert alert-light border mt-3 mb-0">Aucune erreur 500 sur les {{ errors_block.window_days }} derniers jours.</div>
+        <div class="small text-muted">Aucune erreur 500 sur les {{ errors_block.window_days }} derniers jours.</div>
       {% endif %}
     {% else %}
-      <div class="alert alert-secondary mt-3 mb-0">{{ errors_block.note or 'Non disponible (source de logs indisponible)' }}</div>
+      <div class="small text-muted">{{ errors_block.note or 'Non disponible (source de logs indisponible)' }}</div>
     {% endif %}
+  </section>
+
+  <section class="card-shell">
+    <div class="section-head">
+      <div>
+        <h5 class="section-title"><i class="bi bi-clock"></i> Historique nettoyage</h5>
+        <p class="section-sub">Derniers nettoyages rapide/complet et indicateurs d'erreurs.</p>
+      </div>
+      {% if report %}
+        <a class="btn btn-sm btn-outline-primary" href="#last-report">Voir dernier rapport</a>
+      {% else %}
+        <button class="btn btn-sm btn-outline-secondary" type="button" disabled>Voir dernier rapport</button>
+      {% endif %}
+    </div>
+    <div class="report-list">
+      <div class="report-item">
+        <strong>Dernier nettoyage rapide</strong>
+        <span>
+          {% if last_quick_run %}
+            {{ (last_quick_run.finished_at or last_quick_run.started_at).strftime('%d/%m/%Y %H:%M:%S') if (last_quick_run.finished_at or last_quick_run.started_at) else 'Non disponible' }}
+          {% else %}
+            Non disponible
+          {% endif %}
+        </span>
+        <div class="small text-muted mt-1">Duree: {{ last_quick_run.duration_ms if last_quick_run and last_quick_run.duration_ms is not none else 'Non disponible' }} ms</div>
+      </div>
+      <div class="report-item">
+        <strong>Dernier nettoyage complet</strong>
+        <span>
+          {% if last_full_run %}
+            {{ (last_full_run.finished_at or last_full_run.started_at).strftime('%d/%m/%Y %H:%M:%S') if (last_full_run.finished_at or last_full_run.started_at) else 'Non disponible' }}
+          {% else %}
+            Jamais execute
+          {% endif %}
+        </span>
+        <div class="small text-muted mt-1">Duree: {{ (last_full_run.duration_ms ~ ' ms') if last_full_run and last_full_run.duration_ms is not none else '-' }}</div>
+      </div>
+      <div class="report-item">
+        <strong>Erreurs dernier run</strong>
+        <span>{{ last_run.error_count if last_run else 'Non disponible' }}</span>
+      </div>
+    </div>
   </section>
 
   </div>
@@ -1336,8 +1335,6 @@
     node.style.width = width + '%';
   });
 
-  var root = document.querySelector('.maintenance-wrap');
-  var btn = document.getElementById('maintenanceThemeToggle');
   var tabs = Array.from(document.querySelectorAll('[data-maintenance-tab]'));
   var panels = Array.from(document.querySelectorAll('[data-maintenance-panel]'));
   function showMaintenanceTab(name, pushHash) {
@@ -1362,29 +1359,10 @@
       showMaintenanceTab(tab.getAttribute('data-maintenance-tab'), true);
     });
   });
-  var initialTab = (window.location.hash || '').replace('#maintenance-', '');
+  var params = new URLSearchParams(window.location.search);
+  var queryTab = params.get('tab') || ((params.get('audit_action') || params.get('audit_entity') || params.get('audit_user') || params.get('audit_page') || params.get('errors_page')) ? 'logs' : '');
+  var initialTab = (window.location.hash || '').replace('#maintenance-', '') || queryTab;
   showMaintenanceTab(initialTab || 'overview', false);
-
-  if (!root || !btn) return;
-  var KEY = 'admin-theme-mode';
-  function setTheme(mode) {
-    if (mode === 'noc') {
-      root.setAttribute('data-theme', 'noc');
-      btn.innerHTML = '<i class="bi bi-sun"></i> Theme Clair';
-    } else {
-      root.setAttribute('data-theme', 'default');
-      btn.innerHTML = '<i class="bi bi-moon-stars"></i> Theme NOC';
-    }
-  }
-  var saved = localStorage.getItem(KEY) || document.documentElement.getAttribute('data-admin-theme') || 'default';
-  setTheme(saved);
-  btn.addEventListener('click', function () {
-    var current = root.getAttribute('data-theme') === 'noc' ? 'noc' : 'default';
-    var next = current === 'noc' ? 'default' : 'noc';
-    localStorage.setItem(KEY, next);
-    document.documentElement.setAttribute('data-admin-theme', next);
-    setTheme(next);
-  });
 })();
 </script>
 {% endblock %}  

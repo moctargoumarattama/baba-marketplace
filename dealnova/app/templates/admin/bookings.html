@@ -79,13 +79,6 @@
   .bk-status-form { display: inline-flex; align-items: center; gap: .35rem; }
   .bk-status-form select { min-width: 122px; font-size: .76rem; }
   .bk-note { max-width: 240px; font-size: .76rem; color: var(--adm-muted, #64748b); word-break: break-word; }
-
-  html[data-admin-theme="noc"] .bk-kpi,
-  html[data-admin-theme="noc"] .bk-card { background: #0f172a; border-color: #1e293b; color: #e2e8f0; }
-  html[data-admin-theme="noc"] .bk-head { background: rgba(16, 185, 129, .08); border-color: #1e293b; }
-  html[data-admin-theme="noc"] .bk-filters { border-color: #1e293b; }
-  html[data-admin-theme="noc"] .bk-table thead th { background: #1e293b; color: #94a3b8; border-color: #334155; }
-  html[data-admin-theme="noc"] .bk-table td { border-color: #1e293b; }
 </style>
 {% endblock %}
 
@@ -118,9 +111,6 @@
         <span class="badge text-bg-secondary">{{ date_range_label }}</span>
       </div>
       <div class="bk-head-actions">
-        <a href="{{ url_for('admin_users.fraud_monitor') }}" class="btn btn-sm btn-outline-secondary">
-          <i class="bi bi-shield-exclamation"></i> Contrôle fraude
-        </a>
         <a href="{{ url_for('admin.bookings_export_csv', q=search or None, status=status_filter or None, range=range_filter, date_from=date_from or None, date_to=date_to or None) }}"
            class="btn btn-sm btn-success">
           <i class="bi bi-download"></i> Exporter CSV

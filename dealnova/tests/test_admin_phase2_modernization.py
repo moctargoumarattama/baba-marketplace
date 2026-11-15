@@ -41,6 +41,7 @@ def phase2_app(tmp_path):
         SQLALCHEMY_DATABASE_URI = f"sqlite:///{db_path.as_posix()}"
         UPLOAD_FOLDER = str(upload_dir)
         MAINTENANCE_BACKUP_DIR = str(backups_dir)
+        MAINTENANCE_PANEL_PASSWORD_ENABLED = False
 
     app = create_app(Phase2Config)
     with app.app_context():
@@ -192,76 +193,17 @@ def test_admin_bookings_view_status_and_csv_export(phase2_app):
     assert "Depannage Electrique" in csv_text
 
 
-def test_fraud_monitor_bookings_leads_and_manual_block_unblock(phase2_app):
+def test_fraud_page_removed(phase2_app):
     with phase2_app.app_context():
-        _admin, manager, _vendor, shop, product, service = _seed_core_data()
-        now = datetime.utcnow()
-
-        # Suspicious booking + phone spike (threshold=3)
-        for idx in range(3):
-            db.session.add(
-                Booking(
-                    product_id=service.id,
-                    shop_id=shop.id,
-                    full_name="xx",
-                    phone="0699887766",
-                    phone_digits="0699887766",
-                    booking_ip="172.16.0.9",
-                    note="test spam",
-                    status="pending",
-                    created_at=now - timedelta(minutes=idx * 5),
-                )
-            )
-        # ProductContactLead spike
-        import json
-        for idx in range(3):
-            db.session.add(
-                ProductContactLead(
-                    source="product_whatsapp",
-                    shop_id=shop.id,
-                    client_name="Client WA",
-                    client_phone="0655443322",
-                    whatsapp_phone="0611223344",
-                    product_summary_json=json.dumps([{"product_id": product.id, "product_name": product.name, "quantity": 1}]),
-                    estimated_total=49900,
-                    created_at=now - timedelta(minutes=idx * 4),
-                )
-            )
-        db.session.commit()
-        manager_id = manager.id
+        admin, manager, _vendor, _shop, _product, _service = _seed_core_data()
+        admin_id, manager_id = admin.id, manager.id
 
     client = phase2_app.test_client()
-    _login(client, manager_id)
-
-    resp = client.get("/admin/fraud?threshold=3&limit_1h=3&addr_min_len=4")
-    assert resp.status_code == 200
-    html = resp.get_data(as_text=True)
-    assert "Contacts WhatsApp Produits" in html
-    assert "Réservations Services" in html
-    assert "0699887766" in html
-    assert "0655443322" in html
-    assert "172.16.0.9" in html
-    assert "test spam" in html
-
-    block_resp = client.post(
-        "/admin/fraud/block",
-        data={"kind": "phone", "value": "0655-443322", "reason": "Spam WhatsApp"},
-        follow_redirects=False,
-    )
-    assert block_resp.status_code == 302
-
-    with phase2_app.app_context():
-        blocked = BlockedContact.query.filter_by(kind="phone", value="0655443322", is_active=True).first()
-        assert blocked is not None
-        blocked_id = blocked.id
-
-    after_block_html = client.get("/admin/fraud").get_data(as_text=True)
-    assert "Spam WhatsApp" in after_block_html
-
-    unblock_resp = client.post(f"/admin/fraud/unblock/{blocked_id}", follow_redirects=False)
-    assert unblock_resp.status_code == 302
-    with phase2_app.app_context():
-        assert db.session.get(BlockedContact, blocked_id).is_active is False
+    for uid in (admin_id, manager_id):
+        _login(client, uid)
+        assert client.get("/admin/fraud").status_code == 404
+        assert client.post("/admin/fraud/block", data={"kind": "phone", "value": "0655443322"}).status_code == 404
+        assert client.post("/admin/fraud/unblock/1").status_code == 404
 
 
 def test_promo_bulk_actions_and_csv_exports_rbac(phase2_app):
@@ -438,8 +380,8 @@ def test_quick_search_dashboard_alerts_logs_summary_and_public_safety(phase2_app
     assert "Cliquez ou Ctrl+K" in dash_html
     assert "Astuce : cliquez ici ou faites" in dash_html
 
-    # Logs page unifies human-readable summary & deletion_snapshot filter
-    logs_html = adm_client.get("/admin/logs?audit_action=deletion_snapshot").get_data(as_text=True)
+    # Maintenance logs tab unifies human-readable summary & deletion_snapshot filter
+    logs_html = adm_client.get("/admin/maintenance?audit_action=deletion_snapshot&tab=logs").get_data(as_text=True)
     assert "Détail lisible" in logs_html
     assert "Suppressions (1)" in logs_html
     assert "Archive de suppression" in logs_html

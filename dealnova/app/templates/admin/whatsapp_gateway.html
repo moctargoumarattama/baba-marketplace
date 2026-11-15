@@ -36,20 +36,6 @@
     color: var(--wa-ink);
   }
 
-  /* Support natif du thème sombre Admin NOC */
-  html[data-admin-theme="noc"] .wa-app-container {
-    --wa-surface: #0f172a;
-    --wa-surface-subtle: #1e293b;
-    --wa-surface-muted: #0b1220;
-    --wa-border: #334155;
-    --wa-border-strong: #475569;
-    --wa-ink: #f8fafc;
-    --wa-ink-secondary: #cbd5e1;
-    --wa-ink-muted: #94a3b8;
-    --wa-shadow-sm: 0 2px 8px rgba(2, 6, 23, 0.35);
-    --wa-shadow-md: 0 12px 28px -8px rgba(2, 6, 23, 0.55);
-  }
-
   /* Barre de commande supérieure (Hero compact) */
   .wa-hero-bar {
     display: flex;
@@ -279,9 +265,6 @@
     border-color: rgba(239, 68, 68, 0.35);
     color: #991b1b;
   }
-  html[data-admin-theme="noc"] .wa-app-container .wa-tunnel-result.is-ok { color: #6ee7b7; }
-  html[data-admin-theme="noc"] .wa-app-container .wa-tunnel-result.is-warn { color: #fcd34d; }
-  html[data-admin-theme="noc"] .wa-app-container .wa-tunnel-result.is-err { color: #fca5a5; }
 
   .wa-tunnel-metrics {
     display: inline-flex;
@@ -340,8 +323,6 @@
   }
   .wa-kpi-value--emerald { color: #059669; }
   .wa-kpi-value--blue { color: #2563eb; }
-  html[data-admin-theme="noc"] .wa-kpi-value--emerald { color: #34d399; }
-  html[data-admin-theme="noc"] .wa-kpi-value--blue { color: #38bdf8; }
 
   .wa-kpi-icon {
     inline-size: 34px;
@@ -438,12 +419,6 @@
     box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
   }
 
-  html[data-admin-theme="noc"] .wa-CommandToolbar {
-    background: #1e293b;
-    border-color: #334155;
-    box-shadow: 0 2px 6px rgba(2, 6, 23, 0.35);
-  }
-
   .offer-filter-bar {
     display: flex;
     align-items: center;
@@ -481,22 +456,6 @@
     color: #ffffff;
     box-shadow: 0 2px 7px rgba(15, 23, 42, 0.22);
   }
-  html[data-admin-theme="noc"] .offer-filter-pill {
-    background: #0f172a;
-    border-color: #334155;
-    color: #cbd5e1;
-  }
-  html[data-admin-theme="noc"] .offer-filter-pill:hover {
-    border-color: #10b981;
-    color: #34d399;
-  }
-  html[data-admin-theme="noc"] .offer-filter-pill.active {
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-    border-color: #10b981;
-    color: #052e16;
-    font-weight: 800;
-    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.35);
-  }
 
   .pill-count {
     display: inline-flex;
@@ -520,10 +479,6 @@
   .offer-filter-pill.active .pill-count {
     background: rgba(255, 255, 255, 0.22);
     color: #ffffff;
-  }
-  html[data-admin-theme="noc"] .offer-filter-pill.active .pill-count {
-    background: rgba(0, 0, 0, 0.2);
-    color: #052e16;
   }
 
   .btn-regen-wave {
@@ -567,11 +522,6 @@
     border-color: #2563eb;
     transform: translateY(-1px);
     box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
-  }
-  html[data-admin-theme="noc"] .btn-manage-groups {
-    background: rgba(59, 130, 246, 0.15);
-    border-color: rgba(59, 130, 246, 0.35);
-    color: #60a5fa;
   }
 
   .wa-pin-search-wrap {
@@ -774,7 +724,6 @@
     font-weight: 900;
     color: #059669;
   }
-  html[data-admin-theme="noc"] .price-promo { color: #34d399; }
 
   .price-old {
     font-size: 0.74rem;
@@ -858,7 +807,6 @@
     border-color: rgba(20, 184, 166, 0.32);
     color: #0f766e;
   }
-  html[data-admin-theme="noc"] .promo-action-pill--visit { color: #2dd4bf; }
   .promo-action-pill--visit:hover {
     background: rgba(20, 184, 166, 0.18);
     border-color: #14b8a6;
@@ -1139,13 +1087,6 @@
                 inset 0 1px 0 rgba(255, 255, 255, 0.95);
     transform: translateY(-2px);
   }
-  html[data-admin-theme="noc"] .channel-choice-card.is-selected,
-  html[data-admin-theme="noc"] .channel-choice-card:has(input[type="checkbox"]:checked) {
-    background: linear-gradient(180deg, rgba(6, 78, 59, 0.35) 0%, var(--wa-surface) 100%);
-    border-color: #059669;
-    box-shadow: 0 12px 26px -6px rgba(5, 150, 105, 0.32),
-                inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  }
   .channel-choice-card:not(.is-selected):not(:has(input[type="checkbox"]:checked)) {
     background: var(--wa-surface-subtle);
     opacity: 0.85;
@@ -1223,17 +1164,6 @@
   .wa-switch-3d input:focus-visible + .wa-switch-3d-slider {
     outline: 2px solid #10b981;
     outline-offset: 3px;
-  }
-
-  html[data-admin-theme="noc"] .wa-switch-3d-slider {
-    background: linear-gradient(180deg, #475569 0%, #334155 100%);
-    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5),
-                0 1px 1px rgba(255, 255, 255, 0.08);
-    border-color: rgba(255, 255, 255, 0.1);
-  }
-
-  html[data-admin-theme="noc"] .wa-switch-3d-slider::before {
-    background: linear-gradient(180deg, #f8fafc 0%, #cbd5e1 100%);
   }
 
   /* 3D State Badges */
@@ -1416,7 +1346,6 @@
     font-weight: 800;
     box-shadow: 0 2px 6px rgba(16, 185, 129, 0.25);
   }
-  html[data-admin-theme="noc"] .wa-time-chip.is-active { color: #052e16; }
 
   .broadcast-action-bar {
     background: var(--wa-surface-subtle);

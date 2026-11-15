@@ -29,21 +29,6 @@
     --hi-shadow-inset: inset 0 2px 4px rgba(15, 23, 42, 0.05);
   }
 
-  html[data-admin-theme="noc"] {
-    --hi-bg: #0b1120;
-    --hi-surface: #0f172a;
-    --hi-surface-subtle: #141f32;
-    --hi-surface-muted: #1e293b;
-    --hi-border: #334155;
-    --hi-border-strong: #475569;
-    --hi-ink: #f8fafc;
-    --hi-ink-secondary: #cbd5e1;
-    --hi-ink-muted: #94a3b8;
-    --hi-shadow-3d: 0 10px 25px -5px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.06);
-    --hi-shadow-3d-hover: 0 16px 36px -6px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.1);
-    --hi-shadow-inset: inset 0 2px 4px rgba(0, 0, 0, 0.4);
-  }
-
   .hi-wrap {
     display: flex;
     flex-direction: column;
@@ -758,39 +743,6 @@
   .hi-progress-bar.is-active {
     opacity: 1;
     transform: scaleX(1);
-  }
-
-  /* Dark Theme Overrides */
-  html[data-admin-theme="noc"] .hi-card,
-  html[data-admin-theme="noc"] .hi-stat-card,
-  html[data-admin-theme="noc"] .hi-active-card {
-    background: #0f172a;
-    border-color: #334155;
-  }
-
-  html[data-admin-theme="noc"] .hi-card-header,
-  html[data-admin-theme="noc"] .hi-segmented-switch,
-  html[data-admin-theme="noc"] .hi-rule-tile {
-    background: #141f32;
-    border-color: #334155;
-  }
-
-  html[data-admin-theme="noc"] .hi-filter-pill.active {
-    background: #1e293b;
-    color: #f8fafc;
-    border-color: #475569;
-  }
-
-  html[data-admin-theme="noc"] .hi-search-input,
-  html[data-admin-theme="noc"] .hi-select-duration {
-    background: #141f32;
-    color: #f8fafc;
-    border-color: #334155;
-  }
-
-  html[data-admin-theme="noc"] .hi-target-avatar {
-    background: #141f32;
-    border-color: #334155;
   }
 
   @media (max-width: 768px) {

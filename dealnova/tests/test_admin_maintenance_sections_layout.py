@@ -32,7 +32,11 @@ def test_maintenance_sections_keep_existing_blocks():
     assert "Sauvegardes" in template
     assert "Trafic live" in template
     assert "Mode maintenance" in template
+    assert "Journal d'audit" in template
     assert "Historique nettoyage" in template
     assert "Erreurs recentes" in template
+    assert "Actions maintenance" not in template
     assert "Reinitialisation de la base" in template
     assert "maintenanceTabPanels" in template
+    assert not (ROOT / "app/templates/admin/logs.html").exists()
+    assert not (ROOT / "app/templates/admin/deletion_history.html").exists()

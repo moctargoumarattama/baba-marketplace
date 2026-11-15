@@ -1,4 +1,4 @@
-﻿(() => {
+(() => {
   const existing = window.BMCoreDom || {};
   if (existing.__ready) return;
 
@@ -244,23 +244,6 @@
     render();
   }
 
-  function initFraudPage(root) {
-    const scope = root || document;
-    const cleanBtn = scope.querySelector("#fraudCleanTwoDays");
-    if (cleanBtn && !cleanBtn.dataset.bound) {
-      cleanBtn.dataset.bound = "true";
-      cleanBtn.addEventListener("click", () => {
-        const form = scope.querySelector("#fraudFiltersForm");
-        if (!form) return;
-        const days = form.querySelector('input[name="days"]');
-        if (days) days.value = 2;
-        form.submit();
-      });
-    }
-
-    scope.querySelectorAll(".fraud-table").forEach(setupPaginationForTable);
-  }
-
   window.BMCoreDom = {
     escapeHtml,
     safeUrl,
@@ -271,11 +254,7 @@
     collectFormValues,
     applyFormValues,
     setupPaginationForTable,
-    initFraudPage,
     __ready: true,
   };
-
-  // Legacy global kept for compatibility with existing inline/admin scripts.
-  window.initFraudPage = initFraudPage;
 })();
 

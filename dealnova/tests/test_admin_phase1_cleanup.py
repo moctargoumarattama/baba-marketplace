@@ -166,42 +166,24 @@ def test_manager_can_access_all_operational_pages_except_maintenance(isolated_ap
         "/admin/",
         "/admin/audience",
         "/admin/audience/live",
-        "/admin/fraud",
-        "/admin/logs",
         "/admin/vendor-change-requests",
         "/admin/catalog-quality",
     ):
         resp = client.get(path)
         assert resp.status_code == 200, f"Expected 200 on {path}, got {resp.status_code}"
 
+    # /admin/fraud and standalone /admin/logs pages have been removed
+    assert client.get("/admin/fraud").status_code == 404
+    assert client.get("/admin/logs").status_code == 404
+    assert client.get("/admin/deletion-history").status_code == 404
+
     dashboard_html = client.get("/admin/").get_data(as_text=True)
     assert "Trafic live" in dashboard_html
-    assert "Voir les logs" in dashboard_html
     assert "Demandes modifications" in dashboard_html
-    assert "/admin/fraud" in dashboard_html
-    assert "/admin/logs" in dashboard_html
+    assert "/admin/fraud" not in dashboard_html
+    assert "/admin/logs" not in dashboard_html
     assert "/admin/audience" in dashboard_html
     assert "Maintenance systeme" not in dashboard_html
-
-    # Manager can moderate fraud contacts
-    block_resp = client.post(
-        "/admin/fraud/block",
-        data={"kind": "phone", "value": "0611223344", "reason": "Test fraude"},
-        follow_redirects=False,
-    )
-    assert block_resp.status_code == 302
-    with isolated_app.app_context():
-        blocked = BlockedContact.query.filter_by(kind="phone", value="0611223344").first()
-        assert blocked is not None
-        assert blocked.is_active is True
-        block_id = blocked.id
-
-    unblock_resp = client.post(f"/admin/fraud/unblock/{block_id}", follow_redirects=False)
-    assert unblock_resp.status_code == 302
-    with isolated_app.app_context():
-        blocked = db.session.get(BlockedContact, block_id)
-        assert blocked is not None
-        assert blocked.is_active is False
 
     # Manager remains blocked from technical maintenance & creating admin accounts
     assert client.get("/admin/maintenance").status_code == 302

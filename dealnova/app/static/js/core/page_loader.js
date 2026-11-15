@@ -31,24 +31,20 @@
 
   var PAGE_SCRIPT_MAP = {
     "admin.product_contacts": ADMIN_STACK,
-    "admin_users.fraud_monitor": ADMIN_STACK,
     "admin_users.catalog_quality": ADMIN_STACK,
     "admin_users.reconciliation": ADMIN_STACK,
     "admin_users.manage_shops": ADMIN_STACK,
     "admin_users.manage_users": ADMIN_STACK,
-    "admin_users.view_logs": ADMIN_STACK,
     "admin_categories.index": ADMIN_STACK,
     "rentals.admin_locations": ADMIN_STACK,
   };
 
   var ADM_PAGE_SCRIPT_MAP = {
     deliveries: ADMIN_STACK,
-    fraud: ADMIN_STACK,
     shops: ADMIN_STACK,
     users: ADMIN_STACK,
     admin_locations: ADMIN_STACK,
     categories: ADMIN_STACK,
-    logs: ADMIN_STACK,
     catalog_quality: ADMIN_STACK,
     reconciliation: ADMIN_STACK,
   };

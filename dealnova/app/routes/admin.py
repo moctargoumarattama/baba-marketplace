@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from werkzeug.security import check_password_hash
 
 from ..extensions import db
+from ..models.audit import AuditLog
 from ..models.booking import Booking
 from ..models.financial import FinancialEntry
 from ..models.maintenance import ErrorLog, MaintenanceRun
@@ -29,6 +30,7 @@ from ..services.admin_rbac import (
 )
 from ..services.admin_tools import (
     csv_download_response,
+    describe_audit_log,
     get_admin_sidebar_badges,
     invalidate_admin_sidebar_badges,
 )
@@ -435,6 +437,92 @@ def _maintenance_view_context(days: int, reset_result=None, errors_page: int = 1
         "live_traffic": live_traffic,
         "errors_block": errors_block,
         "reset_result": reset_result,
+        **_maintenance_audit_context(locked=False),
+    }
+
+
+def _maintenance_audit_context(*, locked: bool = False) -> dict:
+    audit_page = page_from_args(request.args, key="audit_page", default=1)
+    audit_action_filter = (request.args.get("audit_action") or "").strip()
+    audit_entity_filter = (request.args.get("audit_entity") or "").strip()
+    audit_user_filter = (request.args.get("audit_user") or "").strip()
+    if locked:
+        return {
+            "audit_logs": [],
+            "audit_summaries": {},
+            "audit_pagination": None,
+            "audit_actions": [],
+            "audit_entities": [],
+            "audit_users": [],
+            "audit_action_filter": audit_action_filter,
+            "audit_entity_filter": audit_entity_filter,
+            "audit_user_filter": audit_user_filter,
+            "audit_current_action": audit_action_filter,
+            "audit_current_entity": audit_entity_filter,
+            "audit_current_user": audit_user_filter,
+            "audit_total_logs": 0,
+            "audit_logs_7d": 0,
+            "deletion_snapshots_count": 0,
+        }
+    try:
+        audit_query = AuditLog.query.options(selectinload(AuditLog.user))
+        if audit_action_filter:
+            audit_query = audit_query.filter_by(action=audit_action_filter)
+        if audit_entity_filter:
+            audit_query = audit_query.filter_by(entity_type=audit_entity_filter)
+        if audit_user_filter:
+            try:
+                audit_query = audit_query.filter_by(user_id=int(audit_user_filter))
+            except ValueError:
+                pass
+        audit_pagination = audit_query.order_by(AuditLog.created_at.desc(), AuditLog.id.desc()).paginate(
+            page=audit_page, per_page=25, error_out=False
+        )
+        audit_logs = audit_pagination.items
+        audit_summaries = {log.id: describe_audit_log(log) for log in audit_logs}
+        audit_actions = [a[0] for a in db.session.query(AuditLog.action).distinct().order_by(AuditLog.action).all() if a[0]]
+        audit_entities = [e[0] for e in db.session.query(AuditLog.entity_type).distinct().order_by(AuditLog.entity_type).all() if e[0]]
+        audit_users = [
+            (str(u_id), u_name)
+            for u_id, u_name in (
+                db.session.query(User.id, User.username)
+                .join(AuditLog, AuditLog.user_id == User.id)
+                .distinct()
+                .order_by(User.username.asc())
+                .all()
+            )
+        ]
+        since_7d = datetime.utcnow() - timedelta(days=7)
+        audit_total_logs = int(AuditLog.query.count() or 0)
+        audit_logs_7d = int(AuditLog.query.filter(AuditLog.created_at >= since_7d).count() or 0)
+        deletion_snapshots_count = int(AuditLog.query.filter(AuditLog.action == "deletion_snapshot").count() or 0)
+    except Exception:
+        db.session.rollback()
+        audit_logs = []
+        audit_summaries = {}
+        audit_pagination = None
+        audit_actions = []
+        audit_entities = []
+        audit_users = []
+        audit_total_logs = 0
+        audit_logs_7d = 0
+        deletion_snapshots_count = 0
+    return {
+        "audit_logs": audit_logs,
+        "audit_summaries": audit_summaries,
+        "audit_pagination": audit_pagination,
+        "audit_actions": audit_actions,
+        "audit_entities": audit_entities,
+        "audit_users": audit_users,
+        "audit_action_filter": audit_action_filter,
+        "audit_entity_filter": audit_entity_filter,
+        "audit_user_filter": audit_user_filter,
+        "audit_current_action": audit_action_filter,
+        "audit_current_entity": audit_entity_filter,
+        "audit_current_user": audit_user_filter,
+        "audit_total_logs": audit_total_logs,
+        "audit_logs_7d": audit_logs_7d,
+        "deletion_snapshots_count": deletion_snapshots_count,
     }
 
 
@@ -688,6 +776,8 @@ def _maintenance_panel_unlock_minutes() -> int:
 
 
 def _maintenance_panel_enabled() -> bool:
+    if current_app.config.get("MAINTENANCE_PANEL_PASSWORD_ENABLED") is False:
+        return False
     return bool(_maintenance_panel_password_hash())
 
 
@@ -1542,6 +1632,7 @@ def maintenance():
                 "note": "Déverrouillage requis pour consulter le journal 500.",
             },
             "reset_result": None,
+            **_maintenance_audit_context(locked=True),
         }
     else:
         context = _maintenance_view_context(days=days, errors_page=errors_page)
@@ -2703,17 +2794,21 @@ def quick_search():
         {"title": "Mise en avant", "subtitle": "Selections en une", "url": url_for("admin.featured_items"), "icon": "bi-stars"},
         {"title": "Finance", "subtitle": "Revenus abonnements & locations", "url": url_for("admin.finance"), "icon": "bi-graph-up-arrow"},
         {"title": "Abonnements", "subtitle": "Paiements & renouvellements vendeurs", "url": url_for("admin_users.reconciliation"), "icon": "bi-cash-stack"},
-        {"title": "Fraude & blocages", "subtitle": "Surveillance & contacts bloques", "url": url_for("admin_users.fraud_monitor"), "icon": "bi-shield-exclamation"},
-        {"title": "Logs & suppressions", "subtitle": "Audit, securite et suppressions", "url": url_for("admin_users.view_logs"), "icon": "bi-clock-history"},
         {"title": "Passerelle WhatsApp", "subtitle": "Connexion, relances & promos", "url": url_for("admin.whatsapp_gateway"), "icon": "bi-whatsapp"},
         {"title": "Parametres", "subtitle": "Commissions & reglages", "url": url_for("admin.pricing_settings"), "icon": "bi-sliders"},
     ]
     if not is_manager:
         nav_pages.append({
             "title": "Maintenance systeme",
-            "subtitle": "Sauvegardes, erreurs & mode maintenance",
+            "subtitle": "Sauvegardes, logs d'audit, erreurs & mode maintenance",
             "url": url_for("admin.maintenance"),
             "icon": "bi-tools",
+        })
+        nav_pages.append({
+            "title": "Logs & Audit",
+            "subtitle": "Journal d'audit, suppressions et erreurs 500",
+            "url": url_for("admin.maintenance", tab="logs") + "#maintenance-logs",
+            "icon": "bi-clock-history",
         })
 
     q_lower = q.lower()

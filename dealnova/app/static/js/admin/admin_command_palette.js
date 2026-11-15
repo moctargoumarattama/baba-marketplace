@@ -4,39 +4,6 @@
   if (window.__BM_ADMIN_PALETTE_INIT__) return;
   window.__BM_ADMIN_PALETTE_INIT__ = true;
 
-  var THEME_KEY = "admin_theme_mode";
-
-  function bindGlobalThemeToggle() {
-    var btn = document.getElementById("adminThemeToggle");
-    if (!btn || btn.dataset.admThemeBound === "1") return;
-    btn.dataset.admThemeBound = "1";
-
-    function currentMode() {
-      return document.documentElement.getAttribute("data-admin-theme") === "noc" ? "noc" : "default";
-    }
-
-    function applyMode(mode) {
-      var next = mode === "noc" ? "noc" : "default";
-      document.documentElement.setAttribute("data-admin-theme", next);
-      try {
-        window.localStorage.setItem(THEME_KEY, next);
-      } catch (_err) {}
-      var icon = btn.querySelector("i");
-      var label = btn.querySelector("span");
-      if (icon) {
-        icon.className = next === "noc" ? "bi bi-sun" : "bi bi-moon-stars";
-      }
-      if (label) {
-        label.textContent = next === "noc" ? "Clair" : "Thème";
-      }
-    }
-
-    applyMode(currentMode());
-    btn.addEventListener("click", function () {
-      applyMode(currentMode() === "noc" ? "default" : "noc");
-    });
-  }
-
   function initCommandPalette() {
     var overlay = document.getElementById("adminCmdOverlay");
     var openBtn = document.getElementById("adminQuickSearchBtn");
@@ -257,7 +224,6 @@
   }
 
   function bootstrap() {
-    bindGlobalThemeToggle();
     initCommandPalette();
     bindPromoBulkChecks();
   }

@@ -105,28 +105,6 @@ body[data-admin="1"] .alert-info {
   color: #1e40af;
 }
 
-html[data-admin-theme="noc"] body[data-admin="1"] .admin-card,
-html[data-admin-theme="noc"] body[data-admin="1"] .content-card,
-html[data-admin-theme="noc"] body[data-admin="1"] .stat-card {
-  border-color: rgba(71, 85, 105, 0.7);
-  box-shadow: 0 0.75rem 1.625rem rgba(2, 6, 23, 0.28);
-}
-
-html[data-admin-theme="noc"] body[data-admin="1"] .table-custom thead th {
-  background: #1e293b;
-  color: #94a3b8;
-  border-bottom-color: #334155;
-}
-
-html[data-admin-theme="noc"] body[data-admin="1"] .table-custom tbody td {
-  border-bottom-color: #273548;
-  color: #cbd5e1;
-}
-
-html[data-admin-theme="noc"] body[data-admin="1"] .table-custom tbody tr:hover {
-  background: rgba(51, 65, 85, 0.28);
-}
-
 .adm-hero-shell {
   background: linear-gradient(135deg, rgba(255, 107, 53, 0.16), rgba(0, 78, 137, 0.08));
   border: 1px solid rgba(255, 107, 53, 0.2);
@@ -514,44 +492,6 @@ html[data-admin-theme="noc"] body[data-admin="1"] .table-custom tbody tr:hover {
   color: #ffffff;
 }
 
-html[data-admin-theme="noc"] .adm-cmd-footer {
-  background: #0b1220;
-  border-top-color: #1e293b;
-  color: #94a3b8;
-}
-
-html[data-admin-theme="noc"] .adm-cmd-dialog {
-  background: #0f172a;
-  color: #e2e8f0;
-  border-color: #334155;
-}
-
-html[data-admin-theme="noc"] .adm-cmd-header {
-  border-bottom-color: #1e293b;
-}
-
-html[data-admin-theme="noc"] .adm-cmd-close {
-  background: #1e293b;
-  border-color: #334155;
-  color: #cbd5e1;
-}
-
-html[data-admin-theme="noc"] .adm-cmd-item:hover,
-html[data-admin-theme="noc"] .adm-cmd-item.is-active {
-  background: rgba(34, 211, 238, 0.14);
-  color: #f8fafc;
-}
-
-html[data-admin-theme="noc"] .adm-cmd-item-icon {
-  background: #1e293b;
-  color: #22d3ee;
-}
-
-html[data-admin-theme="noc"] .adm-kbd-hint {
-  background: rgba(148, 163, 184, 0.14);
-  border-color: rgba(148, 163, 184, 0.25);
-}
-
 /* Dashboard Alerts & Compact SVG Chart Panel */
 .adm-alerts-strip {
   display: grid;
@@ -653,18 +593,5 @@ html[data-admin-theme="noc"] .adm-kbd-hint {
   color: #0f172a;
 }
 
-html[data-admin-theme="noc"] .adm-alert-pill {
-  background: #0f172a;
-  border-color: #334155;
-  color: #e2e8f0;
-}
-
-html[data-admin-theme="noc"] .adm-chart-track {
-  background: #1e293b;
-}
-
-html[data-admin-theme="noc"] .adm-chart-val {
-  color: #e2e8f0;
-}
 
 

@@ -191,7 +191,7 @@ def test_whatsapp_gateway_bento_responsive_design():
 
     assert "offers-bento-grid" in content
     assert "container: offer-card / inline-size" in content
-    assert 'html[data-admin-theme="noc"] .wa-app-container' in content
+    assert 'data-admin-theme="noc"' not in content
     assert "color-scheme: only light;" in content
     assert 'id="step3Settings"' in content
     assert "Clics sur liens" in content

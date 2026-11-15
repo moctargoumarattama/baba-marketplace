@@ -48,17 +48,6 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='fonts/admin.css', v=app_static_version) }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/admin/admin_tokens.css', v=app_static_version) }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/admin/admin_components.css', v=app_static_version) }}">
-    <script>
-        (function () {
-            try {
-                var mode = localStorage.getItem('admin-theme-mode') || 'default';
-                if (mode !== 'noc' && mode !== 'default') mode = 'default';
-                document.documentElement.setAttribute('data-admin-theme', mode);
-            } catch (e) {
-                document.documentElement.setAttribute('data-admin-theme', 'default');
-            }
-        })();
-    </script>
     <style id="admin-base-style">
         * { 
             margin: 0; 
@@ -94,15 +83,6 @@
             --admin-safe-left: env(safe-area-inset-left, 0px);
             --mx: 50%;
             --my: 15%;
-        }
-        html[data-admin-theme="noc"] {
-            --primary: #22d3ee;
-            --secondary: #0ea5e9;
-            --accent: #06b6d4;
-            --dark: #e2e8f0;
-            --text: #cbd5e1;
-            --line: #334155;
-            --glass: rgba(15, 23, 42, 0.82);
         }
 
         html {
@@ -685,81 +665,6 @@
             }
         }
 
-        /* NOC THEME OVERRIDES */
-        html[data-admin-theme="noc"] body {
-            background: linear-gradient(180deg, #0b1220 0%, #0f172a 100%);
-        }
-        html[data-admin-theme="noc"] body::before {
-            background: radial-gradient(circle, rgba(34, 211, 238, 0.18), rgba(34, 211, 238, 0));
-        }
-        html[data-admin-theme="noc"] body::after {
-            background: radial-gradient(circle, rgba(14, 165, 233, 0.16), rgba(14, 165, 233, 0));
-        }
-        html[data-admin-theme="noc"] .pointer-glow {
-            background: radial-gradient(32.5rem 32.5rem at var(--mx) var(--my), rgba(34, 211, 238, 0.14), rgba(34, 211, 238, 0));
-        }
-        html[data-admin-theme="noc"] .sidebar {
-            background: linear-gradient(160deg, rgba(15, 23, 42, 0.98), rgba(2, 6, 23, 0.98));
-            border-right-color: rgba(71, 85, 105, 0.45);
-        }
-        html[data-admin-theme="noc"] .sidebar-footer {
-            background: rgba(2, 6, 23, 0.48);
-            border-top-color: rgba(71, 85, 105, 0.4);
-        }
-        html[data-admin-theme="noc"] .nav-link i {
-            background: rgba(148, 163, 184, 0.16);
-        }
-        html[data-admin-theme="noc"] .nav-link:hover {
-            background: rgba(148, 163, 184, 0.14);
-        }
-        html[data-admin-theme="noc"] .nav-link.active {
-            background: linear-gradient(90deg, rgba(34, 211, 238, 0.22), rgba(34, 211, 238, 0.05));
-            box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.45);
-        }
-        html[data-admin-theme="noc"] .top-bar {
-            background: rgba(15, 23, 42, 0.88);
-            border-color: rgba(71, 85, 105, 0.52);
-            box-shadow: 0 0.5rem 1.125rem rgba(2, 6, 23, 0.38);
-        }
-        html[data-admin-theme="noc"] .page-title {
-            background: linear-gradient(110deg, #e2e8f0, #22d3ee 40%, #0ea5e9 78%);
-            background-size: 250% 250%;
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-        html[data-admin-theme="noc"] .btn-outline-custom {
-            color: #cbd5e1;
-            background: rgba(15, 23, 42, 0.86);
-            border-color: #334155;
-        }
-        html[data-admin-theme="noc"] .menu-toggle {
-            border-color: #334155;
-            background: rgba(15, 23, 42, 0.86);
-            color: #cbd5e1;
-        }
-        html[data-admin-theme="noc"] .back-fab {
-            border-color: #334155;
-            background: rgba(15, 23, 42, 0.9);
-            color: #22d3ee;
-        }
-        html[data-admin-theme="noc"] .back-fab i {
-            background: rgba(34, 211, 238, 0.12);
-            box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.08);
-        }
-        html[data-admin-theme="noc"] .back-fab:hover {
-            color: #67e8f9;
-        }
-        html[data-admin-theme="noc"] .offline-banner {
-            background: #020617;
-            border: 1px solid #334155;
-            color: #cbd5e1;
-        }
-        .btn-theme-toggle {
-            min-width: 7.5rem;
-            justify-content: center;
-        }
-
         /* RESPONSIVE */
         @media (max-width: 1024px) {
             :root {
@@ -894,10 +799,6 @@
                 min-height: 44px;
                 white-space: normal;
                 justify-content: flex-start;
-            }
-
-            html[data-admin-theme="noc"] .actions {
-                background: #0f172a;
             }
 
             .back-fab { 
@@ -1068,8 +969,6 @@
             <li class="nav-section-label">Systeme</li>
             <li class="nav-item"><a class="nav-link {% if ep == 'admin.whatsapp_gateway' %}active{% endif %}" href="{{ url_for('admin.whatsapp_gateway') }}"><i class="bi bi-whatsapp"></i><span>Passerelle WhatsApp</span></a></li>
             <li class="nav-item"><a class="nav-link {% if 'pricing' in ep or 'settings' in ep %}active{% endif %}" href="{{ url_for('admin.pricing_settings') }}"><i class="bi bi-sliders"></i><span>Parametres</span></a></li>
-            <li class="nav-item"><a class="nav-link {% if 'fraud' in ep %}active{% endif %}" href="{{ url_for('admin_users.fraud_monitor') }}"><i class="bi bi-shield-exclamation"></i><span>Fraude</span></a></li>
-            <li class="nav-item"><a class="nav-link {% if 'log' in ep or ep == 'admin_users.deletion_history' %}active{% endif %}" href="{{ url_for('admin_users.view_logs') }}"><i class="bi bi-clock-history"></i><span>Logs & Audit</span></a></li>
             {% if current_user.role == 'admin' %}
             <li class="nav-item"><a class="nav-link {% if 'admin.maintenance' in ep or 'run_maintenance' in ep or 'maintenance_reset_data' in ep %}active{% endif %}" href="{{ url_for('admin.maintenance') }}"><i class="bi bi-tools"></i><span>Maintenance systeme</span></a></li>
             {% endif %}
@@ -1123,7 +1022,6 @@
                 <button type="button" class="btn-custom btn-outline-custom" id="adminQuickSearchBtn" data-cmd-open title="Cliquez ici ou appuyez sur Ctrl + K pour rechercher une page, boutique, vendeur ou produit" aria-label="Recherche rapide : cliquez ici ou appuyez sur Ctrl+K">
                     <i class="bi bi-search" aria-hidden="true"></i><span>Rechercher</span><span class="adm-kbd-hint">Cliquez ou Ctrl+K</span>
                 </button>
-                <button class="btn-custom btn-outline-custom btn-theme-toggle" type="button" id="adminThemeToggle" aria-label="Changer le thème"><i class="bi bi-moon-stars" aria-hidden="true"></i><span>Thème</span></button>
                 <form method="post" action="{{ url_for('auth.logout') }}" class="d-inline">
                     {% include "partials/_csrf.html" %}
                     <button type="submit" class="btn-custom btn-primary-custom"><i class="bi bi-box-arrow-right"></i> Deconnexion</button>
