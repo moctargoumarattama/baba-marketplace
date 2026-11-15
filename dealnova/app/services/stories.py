@@ -4,29 +4,35 @@ from __future__ import annotations
 import os
 import random
 from datetime import datetime, timedelta
-from urllib.parse import quote
 
 from flask import current_app, url_for
 from sqlalchemy import or_, select
+from sqlalchemy.orm import selectinload
 
 from ..extensions import db
 from ..models.product import Product
 from ..models.promo import Promo
 from ..models.rental import RentalListing, RentalMedia
 from ..models.shop import Shop
+from .baba_whatsapp import normalize_whatsapp_number
 from .cache import get_catalog_cache
 from .public_catalog import _image_url, _product_video_url
+from .support_whatsapp import (
+    build_whatsapp_wa_url,
+    resolve_order_whatsapp_target,
+    support_whatsapp_number,
+)
 
 
 def _clean_phone(raw_phone: str | None) -> str:
-    phone = "".join(c for c in str(raw_phone or "") if c.isdigit())
-    if phone.startswith("0") and len(phone) == 10:
-        phone = "212" + phone[1:]
-    return phone or "212771182279"
+    normalized = normalize_whatsapp_number(raw_phone)
+    if len(normalized) >= 8:
+        return normalized
+    return support_whatsapp_number()
 
 
 def _whatsapp_link(phone: str, message: str) -> str:
-    return f"https://wa.me/{phone}?text={quote(message)}"
+    return build_whatsapp_wa_url(phone, message)
 
 
 def _resolve_product_thumb(prod: Product) -> str:
@@ -84,13 +90,16 @@ def _format_product_story(prod: Product, is_24h: bool) -> dict | None:
     thumb = _resolve_product_thumb(prod)
     shop = prod.shop
     shop_name = shop.name if shop else "Baba Market"
-    phone = _clean_phone(getattr(shop, "whatsapp_phone", None) or getattr(shop, "phone", None))
+    phone, is_vendor_wa = resolve_order_whatsapp_target(shop)
     price_dh = f"{prod.price:.0f} DH" if prod.price else ""
     has_video = bool(vid_url)
     media_url = vid_url if has_video else thumb
     media_type = "video" if has_video else "image"
     label = "Vidéo 24h" if has_video else ("Nouveau 24h" if is_24h else "Nouveau")
-    msg = f"Bonjour, j'ai vu votre story Baba Market pour « {prod.name} » ({price_dh}). Est-il toujours disponible ?"
+    if is_vendor_wa or not shop:
+        msg = f"Bonjour, j'ai vu votre story Baba Market pour « {prod.name} » ({price_dh}). Est-il toujours disponible ?"
+    else:
+        msg = f"Bonjour, j'ai vu la story Baba Market pour « {prod.name} » ({price_dh}) de la boutique « {shop_name} ». Est-il toujours disponible ?"
     return {
         "id": f"{'vid_' if has_video else ''}prod_{prod.id}",
         "title": prod.name,
@@ -112,7 +121,9 @@ def _format_product_story(prod: Product, is_24h: bool) -> dict | None:
 def _format_rental_story(listing: RentalListing, media: RentalMedia | None, is_24h: bool) -> dict | None:
     vid_url = _image_url(media.file_path, rental=True) if (media and media.kind == "video") else ""
     thumb = _resolve_rental_thumb(listing)
-    phone = _clean_phone(getattr(listing, "contact_phone", None))
+    direct_phone = normalize_whatsapp_number(getattr(listing, "contact_phone", None))
+    rental_fallback = normalize_whatsapp_number(current_app.config.get("RENTAL_VISIT_WHATSAPP_NUMBER"))
+    phone = direct_phone if len(direct_phone) >= 8 else (rental_fallback or support_whatsapp_number())
     rent_cents = getattr(listing, "rent_cents", None) or 0
     price_dh = f"{rent_cents / 100:.0f} DH" if rent_cents else ""
     has_video = bool(vid_url)
@@ -142,7 +153,7 @@ def _format_promo_story(prod: Product, promo: Promo, is_24h: bool) -> dict | Non
     thumb = _resolve_product_thumb(prod)
     shop = prod.shop
     shop_name = shop.name if shop else "Baba Market"
-    phone = _clean_phone(getattr(shop, "whatsapp_phone", None) or getattr(shop, "phone", None))
+    phone, is_vendor_wa = resolve_order_whatsapp_target(shop)
     orig_price = prod.price or 0.0
     val = float(promo.value or 0)
     if promo.type == "percentage" and val > 0:
@@ -155,7 +166,10 @@ def _format_promo_story(prod: Product, promo: Promo, is_24h: bool) -> dict | Non
         final_price = orig_price
         tag = "Promo 24h" if is_24h else "Promo"
 
-    msg = f"Bonjour, j'ai vu la promotion « {prod.name} » à {final_price:.0f} DH au lieu de {orig_price:.0f} DH sur Baba Market. Je souhaite commander !"
+    if is_vendor_wa or not shop:
+        msg = f"Bonjour, j'ai vu la promotion « {prod.name} » à {final_price:.0f} DH au lieu de {orig_price:.0f} DH sur Baba Market. Je souhaite commander !"
+    else:
+        msg = f"Bonjour, j'ai vu la promotion « {prod.name} » à {final_price:.0f} DH au lieu de {orig_price:.0f} DH (boutique « {shop_name} ») sur Baba Market. Je souhaite commander !"
     return {
         "id": f"promo_prod_{prod.id}",
         "title": prod.name,
@@ -196,6 +210,7 @@ def build_homepage_stories_pool() -> dict:
                 Product.video_file != "",
                 Product.created_at >= cutoff_24h,
             )
+            .options(selectinload(Product.shop).selectinload(Shop.vendor))
             .order_by(Product.id.desc())
             .limit(25)
             .all()
@@ -251,6 +266,7 @@ def build_homepage_stories_pool() -> dict:
                 Promo.end_date >= now,
                 Promo.created_at >= cutoff_24h,
             )
+            .options(selectinload(Product.shop).selectinload(Shop.vendor))
             .order_by(Promo.id.desc())
             .limit(25)
             .all()
@@ -274,6 +290,7 @@ def build_homepage_stories_pool() -> dict:
                 Product.is_active == True,
                 Product.created_at >= cutoff_24h,
             )
+            .options(selectinload(Product.shop).selectinload(Shop.vendor))
             .order_by(Product.id.desc())
             .limit(50)
             .all()
@@ -325,6 +342,7 @@ def build_homepage_stories_pool() -> dict:
                 Product.video_file.isnot(None),
                 Product.video_file != "",
             )
+            .options(selectinload(Product.shop).selectinload(Shop.vendor))
             .order_by(Product.id.desc())
             .limit(15)
             .all()
@@ -378,6 +396,7 @@ def build_homepage_stories_pool() -> dict:
                 Promo.status == "approved",
                 Promo.end_date >= now,
             )
+            .options(selectinload(Product.shop).selectinload(Shop.vendor))
             .order_by(Promo.id.desc())
             .limit(20)
             .all()
@@ -400,6 +419,7 @@ def build_homepage_stories_pool() -> dict:
             Product.query.filter(
                 Product.is_active == True,
             )
+            .options(selectinload(Product.shop).selectinload(Shop.vendor))
             .order_by(Product.id.desc())
             .limit(40)
             .all()
@@ -424,6 +444,7 @@ def build_homepage_stories_pool() -> dict:
                 Shop.logo.isnot(None),
                 Shop.logo != "",
             )
+            .options(selectinload(Shop.vendor))
             .order_by(Shop.id.desc())
             .limit(8)
             .all()
@@ -431,8 +452,12 @@ def build_homepage_stories_pool() -> dict:
         for s in shops:
             logo_url = _image_url(s.logo, shop=True)
             banner_url = _image_url(s.banner, shop=True) if s.banner else logo_url
-            phone = _clean_phone(getattr(s, "whatsapp_phone", None) or getattr(s, "phone", None))
-            msg = f"Bonjour, j'ai découvert votre boutique « {s.name} » sur Baba Market !"
+            phone, is_vendor_wa = resolve_order_whatsapp_target(s)
+            msg = (
+                f"Bonjour, j'ai découvert votre boutique « {s.name} » sur Baba Market !"
+                if is_vendor_wa
+                else f"Bonjour, je souhaite contacter la boutique « {s.name} » découverte sur Baba Market !"
+            )
             item = {
                 "id": f"shop_{s.id}",
                 "title": s.name,
@@ -468,7 +493,7 @@ def build_homepage_stories_pool() -> dict:
 def get_homepage_stories(limit: int = 15) -> list[dict]:
     """Retrieve homepage stories: 24h publications prioritized & randomized, fallback to recent."""
     try:
-        pool = get_catalog_cache("homepage:stories:v5-pool", build_homepage_stories_pool, timeout=60)
+        pool = get_catalog_cache("homepage:stories:v6-pool", build_homepage_stories_pool, timeout=60)
     except Exception as exc:
         current_app.logger.error("get_homepage_stories cache error: %s", exc)
         try:

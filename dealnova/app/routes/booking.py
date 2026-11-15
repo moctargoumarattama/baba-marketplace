@@ -14,13 +14,13 @@ from ..models.product import Product
 from ..models.shop import Shop
 from ..services.pricing import prix_final
 from ..services.shop_access import shop_is_currently_open as _shop_is_currently_open
+from ..services.support_whatsapp import resolve_order_whatsapp_target
 from ..services.traffic_stats import track_custom_event
 from ..services.vendor_push import notify_service_booking
 from .cart import (
     _client_ip,
     _digits_only,
     normalize_phone,
-    normalize_whatsapp_number,
 )
 
 
@@ -98,12 +98,9 @@ def _recent_booking_url(pid: int, max_age_seconds: int = 120) -> str | None:
 
 
 def _whatsapp_number_from_shop(product: Product) -> str:
-    """Retourne un numéro WhatsApp (digits) du prestataire (boutique)."""
-    shop = getattr(product, "shop", None)
-    if not shop:
-        return ""
-    raw = getattr(shop, "contact_phone", "") or ""
-    return normalize_whatsapp_number(raw)
+    """Retourne le numéro WhatsApp du prestataire (ou du support manager en repli)."""
+    target, _ = resolve_order_whatsapp_target(getattr(product, "shop", None))
+    return target
 
 
 def build_whatsapp_booking_message(booking: Booking) -> str:

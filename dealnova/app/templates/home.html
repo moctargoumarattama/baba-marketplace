@@ -158,6 +158,7 @@
   {% include 'partials/_catalog_panel.html' %}
   {% set delivery_wa = (config.get('DELIVERY_WHATSAPP_NUMBER') or '212602908954')|replace('+','')|replace(' ','')|replace('-','')|replace('(','')|replace(')','') %}
   {% set delivery_message = config.get('DELIVERY_WHATSAPP_DEFAULT_MESSAGE') or 'Bonjour, je souhaite envoyer un colis. Pouvez-vous me confirmer le tarif et le délai de livraison ?' %}
+  {% set support_wa = (support_whatsapp_number() if support_whatsapp_number is defined else ((config.get('SUPPORT_WHATSAPP_NUMBER') or config.get('ADMIN_PHONE') or '212770010264')|string|replace('+','')|replace(' ','')|replace('-','')|replace('(','')|replace(')',''))) %}
   <div class="u-modal-body catalog-delivery" id="uDeliveryBody" hidden>
     <div class="delivery-zones">
       <i class="bi bi-geo-alt" aria-hidden="true"></i>
@@ -167,10 +168,10 @@
     <a href="https://wa.me/{{ delivery_wa }}?text={{ delivery_message|urlencode }}" target="_blank" rel="noopener" tabindex="0" class="hub-primary-btn delivery-contact"><i class="bi bi-whatsapp" aria-hidden="true"></i><span>{{ t('Demander un tarif sur WhatsApp') }}</span></a>
   </div>
 
-  <!-- PIED DE MODALE : ACTION DIRECTE WHATSAPP -->
+  <!-- PIED DE MODALE : ACTION SUPPORT WHATSAPP -->
   <footer class="u-modal-footer" id="uModalFooter">
-    <a href="https://wa.me/{{ delivery_wa }}?text=Bonjour%20Baba%20Market,%20je%20souhaite%20commander" target="_blank" rel="noopener" class="u-modal-btn-wa">
-      <i class="bi bi-whatsapp"></i> Contacter sur WhatsApp
+    <a href="https://wa.me/{{ support_wa }}?text={{ 'Bonjour Baba Market, je souhaite contacter le support.'|urlencode }}" target="_blank" rel="noopener" class="u-modal-btn-wa">
+      <i class="bi bi-whatsapp"></i> Contacter le support
     </a>
     <button type="button" class="u-modal-btn-close" data-u-modal-close>Fermer ✕</button>
   </footer>

@@ -2,14 +2,59 @@ from urllib.parse import quote
 
 from flask import current_app
 
+from ..config import Config
+from .baba_whatsapp import normalize_whatsapp_number
+
 
 def support_whatsapp_number() -> str:
+    """Retourne le numéro WhatsApp du support / manager normalisé."""
     raw = (
         current_app.config.get("SUPPORT_WHATSAPP_NUMBER")
         or current_app.config.get("ADMIN_PHONE")
+        or Config.SUPPORT_WHATSAPP_NUMBER
     )
-    digits = "".join(ch for ch in str(raw) if ch.isdigit())
-    return digits
+    return normalize_whatsapp_number(raw)
+
+
+def raw_shop_contact_phone(shop) -> str:
+    """Retourne le numéro brut du vendeur/boutique (avec repli sur User.phone)."""
+    if not shop:
+        return ""
+    fallback_raw = ""
+    for attr in ("contact_phone", "whatsapp_phone", "phone"):
+        raw = (getattr(shop, attr, None) or "").strip()
+        if raw:
+            fallback_raw = fallback_raw or raw
+            if len(normalize_whatsapp_number(raw)) >= 8:
+                return raw
+    vendor = getattr(shop, "vendor", None)
+    if vendor is not None:
+        raw = (getattr(vendor, "phone", None) or "").strip()
+        if raw:
+            fallback_raw = fallback_raw or raw
+            if len(normalize_whatsapp_number(raw)) >= 8:
+                return raw
+    return fallback_raw
+
+
+def resolve_shop_whatsapp_number(shop) -> str:
+    """Retourne le numéro WhatsApp normalisé du vendeur/boutique, ou '' si indisponible."""
+    normalized = normalize_whatsapp_number(raw_shop_contact_phone(shop))
+    return normalized if len(normalized) >= 8 else ""
+
+
+def resolve_order_whatsapp_target(shop) -> tuple[str, bool]:
+    """Retourne (numero_normalise, is_vendor_number) avec repli vers le support manager."""
+    vendor_phone = resolve_shop_whatsapp_number(shop)
+    if vendor_phone:
+        return vendor_phone, True
+    return support_whatsapp_number(), False
+
+
+def build_whatsapp_wa_url(phone: str | None, message: str = "") -> str:
+    """Construit une URL wa.me normalisée avec repli sur le support manager."""
+    normalized = normalize_whatsapp_number(phone) or support_whatsapp_number()
+    return f"https://wa.me/{normalized}?text={quote(message or '', safe='')}"
 
 
 def build_support_whatsapp_url(lines) -> str:

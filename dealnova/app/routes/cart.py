@@ -21,7 +21,9 @@ from ..services.pricing import (
     get_active_promos_for_products,
     prix_final,
 )
+from ..services.baba_whatsapp import normalize_whatsapp_number
 from ..services.guest_session import GuestSessionManager
+from ..services.support_whatsapp import raw_shop_contact_phone
 from ..services.vendor_push import notify_product_contact_leads
 from ..middleware.rate_limit import rate_limit
 
@@ -122,20 +124,6 @@ def normalize_phone(value: str) -> str:
     return digits
 
 
-def normalize_whatsapp_number(raw: str) -> str:
-    """Normalise un numero boutique pour wa.me, aligne sur le flux service."""
-    digits = _digits_only(raw)
-    if not digits:
-        return ""
-    if digits.startswith("00"):
-        digits = digits[2:]
-    if digits.startswith("0") and len(digits) == 10 and digits[1] in ("6", "7"):
-        return "212" + digits[1:]
-    if len(digits) == 9 and digits[0] in ("6", "7"):
-        return "212" + digits
-    return digits
-
-
 def _format_money(cents: int | float | None) -> str:
     return f"{cents_to_money(int(cents or 0)):.2f} MAD"
 
@@ -193,12 +181,7 @@ def _shop_display_name(shop) -> str:
 
 
 def _shop_phone_raw(shop) -> str:
-    if not shop:
-        return ""
-    return (
-        (getattr(shop, "contact_phone", None) or "").strip()
-        or (getattr(shop, "phone", None) or "").strip()
-    )
+    return raw_shop_contact_phone(shop)
 
 
 def group_cart_items_by_shop(cart_items):

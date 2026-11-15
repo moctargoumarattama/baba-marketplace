@@ -370,11 +370,14 @@ def create_app(config_class=Config):
 
     @app.context_processor
     def inject_csrf_token():
+        from .services.support_whatsapp import support_whatsapp_number
+
         return {
             "csrf_token": generate_csrf,
             "image_variant": image_variant,
             "app_static_version": app.config.get("APP_STATIC_VERSION", "dev"),
             "pwa_session_scope": _pwa_session_scope(),
+            "support_whatsapp_number": support_whatsapp_number,
         }
 
     app.add_template_filter(clean_shop_description, "public_shop_description")

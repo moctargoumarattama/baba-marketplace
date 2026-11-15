@@ -50,9 +50,9 @@ def normalize_whatsapp_number(raw_phone: str | None) -> str:
         return ""
     if digits.startswith("00"):
         digits = digits[2:]
-    if digits.startswith("0") and len(digits) == 10 and digits[1] in ("6", "7"):
+    if digits.startswith("0") and len(digits) == 10 and digits[1] in ("5", "6", "7"):
         return "212" + digits[1:]
-    if len(digits) == 9 and digits[0] in ("6", "7"):
+    if len(digits) == 9 and digits[0] in ("5", "6", "7"):
         return "212" + digits
     return digits
 

@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from flask import Blueprint, jsonify, request, current_app, url_for
+from flask import Blueprint, jsonify, request, url_for
 from sqlalchemy.orm import selectinload
 from ..models.product import Product
 from ..models.shop import Shop
@@ -10,6 +10,11 @@ from ..services.pricing import (
     cents_to_money,
     final_price_cents,
     get_active_promos_for_products,
+)
+from ..services.support_whatsapp import (
+    build_whatsapp_wa_url,
+    raw_shop_contact_phone,
+    resolve_order_whatsapp_target,
 )
 from ..services.traffic_stats import track_custom_event
 from ..middleware.rate_limit import rate_limit
@@ -65,8 +70,6 @@ def analytics_event():
 @bp.route("/product/<int:pid>")
 def get_product_detail(pid):
     """Retourne les details complets d'un produit pour la modale Quick-View."""
-    from urllib.parse import quote
-
     from ..services.marketplace_feed import _base_product_query
 
     query, _, _, _, _ = _base_product_query(
@@ -84,11 +87,21 @@ def get_product_detail(pid):
     raw_images = (product.image_file or "").split("|") if product.image_file else []
     images = [img.strip() for img in raw_images if img.strip()]
 
-    delivery_wa = current_app.config.get("DELIVERY_WHATSAPP_NUMBER") or "212602908954"
-    clean_wa = "".join(ch for ch in str(delivery_wa) if ch.isdigit()) or "212602908954"
-    wa_message = f"Bonjour Baba Market, je souhaite commander : {product.name} ({final_price:.2f} DH)"
-
     shop = getattr(product, "shop", None)
+    target_wa, is_vendor_wa = resolve_order_whatsapp_target(shop)
+    shop_name = (getattr(shop, "name", None) or "").strip()
+    product_kind = getattr(product, "kind", "physical") or "physical"
+    action_phrase = "demander un rendez-vous pour" if product_kind == "service" else "commander"
+    if is_vendor_wa and shop_name:
+        wa_message = f"Bonjour {shop_name}, je souhaite {action_phrase} sur Baba Market : {product.name} ({final_price:.2f} DH)"
+    elif shop_name:
+        wa_message = (
+            f"Bonjour, je souhaite {action_phrase} : {product.name} ({final_price:.2f} DH) "
+            f"— Boutique : {shop_name}"
+        )
+    else:
+        wa_message = f"Bonjour, je souhaite {action_phrase} sur Baba Market : {product.name} ({final_price:.2f} DH)"
+
     shop_data = None
     if shop:
         shop_data = {
@@ -98,7 +111,7 @@ def get_product_detail(pid):
             "logo": shop.logo,
             "rating": getattr(shop, "rating", None),
             "is_verified": bool(getattr(shop, "is_verified", False)),
-            "contact_phone": getattr(shop, "contact_phone", None),
+            "contact_phone": raw_shop_contact_phone(shop) or None,
         }
 
     video_url = None
@@ -128,7 +141,7 @@ def get_product_detail(pid):
             "promo_type": getattr(promo, "type", None) if promo else None,
             "discount_amount": round(original_price - final_price, 2) if promo and original_price > final_price else 0,
             "stock": getattr(product, "stock", 0) or 0,
-            "kind": getattr(product, "kind", "physical") or "physical",
+            "kind": product_kind,
             "images": images,
             "image_download_urls": [url_for("shop.download_product_photo", pid=product.id, image_index=index)
                                     for index in range(len(images))],
@@ -136,8 +149,9 @@ def get_product_detail(pid):
             "has_video": bool(video_url),
             "category": product.category.name if getattr(product, "category", None) else "",
             "shop": shop_data,
-            "whatsapp_order_url": f"https://wa.me/{clean_wa}?text={quote(wa_message)}",
-            "booking_url": f"/booking/{product.id}" if getattr(product, "kind", None) == "service" else None,
+            "whatsapp_order_url": build_whatsapp_wa_url(target_wa, wa_message),
+            "whatsapp_is_vendor": is_vendor_wa,
+            "booking_url": f"/booking/{product.id}" if product_kind == "service" else None,
         }
     })
 
@@ -145,7 +159,6 @@ def get_product_detail(pid):
 @bp.route("/shop/<string:shop_slug_or_id>")
 def get_shop_detail(shop_slug_or_id):
     """Retourne les details d'une boutique et ses produits pour la modale Vitrine Boutique."""
-    from urllib.parse import quote
     from ..services.shop_access import normalize_public_shop_slug
 
     clean_param = (shop_slug_or_id or "").strip()
@@ -168,14 +181,13 @@ def get_shop_detail(shop_slug_or_id):
         is_open = bool(getattr(shop, "is_open", True))
 
     # Contact WhatsApp & Telephone
-    shop_phone = (shop.contact_phone or "").strip()
-    clean_phone = "".join(ch for ch in shop_phone if ch.isdigit())
-    default_wa = current_app.config.get("DELIVERY_WHATSAPP_NUMBER") or "212602908954"
-    clean_default_wa = "".join(ch for ch in str(default_wa) if ch.isdigit()) or "212602908954"
-    target_wa = clean_phone if (clean_phone and len(clean_phone) >= 8) else clean_default_wa
-
-    wa_msg = f"Bonjour {shop.name}, je vous contacte depuis Baba Market"
-    whatsapp_url = f"https://wa.me/{target_wa}?text={quote(wa_msg)}"
+    shop_phone = raw_shop_contact_phone(shop)
+    target_wa, is_vendor_wa = resolve_order_whatsapp_target(shop)
+    if is_vendor_wa:
+        wa_msg = f"Bonjour {shop.name}, je vous contacte depuis Baba Market"
+    else:
+        wa_msg = f"Bonjour, je souhaite contacter la boutique {shop.name} depuis Baba Market"
+    whatsapp_url = build_whatsapp_wa_url(target_wa, wa_msg)
 
     # Produits de la boutique
     preview = request.args.get("preview") == "1"
@@ -235,6 +247,7 @@ def get_shop_detail(shop_slug_or_id):
             "is_verified": bool(getattr(shop, "is_verified", False)),
             "is_open": is_open,
             "whatsapp_url": whatsapp_url,
+            "whatsapp_is_vendor": is_vendor_wa,
             "call_url": f"tel:{shop_phone}" if shop_phone else None,
         },
         "products": products_data,
