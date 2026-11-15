@@ -1,11 +1,12 @@
 ﻿from flask import Blueprint, flash, redirect, render_template, request, url_for, current_app
-from flask_login import current_user, login_required
+from flask_login import login_required
 from slugify import slugify
 import time
 
 from ..extensions import db
 from ..models.category import CATEGORY_TYPE_LABELS, Category, normalize_category_type
 from ..models.product import Product  # ✅ AJOUT pour vérifier avant suppression
+from ..services.admin_rbac import ensure_staff_admin_access
 from ..services.cache import invalidate_category_cache
 from ..services.pagination import page_from_args
 from ..services.audit import log_access
@@ -17,11 +18,7 @@ bp = Blueprint("admin_categories", __name__, url_prefix="/admin/categories")
 @bp.before_request
 @login_required
 def restrict_admin():
-    role = (getattr(current_user, "role", "") or "").lower()
-    if role in {"admin", "manager"}:
-        return None
-    flash("Acces reserve aux administrateurs", "danger")
-    return redirect(url_for("shop.home"))
+    return ensure_staff_admin_access()
 
 
 def _build_unique_slug(name: str, current_id: int | None = None) -> str:

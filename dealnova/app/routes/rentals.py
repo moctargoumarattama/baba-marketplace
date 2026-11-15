@@ -13,6 +13,7 @@ from ..models.platform_settings import PlatformSettings
 from ..models.rental import RentalArchive, RentalListing, RentalMedia, rental_duration_days_for_type
 from ..models.shop import Shop
 from ..models.user import User
+from ..services.admin_rbac import ensure_staff_admin_access, is_ajax_request as _is_ajax_request
 from ..services.audit import log_access
 from ..services.db_session import safe_session_rollback
 from ..services.pagination import paginate_with_clamped_page, page_from_args
@@ -108,14 +109,6 @@ def _cleanup_location_files(saved_files: list[str]) -> None:
             delete_static_file(relative_path)
         except Exception:
             current_app.logger.exception("rental.form.media_cleanup_failed")
-
-
-def _is_ajax_request() -> bool:
-    return (
-        request.headers.get("X-Requested-With") in ("fetch", "XMLHttpRequest")
-        or "application/json" in (request.headers.get("Accept") or "")
-        or request.is_json
-    )
 
 
 def _support_whatsapp_number() -> str:
@@ -251,12 +244,11 @@ def owner_support_whatsapp():
 
 
 def _admin_required():
-    if not current_user.is_authenticated:
-        return redirect(url_for("auth.login"))
-    if getattr(current_user, "role", None) not in {"admin", "manager"}:
-        flash("Accès réservé aux administrateurs.", "warning")
-        return redirect(url_for("shop.home"))
-    return None
+    return ensure_staff_admin_access(
+        require_authenticated=True,
+        message="Accès réservé aux administrateurs.",
+        category="warning",
+    )
 
 
 def _normalize_admin_locations_section(raw_value: str | None) -> str:

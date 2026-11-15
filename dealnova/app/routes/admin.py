@@ -19,6 +19,14 @@ from ..models.user import User
 from ..models.rental import RentalListing
 from ..models.product_contact_lead import ProductContactLead
 from ..models.subscription_payment import SubscriptionPayment
+from ..services.admin_rbac import (
+    ensure_staff_admin_access,
+    is_ajax_request as _is_ajax_request,
+    is_manager_role as _is_manager_user,
+    is_staff_admin as _is_staff_admin,
+    restrict_manager_blocked_endpoints,
+    sensitive_admin_forbidden_response as _sensitive_admin_forbidden_response,
+)
 from ..services.admin_tools import (
     csv_download_response,
     get_admin_sidebar_badges,
@@ -27,7 +35,7 @@ from ..services.admin_tools import (
 from ..services.audit import log_access
 from sqlalchemy.orm import selectinload
 from sqlalchemy import case, func, or_
-from ..services.cache import bump_catalog_version
+from ..services.cache import bump_catalog_version, cache
 from ..services.featured_items import (
     disable_featured_item,
     featured_duration_choices,
@@ -94,40 +102,6 @@ FEATURED_SEARCH_LIMIT = 18
 FEATURED_HISTORY_PER_PAGE = 30
 FEATURED_STATUS_FILTERS = {"all", "active", "expired", "stopped"}
 FEATURED_VIEW_FILTERS = {"overview", "history"}
-ADMIN_ROLE = "admin"
-MANAGER_ROLE = "manager"
-MANAGER_BLOCKED_ADMIN_ENDPOINTS = {
-    "admin.maintenance",
-    "admin.maintenance_unlock",
-    "admin.maintenance_error_delete",
-    "admin.maintenance_errors_purge",
-    "admin.maintenance_mode_enable",
-    "admin.maintenance_mode_disable",
-    "admin.maintenance_mode_schedule",
-    "admin.run_maintenance",
-    "admin.maintenance_backup_create",
-    "admin.maintenance_backup_import",
-    "admin.maintenance_backup_verify",
-    "admin.maintenance_backup_download",
-    "admin.maintenance_backup_restore",
-    "admin.maintenance_reset_data",
-}
-
-
-def _current_admin_role() -> str:
-    return (getattr(current_user, "role", "") or "").strip().lower()
-
-
-def _is_manager_user() -> bool:
-    return _current_admin_role() == MANAGER_ROLE
-
-
-def _sensitive_admin_forbidden_response():
-    message = "Acces reserve aux administrateurs principaux."
-    if _is_ajax_request():
-        return jsonify(success=False, message=message), 403
-    flash(message, "danger")
-    return redirect(url_for("admin_users.admin_dashboard"))
 
 
 @bp.app_context_processor
@@ -137,16 +111,9 @@ def inject_admin_task_badges():
         return {}
     if not getattr(current_user, "is_authenticated", False):
         return {}
-    if _current_admin_role() not in {ADMIN_ROLE, MANAGER_ROLE}:
+    if not _is_staff_admin():
         return {}
     return {"admin_task_badges": get_admin_sidebar_badges()}
-
-def _is_ajax_request() -> bool:
-    return (
-        request.headers.get("X-Requested-With") in ("fetch", "XMLHttpRequest")
-        or "application/json" in (request.headers.get("Accept") or "")
-        or request.is_json
-    )
 
 
 def _parse_days(raw_value, default: int = 6, minimum: int = 1, maximum: int = 365) -> int:
@@ -814,18 +781,12 @@ def _maintenance_runtime_context() -> dict:
 @bp.before_request
 @login_required
 def restrict_admin():
-    role = _current_admin_role()
-    if role in {ADMIN_ROLE, MANAGER_ROLE}:
-        return None
-
-    flash("Accès réservé aux administrateurs", "danger")
-    return redirect(url_for("shop.home"))
+    return ensure_staff_admin_access()
 
 
 @bp.before_request
 def restrict_sensitive_pages_for_manager():
-    if _is_manager_user() and request.endpoint in MANAGER_BLOCKED_ADMIN_ENDPOINTS:
-        return _sensitive_admin_forbidden_response()
+    return restrict_manager_blocked_endpoints()
 
 
 # ======================
@@ -2106,7 +2067,7 @@ def maintenance_reset_data():
 # ======================
 @bp.route("/whatsapp-gateway", methods=["GET"])
 def whatsapp_gateway():
-    if _current_admin_role() not in {ADMIN_ROLE, MANAGER_ROLE}:
+    if not _is_staff_admin():
         return _sensitive_admin_forbidden_response()
 
     from ..services.whatsapp_promo import (
@@ -2199,10 +2160,14 @@ def whatsapp_gateway():
 
 @bp.route("/whatsapp-gateway/disconnect", methods=["POST"])
 def whatsapp_gateway_disconnect():
-    if _current_admin_role() not in {ADMIN_ROLE, MANAGER_ROLE}:
+    if not _is_staff_admin():
         return _sensitive_admin_forbidden_response()
 
     result = disconnect_whatsapp_gateway()
+    try:
+        cache.delete("admin:dashboard:whatsapp_gateway:v1")
+    except Exception:
+        pass
     if _is_ajax_request() or request.is_json or request.args.get("format") == "json":
         response = jsonify(result)
         response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
@@ -2217,10 +2182,14 @@ def whatsapp_gateway_disconnect():
 
 @bp.route("/whatsapp-gateway/reconnect", methods=["POST"])
 def whatsapp_gateway_reconnect():
-    if _current_admin_role() not in {ADMIN_ROLE, MANAGER_ROLE}:
+    if not _is_staff_admin():
         return _sensitive_admin_forbidden_response()
 
     result = reconnect_whatsapp_gateway()
+    try:
+        cache.delete("admin:dashboard:whatsapp_gateway:v1")
+    except Exception:
+        pass
     if _is_ajax_request() or request.is_json or request.args.get("format") == "json":
         response = jsonify(result)
         response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
@@ -2235,7 +2204,7 @@ def whatsapp_gateway_reconnect():
 
 @bp.route("/whatsapp-gateway/test-tunnel", methods=["POST"])
 def whatsapp_gateway_test_tunnel():
-    if _current_admin_role() not in {ADMIN_ROLE, MANAGER_ROLE}:
+    if not _is_staff_admin():
         return _sensitive_admin_forbidden_response()
 
     from ..services.whatsapp_promo import get_settings as get_promo_settings
@@ -2258,7 +2227,7 @@ def whatsapp_gateway_test_tunnel():
 
 @bp.route("/whatsapp-gateway/promo/settings", methods=["POST"])
 def whatsapp_promo_settings():
-    if _current_admin_role() not in {ADMIN_ROLE, MANAGER_ROLE}:
+    if not _is_staff_admin():
         return _sensitive_admin_forbidden_response()
 
     from ..services.whatsapp_promo import (
@@ -2345,7 +2314,7 @@ def whatsapp_promo_settings():
 
 @bp.route("/whatsapp-gateway/promo/run", methods=["POST"])
 def whatsapp_promo_run():
-    if _current_admin_role() not in {ADMIN_ROLE, MANAGER_ROLE}:
+    if not _is_staff_admin():
         return _sensitive_admin_forbidden_response()
 
     from ..services.whatsapp_promo import run_daily_promo, run_in_background
@@ -2406,7 +2375,7 @@ def whatsapp_promo_run():
 
 @bp.route("/whatsapp-gateway/promo/cancel", methods=["POST"])
 def whatsapp_promo_cancel():
-    if _current_admin_role() not in {ADMIN_ROLE, MANAGER_ROLE}:
+    if not _is_staff_admin():
         return _sensitive_admin_forbidden_response()
 
     from ..services.whatsapp_promo import cancel_active_send
@@ -2423,7 +2392,7 @@ def whatsapp_promo_cancel():
 
 @bp.route("/whatsapp-gateway/promo/edit-copy", methods=["POST"])
 def whatsapp_promo_edit_copy():
-    if _current_admin_role() not in {ADMIN_ROLE, MANAGER_ROLE}:
+    if not _is_staff_admin():
         return _sensitive_admin_forbidden_response()
 
     from ..services.whatsapp_promo import update_product_copy
@@ -2458,7 +2427,7 @@ def whatsapp_promo_edit_copy():
 
 @bp.route("/whatsapp-gateway/promo/retry-failed", methods=["POST"])
 def whatsapp_promo_retry_failed():
-    if _current_admin_role() not in {ADMIN_ROLE, MANAGER_ROLE}:
+    if not _is_staff_admin():
         return _sensitive_admin_forbidden_response()
 
     from ..services.whatsapp_promo import run_retry_in_background
@@ -2478,7 +2447,7 @@ def whatsapp_promo_retry_failed():
 
 @bp.route("/whatsapp-gateway/promo/search-products")
 def whatsapp_promo_search_products():
-    if _current_admin_role() not in {ADMIN_ROLE, MANAGER_ROLE}:
+    if not _is_staff_admin():
         return _sensitive_admin_forbidden_response()
 
     q = (request.args.get("q") or "").strip()
@@ -2546,7 +2515,7 @@ def whatsapp_promo_search_products():
 
 @bp.route("/whatsapp-gateway/promo/pin-product", methods=["POST"])
 def whatsapp_promo_pin_product():
-    if _current_admin_role() not in {ADMIN_ROLE, MANAGER_ROLE}:
+    if not _is_staff_admin():
         return _sensitive_admin_forbidden_response()
 
     from ..services.whatsapp_promo import ensure_current_wave_preview, get_settings, save_settings

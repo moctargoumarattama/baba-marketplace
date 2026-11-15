@@ -28,6 +28,17 @@ from ..models.vendor_payout import VendorPayout
 from ..models.vendor_push_subscription import VendorPushSubscription
 from ..models.vendor_receipt import VendorReceipt
 from ..services.logging_service import logging_service
+from ..services.admin_rbac import (
+    ADMIN_ROLE,
+    MANAGER_ROLE,
+    current_admin_role as _current_admin_role,
+    ensure_staff_admin_access,
+    is_ajax_request as _is_ajax_request,
+    is_full_admin as _is_full_admin,
+    is_manager_role as _is_manager,
+    is_staff_admin as _is_staff_admin,
+    sensitive_admin_forbidden_response as _forbidden_sensitive_admin_response,
+)
 from ..services.admin_tools import (
     build_daily_activity_series,
     csv_download_response,
@@ -51,6 +62,7 @@ from ..services.shop_access import (
     _unique_vendor_username,
 )
 from ..services.traffic_stats import get_live_traffic_metrics
+from ..services.baba_whatsapp import get_whatsapp_gateway_status as _default_get_whatsapp_gateway_status
 from datetime import datetime, timedelta
 from sqlalchemy.orm import selectinload, load_only
 from sqlalchemy import or_, and_, func, inspect, text
@@ -75,8 +87,6 @@ _MEMORABLE_PASSWORD_WORDS = [
 ]
 _EMAIL_BASIC_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
-ADMIN_ROLE = "admin"
-MANAGER_ROLE = "manager"
 STAFF_VISIBLE_TO_MANAGER_ROLES = ("vendor",)
 DETAIL_MANAGER_VISIBLE_ROLES = ("vendor", "customer")
 ALLOWED_USER_ROLES = (ADMIN_ROLE, MANAGER_ROLE, "vendor")
@@ -139,18 +149,6 @@ def _normalize_user_role(raw_role):
     return role if role in ALLOWED_USER_ROLES else ""
 
 
-def _current_admin_role() -> str:
-    return (getattr(current_user, "role", "") or "").strip().lower()
-
-
-def _is_full_admin() -> bool:
-    return _current_admin_role() == ADMIN_ROLE
-
-
-def _is_manager() -> bool:
-    return _current_admin_role() == MANAGER_ROLE
-
-
 def _visible_user_roles_for_current_user() -> tuple[str, ...]:
     if _is_manager():
         return STAFF_VISIBLE_TO_MANAGER_ROLES
@@ -158,9 +156,7 @@ def _visible_user_roles_for_current_user() -> tuple[str, ...]:
 
 
 def _manageable_user_roles_for_current_user() -> tuple[str, ...]:
-    if _is_manager():
-        return STAFF_VISIBLE_TO_MANAGER_ROLES
-    return ALLOWED_USER_ROLES
+    return _visible_user_roles_for_current_user()
 
 
 def _users_query_visible_to_current_user():
@@ -180,14 +176,6 @@ def _hidden_user_response():
     if _is_ajax_request():
         return jsonify(success=False, message="Utilisateur introuvable."), 404
     return render_template("errors/404.html"), 404
-
-
-def _forbidden_sensitive_admin_response():
-    message = "Accès réservé aux administrateurs principaux."
-    if _is_ajax_request():
-        return jsonify(success=False, message=message), 403
-    flash(message, "danger")
-    return redirect(url_for("admin_users.admin_dashboard"))
 
 
 def _shop_types_from_form():
@@ -242,14 +230,6 @@ def _normalize_optional_email(value: str | None) -> str:
     if not candidate:
         return ""
     return candidate if _EMAIL_BASIC_RE.match(candidate) else ""
-
-
-def _is_ajax_request() -> bool:
-    return (
-        request.headers.get("X-Requested-With") in ("fetch", "XMLHttpRequest")
-        or "application/json" in (request.headers.get("Accept") or "")
-        or request.is_json
-    )
 
 
 def _bool_arg(value: str | None) -> bool:
@@ -513,14 +493,8 @@ def _cleanup_user_dependencies_for_delete(user: User, *, linked_shop: Shop | Non
 @bp.before_request
 @login_required
 def restrict_to_admin():
-    """Vérifie que l'utilisateur est admin"""
-    role = _current_admin_role()
-
-    if role in {ADMIN_ROLE, MANAGER_ROLE}:
-        return None
-
-    flash("Accès réservé aux administrateurs", "danger")
-    return redirect(url_for("shop.home"))
+    """Vérifie que l'utilisateur est admin ou manager."""
+    return ensure_staff_admin_access()
 
 
 def _dashboard_activity_snapshot(days: int = 7, date_filter=None) -> dict:
@@ -635,6 +609,46 @@ def _dashboard_activity_snapshot(days: int = 7, date_filter=None) -> dict:
     )
     return snapshot
 
+get_whatsapp_gateway_status = _default_get_whatsapp_gateway_status
+
+
+def _dashboard_whatsapp_gateway_alert() -> dict | None:
+    if (
+        current_app.config.get("TESTING")
+        and get_whatsapp_gateway_status is _default_get_whatsapp_gateway_status
+        and not current_app.config.get("BABA_WHATSAPP_STATUS_URL")
+    ):
+        return None
+    if get_whatsapp_gateway_status is _default_get_whatsapp_gateway_status:
+        gateway = _cache_get_or_build(
+            "admin:dashboard:whatsapp_gateway:v1",
+            ADMIN_METRICS_CACHE_TTL_SHORT,
+            get_whatsapp_gateway_status,
+        )
+    else:
+        gateway = get_whatsapp_gateway_status()
+    if not isinstance(gateway, dict):
+        return None
+    status = str(gateway.get("status") or "").strip().lower()
+    if status == "connected":
+        return None
+    if status == "qr_ready":
+        return {
+            "tone": "warning",
+            "icon": "bi-qr-code-scan",
+            "title": "Passerelle WhatsApp en attente de scan QR",
+            "url": url_for("admin.whatsapp_gateway"),
+            "cta": "Scanner le QR",
+        }
+    return {
+        "tone": "danger",
+        "icon": "bi-whatsapp",
+        "title": "Passerelle WhatsApp déconnectée",
+        "url": url_for("admin.whatsapp_gateway"),
+        "cta": "Reconnecter",
+    }
+
+
 # ==================== DASHBOARD ADMIN ====================
 @bp.route("/")
 def admin_dashboard():
@@ -679,6 +693,9 @@ def admin_dashboard():
     recent_errors_24h = get_admin_recent_error_count(24) if _is_full_admin() else 0
     activity_series_7d = build_daily_activity_series(7)
     admin_alerts = []
+    wa_alert = _dashboard_whatsapp_gateway_alert()
+    if wa_alert:
+        admin_alerts.append(wa_alert)
     if badges.get("pending_promos"):
         admin_alerts.append({
             "tone": "warning",
@@ -741,7 +758,7 @@ def admin_dashboard():
 
 @bp.route("/audience")
 def audience_dashboard():
-    if _current_admin_role() not in {ADMIN_ROLE, MANAGER_ROLE}:
+    if not _is_staff_admin():
         return render_template("errors/403.html"), 403
     live_traffic = get_live_traffic_metrics()
     return render_template("admin/audience.html", live_traffic=live_traffic)
@@ -749,7 +766,7 @@ def audience_dashboard():
 
 @bp.route("/audience/live")
 def audience_dashboard_live():
-    if _current_admin_role() not in {ADMIN_ROLE, MANAGER_ROLE}:
+    if not _is_staff_admin():
         return jsonify({"ok": False, "error": "forbidden"}), 403
     return jsonify(
         ok=True,

@@ -266,7 +266,7 @@ def test_admin_whatsapp_gateway_route_and_qr_rendering(app):
         resp_qr = adm_client.get("/admin/whatsapp-gateway")
         assert resp_qr.status_code == 200
         html = resp_qr.get_data(as_text=True)
-        assert "Connexion en attente de scan" in html
+        assert "En attente de scan du QR Code" in html
         assert sample_qr in html
         assert "Actualiser la connexion" in html
 

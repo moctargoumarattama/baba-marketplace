@@ -36,7 +36,7 @@ def test_registered_routes_do_not_overlap_exact_path_and_method():
 
 
 def test_admin_legacy_redirects_target_existing_dashboard_endpoint():
-    source = _read("app/routes/admin_users.py")
+    source = _read("app/routes/admin_users.py") + "\n" + _read("app/services/admin_rbac.py")
 
     assert 'url_for("admin.dashboard")' not in source
     assert 'url_for("admin_users.admin_dashboard")' in source

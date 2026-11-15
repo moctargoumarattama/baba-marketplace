@@ -40,10 +40,13 @@ def residual_app(tmp_path):
     app = create_app(ResidualTestConfig)
     with app.app_context():
         db.create_all()
+    try:
         yield app
-        db.session.remove()
-        db.drop_all()
-        db.engine.dispose()
+    finally:
+        with app.app_context():
+            db.session.remove()
+            db.drop_all()
+            db.engine.dispose()
 
 
 def _login(client, user_id: int):
@@ -233,3 +236,80 @@ def test_vendor_access_uses_blocked_contact_without_vendor_application_and_migra
         ensure_platform_settings_columns()
         assert not any(c["name"] == "seller_commission_percent" for c in inspect(db.engine).get_columns("platform_settings"))
         assert PlatformSettings.get() is not None
+
+
+def test_shared_admin_rbac_module_is_used_across_all_admin_blueprints(residual_app):
+    admin_py = _read("app/routes/admin.py")
+    admin_users_py = _read("app/routes/admin_users.py")
+    admin_categories_py = _read("app/routes/admin_categories.py")
+    rentals_py = _read("app/routes/rentals.py")
+
+    for src in (admin_py, admin_users_py, admin_categories_py, rentals_py):
+        assert "admin_rbac" in src
+        assert "def _current_admin_role(" not in src
+        assert "def _is_manager(" not in src
+        assert "def _is_manager_user(" not in src
+        assert "def _is_full_admin(" not in src
+        assert "def _is_ajax_request(" not in src
+
+    with residual_app.app_context():
+        vendor = User(username="vnd_rbac", email="vnd_rbac@example.test", role="vendor", is_active=True)
+        vendor.set_password("VendorPass123!")
+        mgr = User(username="mgr_rbac", email="mgr_rbac@example.test", role="manager", is_active=True)
+        mgr.set_password("ManagerPass123!")
+        db.session.add_all([vendor, mgr])
+        db.session.commit()
+        vendor_id, mgr_id = vendor.id, mgr.id
+
+    client = residual_app.test_client()
+    _login(client, vendor_id)
+    for protected_url in ("/admin/categories/", "/admin/locations", "/admin/pricing", "/admin/users"):
+        assert client.get(protected_url, follow_redirects=False).status_code == 302
+
+    _login(client, mgr_id)
+    for operational_url in ("/admin/categories/", "/admin/locations", "/admin/pricing", "/admin/users"):
+        resp = client.get(operational_url, follow_redirects=False)
+        assert resp.status_code == 200, f"{operational_url} -> {resp.status_code} {resp.headers.get('Location')}"
+    assert client.get("/admin/maintenance", follow_redirects=False).status_code == 302
+
+
+def test_dashboard_whatsapp_gateway_disconnected_alert(residual_app, monkeypatch):
+    from dealnova.app.routes import admin_users
+
+    with residual_app.app_context():
+        mgr = User(username="mgr_wa_alert", email="mgr_wa_alert@example.test", role="manager", is_active=True)
+        mgr.set_password("ManagerPass123!")
+        db.session.add(mgr)
+        db.session.commit()
+        mgr_id = mgr.id
+
+    client = residual_app.test_client()
+    _login(client, mgr_id)
+
+    monkeypatch.setattr(
+        admin_users,
+        "get_whatsapp_gateway_status",
+        lambda: {"status": "disconnected", "reachable": False},
+    )
+    html_disc = client.get("/admin/").get_data(as_text=True)
+    assert "Passerelle WhatsApp déconnectée" in html_disc
+    assert "Reconnecter" in html_disc
+    assert "/admin/whatsapp-gateway" in html_disc
+
+    monkeypatch.setattr(
+        admin_users,
+        "get_whatsapp_gateway_status",
+        lambda: {"status": "qr_ready", "reachable": True},
+    )
+    html_qr = client.get("/admin/").get_data(as_text=True)
+    assert "Passerelle WhatsApp en attente de scan QR" in html_qr
+    assert "Scanner le QR" in html_qr
+
+    monkeypatch.setattr(
+        admin_users,
+        "get_whatsapp_gateway_status",
+        lambda: {"status": "connected", "reachable": True},
+    )
+    html_ok = client.get("/admin/").get_data(as_text=True)
+    assert "Passerelle WhatsApp déconnectée" not in html_ok
+    assert "Passerelle WhatsApp en attente de scan QR" not in html_ok
