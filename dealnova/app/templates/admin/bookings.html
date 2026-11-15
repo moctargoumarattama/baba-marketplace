@@ -1,0 +1,262 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Réservations services | Admin{% endblock %}
+{% block page_title %}Réservations services{% endblock %}
+
+{% block head %}
+<style>
+  .bk-wrap { display: flex; flex-direction: column; gap: .95rem; padding-bottom: 1.5rem; }
+  .bk-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .7rem; }
+  .bk-kpi {
+    background: var(--adm-surface, #fff);
+    border: 1px solid var(--adm-border, #dbe4f0);
+    border-radius: 12px;
+    padding: .75rem .9rem;
+    text-decoration: none;
+    color: inherit;
+    transition: transform .15s ease, border-color .15s ease;
+    display: flex;
+    flex-direction: column;
+    gap: .2rem;
+  }
+  .bk-kpi:hover { transform: translateY(-2px); border-color: #0d9488; }
+  .bk-kpi.is-active { border-color: #0d9488; box-shadow: 0 0 0 2px rgba(13, 148, 136, .16); }
+  .bk-kpi-label { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--adm-muted, #64748b); }
+  .bk-kpi-val { font-size: 1.35rem; font-weight: 800; line-height: 1.1; }
+  .bk-kpi-sub { font-size: .72rem; color: var(--adm-muted, #64748b); }
+
+  .bk-card {
+    background: var(--adm-surface, #fff);
+    border: 1px solid var(--adm-border, #dbe4f0);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .bk-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .7rem;
+    flex-wrap: wrap;
+    padding: .8rem 1rem;
+    border-bottom: 1px solid var(--adm-border, #dbe4f0);
+    background: rgba(13, 148, 136, .06);
+  }
+  .bk-head-title { display: inline-flex; align-items: center; gap: .5rem; font-weight: 800; font-size: .95rem; }
+  .bk-head-actions { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+
+  .bk-filters { padding: .85rem 1rem; border-bottom: 1px solid var(--adm-border, #dbe4f0); }
+  .bk-filters .form-label { font-size: .72rem; font-weight: 700; color: var(--adm-muted, #475569); margin-bottom: .25rem; }
+
+  .bk-table { font-size: .83rem; margin-bottom: 0; }
+  .bk-table thead th {
+    font-size: .7rem;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--adm-muted, #64748b);
+    white-space: nowrap;
+    background: var(--adm-surface-2, #f8fafc);
+    border-bottom: 1px solid var(--adm-border, #dbe4f0);
+  }
+  .bk-table td { vertical-align: middle; border-color: var(--adm-border, #edf2f7); }
+
+  .bk-status {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    padding: .22rem .58rem;
+    border-radius: 999px;
+    font-size: .72rem;
+    font-weight: 700;
+    border: 1px solid transparent;
+    white-space: nowrap;
+  }
+  .bk-status--pending { background: #fef3c7; color: #92400e; border-color: #fde68a; }
+  .bk-status--confirmed { background: #dbeafe; color: #1e40af; border-color: #bfdbfe; }
+  .bk-status--completed { background: #dcfce7; color: #166534; border-color: #bbf7d0; }
+  .bk-status--cancelled { background: #fee2e2; color: #991b1b; border-color: #fecaca; }
+  .bk-status--archived { background: #e2e8f0; color: #334155; border-color: #cbd5e1; }
+
+  .bk-status-form { display: inline-flex; align-items: center; gap: .35rem; }
+  .bk-status-form select { min-width: 122px; font-size: .76rem; }
+  .bk-note { max-width: 240px; font-size: .76rem; color: var(--adm-muted, #64748b); word-break: break-word; }
+
+  html[data-admin-theme="noc"] .bk-kpi,
+  html[data-admin-theme="noc"] .bk-card { background: #0f172a; border-color: #1e293b; color: #e2e8f0; }
+  html[data-admin-theme="noc"] .bk-head { background: rgba(16, 185, 129, .08); border-color: #1e293b; }
+  html[data-admin-theme="noc"] .bk-filters { border-color: #1e293b; }
+  html[data-admin-theme="noc"] .bk-table thead th { background: #1e293b; color: #94a3b8; border-color: #334155; }
+  html[data-admin-theme="noc"] .bk-table td { border-color: #1e293b; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="bk-wrap">
+
+  <div class="bk-kpis">
+    <a class="bk-kpi {% if not status_filter %}is-active{% endif %}"
+       href="{{ url_for('admin.bookings', range=range_filter, q=search or None, date_from=date_from or None, date_to=date_to or None) }}">
+      <span class="bk-kpi-label">Total ({{ date_range_label }})</span>
+      <span class="bk-kpi-val">{{ total_in_range }}</span>
+      <span class="bk-kpi-sub">Toutes réservations</span>
+    </a>
+    {% for st in allowed_statuses %}
+    <a class="bk-kpi {% if status_filter == st %}is-active{% endif %}"
+       href="{{ url_for('admin.bookings', status=st, range=range_filter, q=search or None, date_from=date_from or None, date_to=date_to or None) }}">
+      <span class="bk-kpi-label">{{ status_labels.get(st, st) }}</span>
+      <span class="bk-kpi-val">{{ status_counts.get(st, 0) }}</span>
+      <span class="bk-kpi-sub">Filtrer par statut</span>
+    </a>
+    {% endfor %}
+  </div>
+
+  <div class="bk-card">
+    <div class="bk-head">
+      <div class="bk-head-title">
+        <i class="bi bi-calendar2-check text-success"></i>
+        <span>Suivi des réservations de services</span>
+        <span class="badge text-bg-light">{{ pagination.total if pagination else bookings|length }} résultats</span>
+        <span class="badge text-bg-secondary">{{ date_range_label }}</span>
+      </div>
+      <div class="bk-head-actions">
+        <a href="{{ url_for('admin_users.fraud_monitor') }}" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-shield-exclamation"></i> Contrôle fraude
+        </a>
+        <a href="{{ url_for('admin.bookings_export_csv', q=search or None, status=status_filter or None, range=range_filter, date_from=date_from or None, date_to=date_to or None) }}"
+           class="btn btn-sm btn-success">
+          <i class="bi bi-download"></i> Exporter CSV
+        </a>
+      </div>
+    </div>
+
+    <form method="GET" action="{{ url_for('admin.bookings') }}" class="bk-filters row g-2 align-items-end">
+      <div class="col-12 col-md-4">
+        <label class="form-label" for="bkSearchInput">Recherche</label>
+        <input id="bkSearchInput" type="text" name="q" value="{{ search }}" class="form-control form-control-sm"
+               placeholder="Client, téléphone, service, boutique, note...">
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label" for="bkStatusSelect">Statut</label>
+        <select id="bkStatusSelect" name="status" class="form-select form-select-sm">
+          <option value="">Tous les statuts</option>
+          {% for st in allowed_statuses %}
+          <option value="{{ st }}" {% if status_filter == st %}selected{% endif %}>{{ status_labels.get(st, st) }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label" for="bkRangeSelect">Fenêtre temporelle</label>
+        <select id="bkRangeSelect" name="range" class="form-select form-select-sm">
+          <option value="today" {% if range_filter == 'today' %}selected{% endif %}>Aujourd'hui</option>
+          <option value="month" {% if range_filter == 'month' %}selected{% endif %}>Ce mois</option>
+          <option value="year" {% if range_filter == 'year' %}selected{% endif %}>Cette année</option>
+          <option value="custom" {% if range_filter == 'custom' %}selected{% endif %}>Personnalisée</option>
+        </select>
+      </div>
+      <div class="col-6 col-md-1">
+        <label class="form-label" for="bkDateFrom">Du</label>
+        <input id="bkDateFrom" type="date" name="date_from" value="{{ date_from }}" class="form-control form-control-sm">
+      </div>
+      <div class="col-6 col-md-1">
+        <label class="form-label" for="bkDateTo">Au</label>
+        <input id="bkDateTo" type="date" name="date_to" value="{{ date_to }}" class="form-control form-control-sm">
+      </div>
+      <div class="col-12 col-md-2 d-flex gap-1">
+        <button type="submit" class="btn btn-sm btn-primary flex-grow-1">
+          <i class="bi bi-funnel"></i> Filtrer
+        </button>
+        <a href="{{ url_for('admin.bookings') }}" class="btn btn-sm btn-outline-secondary" title="Réinitialiser">
+          <i class="bi bi-arrow-counterclockwise"></i>
+        </a>
+      </div>
+    </form>
+
+    <div class="table-responsive">
+      <table class="table table-hover align-middle bk-table">
+        <thead>
+          <tr>
+            <th># / Date</th>
+            <th>Client</th>
+            <th>Service &amp; Boutique</th>
+            <th>Date souhaitée</th>
+            <th>Note</th>
+            <th>Statut</th>
+            <th class="text-end">Modération</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if bookings %}
+            {% for b in bookings %}
+            <tr>
+              <td class="text-nowrap">
+                <div class="fw-bold">#{{ b.id }}</div>
+                <div class="small text-muted">{{ b.created_at.strftime('%d/%m/%Y %H:%M') if b.created_at else '-' }}</div>
+              </td>
+              <td>
+                <div class="fw-semibold">{{ b.full_name or '-' }}</div>
+                <div class="small font-monospace">{{ b.phone or b.phone_digits or '-' }}</div>
+                {% if b.booking_ip %}
+                <div class="small text-muted font-monospace">IP: {{ b.booking_ip }}</div>
+                {% endif %}
+              </td>
+              <td>
+                <div class="fw-semibold">{{ b.product.name if b.product else 'Service supprimé' }}</div>
+                <div class="small text-muted">
+                  {% if b.shop %}
+                    <i class="bi bi-shop"></i> {{ b.shop.name }}
+                  {% else %}
+                    Boutique indisponible
+                  {% endif %}
+                </div>
+              </td>
+              <td class="text-nowrap">
+                {{ b.scheduled_for.strftime('%d/%m/%Y %H:%M') if b.scheduled_for else 'Non précisée' }}
+              </td>
+              <td>
+                <div class="bk-note">{{ b.note or '-' }}</div>
+              </td>
+              <td>
+                <span class="bk-status bk-status--{{ b.status }}">
+                  {{ status_labels.get(b.status, b.status) }}
+                </span>
+              </td>
+              <td class="text-end">
+                <form method="POST" action="{{ url_for('admin.booking_update_status', booking_id=b.id) }}" class="bk-status-form">
+                  {% include 'partials/_csrf.html' %}
+                  <select name="status" class="form-select form-select-sm" aria-label="Nouveau statut réservation #{{ b.id }}">
+                    {% for st in allowed_statuses %}
+                    <option value="{{ st }}" {% if b.status == st %}selected{% endif %}>{{ status_labels.get(st, st) }}</option>
+                    {% endfor %}
+                  </select>
+                  <button type="submit" class="btn btn-sm btn-outline-primary">OK</button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td colspan="7" class="text-center text-muted py-4">
+                Aucune réservation de service trouvée pour ces critères.
+              </td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {% if pagination and pagination.pages > 1 %}
+  <nav aria-label="Pagination réservations">
+    <ul class="pagination pagination-sm justify-content-center mb-0">
+      <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+        <a class="page-link" href="{{ url_for('admin.bookings', page=pagination.prev_num, q=search or None, status=status_filter or None, range=range_filter, date_from=date_from or None, date_to=date_to or None) if pagination.has_prev else '#' }}">Précédent</a>
+      </li>
+      <li class="page-item disabled"><span class="page-link">{{ pagination.page }} / {{ pagination.pages }}</span></li>
+      <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+        <a class="page-link" href="{{ url_for('admin.bookings', page=pagination.next_num, q=search or None, status=status_filter or None, range=range_filter, date_from=date_from or None, date_to=date_to or None) if pagination.has_next else '#' }}">Suivant</a>
+      </li>
+    </ul>
+  </nav>
+  {% endif %}
+
+</div>
+{% endblock %}

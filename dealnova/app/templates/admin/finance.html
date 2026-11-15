@@ -13,7 +13,13 @@
   <div class="card mb-3">
     <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
       <strong>{{ 'Paiements' if current_user.role == 'manager' else 'Finance' }}</strong>
-      <span class="badge text-bg-light">{{ date_range_label }}</span>
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <span class="badge text-bg-light">{{ date_range_label }}</span>
+        <a href="{{ url_for('admin.finance_export_csv', range=range_filter, entry_type=entry_type or None, date_from=date_from or None, date_to=date_to or None) }}"
+           class="btn btn-sm btn-success">
+          <i class="bi bi-download"></i> Exporter CSV
+        </a>
+      </div>
     </div>
     <div class="card-body">
       <form method="get" class="row g-2 align-items-end">
@@ -54,6 +60,44 @@
     <div class="col-6 col-md-3"><div class="p-2 border rounded"><div class="small text-muted">Revenu locations</div><div class="fw-bold">{{ '%.2f'|format((selected_totals.rental_total_cents or 0) / 100) }} MAD</div><div class="small">{{ selected_totals.rental_count }} ligne(s)</div></div></div>
     <div class="col-6 col-md-3"><div class="p-2 border rounded bg-light"><div class="small text-muted">Total affiche</div><div class="fw-bold">{{ '%.2f'|format((selected_totals.total_cents or 0) / 100) }} MAD</div><div class="small">{{ selected_totals.entry_count }} ligne(s)</div></div></div>
   </div>
+
+  {% if finance_chart %}
+  {% set max_rev = namespace(v=1) %}
+  {% for b in finance_chart %}
+    {% if b.total_cents > max_rev.v %}{% set max_rev.v = b.total_cents %}{% endif %}
+  {% endfor %}
+  <div class="card mb-3">
+    <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+      <strong><i class="bi bi-graph-up-arrow text-success"></i> Évolution des encaissements</strong>
+      <div class="d-flex align-items-center gap-3 small">
+        <span class="d-inline-flex align-items-center gap-1">
+          <span style="width:10px;height:10px;border-radius:3px;background:#0f766e;display:inline-block;"></span>
+          Abonnements vendeur
+        </span>
+        <span class="d-inline-flex align-items-center gap-1">
+          <span style="width:10px;height:10px;border-radius:3px;background:#f59e0b;display:inline-block;"></span>
+          Locations
+        </span>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="adm-chart-bars" role="img" aria-label="Graphique revenus abonnements et locations">
+        {% for b in finance_chart %}
+        {% set sub_h = ((b.subscription_cents * 100) // max_rev.v) if max_rev.v else 0 %}
+        {% set rent_h = ((b.rental_cents * 100) // max_rev.v) if max_rev.v else 0 %}
+        <div class="adm-chart-col" title="{{ b.label }} : {{ '%.2f'|format(b.total_cents / 100) }} MAD">
+          <span class="adm-chart-val">{{ '%.0f'|format(b.total_cents / 100) }}</span>
+          <div class="adm-chart-track">
+            <div class="adm-chart-bar adm-chart-bar--primary" style="height: {{ sub_h if sub_h > 4 else (4 if b.subscription_cents > 0 else 2) }}%;"></div>
+            <div class="adm-chart-bar adm-chart-bar--accent" style="height: {{ rent_h if rent_h > 4 else (4 if b.rental_cents > 0 else 2) }}%;"></div>
+          </div>
+          <span class="adm-chart-lbl">{{ b.label }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
 
   <div class="card">
     <div class="table-responsive">

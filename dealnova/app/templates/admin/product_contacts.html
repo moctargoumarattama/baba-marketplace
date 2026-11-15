@@ -92,7 +92,13 @@
   <div class="card pc-card mb-0">
     <div class="card-header pc-head">
       <strong><i class="bi bi-chat-dots"></i> Contacts WhatsApp produits</strong>
-      <span class="badge pc-total">{{ total_contacts }} demandes boutiques</span>
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <span class="badge pc-total">{{ total_contacts }} demandes boutiques</span>
+        <a href="{{ url_for('admin.product_contacts_export_csv', q=search or None, phone=phone_filter or None, shop_id=shop_id_filter or None, range=range_filter, date_from=date_from or None, date_to=date_to or None) }}"
+           class="btn btn-sm btn-success">
+          <i class="bi bi-download"></i> Exporter CSV
+        </a>
+      </div>
     </div>
     <div class="card-body pc-body">
       <div class="alert pc-alert mb-3">

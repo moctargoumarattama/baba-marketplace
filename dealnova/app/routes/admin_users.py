@@ -29,6 +29,15 @@ from ..models.vendor_payout import VendorPayout
 from ..models.vendor_push_subscription import VendorPushSubscription
 from ..models.vendor_receipt import VendorReceipt
 from ..services.logging_service import logging_service
+from ..services.admin_tools import (
+    build_daily_activity_series,
+    csv_download_response,
+    describe_audit_log,
+    digits_only,
+    get_admin_recent_error_count,
+    get_admin_sidebar_badges,
+    invalidate_admin_sidebar_badges,
+)
 from ..services.cache import bump_catalog_version, cache
 from ..services.audit import log_access
 from ..services.date_filters import resolve_date_filter
@@ -652,6 +661,51 @@ def admin_dashboard():
     activity_snapshot = _dashboard_activity_snapshot(date_filter=date_filter)
     live_traffic = get_live_traffic_metrics()
 
+    badges = get_admin_sidebar_badges()
+    recent_errors_24h = get_admin_recent_error_count(24) if _is_full_admin() else 0
+    activity_series_7d = build_daily_activity_series(7)
+    admin_alerts = []
+    if badges.get("pending_promos"):
+        admin_alerts.append({
+            "tone": "warning",
+            "icon": "bi-percent",
+            "title": f"{badges['pending_promos']} promotion(s) en attente de validation",
+            "url": url_for("admin.promo_reviews", status="pending"),
+            "cta": "Traiter",
+        })
+    if badges.get("pending_vendor_changes"):
+        admin_alerts.append({
+            "tone": "info",
+            "icon": "bi-pencil-square",
+            "title": f"{badges['pending_vendor_changes']} demande(s) de modification boutique",
+            "url": url_for("admin_users.vendor_change_requests", status="pending"),
+            "cta": "Verifier",
+        })
+    if badges.get("pending_bookings"):
+        admin_alerts.append({
+            "tone": "info",
+            "icon": "bi-calendar-check",
+            "title": f"{badges['pending_bookings']} reservation(s) de service en attente",
+            "url": url_for("admin.bookings", status="pending"),
+            "cta": "Consulter",
+        })
+    if badges.get("expiring_subs"):
+        admin_alerts.append({
+            "tone": "warning",
+            "icon": "bi-cash-stack",
+            "title": f"{badges['expiring_subs']} abonnement(s) vendeur arrivant a echeance (< 7j)",
+            "url": url_for("admin_users.reconciliation", status="overdue"),
+            "cta": "Relancer",
+        })
+    if recent_errors_24h:
+        admin_alerts.append({
+            "tone": "danger",
+            "icon": "bi-bug",
+            "title": f"{recent_errors_24h} erreur(s) serveur detectee(s) sur 24h",
+            "url": url_for("admin.maintenance"),
+            "cta": "Diagnostic",
+        })
+
     return render_template(
         "admin/dashboard.html",
         total_users=total_users,
@@ -666,6 +720,8 @@ def admin_dashboard():
         date_from=date_filter.date_from,
         date_to=date_filter.date_to,
         live_traffic=live_traffic,
+        admin_alerts=admin_alerts,
+        activity_series_7d=activity_series_7d,
         **activity_snapshot,
     )
 
@@ -688,39 +744,41 @@ def audience_dashboard_live():
     )
 
 # ==================== GESTION UTILISATEURS ====================
+def _users_filtered_query():
+    role_filter = _normalize_user_role(request.args.get("role", ""))
+    search = (request.args.get("search") or "").strip()
+
+    visible_roles = _visible_user_roles_for_current_user()
+    if role_filter and role_filter not in visible_roles:
+        role_filter = ""
+
+    query = _users_query_visible_to_current_user()
+    if role_filter:
+        query = query.filter_by(role=role_filter)
+    if search:
+        like = f"%{search}%"
+        query = query.filter(
+            db.or_(
+                User.username.ilike(like),
+                User.email.ilike(like),
+                User.full_name.ilike(like),
+                User.phone.ilike(like),
+            )
+        )
+    return query, role_filter, search
+
+
 @bp.route("/users")
 def manage_users():
     """Gérer tous les utilisateurs"""
     page = page_from_args(request.args)
-    role_filter = _normalize_user_role(request.args.get('role', ''))
-    search = request.args.get('search', '')
+    query, role_filter, search = _users_filtered_query()
 
-    visible_roles = _visible_user_roles_for_current_user()
-    if role_filter and role_filter not in visible_roles:
-        role_filter = ''
-
-    query = _users_query_visible_to_current_user()
-
-    # Filtres
-    if role_filter:
-        query = query.filter_by(role=role_filter)
-
-    if search:
-        query = query.filter(
-            db.or_(
-                User.username.ilike(f'%{search}%'),
-                User.email.ilike(f'%{search}%'),
-                User.full_name.ilike(f'%{search}%')
-            )
-        )
-
-    # Pagination
     pagination = query.order_by(User.created_at.desc()).paginate(
         page=page, per_page=50, error_out=False
     )
 
     users = pagination.items
-    # Statistiques par rôle
     roles_stats = {
         'vendor': User.query.filter_by(role='vendor').count(),
         'admin': User.query.filter_by(role=ADMIN_ROLE).count() if _is_full_admin() else 0,
@@ -734,6 +792,33 @@ def manage_users():
         role_filter=role_filter,
         search=search,
         roles_stats=roles_stats
+    )
+
+
+@bp.route("/users/export.csv")
+def users_export_csv():
+    query, role_filter, _ = _users_filtered_query()
+    users = query.options(selectinload(User.shop)).order_by(User.created_at.desc()).limit(5000).all()
+
+    def _rows():
+        for user in users:
+            yield (
+                user.id,
+                user.username,
+                user.full_name or "",
+                user.role,
+                user.email or "",
+                user.phone or "",
+                user.shop.name if getattr(user, "shop", None) else "",
+                user.is_active,
+                user.subscription_expires_at,
+                user.created_at,
+            )
+
+    return csv_download_response(
+        f"utilisateurs_{role_filter or 'tous'}",
+        ["ID", "Identifiant", "Nom complet", "Role", "Email", "Telephone", "Boutique", "Actif", "Fin abonnement", "Date creation"],
+        _rows(),
     )
 
 @bp.route("/user/<int:user_id>")
@@ -1538,6 +1623,7 @@ def vendor_change_request_approve(request_id: int):
         change_request.reviewed_at = datetime.utcnow()
         change_request.reviewed_by_id = current_user.id if current_user.is_authenticated else None
         db.session.commit()
+        invalidate_admin_sidebar_badges()
     except Exception:
         db.session.rollback()
         current_app.logger.exception(
@@ -1586,6 +1672,7 @@ def vendor_change_request_reject(request_id: int):
     change_request.reviewed_at = datetime.utcnow()
     change_request.reviewed_by_id = current_user.id if current_user.is_authenticated else None
     db.session.commit()
+    invalidate_admin_sidebar_badges()
 
     try:
         log_access(
@@ -1749,20 +1836,23 @@ def view_logs():
         page=page, per_page=50, error_out=False
     )
     audit_logs = audit_pagination.items
+    audit_summaries = {log.id: describe_audit_log(log) for log in audit_logs}
     audit_actions = [a[0] for a in db.session.query(AuditLog.action).distinct().order_by(AuditLog.action).all()]
     audit_entities = [e[0] for e in db.session.query(AuditLog.entity_type).distinct().order_by(AuditLog.entity_type).all()]
     audit_users = User.query.order_by(User.username.asc()).all()
     since_7d = datetime.utcnow() - timedelta(days=7)
     logs_summary = _cache_get_or_build(
-        "admin:logs:audit_summary:v1",
+        "admin:logs:audit_summary:v2",
         ADMIN_METRICS_CACHE_TTL_MEDIUM,
         lambda: {
             "audit_total_logs": AuditLog.query.count(),
             "audit_logs_7d": AuditLog.query.filter(AuditLog.created_at >= since_7d).count(),
+            "deletion_snapshots_count": AuditLog.query.filter(AuditLog.action == "deletion_snapshot").count(),
         },
     )
     audit_total_logs = int(logs_summary.get("audit_total_logs", 0) or 0)
     audit_logs_7d = int(logs_summary.get("audit_logs_7d", 0) or 0)
+    deletion_snapshots_count = int(logs_summary.get("deletion_snapshots_count", 0) or 0)
 
     # Liste des utilisateurs pour le filtre
     active_users = User.query.filter_by(is_active=True).order_by(User.username).all()
@@ -1777,6 +1867,7 @@ def view_logs():
         user_filter=user_filter,
         days=days,
         audit_logs=audit_logs,
+        audit_summaries=audit_summaries,
         audit_pagination=audit_pagination,
         audit_actions=audit_actions,
         audit_entities=audit_entities,
@@ -1785,10 +1876,33 @@ def view_logs():
         audit_entity_filter=audit_entity_filter,
         audit_user_filter=audit_user_filter,
         audit_total_logs=audit_total_logs,
-        audit_logs_7d=audit_logs_7d
+        audit_logs_7d=audit_logs_7d,
+        deletion_snapshots_count=deletion_snapshots_count,
     )
 
 
+
+
+def _reconciliation_filtered_query(status: str, now: datetime, global_free_active: bool):
+    base_query = User.query.filter_by(role="vendor").options(selectinload(User.shop))
+    if status == "active":
+        if global_free_active:
+            return base_query.filter(User.is_active == True)
+        return base_query.filter(
+            User.is_active == True,
+            or_(User.subscription_expires_at >= now, User.subscription_free_until >= now),
+        )
+    if status == "overdue":
+        if not global_free_active:
+            return base_query.filter(
+                User.is_active == True,
+                or_(User.subscription_expires_at.is_(None), User.subscription_expires_at < now),
+                or_(User.subscription_free_until.is_(None), User.subscription_free_until < now),
+            )
+        return base_query.filter(User.is_active == True)
+    if status == "blocked":
+        return base_query.filter(User.is_active == False)
+    return base_query
 
 
 @bp.route("/reconciliation")
@@ -1802,30 +1916,7 @@ def reconciliation():
     global_free_until = settings.vendor_free_until
     global_free_active = bool(global_free_until and global_free_until >= now)
 
-    base_query = User.query.filter_by(role="vendor").options(selectinload(User.shop))
-
-    if status == "active":
-        if global_free_active:
-            base_query = base_query.filter(User.is_active == True)
-        else:
-            base_query = base_query.filter(
-                User.is_active == True,
-                or_(User.subscription_expires_at >= now, User.subscription_free_until >= now)
-            )
-    elif status == "overdue":
-        if not global_free_active:
-            base_query = base_query.filter(
-                User.is_active == True,
-                or_(
-                    User.subscription_expires_at.is_(None),
-                    User.subscription_expires_at < now
-                ),
-                or_(User.subscription_free_until.is_(None), User.subscription_free_until < now)
-            )
-        else:
-            base_query = base_query.filter(User.is_active == True)
-    elif status == "blocked":
-        base_query = base_query.filter(User.is_active == False)
+    base_query = _reconciliation_filtered_query(status, now, global_free_active)
 
     pagination = base_query.order_by(User.created_at.desc()).paginate(
         page=page, per_page=per_page, error_out=False
@@ -1889,6 +1980,49 @@ def reconciliation():
     )
 
 
+@bp.route("/reconciliation/export.csv")
+def reconciliation_export_csv():
+    status = (request.args.get("status") or "").strip().lower()
+    now = datetime.utcnow()
+    settings = PlatformSettings.get()
+    global_free_until = settings.vendor_free_until
+    global_free_active = bool(global_free_until and global_free_until >= now)
+
+    vendors = (
+        _reconciliation_filtered_query(status, now, global_free_active)
+        .order_by(User.created_at.desc())
+        .limit(5000)
+        .all()
+    )
+
+    def _rows():
+        for vendor in vendors:
+            if not vendor.is_active:
+                sub_state = "Bloque"
+            elif global_free_active or (vendor.subscription_free_until and vendor.subscription_free_until >= now):
+                sub_state = "Gratuit"
+            elif vendor.subscription_expires_at and vendor.subscription_expires_at >= now:
+                sub_state = "Actif"
+            else:
+                sub_state = "En retard"
+            yield (
+                vendor.id,
+                vendor.username,
+                vendor.phone or "",
+                vendor.email or "",
+                vendor.shop.name if vendor.shop else "",
+                sub_state,
+                vendor.subscription_expires_at,
+                vendor.subscription_last_paid_at,
+            )
+
+    return csv_download_response(
+        f"abonnements_{status or 'tous'}",
+        ["ID", "Vendeur", "Telephone", "Email", "Boutique", "Statut abonnement", "Fin abonnement", "Dernier paiement"],
+        _rows(),
+    )
+
+
 @bp.route("/reconciliation/mark-subscription/<int:user_id>", methods=["POST"])
 def mark_subscription_paid(user_id):
     user = User.query.get_or_404(user_id)
@@ -1936,6 +2070,7 @@ def mark_subscription_paid(user_id):
     record_subscription_entry(payment, note=finance_note)
 
     db.session.commit()
+    invalidate_admin_sidebar_badges()
 
     log_access(
         "subscription_paid",
@@ -1971,6 +2106,7 @@ def subscription_free_vendor(user_id):
         user.shop.is_active = True
 
     db.session.commit()
+    invalidate_admin_sidebar_badges()
 
     log_access(
         "subscription_free_vendor",
@@ -2006,6 +2142,7 @@ def subscription_settings():
             settings.vendor_free_until = now + timedelta(days=free_days_all)
 
     db.session.commit()
+    invalidate_admin_sidebar_badges()
     flash("Paramètres d'abonnement mis à jour", "success")
     return redirect(request.referrer or url_for("admin_users.reconciliation"))
 
@@ -2016,6 +2153,7 @@ def subscription_block_vendor(user_id):
     if user.shop:
         user.shop.is_active = False
     db.session.commit()
+    invalidate_admin_sidebar_badges()
 
     log_access(
         "subscription_block_vendor",
@@ -2036,6 +2174,7 @@ def subscription_unblock_vendor(user_id):
     if user.shop:
         user.shop.is_active = True
     db.session.commit()
+    invalidate_admin_sidebar_badges()
 
     log_access(
         "subscription_unblock_vendor",
@@ -2049,6 +2188,52 @@ def subscription_unblock_vendor(user_id):
     return redirect(request.referrer or url_for("admin_users.reconciliation"))
 
 
+def _grouped_booking_metric(value_column, filters, since_dt, min_count: int, max_rows: int, *, cancelled_only: bool = False):
+    query = (
+        db.session.query(
+            value_column,
+            db.func.count(Booking.id).label("cnt"),
+            db.func.max(Booking.created_at).label("last"),
+        )
+        .filter(Booking.created_at >= since_dt, *filters)
+    )
+    if cancelled_only:
+        query = query.filter(Booking.status == "cancelled")
+    return (
+        query.group_by(value_column)
+        .having(db.func.count(Booking.id) >= min_count)
+        .order_by(db.desc("cnt"), db.desc("last"))
+        .limit(max_rows)
+        .all()
+    )
+
+
+def _aggregate_lead_phone_groups(
+    rows: list[tuple[str, datetime]],
+    since_dt: datetime,
+    min_count: int,
+    max_rows: int,
+) -> list[tuple[str, int, datetime | None]]:
+    buckets: dict[str, list] = {}
+    for phone_key, created_at in rows:
+        if not phone_key or not created_at or created_at < since_dt:
+            continue
+        entry = buckets.get(phone_key)
+        if entry is None:
+            buckets[phone_key] = [1, created_at]
+        else:
+            entry[0] += 1
+            if created_at > entry[1]:
+                entry[1] = created_at
+    ranked = [
+        (phone_key, data[0], data[1])
+        for phone_key, data in buckets.items()
+        if data[0] >= min_count
+    ]
+    ranked.sort(key=lambda item: (item[1], item[2]), reverse=True)
+    return ranked[:max_rows]
+
+
 @bp.route("/fraud")
 def fraud_monitor():
     days = normalize_limit(request.args.get("days", 2, type=int), default=2, max_limit=365)
@@ -2057,117 +2242,115 @@ def fraud_monitor():
     limit_24h = normalize_limit(request.args.get("limit_24h", 12, type=int), default=12, max_limit=50)
     cancel_limit = normalize_limit(request.args.get("cancel_limit", 3, type=int), default=3, max_limit=50)
     ip_phones_limit = normalize_limit(request.args.get("ip_phones_limit", 4, type=int), default=4, max_limit=50)
-    addr_min_len = normalize_limit(request.args.get("addr_min_len", 8, type=int), default=8, max_limit=64)
+    addr_min_len = normalize_limit(request.args.get("addr_min_len", 4, type=int), default=4, max_limit=64)
     max_rows = normalize_limit(
         request.args.get("max_rows", FRAUD_MAX_ROWS_DEFAULT, type=int),
         default=FRAUD_MAX_ROWS_DEFAULT,
         max_limit=FRAUD_MAX_ROWS_CAP,
     )
 
-    if days < 1:
-        days = 1
-    if threshold < 2:
-        threshold = 2
-    if limit_1h < 2:
-        limit_1h = 2
-    if limit_24h < 2:
-        limit_24h = 2
-    if cancel_limit < 2:
-        cancel_limit = 2
-    if ip_phones_limit < 2:
-        ip_phones_limit = 2
-    if addr_min_len < 4:
-        addr_min_len = 4
-    if max_rows < 10:
-        max_rows = 10
+    days = max(1, days)
+    threshold = max(2, threshold)
+    limit_1h = max(2, limit_1h)
+    limit_24h = max(2, limit_24h)
+    cancel_limit = max(2, cancel_limit)
+    ip_phones_limit = max(2, ip_phones_limit)
+    addr_min_len = max(3, addr_min_len)
+    max_rows = max(10, max_rows)
 
     now = datetime.utcnow()
     since = now - timedelta(days=days)
     since_1h = now - timedelta(hours=1)
     since_24h = now - timedelta(hours=24)
 
-    phone_filter = [Order.phone_digits.isnot(None), Order.phone_digits != ""]
-    ip_filter = [Order.order_ip.isnot(None), Order.order_ip != ""]
+    phone_filter = [Booking.phone_digits.isnot(None), Booking.phone_digits != ""]
+    ip_filter = [Booking.booking_ip.isnot(None), Booking.booking_ip != ""]
 
-    def _grouped_metric(value_column, filters, since_dt, min_count, *, cancelled_only=False):
-        query = (
-            db.session.query(
-                value_column,
-                db.func.count(Order.id).label("cnt"),
-                db.func.max(Order.created_at).label("last"),
-            )
-            .filter(Order.created_at >= since_dt, *filters)
-        )
-        if cancelled_only:
-            query = query.filter(Order.status == "cancelled")
-        return (
-            query.group_by(value_column)
-            .having(db.func.count(Order.id) >= min_count)
-            .order_by(db.desc("cnt"), db.desc("last"))
-            .limit(max_rows)
-            .all()
-        )
-
-    phone_groups = _grouped_metric(Order.phone_digits, phone_filter, since, threshold)
-    ip_groups = _grouped_metric(Order.order_ip, ip_filter, since, threshold)
-    phone_1h = _grouped_metric(Order.phone_digits, phone_filter, since_1h, limit_1h)
-    ip_1h = _grouped_metric(Order.order_ip, ip_filter, since_1h, limit_1h)
-    phone_24h = _grouped_metric(Order.phone_digits, phone_filter, since_24h, limit_24h)
-    ip_24h = _grouped_metric(Order.order_ip, ip_filter, since_24h, limit_24h)
-    cancelled_phones = _grouped_metric(Order.phone_digits, phone_filter, since, cancel_limit, cancelled_only=True)
-    cancelled_ips = _grouped_metric(Order.order_ip, ip_filter, since, cancel_limit, cancelled_only=True)
+    phone_groups = _grouped_booking_metric(Booking.phone_digits, phone_filter, since, threshold, max_rows)
+    ip_groups = _grouped_booking_metric(Booking.booking_ip, ip_filter, since, threshold, max_rows)
+    phone_1h = _grouped_booking_metric(Booking.phone_digits, phone_filter, since_1h, limit_1h, max_rows)
+    ip_1h = _grouped_booking_metric(Booking.booking_ip, ip_filter, since_1h, limit_1h, max_rows)
+    phone_24h = _grouped_booking_metric(Booking.phone_digits, phone_filter, since_24h, limit_24h, max_rows)
+    ip_24h = _grouped_booking_metric(Booking.booking_ip, ip_filter, since_24h, limit_24h, max_rows)
+    cancelled_phones = _grouped_booking_metric(Booking.phone_digits, phone_filter, since, cancel_limit, max_rows, cancelled_only=True)
+    cancelled_ips = _grouped_booking_metric(Booking.booking_ip, ip_filter, since, cancel_limit, max_rows, cancelled_only=True)
 
     ip_phone_mix = (
         db.session.query(
-            Order.order_ip.label("ip"),
-            db.func.count(db.distinct(Order.phone_digits)).label("phones"),
-            db.func.count(Order.id).label("orders"),
-            db.func.max(Order.created_at).label("last")
+            Booking.booking_ip.label("ip"),
+            db.func.count(db.distinct(Booking.phone_digits)).label("phones"),
+            db.func.count(Booking.id).label("bookings"),
+            db.func.max(Booking.created_at).label("last"),
         )
-        .filter(Order.created_at >= since, *ip_filter, *phone_filter)
-        .group_by(Order.order_ip)
-        .having(db.func.count(db.distinct(Order.phone_digits)) >= ip_phones_limit)
+        .filter(Booking.created_at >= since, *ip_filter, *phone_filter)
+        .group_by(Booking.booking_ip)
+        .having(db.func.count(db.distinct(Booking.phone_digits)) >= ip_phones_limit)
         .order_by(db.desc("phones"))
         .limit(max_rows)
         .all()
     )
 
-    addr = db.func.trim(Order.address)
-    addr_lower = db.func.lower(Order.address)
-    suspicious_keywords = [
-        "test", "xxxx", "xxx", "unknown", "inconnu", "n/a", "na", "none", "sans adresse", "no address", "rien"
-    ]
+    name_trimmed = db.func.trim(Booking.full_name)
+    name_lower = db.func.lower(Booking.full_name)
+    note_lower = db.func.lower(Booking.note)
+    suspicious_keywords = ["test", "xxxx", "xxx", "unknown", "inconnu", "spam", "faux", "rien", "n/a", "none"]
     suspicious_filters = [
-        Order.address.is_(None),
-        addr == "",
-        db.func.length(addr) < addr_min_len,
+        Booking.full_name.is_(None),
+        name_trimmed == "",
+        db.func.length(name_trimmed) < addr_min_len,
+        Booking.phone_digits.is_(None),
+        Booking.phone_digits == "",
     ]
     for kw in suspicious_keywords:
-        suspicious_filters.append(addr_lower.like(f"%{kw}%"))
+        suspicious_filters.append(name_lower.like(f"%{kw}%"))
+        suspicious_filters.append(note_lower.like(f"%{kw}%"))
 
-    suspicious_orders = (
-        Order.query
+    suspicious_bookings = (
+        Booking.query
         .options(
             load_only(
-                Order.id,
-                Order.phone_digits,
-                Order.order_ip,
-                Order.address,
-                Order.status,
-                Order.created_at,
+                Booking.id,
+                Booking.full_name,
+                Booking.phone_digits,
+                Booking.booking_ip,
+                Booking.note,
+                Booking.status,
+                Booking.created_at,
             )
         )
-        .filter(Order.created_at >= since)
-        .filter(db.or_(*suspicious_filters))
-        .order_by(Order.created_at.desc())
+        .filter(Booking.created_at >= since)
+        .filter(or_(*suspicious_filters))
+        .order_by(Booking.created_at.desc())
         .limit(max_rows)
         .all()
     )
 
+    # Product WhatsApp leads frequency
+    lead_rows_raw = (
+        db.session.query(ProductContactLead.client_phone, ProductContactLead.created_at)
+        .filter(
+            ProductContactLead.source == "product_whatsapp",
+            ProductContactLead.created_at >= since,
+            ProductContactLead.client_phone.isnot(None),
+            ProductContactLead.client_phone != "",
+        )
+        .order_by(ProductContactLead.created_at.desc())
+        .limit(5000)
+        .all()
+    )
+    normalized_leads = [
+        (digits_only(phone_raw), created_at)
+        for phone_raw, created_at in lead_rows_raw
+        if digits_only(phone_raw)
+    ]
+    lead_phone_1h = _aggregate_lead_phone_groups(normalized_leads, since_1h, limit_1h, max_rows)
+    lead_phone_24h = _aggregate_lead_phone_groups(normalized_leads, since_24h, limit_24h, max_rows)
+    lead_phone_groups = _aggregate_lead_phone_groups(normalized_leads, since, threshold, max_rows)
+
     tracked_phones = set()
     tracked_ips = set()
 
-    for phone, _, _ in phone_groups + phone_1h + phone_24h + cancelled_phones:
+    for phone, _, _ in phone_groups + phone_1h + phone_24h + cancelled_phones + lead_phone_groups + lead_phone_1h + lead_phone_24h:
         if phone:
             tracked_phones.add(phone)
     for ip, _, _ in ip_groups + ip_1h + ip_24h + cancelled_ips:
@@ -2176,25 +2359,31 @@ def fraud_monitor():
     for ip, _, _, _ in ip_phone_mix:
         if ip:
             tracked_ips.add(ip)
-    for order in suspicious_orders:
-        if order.phone_digits:
-            tracked_phones.add(order.phone_digits)
-        if order.order_ip:
-            tracked_ips.add(order.order_ip)
+    for booking in suspicious_bookings:
+        if booking.phone_digits:
+            tracked_phones.add(booking.phone_digits)
+        if booking.booking_ip:
+            tracked_ips.add(booking.booking_ip)
 
-    blocked_filters = []
-    if tracked_phones:
-        blocked_filters.append(and_(BlockedContact.kind == "phone", BlockedContact.value.in_(tracked_phones)))
-    if tracked_ips:
-        blocked_filters.append(and_(BlockedContact.kind == "ip", BlockedContact.value.in_(tracked_ips)))
-
-    blocked = (
+    active_blocked_contacts = (
         BlockedContact.query
         .filter(BlockedContact.is_active == True)
-        .filter(or_(*blocked_filters))
+        .order_by(BlockedContact.created_at.desc())
+        .limit(max_rows)
         .all()
-    ) if blocked_filters else []
-    blocked_map = {(b.kind, b.value): b for b in blocked}
+    )
+    blocked_map = {(b.kind, b.value): b for b in active_blocked_contacts}
+
+    missing_filters = []
+    missing_phones = tracked_phones - {k[1] for k in blocked_map if k[0] == "phone"}
+    missing_ips = tracked_ips - {k[1] for k in blocked_map if k[0] == "ip"}
+    if missing_phones:
+        missing_filters.append(and_(BlockedContact.kind == "phone", BlockedContact.value.in_(missing_phones)))
+    if missing_ips:
+        missing_filters.append(and_(BlockedContact.kind == "ip", BlockedContact.value.in_(missing_ips)))
+    if missing_filters:
+        for extra_blocked in BlockedContact.query.filter(BlockedContact.is_active == True, or_(*missing_filters)).all():
+            blocked_map[(extra_blocked.kind, extra_blocked.value)] = extra_blocked
 
     return render_template(
         "admin/fraud.html",
@@ -2217,8 +2406,12 @@ def fraud_monitor():
         cancelled_phones=cancelled_phones,
         cancelled_ips=cancelled_ips,
         ip_phone_mix=ip_phone_mix,
-        suspicious_orders=suspicious_orders,
-        blocked_map=blocked_map
+        suspicious_bookings=suspicious_bookings,
+        lead_phone_1h=lead_phone_1h,
+        lead_phone_24h=lead_phone_24h,
+        lead_phone_groups=lead_phone_groups,
+        active_blocked_contacts=active_blocked_contacts,
+        blocked_map=blocked_map,
     )
 
 

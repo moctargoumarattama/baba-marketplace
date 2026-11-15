@@ -440,6 +440,54 @@
             align-items: flex-start;
         }
     }
+
+    html[data-admin-theme="noc"] .fraud-card,
+    html[data-admin-theme="noc"] .table.fraud-table tr {
+        background: #0f172a;
+        border-color: #1e293b;
+        color: #e2e8f0;
+    }
+    html[data-admin-theme="noc"] .fraud-card-header {
+        background: rgba(16, 185, 129, 0.06);
+        border-bottom-color: #1e293b;
+        color: #f1f5f9;
+    }
+    html[data-admin-theme="noc"] .table.fraud-table {
+        color: #e2e8f0;
+    }
+    html[data-admin-theme="noc"] .table.fraud-table th {
+        background: #1e293b;
+        color: #94a3b8;
+        border-color: #334155;
+    }
+    html[data-admin-theme="noc"] .table.fraud-table td {
+        border-color: #1e293b;
+    }
+    .fraud-manual-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+        gap: .65rem;
+        align-items: end;
+    }
+    .fraud-section-divider {
+        display: flex;
+        align-items: center;
+        gap: .6rem;
+        margin: .35rem 0;
+        font-size: .78rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: .06em;
+        color: #475569;
+    }
+    .fraud-section-divider::after {
+        content: "";
+        flex: 1;
+        height: 1px;
+        background: #e2e8f0;
+    }
+    html[data-admin-theme="noc"] .fraud-section-divider { color: #94a3b8; }
+    html[data-admin-theme="noc"] .fraud-section-divider::after { background: #1e293b; }
 </style>
 {% endblock %}
 
@@ -473,7 +521,7 @@
                 <span class="fraud-pill info"><i class="bi bi-globe2"></i> Global</span>
                 <span class="fraud-live">
                     <i class="bi bi-clock"></i>
-                    Derni?re mise ? jour : <strong id="fraudLastUpdated">{{ now.strftime('%Y-%m-%d %H:%M:%S') }}</strong>
+                    Dernière mise à jour : <strong id="fraudLastUpdated">{{ now.strftime('%Y-%m-%d %H:%M:%S') }}</strong>
                 </span>
                 <span class="fraud-live">
                     <i class="bi bi-trash"></i>
@@ -534,12 +582,184 @@
         </div>
     </section>
 
-    <!-- Trop de commandes par téléphone (1h) -->
+    <div class="d-flex flex-wrap gap-2 mb-3">
+        <a href="{{ url_for('admin.bookings') }}" class="btn btn-sm btn-outline-primary">
+            <i class="bi bi-calendar2-check"></i> Gérer les réservations services
+        </a>
+        <a href="{{ url_for('admin.product_contacts') }}" class="btn btn-sm btn-outline-success">
+            <i class="bi bi-whatsapp"></i> Contacts WhatsApp produits
+        </a>
+        <span class="badge text-bg-dark d-inline-flex align-items-center">
+            {{ active_blocked_contacts|length if active_blocked_contacts is defined else 0 }} contacts bloqués actifs
+        </span>
+    </div>
+
+    <!-- Blocage manuel rapide -->
+    <section class="fraud-card fraud-card--info">
+        <div class="fraud-card-header">
+            <h5>
+                <i class="bi bi-slash-circle"></i>
+                Blocage manuel (Téléphone ou IP)
+            </h5>
+            <span class="text-muted">Protection immédiate réservations &amp; panier</span>
+        </div>
+        <div class="p-3">
+            <form method="post" action="{{ url_for('admin_users.fraud_block') }}" class="fraud-manual-grid">
+                {% include "partials/_csrf.html" %}
+                <div>
+                    <label class="form-label small fw-bold mb-1" for="manualBlockKind">Type</label>
+                    <select id="manualBlockKind" name="kind" class="form-select form-select-sm">
+                        <option value="phone">Téléphone</option>
+                        <option value="ip">Adresse IP</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label small fw-bold mb-1" for="manualBlockValue">Numéro ou IP</label>
+                    <input id="manualBlockValue" type="text" name="value" required class="form-control form-control-sm"
+                           placeholder="Ex: 0612345678 ou 192.168.1.1">
+                </div>
+                <div>
+                    <label class="form-label small fw-bold mb-1" for="manualBlockReason">Motif</label>
+                    <input id="manualBlockReason" type="text" name="reason" maxlength="200" class="form-control form-control-sm"
+                           placeholder="Spam, fausses demandes, abus...">
+                </div>
+                <div>
+                    <button type="submit" class="btn btn-danger btn-sm w-100">
+                        <i class="bi bi-shield-x"></i> Bloquer maintenant
+                    </button>
+                </div>
+            </form>
+        </div>
+    </section>
+
+    <!-- Contacts actuellement bloqués -->
+    <section class="fraud-card fraud-card--danger">
+        <div class="fraud-card-header">
+            <h5>
+                <i class="bi bi-person-lock"></i>
+                Contacts actuellement bloqués
+                <span class="badge bg-danger">{{ active_blocked_contacts|length if active_blocked_contacts is defined else 0 }}</span>
+            </h5>
+            <span class="text-muted">Actifs</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table align-middle fraud-table mb-0" data-page-size="10">
+                <thead>
+                    <tr>
+                        <th>Type</th>
+                        <th>Valeur</th>
+                        <th>Motif</th>
+                        <th>Date blocage</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in active_blocked_contacts %}
+                    <tr>
+                        <td data-label="Type">
+                            <span class="badge {{ 'bg-primary' if item.kind == 'phone' else 'bg-secondary' }}">
+                                {{ 'Téléphone' if item.kind == 'phone' else 'IP' }}
+                            </span>
+                        </td>
+                        <td data-label="Valeur" class="font-monospace fw-semibold">{{ item.value }}</td>
+                        <td data-label="Motif">{{ item.reason or 'Non précisé' }}</td>
+                        <td data-label="Date blocage">{{ item.created_at.strftime('%Y-%m-%d %H:%M') if item.created_at else '-' }}</td>
+                        <td data-label="Action" class="fraud-actions">
+                            <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_unblock', block_id=item.id) }}">
+                                {% include "partials/_csrf.html" %}
+                                <button class="btn btn-outline-success btn-sm" type="submit">Débloquer</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5">
+                            <div class="fraud-empty">
+                                <i class="bi bi-shield-check"></i>
+                                <p>Aucun numéro ni IP actuellement bloqué.</p>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <div class="fraud-section-divider">Contacts WhatsApp Produits</div>
+
+    <!-- Contacts WhatsApp produits -->
+    <section class="fraud-card fraud-card--warn">
+        <div class="fraud-card-header">
+            <h5>
+                <i class="bi bi-whatsapp"></i>
+                Spikes contacts WhatsApp produits (1h / 24h / {{ days }}j)
+                <span class="badge bg-warning">{{ (lead_phone_1h|length) + (lead_phone_24h|length) + (lead_phone_groups|length) }}</span>
+            </h5>
+            <span class="text-muted">Détection spam clics WhatsApp</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table align-middle fraud-table mb-0" data-page-size="10">
+                <thead>
+                    <tr>
+                        <th>Fenêtre</th>
+                        <th>Téléphone</th>
+                        <th>Nb contacts</th>
+                        <th>Dernier</th>
+                        <th>Blocage</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for scope_label, items in [('1h (>= ' ~ limit_1h ~ ')', lead_phone_1h), ('24h (>= ' ~ limit_24h ~ ')', lead_phone_24h), (days ~ 'j (>= ' ~ threshold ~ ')', lead_phone_groups)] %}
+                        {% for phone, cnt, last in items %}
+                        <tr>
+                            <td data-label="Fenêtre"><span class="badge bg-warning text-dark">{{ scope_label }}</span></td>
+                            <td data-label="Téléphone" class="font-monospace">{{ phone }}</td>
+                            <td data-label="Nb contacts"><span class="badge bg-danger">{{ cnt }}</span></td>
+                            <td data-label="Dernier">{{ last.strftime('%Y-%m-%d %H:%M') if last else '-' }}</td>
+                            <td data-label="Blocage" class="fraud-actions">
+                                {% set blocked = blocked_map.get(('phone', phone)) %}
+                                {% if blocked %}
+                                    <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_unblock', block_id=blocked.id) }}">
+                                        {% include "partials/_csrf.html" %}
+                                        <button class="btn btn-outline-success btn-sm" type="submit">Débloquer</button>
+                                    </form>
+                                {% else %}
+                                    <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_block') }}" class="d-flex gap-2 align-items-center">
+                                        {% include "partials/_csrf.html" %}
+                                        <input type="hidden" name="kind" value="phone">
+                                        <input type="hidden" name="value" value="{{ phone }}">
+                                        <input class="form-control form-control-sm" name="reason" placeholder="Raison" style="max-width:150px;">
+                                        <button class="btn btn-danger btn-sm" type="submit">Bloquer</button>
+                                    </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% endfor %}
+                    {% if not lead_phone_1h and not lead_phone_24h and not lead_phone_groups %}
+                    <tr>
+                        <td colspan="5">
+                            <div class="fraud-empty">
+                                <i class="bi bi-shield-check"></i>
+                                <p>Aucun pic anormal de contacts WhatsApp détecté.</p>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <div class="fraud-section-divider">Réservations Services</div>
+
+    <!-- Trop de réservations par téléphone (1h) -->
     <section class="fraud-card fraud-card--danger">
         <div class="fraud-card-header">
             <h5>
                 <i class="bi bi-telephone"></i>
-                Trop de commandes par téléphone (1h)
+                Trop de réservations par téléphone (1h)
                 <span class="badge bg-danger">{{ phone_1h|length }}</span>
             </h5>
             <span class="text-muted">{{ phone_1h|length }} groupes</span>
@@ -549,7 +769,7 @@
                 <thead>
                     <tr>
                         <th>Téléphone</th>
-                        <th>Nb commandes</th>
+                        <th>Nb réservations</th>
                         <th>Dernière</th>
                         <th>Blocage</th>
                     </tr>
@@ -558,7 +778,7 @@
                     {% for phone, cnt, last in phone_1h %}
                     <tr data-phone="{{ phone }}">
                         <td data-label="Téléphone">{{ phone }}</td>
-                        <td data-label="Nb commandes"><span class="badge bg-danger">{{ cnt }}</span></td>
+                        <td data-label="Nb réservations"><span class="badge bg-danger">{{ cnt }}</span></td>
                         <td data-label="Dernière">{{ last.strftime('%Y-%m-%d %H:%M') if last else '' }}</td>
                         <td data-label="Blocage" class="fraud-actions">
                             {% set blocked = blocked_map.get(('phone', phone)) %}
@@ -593,12 +813,12 @@
         </div>
     </section>
 
-    <!-- Trop de commandes par IP (1h) -->
+    <!-- Trop de réservations par IP (1h) -->
     <section class="fraud-card fraud-card--danger">
         <div class="fraud-card-header">
             <h5>
                 <i class="bi bi-globe"></i>
-                Trop de commandes par IP (1h)
+                Trop de réservations par IP (1h)
                 <span class="badge bg-danger">{{ ip_1h|length }}</span>
             </h5>
             <span class="text-muted">{{ ip_1h|length }} groupes</span>
@@ -608,7 +828,7 @@
                 <thead>
                     <tr>
                         <th>IP</th>
-                        <th>Nb commandes</th>
+                        <th>Nb réservations</th>
                         <th>Dernière</th>
                         <th>Blocage</th>
                     </tr>
@@ -617,7 +837,7 @@
                     {% for ip, cnt, last in ip_1h %}
                     <tr data-ip="{{ ip }}">
                         <td data-label="IP">{{ ip }}</td>
-                        <td data-label="Nb commandes"><span class="badge bg-danger">{{ cnt }}</span></td>
+                        <td data-label="Nb réservations"><span class="badge bg-danger">{{ cnt }}</span></td>
                         <td data-label="Dernière">{{ last.strftime('%Y-%m-%d %H:%M') if last else '' }}</td>
                         <td data-label="Blocage" class="fraud-actions">
                             {% set blocked = blocked_map.get(('ip', ip)) %}
@@ -652,12 +872,12 @@
         </div>
     </section>
 
-    <!-- Trop de commandes par téléphone (24h) -->
+    <!-- Trop de réservations par téléphone (24h) -->
     <section class="fraud-card fraud-card--warn">
         <div class="fraud-card-header">
             <h5>
                 <i class="bi bi-telephone"></i>
-                Trop de commandes par téléphone (24h)
+                Trop de réservations par téléphone (24h)
                 <span class="badge bg-warning">{{ phone_24h|length }}</span>
             </h5>
             <span class="text-muted">{{ phone_24h|length }} groupes</span>
@@ -667,7 +887,7 @@
                 <thead>
                     <tr>
                         <th>Téléphone</th>
-                        <th>Nb commandes</th>
+                        <th>Nb réservations</th>
                         <th>Dernière</th>
                         <th>Blocage</th>
                     </tr>
@@ -676,7 +896,7 @@
                     {% for phone, cnt, last in phone_24h %}
                     <tr>
                         <td data-label="Téléphone">{{ phone }}</td>
-                        <td data-label="Nb commandes"><span class="badge bg-warning">{{ cnt }}</span></td>
+                        <td data-label="Nb réservations"><span class="badge bg-warning">{{ cnt }}</span></td>
                         <td data-label="Dernière">{{ last.strftime('%Y-%m-%d %H:%M') if last else '' }}</td>
                         <td data-label="Blocage" class="fraud-actions">
                             {% set blocked = blocked_map.get(('phone', phone)) %}
@@ -711,12 +931,12 @@
         </div>
     </section>
 
-    <!-- Trop de commandes par IP (24h) -->
+    <!-- Trop de réservations par IP (24h) -->
     <section class="fraud-card fraud-card--warn">
         <div class="fraud-card-header">
             <h5>
                 <i class="bi bi-globe"></i>
-                Trop de commandes par IP (24h)
+                Trop de réservations par IP (24h)
                 <span class="badge bg-warning">{{ ip_24h|length }}</span>
             </h5>
             <span class="text-muted">{{ ip_24h|length }} groupes</span>
@@ -726,7 +946,7 @@
                 <thead>
                     <tr>
                         <th>IP</th>
-                        <th>Nb commandes</th>
+                        <th>Nb réservations</th>
                         <th>Dernière</th>
                         <th>Blocage</th>
                     </tr>
@@ -735,7 +955,7 @@
                     {% for ip, cnt, last in ip_24h %}
                     <tr>
                         <td data-label="IP">{{ ip }}</td>
-                        <td data-label="Nb commandes"><span class="badge bg-warning">{{ cnt }}</span></td>
+                        <td data-label="Nb réservations"><span class="badge bg-warning">{{ cnt }}</span></td>
                         <td data-label="Dernière">{{ last.strftime('%Y-%m-%d %H:%M') if last else '' }}</td>
                         <td data-label="Blocage" class="fraud-actions">
                             {% set blocked = blocked_map.get(('ip', ip)) %}
@@ -873,17 +1093,17 @@
                     <tr>
                         <th>IP</th>
                         <th>Nb téléphones</th>
-                        <th>Nb commandes</th>
+                        <th>Nb réservations</th>
                         <th>Dernière</th>
                         <th>Blocage</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for ip, phones, orders, last in ip_phone_mix %}
+                    {% for ip, phones, bookings_cnt, last in ip_phone_mix %}
                     <tr>
                         <td data-label="IP">{{ ip }}</td>
                         <td data-label="Nb téléphones"><span class="badge bg-warning">{{ phones }}</span></td>
-                        <td data-label="Nb commandes">{{ orders }}</td>
+                        <td data-label="Nb réservations">{{ bookings_cnt }}</td>
                         <td data-label="Dernière">{{ last.strftime('%Y-%m-%d %H:%M') if last else '' }}</td>
                         <td data-label="Blocage" class="fraud-actions">
                             {% set blocked = blocked_map.get(('ip', ip)) %}
@@ -918,44 +1138,46 @@
         </div>
     </section>
 
-    <!-- Adresses vides ou suspectes -->
+    <!-- Réservations avec noms, numéros ou notes suspects -->
     <section class="fraud-card fraud-card--danger">
         <div class="fraud-card-header">
             <h5>
-                <i class="bi bi-geo-alt"></i>
-                Adresses vides ou suspectes ({{ days }} jours)
-                <span class="badge bg-danger">{{ suspicious_orders|length }}</span>
+                <i class="bi bi-exclamation-octagon"></i>
+                Réservations suspectes ou incomplètes ({{ days }} jours)
+                <span class="badge bg-danger">{{ suspicious_bookings|length }}</span>
             </h5>
-            <span class="text-muted">{{ suspicious_orders|length }} commandes</span>
+            <span class="text-muted">{{ suspicious_bookings|length }} réservations</span>
         </div>
         <div class="table-responsive">
             <table class="table align-middle fraud-table mb-0" data-page-size="10">
                 <thead>
                     <tr>
                         <th>ID</th>
+                        <th>Client</th>
                         <th>Téléphone</th>
                         <th>IP</th>
-                        <th>Adresse</th>
+                        <th>Note</th>
                         <th>Statut</th>
                         <th>Date</th>
                         <th>Blocage</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for order in suspicious_orders %}
+                    {% for booking in suspicious_bookings %}
                     <tr>
-                        <td data-label="ID">#{{ order.id }}</td>
-                        <td data-label="Téléphone">{{ order.phone_digits }}</td>
-                        <td data-label="IP">{{ order.order_ip }}</td>
-                        <td data-label="Adresse" style="max-width:420px; word-break:break-word;">{{ order.address }}</td>
+                        <td data-label="ID">#{{ booking.id }}</td>
+                        <td data-label="Client">{{ booking.full_name or '-' }}</td>
+                        <td data-label="Téléphone">{{ booking.phone_digits or '-' }}</td>
+                        <td data-label="IP">{{ booking.booking_ip or '-' }}</td>
+                        <td data-label="Note" style="max-width:340px; word-break:break-word;">{{ booking.note or '-' }}</td>
                         <td data-label="Statut">
-                            <span class="badge bg-secondary">{{ label_order_status(order.status, current_lang) }}</span>
+                            <span class="badge bg-secondary">{{ booking.status or 'pending' }}</span>
                         </td>
-                        <td data-label="Date">{{ order.created_at.strftime('%Y-%m-%d %H:%M') if order.created_at else '' }}</td>
+                        <td data-label="Date">{{ booking.created_at.strftime('%Y-%m-%d %H:%M') if booking.created_at else '' }}</td>
                         <td data-label="Blocage" class="fraud-actions">
                             <div class="d-flex gap-2 flex-wrap">
-                                {% if order.phone_digits %}
-                                    {% set blocked = blocked_map.get(('phone', order.phone_digits)) %}
+                                {% if booking.phone_digits %}
+                                    {% set blocked = blocked_map.get(('phone', booking.phone_digits)) %}
                                     {% if blocked %}
                                         <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_unblock', block_id=blocked.id) }}">
                                             {% include "partials/_csrf.html" %}
@@ -965,14 +1187,14 @@
                                         <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_block') }}" class="d-flex gap-2 align-items-center">
                                             {% include "partials/_csrf.html" %}
                                             <input type="hidden" name="kind" value="phone">
-                                            <input type="hidden" name="value" value="{{ order.phone_digits }}">
+                                            <input type="hidden" name="value" value="{{ booking.phone_digits }}">
                                             <input class="form-control form-control-sm" name="reason" placeholder="Raison" style="max-width:120px;">
                                             <button class="btn btn-danger btn-sm" type="submit">Bloq Tél.</button>
                                         </form>
                                     {% endif %}
                                 {% endif %}
-                                {% if order.order_ip %}
-                                    {% set blocked_ip = blocked_map.get(('ip', order.order_ip)) %}
+                                {% if booking.booking_ip %}
+                                    {% set blocked_ip = blocked_map.get(('ip', booking.booking_ip)) %}
                                     {% if blocked_ip %}
                                         <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_unblock', block_id=blocked_ip.id) }}">
                                             {% include "partials/_csrf.html" %}
@@ -982,7 +1204,7 @@
                                         <form method="post" data-adm-disable-submit action="{{ url_for('admin_users.fraud_block') }}" class="d-flex gap-2 align-items-center">
                                             {% include "partials/_csrf.html" %}
                                             <input type="hidden" name="kind" value="ip">
-                                            <input type="hidden" name="value" value="{{ order.order_ip }}">
+                                            <input type="hidden" name="value" value="{{ booking.booking_ip }}">
                                             <input class="form-control form-control-sm" name="reason" placeholder="Raison" style="max-width:120px;">
                                             <button class="btn btn-danger btn-sm" type="submit">Bloq IP</button>
                                         </form>
@@ -993,10 +1215,10 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="7">
+                        <td colspan="8">
                             <div class="fraud-empty">
                                 <i class="bi bi-shield-check"></i>
-                                <p>Aucune adresse suspecte.</p>
+                                <p>Aucune réservation suspecte détectée.</p>
                             </div>
                         </td>
                     </tr>
@@ -1022,7 +1244,7 @@
                     <tr>
                         <th>Type</th>
                         <th>Valeur</th>
-                        <th>Nb commandes</th>
+                        <th>Nb réservations</th>
                         <th>Dernière</th>
                         <th>Blocage</th>
                     </tr>
@@ -1032,7 +1254,7 @@
                     <tr>
                         <td data-label="Type">Tél.</td>
                         <td data-label="Valeur">{{ phone }}</td>
-                        <td data-label="Nb commandes">{{ cnt }}</td>
+                        <td data-label="Nb réservations">{{ cnt }}</td>
                         <td data-label="Dernière">{{ last.strftime('%Y-%m-%d %H:%M') if last else '' }}</td>
                         <td data-label="Blocage" class="fraud-actions">
                             {% set blocked = blocked_map.get(('phone', phone)) %}
@@ -1057,7 +1279,7 @@
                     <tr>
                         <td data-label="Type">IP</td>
                         <td data-label="Valeur">{{ ip }}</td>
-                        <td data-label="Nb commandes">{{ cnt }}</td>
+                        <td data-label="Nb réservations">{{ cnt }}</td>
                         <td data-label="Dernière">{{ last.strftime('%Y-%m-%d %H:%M') if last else '' }}</td>
                         <td data-label="Blocage" class="fraud-actions">
                             {% set blocked = blocked_map.get(('ip', ip)) %}

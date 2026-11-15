@@ -1,4 +1,4 @@
-﻿{% extends "admin/base.html" %}
+{% extends "admin/base.html" %}
 
 {% block title %}Gestion des Utilisateurs | DealNova Admin{% endblock %}
 {% block page_title %}Utilisateurs{% endblock %}
@@ -296,6 +296,9 @@
         <p class="users-subtitle">{{ 'Retrouvez ici les vendeurs.' if current_user.role == 'manager' else 'Centralisez les comptes et les acces utiles au quotidien.' }}</p>
       </div>
       <div class="users-cta">
+        <a href="{{ url_for('admin_users.users_export_csv', role=role_filter or None, search=search or None) }}" class="btn btn-outline-light">
+          <i class="bi bi-download"></i> Exporter CSV
+        </a>
         {% if current_user.role == 'admin' %}
         <a href="{{ url_for('admin_users.create_user') }}" class="btn btn-primary">
           <i class="bi bi-person-plus"></i> Nouvel utilisateur

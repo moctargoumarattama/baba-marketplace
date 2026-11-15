@@ -1142,6 +1142,10 @@
                 <div class="rec-pill">
                     <i class="bi bi-calendar3"></i> {{ date_range_label }}
                 </div>
+                <a href="{{ url_for('admin_users.reconciliation_export_csv', status=status or None) }}"
+                   class="btn btn-sm btn-light fw-bold">
+                    <i class="bi bi-download"></i> Exporter CSV
+                </a>
             </div>
         </div>
     </header>

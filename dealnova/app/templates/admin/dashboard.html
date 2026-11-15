@@ -872,6 +872,66 @@
     </div>
   </section>
 
+  {% if admin_alerts %}
+  <section class="adm-alerts-strip" aria-label="Alertes à traiter">
+    {% for alert in admin_alerts %}
+    <a class="adm-alert-pill is-{{ alert.tone }}" href="{{ alert.url }}">
+      <span class="d-inline-flex align-items-center gap-2 fw-semibold">
+        <i class="bi {{ alert.icon }}"></i>
+        <span>{{ alert.title }}</span>
+      </span>
+      <span class="badge text-bg-dark">{{ alert.cta }} &rarr;</span>
+    </a>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  {% if activity_series_7d %}
+  {% set max_act = namespace(v=1) %}
+  {% for pt in activity_series_7d %}
+    {% if pt.leads > max_act.v %}{% set max_act.v = pt.leads %}{% endif %}
+    {% if pt.bookings > max_act.v %}{% set max_act.v = pt.bookings %}{% endif %}
+  {% endfor %}
+  <section class="card border-0 shadow-sm mb-3 adm-chart-card">
+    <div class="card-body">
+      <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+        <div>
+          <strong class="d-inline-flex align-items-center gap-2">
+            <i class="bi bi-bar-chart-line text-success"></i>
+            Activité des 7 derniers jours
+          </strong>
+          <div class="small text-muted">Évolution quotidienne : clics WhatsApp produits vs réservations services</div>
+        </div>
+        <div class="d-flex align-items-center gap-3 small">
+          <span class="d-inline-flex align-items-center gap-1">
+            <span style="width:10px;height:10px;border-radius:3px;background:#0f766e;display:inline-block;"></span>
+            Contacts WhatsApp
+          </span>
+          <span class="d-inline-flex align-items-center gap-1">
+            <span style="width:10px;height:10px;border-radius:3px;background:#f59e0b;display:inline-block;"></span>
+            Réservations
+          </span>
+          <a href="{{ url_for('admin.bookings') }}" class="btn btn-sm btn-outline-secondary py-0 px-2">Réservations</a>
+        </div>
+      </div>
+      <div class="adm-chart-bars" role="img" aria-label="Graphique d'activité sur 7 jours">
+        {% for pt in activity_series_7d %}
+        {% set lead_h = ((pt.leads * 100) // max_act.v) if max_act.v else 0 %}
+        {% set book_h = ((pt.bookings * 100) // max_act.v) if max_act.v else 0 %}
+        <div class="adm-chart-col" title="{{ pt.label }} : {{ pt.leads }} WhatsApp, {{ pt.bookings }} réservations">
+          <span class="adm-chart-val">{{ pt.leads }} / {{ pt.bookings }}</span>
+          <div class="adm-chart-track">
+            <div class="adm-chart-bar adm-chart-bar--primary" style="height: {{ lead_h if lead_h > 4 else (4 if pt.leads > 0 else 2) }}%;"></div>
+            <div class="adm-chart-bar adm-chart-bar--accent" style="height: {{ book_h if book_h > 4 else (4 if pt.bookings > 0 else 2) }}%;"></div>
+          </div>
+          <span class="adm-chart-lbl">{{ pt.label }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+  {% endif %}
+
   <section class="stats-grid">
     <article class="stat-tile is-primary" style="--i:0">
       <div class="stat-top">

@@ -1006,37 +1006,80 @@
             <button type="button" class="sidebar-close" id="sidebarClose" aria-label="Fermer le menu"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
         </div>
 
+        {% set badges = admin_task_badges or {} %}
         <ul class="nav-menu">
+            <li class="nav-section-label">Pilotage</li>
             <li class="nav-item"><a class="nav-link {% if ep == 'admin_users.admin_dashboard' %}active{% endif %}" href="{{ url_for('admin_users.admin_dashboard') }}"><i class="bi bi-grid-fill"></i><span>Dashboard</span></a></li>
             {% if current_user.role in ['admin', 'manager'] %}
             <li class="nav-item"><a class="nav-link {% if ep == 'admin_users.audience_dashboard' %}active{% endif %}" href="{{ url_for('admin_users.audience_dashboard') }}"><i class="bi bi-broadcast-pin"></i><span>Audience</span></a></li>
             {% endif %}
+
+            <li class="nav-section-label">Vendeurs & Clients</li>
             <li class="nav-item"><a class="nav-link {% if 'user' in ep %}active{% endif %}" href="{{ url_for('admin_users.manage_users') }}"><i class="bi bi-people-fill"></i><span>Utilisateurs</span></a></li>
-            <li class="nav-item"><a class="nav-link {% if 'vendor_request' in ep %}active{% endif %}" href="{{ url_for('admin_users.vendor_requests') }}"><i class="bi bi-people-fill"></i><span>Nouveaux clients</span></a></li>
-            <li class="nav-item"><a class="nav-link {% if 'vendor_change_request' in ep %}active{% endif %}" href="{{ url_for('admin_users.vendor_change_requests') }}"><i class="bi bi-pencil-square"></i><span>Demandes modifications</span></a></li>
+            <li class="nav-item"><a class="nav-link {% if 'vendor_request' in ep %}active{% endif %}" href="{{ url_for('admin_users.vendor_requests') }}"><i class="bi bi-person-plus"></i><span>Nouveaux clients</span></a></li>
             <li class="nav-item"><a class="nav-link {% if 'shop' in ep %}active{% endif %}" href="{{ url_for('admin_users.manage_shops') }}"><i class="bi bi-shop"></i><span>Boutiques</span></a></li>
+            <li class="nav-item">
+                <a class="nav-link {% if 'vendor_change_request' in ep %}active{% endif %}" href="{{ url_for('admin_users.vendor_change_requests') }}">
+                    <i class="bi bi-pencil-square"></i><span>Demandes modifications</span>
+                    {% if badges.get('pending_vendor_changes', 0) > 0 %}
+                    <span class="nav-badge nav-badge--warn">{{ badges.get('pending_vendor_changes') }}</span>
+                    {% endif %}
+                </a>
+            </li>
+
+            <li class="nav-section-label">Offres & Croissance</li>
+            <li class="nav-item"><a class="nav-link {% if 'catalog_quality' in ep %}active{% endif %}" href="{{ url_for('admin_users.catalog_quality') }}"><i class="bi bi-box-seam"></i><span>Catalogue</span></a></li>
+            <li class="nav-item"><a class="nav-link {% if 'admin_categories' in ep %}active{% endif %}" href="{{ url_for('admin_categories.index') }}"><i class="bi bi-tags-fill"></i><span>Categories</span></a></li>
+            <li class="nav-item">
+                <a class="nav-link {% if ep.startswith('admin.promo') %}active{% endif %}" href="{{ url_for('admin.promo_reviews') }}">
+                    <i class="bi bi-percent"></i><span>Promotions</span>
+                    {% if badges.get('pending_promos', 0) > 0 %}
+                    <span class="nav-badge">{{ badges.get('pending_promos') }}</span>
+                    {% endif %}
+                </a>
+            </li>
+            <li class="nav-item"><a class="nav-link {% if ep == 'admin.featured_items' %}active{% endif %}" href="{{ url_for('admin.featured_items') }}"><i class="bi bi-stars"></i><span>Mise en avant</span></a></li>
             <li class="nav-item"><a class="nav-link {% if 'rentals.admin_locations' in ep or 'admin/locations' in request.path %}active{% endif %}" href="{{ url_for('rentals.admin_locations') }}"><i class="bi bi-house-door"></i><span>Locations</span></a></li>
-            <li class="nav-item"><a class="nav-link {% if ep.startswith('admin.promo') %}active{% endif %}" href="{{ url_for('admin.promo_reviews') }}"><i class="bi bi-percent"></i><span>Promotions</span></a></li>
+            <li class="nav-item">
+                <a class="nav-link {% if ep.startswith('admin.booking') %}active{% endif %}" href="{{ url_for('admin.bookings') }}">
+                    <i class="bi bi-calendar-check"></i><span>Reservations</span>
+                    {% if badges.get('pending_bookings', 0) > 0 %}
+                    <span class="nav-badge nav-badge--info">{{ badges.get('pending_bookings') }}</span>
+                    {% endif %}
+                </a>
+            </li>
             <li class="nav-item">
                 <a class="nav-link {% if ep == 'admin.product_contacts' %}active{% endif %}" href="{{ url_for('admin.product_contacts') }}">
                     <i class="bi bi-chat-dots-fill"></i><span>Contacts produits</span>
                 </a>
             </li>
+
+            <li class="nav-section-label">Finance & Abonnements</li>
             <li class="nav-item"><a class="nav-link {% if ep.startswith('admin.finance') %}active{% endif %}" href="{{ url_for('admin.finance') }}"><i class="bi bi-graph-up-arrow"></i><span>Finance</span></a></li>
-            <li class="nav-item"><a class="nav-link {% if 'reconciliation' in ep %}active{% endif %}" href="{{ url_for('admin_users.reconciliation') }}"><i class="bi bi-cash-stack"></i><span>Abonnements</span></a></li>
-            <li class="nav-item"><a class="nav-link {% if 'fraud' in ep %}active{% endif %}" href="{{ url_for('admin_users.fraud_monitor') }}"><i class="bi bi-shield-exclamation"></i><span>Fraude</span></a></li>
-            <li class="nav-item"><a class="nav-link {% if 'catalog_quality' in ep %}active{% endif %}" href="{{ url_for('admin_users.catalog_quality') }}"><i class="bi bi-box-seam"></i><span>Catalogue</span></a></li>
-            <li class="nav-item"><a class="nav-link {% if ep == 'admin.featured_items' %}active{% endif %}" href="{{ url_for('admin.featured_items') }}"><i class="bi bi-stars"></i><span>Mise en avant</span></a></li>
-            <li class="nav-item"><a class="nav-link {% if 'log' in ep %}active{% endif %}" href="{{ url_for('admin_users.view_logs') }}"><i class="bi bi-clock-history"></i><span>Logs</span></a></li>
-            <li class="nav-item"><a class="nav-link {% if ep == 'admin_users.deletion_history' %}active{% endif %}" href="{{ url_for('admin_users.deletion_history') }}"><i class="bi bi-archive"></i><span>Historique suppression</span></a></li>
+            <li class="nav-item">
+                <a class="nav-link {% if 'reconciliation' in ep %}active{% endif %}" href="{{ url_for('admin_users.reconciliation') }}">
+                    <i class="bi bi-cash-stack"></i><span>Abonnements</span>
+                    {% if badges.get('expiring_subs', 0) > 0 %}
+                    <span class="nav-badge nav-badge--warn">{{ badges.get('expiring_subs') }}</span>
+                    {% endif %}
+                </a>
+            </li>
+
+            <li class="nav-section-label">Systeme</li>
+            <li class="nav-item"><a class="nav-link {% if ep == 'admin.whatsapp_gateway' %}active{% endif %}" href="{{ url_for('admin.whatsapp_gateway') }}"><i class="bi bi-whatsapp"></i><span>Passerelle WhatsApp</span></a></li>
             <li class="nav-item"><a class="nav-link {% if 'pricing' in ep or 'settings' in ep %}active{% endif %}" href="{{ url_for('admin.pricing_settings') }}"><i class="bi bi-sliders"></i><span>Parametres</span></a></li>
+            <li class="nav-item"><a class="nav-link {% if 'fraud' in ep %}active{% endif %}" href="{{ url_for('admin_users.fraud_monitor') }}"><i class="bi bi-shield-exclamation"></i><span>Fraude</span></a></li>
+            <li class="nav-item"><a class="nav-link {% if 'log' in ep or ep == 'admin_users.deletion_history' %}active{% endif %}" href="{{ url_for('admin_users.view_logs') }}"><i class="bi bi-clock-history"></i><span>Logs & Audit</span></a></li>
             {% if current_user.role == 'admin' %}
             <li class="nav-item"><a class="nav-link {% if 'admin.maintenance' in ep or 'run_maintenance' in ep or 'maintenance_reset_data' in ep %}active{% endif %}" href="{{ url_for('admin.maintenance') }}"><i class="bi bi-tools"></i><span>Maintenance systeme</span></a></li>
             {% endif %}
-            <li class="nav-item"><a class="nav-link {% if ep == 'admin.whatsapp_gateway' %}active{% endif %}" href="{{ url_for('admin.whatsapp_gateway') }}"><i class="bi bi-whatsapp"></i><span>Passerelle WhatsApp</span></a></li>
-            <li class="nav-item"><a class="nav-link {% if 'admin_categories' in ep %}active{% endif %}" href="{{ url_for('admin_categories.index') }}"><i class="bi bi-tags-fill"></i><span>Categories</span></a></li>
             <li class="nav-item nav-item-site"><a class="nav-link" href="{{ url_for('shop.home') }}"><i class="bi bi-box-arrow-left"></i><span>Retour au site</span></a></li>
         </ul>
+
+        <button type="button" class="adm-sidebar-kbd-tip" data-cmd-open title="Cliquez ici ou appuyez sur Ctrl + K pour rechercher partout">
+            <i class="bi bi-lightning-charge-fill" aria-hidden="true"></i>
+            <span>Astuce : cliquez ici ou faites <span class="adm-kbd-hint">Ctrl+K</span></span>
+        </button>
 
         <div class="sidebar-footer">
             <div class="user-info">
@@ -1077,14 +1120,10 @@
                 </button>
             </div>
             <div class="actions" id="adminHeaderActions">
-                <a href="{{ url_for('admin.product_contacts') }}" class="btn-custom btn-outline-custom" aria-label="Contacts produits">
-                    <i class="bi bi-chat-dots-fill"></i><span>Contacts produits</span>
-                </a>
-                <a href="{{ url_for('admin_users.reconciliation') }}" class="btn-custom btn-outline-custom" aria-label="Abonnements">
-                    <i class="bi bi-cash-stack"></i><span>Abonnements</span>
-                </a>
+                <button type="button" class="btn-custom btn-outline-custom" id="adminQuickSearchBtn" data-cmd-open title="Cliquez ici ou appuyez sur Ctrl + K pour rechercher une page, boutique, vendeur ou produit" aria-label="Recherche rapide : cliquez ici ou appuyez sur Ctrl+K">
+                    <i class="bi bi-search" aria-hidden="true"></i><span>Rechercher</span><span class="adm-kbd-hint">Cliquez ou Ctrl+K</span>
+                </button>
                 <button class="btn-custom btn-outline-custom btn-theme-toggle" type="button" id="adminThemeToggle" aria-label="Changer le thème"><i class="bi bi-moon-stars" aria-hidden="true"></i><span>Thème</span></button>
-                <a href="{{ url_for('admin_users.admin_dashboard') }}" class="btn-custom btn-outline-custom" aria-label="Accueil"><i class="bi bi-house-fill" aria-hidden="true"></i><span>Accueil</span></a>
                 <form method="post" action="{{ url_for('auth.logout') }}" class="d-inline">
                     {% include "partials/_csrf.html" %}
                     <button type="submit" class="btn-custom btn-primary-custom"><i class="bi bi-box-arrow-right"></i> Deconnexion</button>
@@ -1107,10 +1146,26 @@
         {% endwith %}
     </div>
 
+    <div class="adm-cmd-backdrop" id="adminCmdOverlay" data-search-url="{{ url_for('admin.quick_search') }}" role="dialog" aria-modal="true" aria-labelledby="adminCmdInput" hidden>
+        <div class="adm-cmd-dialog">
+            <div class="adm-cmd-header">
+                <i class="bi bi-search text-muted" aria-hidden="true"></i>
+                <input type="search" id="adminCmdInput" class="adm-cmd-input" placeholder="Rechercher une boutique, un vendeur, un produit ou une page..." autocomplete="off">
+                <button type="button" class="adm-cmd-close" id="adminCmdClose" aria-label="Fermer la recherche rapide">Echap</button>
+            </div>
+            <div class="adm-cmd-results" id="adminCmdResults"></div>
+            <div class="adm-cmd-footer">
+                <span><i class="bi bi-info-circle" aria-hidden="true"></i> Astuce : cliquez sur <strong>Rechercher</strong> ou appuyez sur <span class="adm-kbd-hint">Ctrl+K</span> à tout moment.</span>
+                <span>&uarr;&darr; naviguer &middot; Entrée ouvrir &middot; Échap fermer</span>
+            </div>
+        </div>
+    </div>
+
     <script src="{{ url_for('static', filename='vendor/bootstrap/5.3.3/js/bootstrap.bundle.min.js', v=app_static_version) }}"></script>
     <script src="{{ url_for('static', filename='js/core/safe_refresh.js', v=app_static_version) }}"></script>
     <script src="{{ url_for('static', filename='js/admin/admin_helpers.js', v=app_static_version) }}"></script>
     <script src="{{ url_for('static', filename='js/admin/admin_push_notifications.js', v=app_static_version) }}" defer></script>
+    <script src="{{ url_for('static', filename='js/admin/admin_command_palette.js', v=app_static_version) }}" defer></script>
     <script>
         (function () {
             var logoutSubmitEvent = null;

@@ -1,4 +1,4 @@
-﻿{% extends "admin/base.html" %}
+{% extends "admin/base.html" %}
 
 {% block title %}Logs | DealNova Admin{% endblock %}
 {% block page_title %}Logs & Historique{% endblock %}
@@ -168,6 +168,30 @@
         <a class="btn-r" id="auditReset" href="#"><i class="bi bi-x"></i> Reset</a>
       </div>
 
+      {% set _cur_audit_action = audit_action_filter if audit_action_filter is defined else request.args.get('audit_action', '') %}
+      <div class="d-flex flex-wrap align-items-center gap-2 px-3 pb-2">
+        <span class="small text-muted fw-bold">Filtres rapides :</span>
+        <a href="{{ url_for('admin_users.view_logs', days=days) }}"
+           class="btn btn-sm {{ 'btn-dark' if not _cur_audit_action else 'btn-outline-secondary' }}">
+          Tout
+        </a>
+        <a href="{{ url_for('admin_users.view_logs', audit_action='deletion_snapshot', days=days) }}"
+           class="btn btn-sm {{ 'btn-danger' if _cur_audit_action == 'deletion_snapshot' else 'btn-outline-danger' }}">
+          <i class="bi bi-archive"></i> Suppressions ({{ deletion_snapshots_count or 0 }})
+        </a>
+        <a href="{{ url_for('admin_users.view_logs', audit_action='block_contact', days=days) }}"
+           class="btn btn-sm {{ 'btn-warning' if _cur_audit_action == 'block_contact' else 'btn-outline-warning' }}">
+          <i class="bi bi-shield-x"></i> Blocages fraude
+        </a>
+        <a href="{{ url_for('admin_users.view_logs', audit_action='subscription_paid', days=days) }}"
+           class="btn btn-sm {{ 'btn-success' if _cur_audit_action == 'subscription_paid' else 'btn-outline-success' }}">
+          <i class="bi bi-cash-coin"></i> Abonnements
+        </a>
+        <a href="{{ url_for('admin_users.deletion_history') }}" class="btn btn-sm btn-outline-secondary ms-auto">
+          <i class="bi bi-box-arrow-up-right"></i> Archive détaillée
+        </a>
+      </div>
+
       <div class="tbl-wrap">
         <div class="tbl-mask" id="auditMask"><div class="spinner"></div></div>
         <div class="table-responsive" id="auditTableWrap">
@@ -175,7 +199,7 @@
             <thead>
               <tr>
                 <th>Date</th><th>Utilisateur</th><th>Action</th>
-                <th>Entité</th><th>ID</th><th>IP</th><th>Statut</th>
+                <th>Entité</th><th>ID</th><th>Détail lisible</th><th>IP</th><th>Statut</th>
               </tr>
             </thead>
             <tbody id="auditTbody">
@@ -186,6 +210,15 @@
                 <td>{{ log.action or '?' }}</td>
                 <td>{{ log.entity_type or '?' }}</td>
                 <td style="color:var(--muted);font-size:.78rem">{{ log.entity_id or '?' }}</td>
+                <td style="font-size:.8rem;max-width:340px;">
+                  {% set _asum = audit_summaries.get(log.id) if audit_summaries else None %}
+                  {% if _asum %}
+                    <span class="badge {{ 'text-bg-danger' if _asum.badge_tone == 'danger' else ('text-bg-warning' if _asum.badge_tone == 'warning' else ('text-bg-success' if _asum.badge_tone == 'success' else ('text-bg-primary' if _asum.badge_tone == 'info' else 'text-bg-secondary'))) }} me-1">{{ _asum.badge_label }}</span>
+                    <span>{{ _asum.summary }}</span>
+                  {% else %}
+                    <span class="text-muted">{{ log.action or '-' }}</span>
+                  {% endif %}
+                </td>
                 <td style="font-family:monospace;font-size:.75rem;color:var(--muted)">{% if log.changes and log.changes.get is defined %}{{ log.changes.get('ip') or '?' }}{% else %}?{% endif %}</td>
                 <td>
                   {% set s = log.changes.get('success') if log.changes and log.changes.get is defined else None %}
@@ -195,7 +228,7 @@
                 </td>
               </tr>
               {% else %}
-              <tr class="empty"><td colspan="7"><i class="bi bi-shield-exclamation"></i> Aucun log d'audit</td></tr>
+              <tr class="empty"><td colspan="8"><i class="bi bi-shield-exclamation"></i> Aucun log d'audit</td></tr>
               {% endfor %}
             </tbody>
           </table>

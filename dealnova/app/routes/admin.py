@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from werkzeug.security import check_password_hash
 
 from ..extensions import db
+from ..models.booking import Booking
 from ..models.financial import FinancialEntry
 from ..models.maintenance import ErrorLog, MaintenanceRun
 from ..models.order import Order
@@ -18,6 +19,11 @@ from ..models.user import User
 from ..models.rental import RentalListing
 from ..models.product_contact_lead import ProductContactLead
 from ..models.subscription_payment import SubscriptionPayment
+from ..services.admin_tools import (
+    csv_download_response,
+    get_admin_sidebar_badges,
+    invalidate_admin_sidebar_badges,
+)
 from ..services.audit import log_access
 from sqlalchemy.orm import selectinload
 from sqlalchemy import case, func, or_
@@ -122,6 +128,18 @@ def _sensitive_admin_forbidden_response():
         return jsonify(success=False, message=message), 403
     flash(message, "danger")
     return redirect(url_for("admin_users.admin_dashboard"))
+
+
+@bp.app_context_processor
+def inject_admin_task_badges():
+    """Expose pending action counters on admin pages without touching public routes."""
+    if not (request.path or "").startswith("/admin"):
+        return {}
+    if not getattr(current_user, "is_authenticated", False):
+        return {}
+    if _current_admin_role() not in {ADMIN_ROLE, MANAGER_ROLE}:
+        return {}
+    return {"admin_task_badges": get_admin_sidebar_badges()}
 
 def _is_ajax_request() -> bool:
     return (
@@ -859,18 +877,32 @@ def promo_reviews():
     )
 
 
+def _apply_promo_decision(promo: Promo, *, approve: bool, review_note: str | None = None, trust_shop: bool = False) -> None:
+    """Apply an admin moderation decision to a promo record cleanly."""
+    if approve:
+        promo.status = Promo.STATUS_APPROVED
+        promo.review_note = (review_note or "").strip()[:500] or None
+        if trust_shop and promo.product and promo.product.shop:
+            promo.product.shop.promo_trusted = True
+    else:
+        promo.status = Promo.STATUS_REJECTED
+        promo.review_note = (review_note or "").strip()[:500] or "Refusée par l'admin."
+    promo.reviewed_by_id = current_user.id
+    promo.reviewed_at = datetime.utcnow()
+
+
 @bp.route("/promotions/<int:promo_id>/approve", methods=["POST"])
 def promo_approve(promo_id):
     promo = Promo.query.get_or_404(promo_id)
-    trust_shop = request.form.get("trust_shop") == "1"
-    promo.status = Promo.STATUS_APPROVED
-    promo.review_note = (request.form.get("review_note") or "").strip()[:500] or None
-    promo.reviewed_by_id = current_user.id
-    promo.reviewed_at = datetime.utcnow()
-    if trust_shop and promo.product and promo.product.shop:
-        promo.product.shop.promo_trusted = True
+    _apply_promo_decision(
+        promo,
+        approve=True,
+        review_note=request.form.get("review_note"),
+        trust_shop=request.form.get("trust_shop") == "1",
+    )
     db.session.commit()
     bump_catalog_version()
+    invalidate_admin_sidebar_badges()
     flash("Promotion approuvée.", "success")
     return redirect(url_for("admin.promo_reviews"))
 
@@ -878,14 +910,46 @@ def promo_approve(promo_id):
 @bp.route("/promotions/<int:promo_id>/reject", methods=["POST"])
 def promo_reject(promo_id):
     promo = Promo.query.get_or_404(promo_id)
-    promo.status = Promo.STATUS_REJECTED
-    promo.review_note = (request.form.get("review_note") or "").strip()[:500] or "Refusée par l'admin."
-    promo.reviewed_by_id = current_user.id
-    promo.reviewed_at = datetime.utcnow()
+    _apply_promo_decision(
+        promo,
+        approve=False,
+        review_note=request.form.get("review_note"),
+    )
     db.session.commit()
     bump_catalog_version()
+    invalidate_admin_sidebar_badges()
     flash("Promotion refusée.", "info")
     return redirect(url_for("admin.promo_reviews"))
+
+
+@bp.route("/promotions/bulk", methods=["POST"])
+def promo_bulk_action():
+    """Approve or reject multiple selected promotions in one batch."""
+    action = (request.form.get("bulk_action") or "").strip().lower()
+    raw_ids = request.form.getlist("promo_ids")
+    promo_ids = sorted({int(raw) for raw in raw_ids if str(raw).strip().isdigit()})
+    status_redirect = (request.form.get("status") or Promo.STATUS_PENDING).strip().lower()
+
+    if action not in {"approve", "reject"} or not promo_ids:
+        flash("Sélectionnez au moins une promotion et une action valide.", "warning")
+        return redirect(url_for("admin.promo_reviews", status=status_redirect))
+
+    promos = Promo.query.options(selectinload(Promo.product).selectinload(Product.shop)).filter(Promo.id.in_(promo_ids)).all()
+    if not promos:
+        flash("Aucune promotion correspondante trouvée.", "warning")
+        return redirect(url_for("admin.promo_reviews", status=status_redirect))
+
+    approve = action == "approve"
+    note = (request.form.get("review_note") or "").strip()[:500] or None
+    for promo in promos:
+        _apply_promo_decision(promo, approve=approve, review_note=note)
+
+    db.session.commit()
+    bump_catalog_version()
+    invalidate_admin_sidebar_badges()
+    verb = "approuvée(s)" if approve else "refusée(s)"
+    flash(f"{len(promos)} promotion(s) {verb}.", "success" if approve else "info")
+    return redirect(url_for("admin.promo_reviews", status=status_redirect))
 
 
 @bp.route("/shops/<int:shop_id>/promo-trusted", methods=["POST"])
@@ -900,21 +964,17 @@ def shop_promo_trusted_toggle(shop_id):
     return redirect(request.referrer or url_for("admin_users.shop_detail", shop_id=shop.id))
 
 
-@bp.route("/product-contacts")
-def product_contacts():
-    page = page_from_args(request.args)
+def _product_contacts_filtered_params(date_filter=None, *, apply_date: bool = True):
     search = (request.args.get("q") or "").strip()
     phone_filter = (request.args.get("phone") or "").strip()
     shop_id_filter = request.args.get("shop_id", type=int)
-    date_filter = resolve_date_filter(request.args, default="month")
-
+    date_filter = date_filter or resolve_date_filter(request.args, default="month")
     query = (
         ProductContactLead.query
         .outerjoin(Shop, ProductContactLead.shop_id == Shop.id)
         .options(selectinload(ProductContactLead.shop))
         .filter(ProductContactLead.source == "product_whatsapp")
     )
-
     if search:
         like = f"%{search}%"
         query = query.filter(or_(
@@ -927,6 +987,22 @@ def product_contacts():
         query = query.filter(ProductContactLead.client_phone.ilike(f"%{phone_filter}%"))
     if shop_id_filter:
         query = query.filter(ProductContactLead.shop_id == shop_id_filter)
+    if apply_date:
+        query = query.filter(
+            ProductContactLead.created_at >= date_filter.start_at,
+            ProductContactLead.created_at < date_filter.end_at,
+        )
+    return query, search, phone_filter, shop_id_filter, date_filter
+
+
+@bp.route("/product-contacts")
+def product_contacts():
+    page = page_from_args(request.args)
+    date_filter = resolve_date_filter(request.args, default="month")
+    query, search, phone_filter, shop_id_filter, date_filter = _product_contacts_filtered_params(
+        date_filter,
+        apply_date=False,
+    )
     query = query.filter(
         ProductContactLead.created_at >= date_filter.start_at,
         ProductContactLead.created_at < date_filter.end_at,
@@ -939,11 +1015,7 @@ def product_contacts():
     )
 
     for lead in pagination.items:
-        try:
-            summary = json.loads(lead.product_summary_json or "[]")
-        except (TypeError, ValueError):
-            summary = []
-        lead._product_summary = summary if isinstance(summary, list) else []
+        lead._product_summary = lead.product_summary
 
     shops = Shop.query.order_by(Shop.name.asc()).all()
 
@@ -959,6 +1031,35 @@ def product_contacts():
         date_from=date_filter.date_from,
         date_to=date_filter.date_to,
         total_contacts=pagination.total,
+    )
+
+
+@bp.route("/product-contacts/export.csv")
+def product_contacts_export_csv():
+    query, _, _, _, date_filter = _product_contacts_filtered_params()
+    leads = query.order_by(ProductContactLead.created_at.desc()).limit(5000).all()
+
+    def _rows():
+        for lead in leads:
+            summary_items = [
+                f"{item.get('product_name') or item.get('name') or 'Produit'} x{item.get('quantity') or item.get('qty') or 1}"
+                for item in lead.product_summary
+                if isinstance(item, dict)
+            ]
+            yield (
+                lead.created_at,
+                lead.client_name or "",
+                lead.client_phone or "",
+                lead.shop.name if lead.shop else "Boutique indisponible",
+                " | ".join(summary_items),
+                f"{(lead.estimated_total or 0) / 100:.2f}",
+                lead.whatsapp_phone or "",
+            )
+
+    return csv_download_response(
+        f"contacts_produits_{date_filter.range_filter}",
+        ["Date", "Client", "Telephone client", "Boutique", "Produits demandes", "Total estime (MAD)", "WhatsApp boutique"],
+        _rows(),
     )
 
 
@@ -978,6 +1079,66 @@ def deliveries():
 def all_orders():
     flash("Les produits physiques sont maintenant consultables dans Contacts produits.", "info")
     return redirect(url_for("admin.product_contacts"))
+
+
+def _finance_filtered_query(date_filter, entry_type: str):
+    entries_query = (
+        FinancialEntry.query
+        .options(
+            selectinload(FinancialEntry.order),
+            selectinload(FinancialEntry.rental_archive),
+            selectinload(FinancialEntry.subscription_payment),
+            selectinload(FinancialEntry.subscription_payment).selectinload(SubscriptionPayment.user),
+            selectinload(FinancialEntry.subscription_payment).selectinload(SubscriptionPayment.created_by),
+        )
+        .filter(
+            FinancialEntry.deleted_at.is_(None),
+            FinancialEntry.created_at >= date_filter.start_at,
+            FinancialEntry.created_at < date_filter.end_at,
+        )
+    )
+    if entry_type:
+        entries_query = entries_query.filter(FinancialEntry.entry_type == entry_type)
+    return entries_query
+
+
+def _build_finance_chart(date_filter) -> list[dict]:
+    """Bucket subscriptions and rental commissions cleanly across days or months for SVG charts."""
+    span_days = max(1, (date_filter.end_at.date() - date_filter.start_at.date()).days)
+    by_month = span_days > 45
+    raw_rows = (
+        db.session.query(
+            FinancialEntry.created_at,
+            FinancialEntry.entry_type,
+            FinancialEntry.amount_cents,
+        )
+        .filter(
+            FinancialEntry.deleted_at.is_(None),
+            FinancialEntry.created_at >= date_filter.start_at,
+            FinancialEntry.created_at < date_filter.end_at,
+        )
+        .order_by(FinancialEntry.created_at.asc())
+        .all()
+    )
+    buckets: dict[str, dict] = {}
+    for created_at, e_type, amount_cents in raw_rows:
+        if not created_at:
+            continue
+        key = created_at.strftime("%Y-%m") if by_month else created_at.strftime("%Y-%m-%d")
+        label = created_at.strftime("%m/%Y") if by_month else created_at.strftime("%d/%m")
+        slot = buckets.setdefault(
+            key,
+            {"key": key, "label": label, "subscription_cents": 0, "rental_cents": 0, "total_cents": 0},
+        )
+        amt = int(amount_cents or 0)
+        if e_type == ENTRY_TYPE_SUBSCRIPTION:
+            slot["subscription_cents"] += amt
+        elif e_type == ENTRY_TYPE_RENTAL_COMMISSION:
+            slot["rental_cents"] += amt
+        slot["total_cents"] = slot["subscription_cents"] + slot["rental_cents"]
+
+    ordered = [buckets[k] for k in sorted(buckets)]
+    return ordered[-16:]
 
 
 @bp.route("/finance")
@@ -1025,24 +1186,7 @@ def finance():
         + selected_totals["rental_total_cents"]
     )
 
-    entries_query = (
-        FinancialEntry.query
-        .options(
-            selectinload(FinancialEntry.order),
-            selectinload(FinancialEntry.rental_archive),
-            selectinload(FinancialEntry.subscription_payment),
-            selectinload(FinancialEntry.subscription_payment).selectinload(SubscriptionPayment.user),
-            selectinload(FinancialEntry.subscription_payment).selectinload(SubscriptionPayment.created_by),
-        )
-        .filter(FinancialEntry.deleted_at.is_(None))
-    )
-    entries_query = entries_query.filter(
-        FinancialEntry.created_at >= date_filter.start_at,
-        FinancialEntry.created_at < date_filter.end_at,
-    )
-
-    if entry_type:
-        entries_query = entries_query.filter(FinancialEntry.entry_type == entry_type)
+    entries_query = _finance_filtered_query(date_filter, entry_type)
     entries_pagination = entries_query.order_by(
         FinancialEntry.created_at.desc(),
         FinancialEntry.id.desc(),
@@ -1064,6 +1208,47 @@ def finance():
         date_from=date_filter.date_from,
         date_to=date_filter.date_to,
         entry_type_labels=entry_type_labels,
+        finance_chart=_build_finance_chart(date_filter),
+    )
+
+
+@bp.route("/finance/export.csv")
+def finance_export_csv():
+    date_filter = resolve_date_filter(request.args, default="month")
+    entry_type = (request.args.get("entry_type") or "").strip().lower()
+    if entry_type not in {ENTRY_TYPE_SUBSCRIPTION, ENTRY_TYPE_RENTAL_COMMISSION}:
+        entry_type = ""
+
+    entry_type_labels = {
+        ENTRY_TYPE_SUBSCRIPTION: "Abonnement vendeur",
+        ENTRY_TYPE_RENTAL_COMMISSION: "Commission location",
+    }
+    entries = (
+        _finance_filtered_query(date_filter, entry_type)
+        .order_by(FinancialEntry.created_at.desc(), FinancialEntry.id.desc())
+        .limit(5000)
+        .all()
+    )
+
+    def _rows():
+        for entry in entries:
+            account_label = ""
+            if entry.subscription_payment and entry.subscription_payment.user:
+                u = entry.subscription_payment.user
+                account_label = u.username or u.email or f"#{entry.subscription_payment.user_id}"
+            yield (
+                entry.created_at,
+                entry_type_labels.get(entry.entry_type, entry.entry_type),
+                f"{(entry.amount_cents or 0) / 100:.2f}",
+                entry.subscription_id or entry.rental_archive_id or entry.order_id or "",
+                account_label,
+                entry.note or "",
+            )
+
+    return csv_download_response(
+        f"finance_{date_filter.range_filter}",
+        ["Date", "Categorie", "Montant (MAD)", "Reference ID", "Compte", "Note"],
+        _rows(),
     )
 
 @bp.route("/order/<int:oid>")
@@ -2420,3 +2605,241 @@ def whatsapp_promo_pin_product():
 
     flash("Sélection coup de cœur mise à jour et vague recalculée !", "success")
     return redirect(url_for("admin.whatsapp_gateway"))
+
+
+# ======================
+# RESERVATIONS SERVICES (BOOKING)
+# ======================
+_BOOKING_STATUS_LABELS = {
+    "pending": "En attente",
+    "confirmed": "Confirmee",
+    "completed": "Terminee",
+    "cancelled": "Annulee",
+    "archived": "Archivee",
+}
+
+
+def _bookings_filtered_query():
+    search = (request.args.get("q") or "").strip()
+    status_filter = (request.args.get("status") or "").strip().lower()
+    if status_filter not in Booking.STATUSES:
+        status_filter = ""
+    date_filter = resolve_date_filter(request.args, default="month")
+
+    query = (
+        Booking.query
+        .outerjoin(Product, Booking.product_id == Product.id)
+        .outerjoin(Shop, Booking.shop_id == Shop.id)
+        .options(selectinload(Booking.product), selectinload(Booking.shop))
+    )
+    if status_filter:
+        query = query.filter(Booking.status == status_filter)
+    if search:
+        like = f"%{search}%"
+        query = query.filter(or_(
+            Booking.full_name.ilike(like),
+            Booking.phone.ilike(like),
+            Booking.phone_digits.ilike(like),
+            Booking.note.ilike(like),
+            Product.name.ilike(like),
+            Shop.name.ilike(like),
+        ))
+    query = query.filter(
+        Booking.created_at >= date_filter.start_at,
+        Booking.created_at < date_filter.end_at,
+    )
+    return query, search, status_filter, date_filter
+
+
+@bp.route("/bookings")
+def bookings():
+    page = page_from_args(request.args)
+    query, search, status_filter, date_filter = _bookings_filtered_query()
+    pagination = query.order_by(Booking.created_at.desc(), Booking.id.desc()).paginate(
+        page=page, per_page=40, error_out=False
+    )
+    raw_counts = (
+        db.session.query(Booking.status, func.count(Booking.id))
+        .filter(Booking.created_at >= date_filter.start_at, Booking.created_at < date_filter.end_at)
+        .group_by(Booking.status)
+        .all()
+    )
+    status_counts = {s: int(c or 0) for s, c in raw_counts}
+    total_in_range = sum(status_counts.values())
+
+    return render_template(
+        "admin/bookings.html",
+        bookings=pagination.items,
+        pagination=pagination,
+        search=search,
+        status_filter=status_filter,
+        status_counts=status_counts,
+        total_in_range=total_in_range,
+        status_labels=_BOOKING_STATUS_LABELS,
+        allowed_statuses=Booking.STATUSES,
+        range_filter=date_filter.range_filter,
+        date_range_label=date_filter.label,
+        date_from=date_filter.date_from,
+        date_to=date_filter.date_to,
+    )
+
+
+@bp.route("/bookings/<int:booking_id>/status", methods=["POST"])
+def booking_update_status(booking_id: int):
+    booking = Booking.query.get_or_404(booking_id)
+    new_status = (request.form.get("status") or "").strip().lower()
+    if new_status not in Booking.STATUSES:
+        flash("Statut de reservation invalide.", "danger")
+        return redirect(request.referrer or url_for("admin.bookings"))
+
+    old_status = booking.status
+    booking.status = new_status
+    db.session.commit()
+    invalidate_admin_sidebar_badges()
+    log_access(
+        "booking_status_update",
+        "booking",
+        booking.id,
+        success=True,
+        changes={"old_status": old_status, "status": new_status},
+    )
+    flash(f"Reservation #{booking.id} passee a « {_BOOKING_STATUS_LABELS.get(new_status, new_status)} ».", "success")
+    return redirect(request.referrer or url_for("admin.bookings"))
+
+
+@bp.route("/bookings/export.csv")
+def bookings_export_csv():
+    query, _, _, date_filter = _bookings_filtered_query()
+    rows_items = query.order_by(Booking.created_at.desc(), Booking.id.desc()).limit(5000).all()
+
+    def _rows():
+        for row in rows_items:
+            yield (
+                row.id,
+                row.created_at,
+                row.full_name or "",
+                row.phone or "",
+                row.product.name if row.product else "",
+                row.shop.name if row.shop else "",
+                row.scheduled_for,
+                _BOOKING_STATUS_LABELS.get(row.status, row.status),
+                row.note or "",
+            )
+
+    return csv_download_response(
+        f"reservations_services_{date_filter.range_filter}",
+        ["ID", "Date demande", "Client", "Telephone", "Service", "Boutique", "Date souhaitee", "Statut", "Note"],
+        _rows(),
+    )
+
+
+# ======================
+# PALETTE DE COMMANDE RAPIDE (CTRL + K)
+# ======================
+@bp.route("/quick-search")
+def quick_search():
+    """Return fast command-palette matches across admin pages, shops, vendors, and offers."""
+    q = (request.args.get("q") or "").strip()
+    is_manager = _is_manager_user()
+
+    nav_pages = [
+        {"title": "Dashboard", "subtitle": "Vue globale & alertes", "url": url_for("admin_users.admin_dashboard"), "icon": "bi-grid-fill"},
+        {"title": "Audience & trafic", "subtitle": "Visiteurs, villes & sources", "url": url_for("admin_users.audience_dashboard"), "icon": "bi-broadcast-pin"},
+        {"title": "Utilisateurs", "subtitle": "Comptes et roles", "url": url_for("admin_users.manage_users"), "icon": "bi-people-fill"},
+        {"title": "Nouveaux clients", "subtitle": "Inscriptions publiques", "url": url_for("admin_users.vendor_requests"), "icon": "bi-person-check"},
+        {"title": "Demandes modifications", "subtitle": "Validation nom boutique / email", "url": url_for("admin_users.vendor_change_requests"), "icon": "bi-pencil-square"},
+        {"title": "Boutiques", "subtitle": "Annuaire & fiches boutiques", "url": url_for("admin_users.manage_shops"), "icon": "bi-shop"},
+        {"title": "Catalogue & qualite", "subtitle": "Ruptures, images & offres", "url": url_for("admin_users.catalog_quality"), "icon": "bi-box-seam"},
+        {"title": "Promotions", "subtitle": "Moderation promos vendeurs", "url": url_for("admin.promo_reviews"), "icon": "bi-percent"},
+        {"title": "Reservations services", "subtitle": "Suivi des demandes de services", "url": url_for("admin.bookings"), "icon": "bi-calendar-check"},
+        {"title": "Contacts produits", "subtitle": "Leads WhatsApp boutiques", "url": url_for("admin.product_contacts"), "icon": "bi-chat-dots-fill"},
+        {"title": "Locations", "subtitle": "Annonces immobilieres", "url": url_for("rentals.admin_locations"), "icon": "bi-house-door"},
+        {"title": "Mise en avant", "subtitle": "Selections en une", "url": url_for("admin.featured_items"), "icon": "bi-stars"},
+        {"title": "Finance", "subtitle": "Revenus abonnements & locations", "url": url_for("admin.finance"), "icon": "bi-graph-up-arrow"},
+        {"title": "Abonnements", "subtitle": "Paiements & renouvellements vendeurs", "url": url_for("admin_users.reconciliation"), "icon": "bi-cash-stack"},
+        {"title": "Fraude & blocages", "subtitle": "Surveillance & contacts bloques", "url": url_for("admin_users.fraud_monitor"), "icon": "bi-shield-exclamation"},
+        {"title": "Logs & suppressions", "subtitle": "Audit, securite et suppressions", "url": url_for("admin_users.view_logs"), "icon": "bi-clock-history"},
+        {"title": "Passerelle WhatsApp", "subtitle": "Connexion, relances & promos", "url": url_for("admin.whatsapp_gateway"), "icon": "bi-whatsapp"},
+        {"title": "Parametres", "subtitle": "Commissions & reglages", "url": url_for("admin.pricing_settings"), "icon": "bi-sliders"},
+    ]
+    if not is_manager:
+        nav_pages.append({
+            "title": "Maintenance systeme",
+            "subtitle": "Sauvegardes, erreurs & mode maintenance",
+            "url": url_for("admin.maintenance"),
+            "icon": "bi-tools",
+        })
+
+    q_lower = q.lower()
+    matched_pages = [
+        p for p in nav_pages
+        if not q_lower or q_lower in p["title"].lower() or q_lower in p["subtitle"].lower()
+    ][:8]
+
+    shops_out = []
+    users_out = []
+    products_out = []
+
+    if len(q) >= 2:
+        like = f"%{q}%"
+        shops_rows = (
+            Shop.query
+            .filter(or_(Shop.name.ilike(like), Shop.address.ilike(like), Shop.contact_phone.ilike(like), Shop.slug.ilike(like)))
+            .order_by(Shop.id.desc())
+            .limit(6)
+            .all()
+        )
+        shops_out = [
+            {
+                "id": s.id,
+                "name": s.name,
+                "subtitle": " · ".join(part for part in (s.contact_phone, s.address) if part) or "Boutique",
+                "url": url_for("admin_users.shop_detail", shop_id=s.id),
+            }
+            for s in shops_rows
+        ]
+
+        visible_roles = ("vendor",) if is_manager else ("admin", "manager", "vendor")
+        user_rows = (
+            User.query
+            .filter(User.role.in_(visible_roles))
+            .filter(or_(User.username.ilike(like), User.email.ilike(like), User.full_name.ilike(like), User.phone.ilike(like)))
+            .order_by(User.id.desc())
+            .limit(6)
+            .all()
+        )
+        users_out = [
+            {
+                "id": u.id,
+                "name": u.full_name or u.username,
+                "subtitle": f"{u.role} · {u.phone or u.email or u.username}",
+                "url": url_for("admin_users.user_detail", user_id=u.id),
+            }
+            for u in user_rows
+        ]
+
+        product_rows = (
+            Product.query
+            .options(selectinload(Product.shop))
+            .filter(Product.name.ilike(like))
+            .order_by(Product.id.desc())
+            .limit(6)
+            .all()
+        )
+        products_out = [
+            {
+                "id": p.id,
+                "name": p.name,
+                "subtitle": f"{'Service' if p.kind == 'service' else 'Produit'} · {p.shop.name if p.shop else 'Catalogue'}",
+                "url": url_for("admin_users.catalog_quality", search=p.name),
+            }
+            for p in product_rows
+        ]
+
+    return jsonify(
+        success=True,
+        pages=matched_pages,
+        shops=shops_out,
+        users=users_out,
+        products=products_out,
+    )
