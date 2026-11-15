@@ -932,14 +932,13 @@
             <li class="nav-item"><a class="nav-link {% if 'catalog_quality' in ep %}active{% endif %}" href="{{ url_for('admin_users.catalog_quality') }}"><i class="bi bi-box-seam"></i><span>Catalogue</span></a></li>
             <li class="nav-item"><a class="nav-link {% if 'admin_categories' in ep %}active{% endif %}" href="{{ url_for('admin_categories.index') }}"><i class="bi bi-tags-fill"></i><span>Categories</span></a></li>
             <li class="nav-item">
-                <a class="nav-link {% if ep.startswith('admin.promo') %}active{% endif %}" href="{{ url_for('admin.promo_reviews') }}">
-                    <i class="bi bi-percent"></i><span>Promotions</span>
+                <a class="nav-link {% if ep.startswith('admin.promo') or ep.startswith('admin.featured_items') %}active{% endif %}" href="{{ url_for('admin.promo_reviews') }}">
+                    <i class="bi bi-percent"></i><span>Promotions &amp; Mise en avant</span>
                     {% if badges.get('pending_promos', 0) > 0 %}
                     <span class="nav-badge">{{ badges.get('pending_promos') }}</span>
                     {% endif %}
                 </a>
             </li>
-            <li class="nav-item"><a class="nav-link {% if ep == 'admin.featured_items' %}active{% endif %}" href="{{ url_for('admin.featured_items') }}"><i class="bi bi-stars"></i><span>Mise en avant</span></a></li>
             <li class="nav-item"><a class="nav-link {% if 'rentals.admin_locations' in ep or 'admin/locations' in request.path %}active{% endif %}" href="{{ url_for('rentals.admin_locations') }}"><i class="bi bi-house-door"></i><span>Locations</span></a></li>
             <li class="nav-item">
                 <a class="nav-link {% if ep.startswith('admin.booking') %}active{% endif %}" href="{{ url_for('admin.bookings') }}">

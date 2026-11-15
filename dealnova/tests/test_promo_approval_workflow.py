@@ -86,3 +86,25 @@ def test_runtime_migration_adds_promo_workflow_columns():
     assert "ALTER TABLE \"promo\" ADD COLUMN status" in source
     assert "ALTER TABLE \"shop\" ADD COLUMN promo_trusted" in source
     assert "ensure_promo_workflow_columns()" in app_source
+
+
+def test_promotions_and_highlights_are_merged_with_two_buttons():
+    admin_menu = _read("app/templates/admin/base.html")
+    promo_template = _read("app/templates/admin/promo_reviews.html")
+    highlights_template = _read("app/templates/admin/highlights.html")
+    switch = _read("app/templates/admin/partials/_offers_switch.html")
+
+    # Single sidebar entry covering both views
+    assert "Promotions &amp; Mise en avant" in admin_menu
+    assert "url_for('admin.featured_items')" not in admin_menu
+    assert "ep.startswith('admin.featured_items')" in admin_menu
+
+    # Both pages share the same two-button switch
+    assert '{% include "admin/partials/_offers_switch.html" %}' in promo_template
+    assert '{% include "admin/partials/_offers_switch.html" %}' in highlights_template
+    assert "{% set offers_tab = 'promotions' %}" in promo_template
+    assert "{% set offers_tab = 'highlights' %}" in highlights_template
+    assert "url_for('admin.promo_reviews')" in switch
+    assert "url_for('admin.featured_items')" in switch
+    assert "Promotions" in switch
+    assert "Mise en avant" in switch

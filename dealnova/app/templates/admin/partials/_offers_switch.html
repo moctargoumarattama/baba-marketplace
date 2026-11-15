@@ -1,0 +1,88 @@
+{# Shared switch for the unified "Promotions & Mise en avant" admin hub.
+   Usage: {% set offers_tab = 'promotions' | 'highlights' %}{% include "admin/partials/_offers_switch.html" %} #}
+{% set _pending_promos = (badges.get('pending_promos', 0) if badges is defined and badges else 0) %}
+<style>
+  .offers-switch {
+    align-items: center;
+    background: #fff;
+    border: 1px solid #dbe4f0;
+    border-radius: 12px;
+    box-shadow: 0 4px 14px rgba(15, 23, 42, .05);
+    display: flex;
+    flex-wrap: wrap;
+    gap: .75rem;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+    padding: .65rem .8rem;
+  }
+  .offers-switch-title {
+    color: #0f172a;
+    font-size: 1rem;
+    font-weight: 850;
+    margin: 0;
+  }
+  .offers-switch-nav {
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    display: inline-flex;
+    gap: .25rem;
+    padding: .2rem;
+  }
+  .offers-switch-btn {
+    align-items: center;
+    border-radius: 8px;
+    color: #475569;
+    display: inline-flex;
+    font-size: .86rem;
+    font-weight: 800;
+    gap: .45rem;
+    min-height: 2.25rem;
+    padding: .35rem .9rem;
+    text-decoration: none;
+    transition: background-color .15s ease, color .15s ease;
+  }
+  .offers-switch-btn:hover {
+    color: #0f766e;
+  }
+  .offers-switch-btn.is-active {
+    background: #0f766e;
+    box-shadow: 0 2px 6px rgba(15, 118, 110, .25);
+    color: #fff;
+  }
+  .offers-switch-count {
+    background: #f59e0b;
+    border-radius: 999px;
+    color: #fff;
+    font-size: .7rem;
+    min-width: 1.35rem;
+    padding: .08rem .4rem;
+    text-align: center;
+  }
+  @media (max-width: 576px) {
+    .offers-switch-nav,
+    .offers-switch-btn {
+      flex: 1 1 0;
+      justify-content: center;
+    }
+    .offers-switch-nav {
+      width: 100%;
+    }
+  }
+</style>
+<div class="offers-switch">
+  <h2 class="offers-switch-title">Promotions &amp; Mise en avant</h2>
+  <nav class="offers-switch-nav" aria-label="Promotions et mise en avant">
+    <a class="offers-switch-btn {{ 'is-active' if offers_tab == 'promotions' else '' }}"
+       href="{{ url_for('admin.promo_reviews') }}"
+       {% if offers_tab == 'promotions' %}aria-current="page"{% endif %}>
+      <i class="bi bi-percent"></i> Promotions
+      {% if _pending_promos > 0 %}<span class="offers-switch-count">{{ _pending_promos }}</span>{% endif %}
+    </a>
+    <a class="offers-switch-btn {{ 'is-active' if offers_tab == 'highlights' else '' }}"
+       href="{{ url_for('admin.featured_items') }}"
+       {% if offers_tab == 'highlights' %}aria-current="page"{% endif %}>
+      <i class="bi bi-stars"></i> Mise en avant
+    </a>
+  </nav>
+</div>

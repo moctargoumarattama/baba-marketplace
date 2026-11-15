@@ -1,7 +1,7 @@
 {% extends "admin/base.html" %}
 
-{% block title %}Promotions | Admin{% endblock %}
-{% block page_title %}Promotions{% endblock %}
+{% block title %}Promotions & Mise en avant | Admin{% endblock %}
+{% block page_title %}Promotions & Mise en avant{% endblock %}
 
 {% block head %}
 <style>
@@ -271,6 +271,9 @@
   'rejected': 'Refusee'
 } %}
 <div class="promo-admin">
+  {% set offers_tab = 'promotions' %}
+  {% include "admin/partials/_offers_switch.html" %}
+
   <div class="promo-guide">
     <i class="bi bi-lightbulb"></i>
     <div>

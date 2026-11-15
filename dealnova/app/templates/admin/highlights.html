@@ -1,6 +1,7 @@
 {% extends "admin/base.html" %}
 
-{% block title %}Mise en avant | Admin{% endblock %}
+{% block title %}Promotions & Mise en avant | Admin{% endblock %}
+{% block page_title %}Promotions & Mise en avant{% endblock %}
 
 {% block head %}
 {{ super() }}
@@ -769,6 +770,8 @@
 
 {% block content %}
 <div class="container-fluid py-4 hi-wrap">
+  {% set offers_tab = 'highlights' %}
+  {% include "admin/partials/_offers_switch.html" %}
   <div id="highlightsPageRoot" data-fetch-url="{{ url_for('admin.featured_items') }}">
     {% include "admin/partials/_highlights_content.html" %}
   </div>
