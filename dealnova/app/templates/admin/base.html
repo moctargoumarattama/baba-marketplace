@@ -900,18 +900,6 @@
                 background: #0f172a;
             }
 
-            .admin-order-toast { 
-                right: 0.625rem; 
-                left: 0.625rem; 
-                top: auto; 
-                bottom: 1rem; 
-                transform: translateY(120%); 
-            }
-
-            .admin-order-toast.show { 
-                transform: translateY(0); 
-            }
-
             .back-fab { 
                 left: calc(var(--admin-safe-left) + .75rem);
                 bottom: calc(var(--admin-safe-bottom) + .75rem);
@@ -966,8 +954,7 @@
             .sidebar,
             .top-bar,
             .back-fab,
-            .offline-banner,
-            .admin-order-toast {
+            .offline-banner {
                 display: none !important;
             }
 
@@ -1000,9 +987,6 @@
       data-page="{{ request.endpoint or '' }}"
       data-static-version="{{ app_static_version }}"
       data-static-root="{{ url_for('static', filename='') }}"
-      data-notify-url="{{ notify_url if notify_url is defined and notify_url else '' }}"
-      data-notify-interval="5000"
-      data-notify-pages="admin_users.fraud_monitor"
       {% block body_attrs %}{% endblock %}>
     {% set ep = request.endpoint or '' %}
     {% set admin_back_scope = 'admin' %}
@@ -1029,6 +1013,7 @@
             {% endif %}
             <li class="nav-item"><a class="nav-link {% if 'user' in ep %}active{% endif %}" href="{{ url_for('admin_users.manage_users') }}"><i class="bi bi-people-fill"></i><span>Utilisateurs</span></a></li>
             <li class="nav-item"><a class="nav-link {% if 'vendor_request' in ep %}active{% endif %}" href="{{ url_for('admin_users.vendor_requests') }}"><i class="bi bi-people-fill"></i><span>Nouveaux clients</span></a></li>
+            <li class="nav-item"><a class="nav-link {% if 'vendor_change_request' in ep %}active{% endif %}" href="{{ url_for('admin_users.vendor_change_requests') }}"><i class="bi bi-pencil-square"></i><span>Demandes modifications</span></a></li>
             <li class="nav-item"><a class="nav-link {% if 'shop' in ep %}active{% endif %}" href="{{ url_for('admin_users.manage_shops') }}"><i class="bi bi-shop"></i><span>Boutiques</span></a></li>
             <li class="nav-item"><a class="nav-link {% if 'rentals.admin_locations' in ep or 'admin/locations' in request.path %}active{% endif %}" href="{{ url_for('rentals.admin_locations') }}"><i class="bi bi-house-door"></i><span>Locations</span></a></li>
             <li class="nav-item"><a class="nav-link {% if ep.startswith('admin.promo') %}active{% endif %}" href="{{ url_for('admin.promo_reviews') }}"><i class="bi bi-percent"></i><span>Promotions</span></a></li>
@@ -1039,14 +1024,10 @@
             </li>
             <li class="nav-item"><a class="nav-link {% if ep.startswith('admin.finance') %}active{% endif %}" href="{{ url_for('admin.finance') }}"><i class="bi bi-graph-up-arrow"></i><span>Finance</span></a></li>
             <li class="nav-item"><a class="nav-link {% if 'reconciliation' in ep %}active{% endif %}" href="{{ url_for('admin_users.reconciliation') }}"><i class="bi bi-cash-stack"></i><span>Abonnements</span></a></li>
-            {% if current_user.role == 'admin' %}
             <li class="nav-item"><a class="nav-link {% if 'fraud' in ep %}active{% endif %}" href="{{ url_for('admin_users.fraud_monitor') }}"><i class="bi bi-shield-exclamation"></i><span>Fraude</span></a></li>
-            {% endif %}
             <li class="nav-item"><a class="nav-link {% if 'catalog_quality' in ep %}active{% endif %}" href="{{ url_for('admin_users.catalog_quality') }}"><i class="bi bi-box-seam"></i><span>Catalogue</span></a></li>
             <li class="nav-item"><a class="nav-link {% if ep == 'admin.featured_items' %}active{% endif %}" href="{{ url_for('admin.featured_items') }}"><i class="bi bi-stars"></i><span>Mise en avant</span></a></li>
-            {% if current_user.role == 'admin' %}
             <li class="nav-item"><a class="nav-link {% if 'log' in ep %}active{% endif %}" href="{{ url_for('admin_users.view_logs') }}"><i class="bi bi-clock-history"></i><span>Logs</span></a></li>
-            {% endif %}
             <li class="nav-item"><a class="nav-link {% if ep == 'admin_users.deletion_history' %}active{% endif %}" href="{{ url_for('admin_users.deletion_history') }}"><i class="bi bi-archive"></i><span>Historique suppression</span></a></li>
             <li class="nav-item"><a class="nav-link {% if 'pricing' in ep or 'settings' in ep %}active{% endif %}" href="{{ url_for('admin.pricing_settings') }}"><i class="bi bi-sliders"></i><span>Parametres</span></a></li>
             {% if current_user.role == 'admin' %}
@@ -1103,9 +1084,6 @@
                     <i class="bi bi-cash-stack"></i><span>Abonnements</span>
                 </a>
                 <button class="btn-custom btn-outline-custom btn-theme-toggle" type="button" id="adminThemeToggle" aria-label="Changer le thème"><i class="bi bi-moon-stars" aria-hidden="true"></i><span>Thème</span></button>
-                {% if ep == 'admin_users.fraud_monitor' %}
-                <button class="btn-custom btn-outline-custom btn-sound" type="button" id="adminOrderSoundToggle" aria-label="Activer/Désactiver le son des alertes"><i class="bi bi-volume-up" aria-hidden="true"></i><span>Son des alertes</span></button>
-                {% endif %}
                 <a href="{{ url_for('admin_users.admin_dashboard') }}" class="btn-custom btn-outline-custom" aria-label="Accueil"><i class="bi bi-house-fill" aria-hidden="true"></i><span>Accueil</span></a>
                 <form method="post" action="{{ url_for('auth.logout') }}" class="d-inline">
                     {% include "partials/_csrf.html" %}
@@ -1127,14 +1105,6 @@
                 {% block content %}{% endblock %}
             </div>
         {% endwith %}
-    </div>
-
-    <div id="admin-order-toast" class="admin-order-toast" role="alert" aria-live="polite" aria-atomic="true">
-        <div class="toast-icon" aria-hidden="true"><i class="bi bi-whatsapp"></i></div>
-        <div>
-            <div class="toast-title">Nouvelle livraison</div>
-            <div class="toast-text" id="admin-order-toast-text">1 livraison en attente</div>
-        </div>
     </div>
 
     <script src="{{ url_for('static', filename='vendor/bootstrap/5.3.3/js/bootstrap.bundle.min.js', v=app_static_version) }}"></script>

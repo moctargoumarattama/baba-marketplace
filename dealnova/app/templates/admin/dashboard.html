@@ -1,4 +1,4 @@
-﻿{% extends "admin/base.html" %}
+{% extends "admin/base.html" %}
 
 {% block title %}Tableau de bord | Baba Market{% endblock %}
 {% block page_title %}Dashboard{% endblock %}
@@ -917,7 +917,6 @@
     </article>
   </section>
 
-  {% if current_user.role == 'admin' %}
   <section class="dash-panel" style="--i:1">
     <div class="panel-head">
       <h5><i class="bi bi-broadcast-pin"></i> Trafic live</h5>
@@ -942,7 +941,6 @@
       </article>
     </div>
   </section>
-  {% endif %}
 
   <section class="dash-panel" style="--i:1">
     <div class="panel-head">
@@ -966,7 +964,6 @@
           <small>Voir les derniers comptes crees</small>
         </span>
       </a>
-      {% if current_user.role == 'admin' %}
       <a href="{{ url_for('admin_users.audience_dashboard') }}" class="action-card" style="--i:2">
         <span class="action-icon"><i class="bi bi-broadcast-pin"></i></span>
         <span class="action-text">
@@ -974,15 +971,13 @@
           <small>Visiteurs, sources, conversions et PWA</small>
         </span>
       </a>
-      {% endif %}
       <a href="{{ url_for('admin.pricing_settings') }}" class="action-card" style="--i:2">
         <span class="action-icon"><i class="bi bi-gear"></i></span>
         <span class="action-text">
           <span>{{ 'Reglages' if current_user.role == 'manager' else 'Parametres' }}</span>
-          <small>{{ 'Livraison et montants' if current_user.role == 'manager' else 'Livraison et part Baba' }}</small>
+          <small>Commission location et alertes</small>
         </span>
       </a>
-      {% if current_user.role == 'admin' %}
       <a href="{{ url_for('admin_users.view_logs') }}" class="action-card" style="--i:3">
         <span class="action-icon"><i class="bi bi-clock-history"></i></span>
         <span class="action-text">
@@ -990,7 +985,6 @@
           <small>Historique admin</small>
         </span>
       </a>
-      {% endif %}
     </div>
   </section>
 

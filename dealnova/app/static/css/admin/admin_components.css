@@ -1,4 +1,4 @@
-﻿.adm-page-stack {
+.adm-page-stack {
   display: grid;
   gap: 1.5rem;
 }
@@ -103,54 +103,6 @@ body[data-admin="1"] .alert-info {
   background: #eff6ff;
   border-color: #3b82f6;
   color: #1e40af;
-}
-
-body[data-admin="1"] .admin-order-toast {
-  position: fixed;
-  top: 6.375rem;
-  right: 1.25rem;
-  z-index: 1200;
-  opacity: 0;
-  pointer-events: none;
-  transform: translateX(120%);
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem 1rem;
-  border-radius: 0.875rem;
-  color: #fff;
-  background: linear-gradient(135deg, #22c55e, #16a34a);
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  box-shadow: 0 0.875rem 1.75rem rgba(15, 23, 42, 0.24);
-}
-
-body[data-admin="1"] .admin-order-toast.show {
-  opacity: 1;
-  pointer-events: auto;
-  transform: translateX(0);
-}
-
-body[data-admin="1"] .admin-order-toast .toast-icon {
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: 0.6875rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(255, 255, 255, 0.22);
-  font-size: 1.125rem;
-  flex-shrink: 0;
-}
-
-body[data-admin="1"] .admin-order-toast .toast-title {
-  font-weight: 800;
-  margin-bottom: 0.125rem;
-}
-
-body[data-admin="1"] .admin-order-toast .toast-text {
-  font-size: 0.8125rem;
-  opacity: 0.95;
 }
 
 html[data-admin-theme="noc"] body[data-admin="1"] .admin-card,

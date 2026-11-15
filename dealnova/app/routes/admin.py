@@ -800,7 +800,7 @@ def restrict_admin():
     if role in {ADMIN_ROLE, MANAGER_ROLE}:
         return None
 
-        flash("Accès réservé aux administrateurs", "danger")
+    flash("Accès réservé aux administrateurs", "danger")
     return redirect(url_for("shop.home"))
 
 
@@ -971,29 +971,12 @@ def deliveries():
     return redirect(url_for("admin.product_contacts"))
 
 
-@bp.route("/deliver/<int:oid>", methods=["POST"])
-def mark_delivered(oid):
-    flash("Le module livraison a ete supprime.", "info")
-    return redirect(url_for("admin.product_contacts"))
-
-
-@bp.route("/order/<int:oid>/cancel", methods=["POST"])
-def cancel_order(oid):
-    flash("Le module livraison a ete supprime.", "info")
-    return redirect(url_for("admin.product_contacts"))
-
-
 # ======================
 # Redirections legacy produit / archives livraison express
 # ======================
 @bp.route("/orders")
 def all_orders():
     flash("Les produits physiques sont maintenant consultables dans Contacts produits.", "info")
-    return redirect(url_for("admin.product_contacts"))
-
-
-@bp.route("/orders/archives")
-def order_archives():
     return redirect(url_for("admin.product_contacts"))
 
 
@@ -1082,23 +1065,6 @@ def finance():
         date_to=date_filter.date_to,
         entry_type_labels=entry_type_labels,
     )
-
-@bp.route("/orders/<int:oid>/delete", methods=["POST"])
-def delete_archived_order(oid: int):
-    flash("Le module livraison a ete supprime.", "info")
-    return redirect(url_for("admin.product_contacts"))
-
-
-@bp.route("/deliveries/live")
-def deliveries_live():
-    return jsonify(success=False, message="Module livraison supprime.", redirect_url=url_for("admin.product_contacts")), 410
-
-
-@bp.route("/deliveries/archives")
-def deliveries_archives():
-    flash("Le module livraison a ete supprime.", "info")
-    return redirect(url_for("admin.product_contacts"))
-
 
 @bp.route("/order/<int:oid>")
 def order_detail(oid):
@@ -2345,35 +2311,6 @@ def whatsapp_promo_retry_failed():
             message="Relance des messages non publiés démarrée en arrière-plan avec respect des délais anti-ban.",
         )
     flash("Relance des messages non publiés démarrée en arrière-plan (respect des délais anti-ban).", "info")
-    return redirect(url_for("admin.whatsapp_gateway"))
-
-
-@bp.route("/whatsapp-gateway/promo/send-test", methods=["POST"])
-def whatsapp_promo_send_test():
-    if _current_admin_role() not in {ADMIN_ROLE, MANAGER_ROLE}:
-        return _sensitive_admin_forbidden_response()
-
-    from ..services.whatsapp_promo import send_test_to_admin
-
-    data = request.get_json(silent=True) if request.is_json else request.form
-    raw_pid = str(data.get("product_id") or "").strip()
-    pid: int | str | None = None
-    if raw_pid.isdigit():
-        pid = int(raw_pid)
-    elif raw_pid.startswith("rental_") and raw_pid[7:].isdigit():
-        pid = raw_pid
-
-    result = send_test_to_admin(product_id=pid)
-
-    if _is_ajax_request() or request.is_json:
-        status_code = 200 if result.get("success") else 400
-        return jsonify(result), status_code
-
-    if result.get("success"):
-        flash(result.get("message"), "success")
-    else:
-        flash(result.get("message") or "Impossible d'envoyer le message test.", "danger")
-
     return redirect(url_for("admin.whatsapp_gateway"))
 
 

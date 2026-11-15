@@ -380,7 +380,7 @@
         </div>
         <div class="cat-stat">
             <div>
-                <h6>Stock = 0</h6>
+                <h6>Stock = 0 (produits)</h6>
                 <div class="stat-value" id="countOut">{{ count_out }}</div>
             </div>
             <div class="stat-icon secondary"><i class="bi bi-box"></i></div>
@@ -415,7 +415,7 @@
                         </label>
                         <label class="filter-checkbox">
                             <input class="form-check-input" type="checkbox" name="out_of_stock" value="1" {% if out_of_stock %}checked{% endif %}>
-                            <i class="bi bi-box"></i> Stock 0
+                            <i class="bi bi-box"></i> Stock 0 (produits)
                         </label>
                         <label class="filter-checkbox">
                             <input class="form-check-input" type="checkbox" name="inactive" value="1" {% if inactive %}checked{% endif %}>
@@ -432,10 +432,10 @@
                     </div>
                 </form>
                 <form method="post" action="{{ url_for('admin_users.catalog_hide_out_of_stock') }}" 
-                      class="d-inline" data-adm-disable-submit data-adm-confirm-submit="{{ 'Masquer tous les produits avec stock 0 ?' if current_user.role == 'manager' else 'Masquer tous les produits en stock 0 ' }}">
+                      class="d-inline" data-adm-disable-submit data-adm-confirm-submit="Masquer tous les produits physiques avec stock 0 ?">
                     {% include "partials/_csrf.html" %}
                     <button class="btn btn-outline-danger" type="submit">
-                        <i class="bi bi-eye-slash"></i> {{ 'Masquer stock 0' if current_user.role == 'manager' else 'Masquer stock 0' }}
+                        <i class="bi bi-eye-slash"></i> Masquer produits stock 0
                     </button>
                 </form>
             </div>
@@ -496,20 +496,24 @@
                             {% if not p.description %}
                                 <span class="issue-badge"><i class="bi bi-file-text"></i> Sans description</span>
                             {% endif %}
-                            {% if p.stock <= 0 %}
+                            {% if p.kind != 'service' and p.stock <= 0 %}
                                 <span class="issue-badge"><i class="bi bi-box"></i> Stock 0</span>
                             {% endif %}
                             {% if not p.is_active %}
                                 <span class="issue-badge"><i class="bi bi-toggle-off"></i> Inactif</span>
                             {% endif %}
-                            {% if p.image_file and p.description and p.stock > 0 and p.is_active %}
+                            {% if p.image_file and p.description and (p.kind == 'service' or p.stock > 0) and p.is_active %}
                                 <span class="badge bg-success"><i class="bi bi-check-circle"></i> OK</span>
                             {% endif %}
                         </td>
                         <td data-label="Stock">
-                            <span class="badge bg-{{ 'danger' if p.stock <= 0 else 'success' }}">
-                                {{ p.stock }}
-                            </span>
+                            {% if p.kind == 'service' %}
+                                <span class="badge bg-secondary">Service</span>
+                            {% else %}
+                                <span class="badge bg-{{ 'danger' if p.stock <= 0 else 'success' }}">
+                                    {{ p.stock }}
+                                </span>
+                            {% endif %}
                         </td>
                         <td data-label="Actif">
                             {% if p.is_active %}

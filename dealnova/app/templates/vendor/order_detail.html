@@ -504,15 +504,6 @@
       <a class="od-btn" href="{{ url_for('vendor.earnings') }}">
         <i class="bi bi-arrow-left-circle"></i> Retour
       </a>
-
-      {% if current_user.is_authenticated and current_user.role == "admin" and order.status == "pending" %}
-        <form action="{{ url_for('admin.mark_delivered', oid=order.id) }}" method="POST" class="m-0">
-          {% include "partials/_csrf.html" %}
-          <button class="od-btn od-btn-primary" type="submit">
-            <i class="bi bi-check2-circle"></i> Marquer livree
-          </button>
-        </form>
-      {% endif %}
     </div>
   </section>
 </section>

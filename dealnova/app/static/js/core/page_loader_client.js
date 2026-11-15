@@ -20,7 +20,6 @@
   }
 
   var ASSETS = {
-    coreCart: "js/core/core_cart.js",
     coreLive: "js/core/core_live.js",
     ajaxPagination: "js/ajax_pagination.js",
     featurePagination: "js/ajax/features/pagination.js",
@@ -30,8 +29,8 @@
   };
 
   var CLIENT_MAP = {
-    shops: [ASSETS.coreCart, ASSETS.ajaxPagination, ASSETS.shopsPage],
-    "shops.list_shops": [ASSETS.coreCart, ASSETS.ajaxPagination, ASSETS.shopsPage]
+    shops: [ASSETS.ajaxPagination, ASSETS.shopsPage],
+    "shops.list_shops": [ASSETS.ajaxPagination, ASSETS.shopsPage]
   };
 
   var VENDOR_RUNTIME = [
@@ -51,8 +50,8 @@
   };
 
   var LOAD_PLANS = {
-    shops: [[ASSETS.shopsPage, ASSETS.coreCart, ASSETS.ajaxPagination]],
-    "shops.list_shops": [[ASSETS.shopsPage, ASSETS.coreCart, ASSETS.ajaxPagination]],
+    shops: [[ASSETS.shopsPage, ASSETS.ajaxPagination]],
+    "shops.list_shops": [[ASSETS.shopsPage, ASSETS.ajaxPagination]],
     "vendor.dashboard": [[ASSETS.coreLive], [ASSETS.ajaxPagination, ASSETS.featurePagination, ASSETS.featureForms, ASSETS.featurePolling]],
     "vendor.earnings": [[ASSETS.coreLive], [ASSETS.ajaxPagination, ASSETS.featurePagination, ASSETS.featureForms, ASSETS.featurePolling]],
     "vendor.manage_shop": [[ASSETS.coreLive], [ASSETS.featureForms]],
@@ -147,10 +146,6 @@
     if (explicit) return assets;
 
     // Compatibility fallback for non-target client pages.
-    if (document.querySelector('[data-nav-badges], [data-cart-badge], [data-drawer-cart-badge], [data-track-badge], [data-track-icon]')) {
-      pushUnique(assets, [ASSETS.coreCart]);
-    }
-
     if (document.querySelector('[data-ajax-pagination], [data-ajax-listing], [data-adm-pager], [data-adm-listing]')) {
       pushUnique(assets, [ASSETS.ajaxPagination, ASSETS.featurePagination]);
     }

@@ -73,12 +73,6 @@ MANAGER_ROLE = "manager"
 STAFF_VISIBLE_TO_MANAGER_ROLES = ("vendor",)
 ALLOWED_USER_ROLES = (ADMIN_ROLE, MANAGER_ROLE, "vendor")
 ADMIN_CREATABLE_USER_ROLES = (ADMIN_ROLE, MANAGER_ROLE)
-MANAGER_BLOCKED_ENDPOINTS = {
-    "admin_users.view_logs",
-    "admin_users.fraud_monitor",
-    "admin_users.fraud_block",
-    "admin_users.fraud_unblock",
-}
 FRAUD_MAX_ROWS_DEFAULT = 80
 FRAUD_MAX_ROWS_CAP = 200
 ADMIN_METRICS_CACHE_TTL_SHORT = 20
@@ -506,12 +500,6 @@ def restrict_to_admin():
     return redirect(url_for("shop.home"))
 
 
-@bp.before_request
-def restrict_sensitive_pages_for_manager():
-    if _is_manager() and request.endpoint in MANAGER_BLOCKED_ENDPOINTS:
-        return _forbidden_sensitive_admin_response()
-
-
 def _dashboard_activity_snapshot(days: int = 7, date_filter=None) -> dict:
     since = date_filter.start_at if date_filter else datetime.utcnow() - timedelta(days=days)
     until = date_filter.end_at if date_filter else None
@@ -661,17 +649,6 @@ def admin_dashboard():
         .count() or 0
     )
     vendors_without_shop = int(cards.get("vendors_without_shop", 0) or 0)
-
-    # Utilisateurs récents
-    recent_users = (
-        _users_query_visible_to_current_user()
-        .order_by(User.created_at.desc())
-        .limit(10)
-        .all()
-    )
-
-    # Boutiques récentes
-    recent_shops = Shop.query.order_by(Shop.created_at.desc()).limit(10).all()
     activity_snapshot = _dashboard_activity_snapshot(date_filter=date_filter)
     live_traffic = get_live_traffic_metrics()
 
@@ -688,8 +665,6 @@ def admin_dashboard():
         date_range_label=date_filter.label,
         date_from=date_filter.date_from,
         date_to=date_filter.date_to,
-        recent_users=recent_users,
-        recent_shops=recent_shops,
         live_traffic=live_traffic,
         **activity_snapshot,
     )
@@ -1388,16 +1363,6 @@ def delete_shop(shop_id):
     else:
         flash(f"Boutique {shop.name} supprimée", "success")
     return redirect(url_for('admin_users.manage_shops'))
-
-
-@bp.route("/shop/create", methods=["GET", "POST"])
-def create_shop():
-    """Ancienne création manuelle de boutique (désactivée)."""
-    flash(
-        "La création manuelle de boutique est désactivée. Utilisez la page Nouveaux clients.",
-        "warning",
-    )
-    return redirect(url_for("admin_users.vendor_requests"))
 
 
 # ==================== NOUVEAUX CLIENTS ====================
@@ -2320,6 +2285,11 @@ def fraud_unblock(block_id):
     return redirect(request.referrer or url_for("admin_users.fraud_monitor"))
 
 
+def _physical_out_of_stock_filter():
+    """Filter matching physical products out of stock (excluding services)."""
+    return and_(Product.kind != "service", Product.stock <= 0)
+
+
 @bp.route("/catalog-quality")
 def catalog_quality():
     page = page_from_args(request.args)
@@ -2347,7 +2317,7 @@ def catalog_quality():
     if no_desc:
         query = query.filter(or_(Product.description.is_(None), Product.description == ""))
     if out_of_stock:
-        query = query.filter(Product.stock <= 0)
+        query = query.filter(_physical_out_of_stock_filter())
     if inactive:
         query = query.filter(Product.is_active == False)
 
@@ -2358,7 +2328,7 @@ def catalog_quality():
 
     count_no_image = Product.query.filter(or_(Product.image_file.is_(None), Product.image_file == "")).count()
     count_no_desc = Product.query.filter(or_(Product.description.is_(None), Product.description == "")).count()
-    count_out = Product.query.filter(Product.stock <= 0).count()
+    count_out = Product.query.filter(_physical_out_of_stock_filter()).count()
 
     return render_template(
         "admin/catalog_quality.html",
@@ -2396,7 +2366,7 @@ def catalog_toggle_product(product_id):
 
 @bp.route("/catalog-quality/hide-out-of-stock", methods=["POST"])
 def catalog_hide_out_of_stock():
-    updated = Product.query.filter(Product.stock <= 0, Product.is_active == True).update(
+    updated = Product.query.filter(_physical_out_of_stock_filter(), Product.is_active == True).update(
         {Product.is_active: False}, synchronize_session=False
     )
     db.session.commit()
@@ -2410,7 +2380,7 @@ def catalog_hide_out_of_stock():
         changes={"count": updated}
     )
 
-    flash(f"{updated} produits masqués.", "success")
+    flash(f"{updated} produits physiques en rupture masqués.", "success")
     return redirect(request.referrer or url_for("admin_users.catalog_quality"))
 
 
