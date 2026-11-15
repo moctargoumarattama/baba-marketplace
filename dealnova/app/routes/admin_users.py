@@ -23,7 +23,6 @@ from ..models.product_contact_lead import ProductContactLead
 from ..models.platform_settings import PlatformSettings
 from ..models.rental import RentalListing, RentalMedia, RentalArchive
 from ..models.subscription_payment import SubscriptionPayment
-from ..models.vendor_application import VendorApplication
 from ..models.vendor_change_request import VendorChangeRequest
 from ..models.vendor_payout import VendorPayout
 from ..models.vendor_push_subscription import VendorPushSubscription
@@ -49,13 +48,12 @@ from ..services.shop_access import (
     _build_unique_shop_slug,
     _create_shop_for_vendor,
     _sanitize_shop_slug,
-    _shop_types_from_vendor_application,
     _unique_vendor_username,
 )
 from ..services.traffic_stats import get_live_traffic_metrics
 from datetime import datetime, timedelta
 from sqlalchemy.orm import selectinload, load_only
-from sqlalchemy import or_, and_, func
+from sqlalchemy import or_, and_, func, inspect, text
 from sqlalchemy.exc import IntegrityError
 import secrets
 import re
@@ -80,7 +78,9 @@ _EMAIL_BASIC_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 ADMIN_ROLE = "admin"
 MANAGER_ROLE = "manager"
 STAFF_VISIBLE_TO_MANAGER_ROLES = ("vendor",)
+DETAIL_MANAGER_VISIBLE_ROLES = ("vendor", "customer")
 ALLOWED_USER_ROLES = (ADMIN_ROLE, MANAGER_ROLE, "vendor")
+DETAIL_VIEWABLE_USER_ROLES = (ADMIN_ROLE, MANAGER_ROLE, "vendor", "customer")
 ADMIN_CREATABLE_USER_ROLES = (ADMIN_ROLE, MANAGER_ROLE)
 FRAUD_MAX_ROWS_DEFAULT = 80
 FRAUD_MAX_ROWS_CAP = 200
@@ -171,9 +171,9 @@ def _manager_hidden_user(user: User | None) -> bool:
     if user is None:
         return False
     role = (user.role or "").lower()
-    if role not in ALLOWED_USER_ROLES:
+    if role not in DETAIL_VIEWABLE_USER_ROLES:
         return True
-    return bool(_is_manager() and role not in STAFF_VISIBLE_TO_MANAGER_ROLES)
+    return bool(_is_manager() and role not in DETAIL_MANAGER_VISIBLE_ROLES)
 
 
 def _hidden_user_response():
@@ -263,6 +263,36 @@ def _archive_deletion_snapshot(entity_type: str, entity_id: int, entity_name: st
     log_access("deletion_snapshot", entity_type, entity_id, success=True, changes=payload)
 
 
+def _detach_legacy_vendor_application_refs(*, shop_id: int | None = None, user_id: int | None = None) -> dict[str, int]:
+    """Detach legacy vendor_application FK rows if an older DB table still exists."""
+    stats: dict[str, int] = {}
+    try:
+        table_names = set(inspect(db.engine).get_table_names())
+    except Exception:
+        return stats
+    if "vendor_application" not in table_names:
+        return stats
+
+    if shop_id is not None:
+        res = db.session.execute(
+            text("UPDATE vendor_application SET created_shop_id = NULL WHERE created_shop_id = :shop_id"),
+            {"shop_id": int(shop_id)},
+        )
+        stats["vendor_application_shop_refs_detached"] = int(getattr(res, "rowcount", 0) or 0)
+    if user_id is not None:
+        res_created = db.session.execute(
+            text("UPDATE vendor_application SET created_user_id = NULL WHERE created_user_id = :user_id"),
+            {"user_id": int(user_id)},
+        )
+        res_reviewed = db.session.execute(
+            text("UPDATE vendor_application SET reviewed_by_id = NULL WHERE reviewed_by_id = :user_id"),
+            {"user_id": int(user_id)},
+        )
+        stats["vendor_application_created_refs_detached"] = int(getattr(res_created, "rowcount", 0) or 0)
+        stats["vendor_application_review_refs_detached"] = int(getattr(res_reviewed, "rowcount", 0) or 0)
+    return stats
+
+
 def _cleanup_shop_dependencies_for_delete(shop: Shop, *, detach_vendor_products: bool = False) -> dict:
     cleanup: dict[str, int] = {}
 
@@ -341,12 +371,7 @@ def _cleanup_shop_dependencies_for_delete(shop: Shop, *, detach_vendor_products:
             RentalArchive.query.filter(RentalArchive.id.in_(archive_ids)).delete(synchronize_session=False) or 0
         )
 
-    cleanup["vendor_application_shop_refs_detached"] = int(
-        VendorApplication.query
-        .filter(VendorApplication.created_shop_id == shop.id)
-        .update({"created_shop_id": None}, synchronize_session=False)
-        or 0
-    )
+    cleanup.update(_detach_legacy_vendor_application_refs(shop_id=shop.id))
 
     return cleanup
 
@@ -405,18 +430,7 @@ def _cleanup_user_dependencies_for_delete(user: User, *, linked_shop: Shop | Non
         .update({"claimed_by_id": None}, synchronize_session=False)
         or 0
     )
-    cleanup["vendor_application_created_refs_detached"] = int(
-        VendorApplication.query
-        .filter(VendorApplication.created_user_id == user.id)
-        .update({"created_user_id": None}, synchronize_session=False)
-        or 0
-    )
-    cleanup["vendor_application_review_refs_detached"] = int(
-        VendorApplication.query
-        .filter(VendorApplication.reviewed_by_id == user.id)
-        .update({"reviewed_by_id": None}, synchronize_session=False)
-        or 0
-    )
+    cleanup.update(_detach_legacy_vendor_application_refs(user_id=user.id))
     cleanup["products_vendor_detached"] = int(
         Product.query
         .filter(Product.vendor_id == user.id)
@@ -1093,6 +1107,7 @@ def delete_user(user_id):
             "cleanup": cleanup_stats,
         }
     )
+    user_role = (user.role or "").lower()
     db.session.delete(user)
     try:
         db.session.commit()
@@ -1104,11 +1119,12 @@ def delete_user(user_id):
         flash(message, "danger")
         return redirect(url_for('admin_users.user_detail', user_id=user.id))
 
+    list_redirect_url = url_for('admin_users.manage_customers' if user_role == 'customer' else 'admin_users.manage_users')
     if _is_ajax_request():
-        return jsonify(success=True, user_id=user.id, redirect_url=url_for('admin_users.manage_users'))
+        return jsonify(success=True, user_id=user.id, redirect_url=list_redirect_url)
 
     flash(f"Utilisateur {user.username} supprimé", "success")
-    return redirect(url_for('admin_users.manage_users'))
+    return redirect(list_redirect_url)
 
 # ==================== CRÉATION UTILISATEUR ====================
 @bp.route("/user/create", methods=["GET", "POST"])
@@ -1450,9 +1466,9 @@ def delete_shop(shop_id):
     return redirect(url_for('admin_users.manage_shops'))
 
 
-# ==================== NOUVEAUX CLIENTS ====================
-@bp.route("/vendor-requests")
-def vendor_requests():
+# ==================== CLIENTS ====================
+@bp.route("/customers")
+def manage_customers():
     page = page_from_args(request.args)
     per_page = normalize_limit(request.args.get("per_page"), default=20, max_limit=100)
     search = (request.args.get("search") or "").strip()
@@ -1487,7 +1503,7 @@ def vendor_requests():
     active_count = int(all_customers.filter(User.is_active == True).count() or 0)
 
     return render_template(
-        "admin/vendor_requests.html",
+        "admin/customers.html",
         customers_items=customers_items,
         pagination=pagination,
         per_page=per_page,

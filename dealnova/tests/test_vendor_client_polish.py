@@ -186,17 +186,18 @@ def test_vendor_access_backend_requires_phone_and_no_email():
 
 
 def test_admin_vendor_request_pages_use_plain_french_guidance():
-    vendor_requests = _read("app/templates/admin/vendor_requests.html")
+    assert not (ROOT / "app/templates/admin/vendor_requests.html").exists()
+    customers_page = _read("app/templates/admin/customers.html")
     change_requests = _read("app/templates/admin/vendor_change_requests.html")
 
-    assert "Comptes clients recents" in vendor_requests
-    assert "Cette page sert a suivre les nouveaux comptes crees depuis l'inscription publique." in vendor_requests
-    assert "Les comptes vendeurs se creent maintenant directement." in vendor_requests
-    assert "Clients inscrits" in vendor_requests
-    assert "Voir le compte" in vendor_requests
-    assert "Accepter et creer le compte vendeur" not in vendor_requests
-    assert "Refuser cette demande" not in vendor_requests
-    assert "Bloquer ce contact" not in vendor_requests
+    assert "Comptes clients recents" in customers_page
+    assert "Cette page sert a suivre les nouveaux comptes crees depuis l'inscription publique." in customers_page
+    assert "Les comptes vendeurs se creent maintenant directement." in customers_page
+    assert "Clients inscrits" in customers_page
+    assert "Voir le compte" in customers_page
+    assert "Accepter et creer le compte vendeur" not in customers_page
+    assert "Refuser cette demande" not in customers_page
+    assert "Bloquer ce contact" not in customers_page
 
     assert "A faire maintenant" in change_requests
     assert "Ces vendeurs demandent une modification" in change_requests

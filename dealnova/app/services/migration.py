@@ -47,6 +47,13 @@ def ensure_platform_settings_columns():
         if "rental_daily_duration_days" not in columns:
             to_add.append('ALTER TABLE "platform_settings" ADD COLUMN rental_daily_duration_days INTEGER NOT NULL DEFAULT 14')
 
+        dialect_name = (db.engine.dialect.name or "").lower()
+        if "seller_commission_percent" in columns:
+            if dialect_name == "postgresql":
+                to_add.append('ALTER TABLE "platform_settings" DROP COLUMN IF EXISTS seller_commission_percent')
+            elif dialect_name == "sqlite":
+                to_add.append('ALTER TABLE "platform_settings" DROP COLUMN seller_commission_percent')
+
         if not to_add:
             print("?? Colonnes platform_settings deja presentes")
             return
@@ -141,93 +148,6 @@ def ensure_featured_items_table():
         print("? Table featured_item verifiee")
     except Exception as e:
         print(f"? Erreur featured_item: {e}")
-
-
-def ensure_vendor_application_table():
-    """Cree la table vendor_application si absente."""
-    print("?? Verification de la table vendor_application...")
-    try:
-        from ..models.vendor_application import VendorApplication
-        VendorApplication.__table__.create(db.engine, checkfirst=True)
-        inspector = inspect(db.engine)
-        if "vendor_application" in inspector.get_table_names():
-            columns = [col["name"] for col in inspector.get_columns("vendor_application")]
-            to_add = []
-            if "password_hash" not in columns:
-                to_add.append('ALTER TABLE "vendor_application" ADD COLUMN password_hash VARCHAR(256)')
-            if to_add:
-                with db.engine.begin() as conn:
-                    for stmt in to_add:
-                        conn.execute(text(stmt))
-            dialect_name = (db.engine.dialect.name or "").lower()
-            if dialect_name in {"sqlite", "postgresql"}:
-                indexes = {idx.get("name") for idx in inspector.get_indexes("vendor_application")}
-                index_statements = []
-                dedupe_statements = [
-                    """
-                    UPDATE vendor_application
-                    SET
-                        status = 'rejected',
-                        review_note = CASE
-                            WHEN COALESCE(review_note, '') = ''
-                                THEN 'Auto-rejet technique: doublon pending (phone).'
-                            ELSE review_note || ' | Auto-rejet technique: doublon pending (phone).'
-                        END,
-                        reviewed_at = COALESCE(reviewed_at, CURRENT_TIMESTAMP)
-                    WHERE id IN (
-                        SELECT older.id
-                        FROM vendor_application AS older
-                        JOIN vendor_application AS newer
-                            ON older.phone_digits = newer.phone_digits
-                           AND older.status = 'pending'
-                           AND newer.status = 'pending'
-                           AND older.id < newer.id
-                    )
-                    """,
-                    """
-                    UPDATE vendor_application
-                    SET
-                        status = 'rejected',
-                        review_note = CASE
-                            WHEN COALESCE(review_note, '') = ''
-                                THEN 'Auto-rejet technique: doublon pending (email).'
-                            ELSE review_note || ' | Auto-rejet technique: doublon pending (email).'
-                        END,
-                        reviewed_at = COALESCE(reviewed_at, CURRENT_TIMESTAMP)
-                    WHERE id IN (
-                        SELECT older.id
-                        FROM vendor_application AS older
-                        JOIN vendor_application AS newer
-                            ON older.email_normalized = newer.email_normalized
-                           AND older.email_normalized IS NOT NULL
-                           AND newer.email_normalized IS NOT NULL
-                           AND older.status = 'pending'
-                           AND newer.status = 'pending'
-                           AND older.id < newer.id
-                    )
-                    """,
-                ]
-                if "uq_vendor_application_pending_phone" not in indexes:
-                    index_statements.append(
-                        "CREATE UNIQUE INDEX IF NOT EXISTS uq_vendor_application_pending_phone "
-                        "ON vendor_application (phone_digits) "
-                        "WHERE status = 'pending'"
-                    )
-                if "uq_vendor_application_pending_email" not in indexes:
-                    index_statements.append(
-                        "CREATE UNIQUE INDEX IF NOT EXISTS uq_vendor_application_pending_email "
-                        "ON vendor_application (email_normalized) "
-                        "WHERE status = 'pending' AND email_normalized IS NOT NULL"
-                    )
-                if index_statements:
-                    with db.engine.begin() as conn:
-                        for stmt in dedupe_statements:
-                            conn.execute(text(stmt))
-                        for stmt in index_statements:
-                            conn.execute(text(stmt))
-        print("? Table vendor_application verifiee")
-    except Exception as e:
-        print(f"? Erreur vendor_application: {e}")
 
 
 def ensure_vendor_change_request_table():

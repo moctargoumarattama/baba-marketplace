@@ -10,9 +10,9 @@ from sqlalchemy.exc import IntegrityError
 
 from ..extensions import db
 from ..middleware.rate_limit import rate_limit
+from ..models.blocked import BlockedContact
 from ..models.shop import Shop
 from ..models.user import User
-from ..models.vendor_application import VendorApplication
 from ..services.audit import log_access
 from ..services.email_service import build_public_url, send_account_created_email
 from ..services.logging_service import logging_service
@@ -32,7 +32,7 @@ from ..services.baba_whatsapp import (
 from ..services.shop_access import (
     _build_unique_shop_slug,
     _create_shop_for_vendor,
-    _shop_types_from_vendor_application,
+    _shop_types_from_signup_choice,
     _unique_vendor_username,
     shop_allows_any,
 )
@@ -521,14 +521,22 @@ def vendor_access():
             flash("Ce numéro de téléphone est déjà associé à un compte vendeur. Vous pouvez vous connecter directement.", "warning")
             return redirect(url_for("auth.login"))
 
-        contact_match_filters = [VendorApplication.phone_digits == phone_digits]
+        phone_candidates = {form_data["phone"].strip(), phone_digits}
+        normalized_wa = normalize_whatsapp_number(form_data["phone"])
+        if normalized_wa:
+            phone_candidates.add(normalized_wa)
+        if phone_digits.startswith("212") and len(phone_digits) == 12:
+            phone_candidates.add("0" + phone_digits[3:])
+        elif phone_digits.startswith("0") and len(phone_digits) == 10:
+            phone_candidates.add("212" + phone_digits[1:])
+            phone_candidates.add("+212" + phone_digits[1:])
         blocked_match = (
-            VendorApplication.query
+            BlockedContact.query
             .filter(
-                VendorApplication.status == VendorApplication.STATUS_BLOCKED,
-                or_(*contact_match_filters),
+                BlockedContact.kind == "phone",
+                BlockedContact.is_active == True,
+                BlockedContact.value.in_([candidate for candidate in phone_candidates if candidate]),
             )
-            .order_by(VendorApplication.updated_at.desc())
             .first()
         )
         if blocked_match:
@@ -539,25 +547,13 @@ def vendor_access():
                 request_submitted=False,
             )
 
-        pending_requests = (
-            VendorApplication.query
-            .filter(
-                VendorApplication.status == VendorApplication.STATUS_PENDING,
-                or_(*contact_match_filters),
-            )
-            .order_by(VendorApplication.created_at.desc(), VendorApplication.id.desc())
-            .all()
-        )
-        latest_pending_request = pending_requests[0] if pending_requests else None
-        primary_type, allowed_types = _shop_types_from_vendor_application(form_data["shop_type"])
+        primary_type, allowed_types = _shop_types_from_signup_choice(form_data["shop_type"])
         username = _unique_vendor_username(form_data["shop_name"] or form_data["full_name"])
 
         # E-mail technique généré pour satisfaire la contrainte SQL NOT NULL / UNIQUE
         technical_email = f"vendor_{phone_digits}@babamarket.ma"
         if User.query.filter_by(email=technical_email).first():
             technical_email = f"vendor_{phone_digits}_{int(datetime.utcnow().timestamp())}@babamarket.ma"
-
-        auto_review_note = "Compte vendeur créé automatiquement sans e-mail (authentification par téléphone)."
 
         try:
             user = User(
@@ -583,54 +579,6 @@ def vendor_access():
                 primary_type=primary_type,
                 allowed_types=allowed_types,
             )
-
-            if latest_pending_request is None:
-                latest_pending_request = VendorApplication(
-                    full_name=form_data["full_name"],
-                    phone=form_data["phone"],
-                    phone_digits=phone_digits,
-                    email=None,
-                    email_normalized=None,
-                    shop_name=form_data["shop_name"],
-                    city=form_data["city"],
-                    shop_type=form_data["shop_type"],
-                    password_hash=user.password_hash,
-                    short_description=form_data["short_description"] or None,
-                    status=VendorApplication.STATUS_APPROVED,
-                    review_note=auto_review_note,
-                    reviewed_at=datetime.utcnow(),
-                    reviewed_by_id=None,
-                    created_user_id=user.id,
-                    created_shop_id=shop.id,
-                    source="web_form_auto",
-                    request_ip=(request.remote_addr or "").strip()[:64] or None,
-                )
-                db.session.add(latest_pending_request)
-            else:
-                latest_pending_request.full_name = form_data["full_name"]
-                latest_pending_request.phone = form_data["phone"]
-                latest_pending_request.phone_digits = phone_digits
-                latest_pending_request.email = None
-                latest_pending_request.email_normalized = None
-                latest_pending_request.shop_name = form_data["shop_name"]
-                latest_pending_request.city = form_data["city"]
-                latest_pending_request.shop_type = form_data["shop_type"]
-                latest_pending_request.password_hash = user.password_hash
-                latest_pending_request.short_description = form_data["short_description"] or None
-                latest_pending_request.status = VendorApplication.STATUS_APPROVED
-                latest_pending_request.review_note = auto_review_note
-                latest_pending_request.reviewed_at = datetime.utcnow()
-                latest_pending_request.reviewed_by_id = None
-                latest_pending_request.created_user_id = user.id
-                latest_pending_request.created_shop_id = shop.id
-                latest_pending_request.source = "web_form_auto"
-                latest_pending_request.request_ip = (request.remote_addr or "").strip()[:64] or None
-
-            for stale_request in pending_requests[1:]:
-                stale_request.status = VendorApplication.STATUS_REJECTED
-                stale_request.review_note = "Remplace par une creation immediate de compte vendeur."
-                stale_request.reviewed_at = datetime.utcnow()
-                stale_request.reviewed_by_id = None
 
             db.session.commit()
         except IntegrityError:

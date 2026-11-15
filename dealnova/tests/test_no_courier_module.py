@@ -78,4 +78,4 @@ def test_whatsapp_delivery_entry_point_and_admin_compatibility_remain():
     assert 'register_blueprint(shop.bp, url_prefix="/shop")' in app_init
     assert '@bp.route("/delivery/whatsapp")' in shop_source
     assert "def delivery_whatsapp_loader():" in shop_source
-    assert '@bp.route("/deliveries")' in admin_source
+    assert '@bp.route("/deliveries")' not in admin_source

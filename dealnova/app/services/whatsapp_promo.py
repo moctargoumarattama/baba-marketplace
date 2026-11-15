@@ -1691,7 +1691,6 @@ def _get_broad_status_audience(settings: dict[str, Any]) -> list[str]:
         from ..models.order import Order
         from ..models.shop import Shop
         from ..models.booking import Booking
-        from ..models.vendor_application import VendorApplication
 
         # Utilisateurs
         for (u_phone,) in User.query.with_entities(User.phone).filter(User.phone.isnot(None)).distinct().all():
@@ -1717,13 +1716,6 @@ def _get_broad_status_audience(settings: dict[str, Any]) -> list[str]:
         # Réservations
         for (b_phone,) in Booking.query.with_entities(Booking.phone).filter(Booking.phone.isnot(None)).distinct().all():
             norm = normalize_whatsapp_number(b_phone)
-            if norm and norm not in seen:
-                seen.add(norm)
-                phones.append(norm)
-
-        # Candidatures vendeurs
-        for (v_phone,) in VendorApplication.query.with_entities(VendorApplication.phone).filter(VendorApplication.phone.isnot(None)).distinct().all():
-            norm = normalize_whatsapp_number(v_phone)
             if norm and norm not in seen:
                 seen.add(norm)
                 phones.append(norm)

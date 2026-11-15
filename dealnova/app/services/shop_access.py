@@ -219,7 +219,7 @@ def _unique_vendor_username(base: str | None) -> str:
     return candidate
 
 
-def _shop_types_from_vendor_application(shop_type_text: str | None):
+def _shop_types_from_signup_choice(shop_type_text: str | None):
     from ..models.shop import SHOP_TYPE_ORDER, normalize_allowed_shop_types
 
     raw = (shop_type_text or "").strip().lower()

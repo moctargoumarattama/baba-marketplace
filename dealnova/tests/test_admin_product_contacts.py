@@ -70,12 +70,11 @@ def test_product_contacts_template_has_no_operational_actions():
 
 def test_legacy_product_order_pages_are_removed_instead_of_hidden():
     admin_source = _read("app/routes/admin.py")
-    all_orders_body = _function_body(admin_source, "all_orders")
 
     assert not (ROOT / "app/templates/admin/all_orders.html").exists()
-    assert "render_template" not in all_orders_body
-    assert "Order." not in all_orders_body
-    assert "admin.product_contacts" in all_orders_body
+    assert "def deliveries(" not in admin_source
+    assert "def all_orders(" not in admin_source
+    assert "def order_detail(" not in admin_source
     assert "def orders_live(" not in admin_source
     assert "def orders_notifications(" not in admin_source
     assert 'url_for("admin.orders_notifications"' not in _read("app/templates/admin/base.html")

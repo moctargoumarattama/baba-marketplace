@@ -1063,24 +1063,6 @@ def product_contacts_export_csv():
     )
 
 
-# ======================
-# LIVRAISONS
-# ======================
-@bp.route("/deliveries")
-def deliveries():
-    flash("Le module livraison a ete supprime.", "info")
-    return redirect(url_for("admin.product_contacts"))
-
-
-# ======================
-# Redirections legacy produit / archives livraison express
-# ======================
-@bp.route("/orders")
-def all_orders():
-    flash("Les produits physiques sont maintenant consultables dans Contacts produits.", "info")
-    return redirect(url_for("admin.product_contacts"))
-
-
 def _finance_filtered_query(date_filter, entry_type: str):
     entries_query = (
         FinancialEntry.query
@@ -1250,11 +1232,6 @@ def finance_export_csv():
         ["Date", "Categorie", "Montant (MAD)", "Reference ID", "Compte", "Note"],
         _rows(),
     )
-
-@bp.route("/order/<int:oid>")
-def order_detail(oid):
-    flash("Le module livraison a ete supprime.", "info")
-    return redirect(url_for("admin.product_contacts"))
 
 
 # ======================
@@ -2746,7 +2723,7 @@ def quick_search():
         {"title": "Dashboard", "subtitle": "Vue globale & alertes", "url": url_for("admin_users.admin_dashboard"), "icon": "bi-grid-fill"},
         {"title": "Audience & trafic", "subtitle": "Visiteurs, villes & sources", "url": url_for("admin_users.audience_dashboard"), "icon": "bi-broadcast-pin"},
         {"title": "Utilisateurs", "subtitle": "Comptes et roles", "url": url_for("admin_users.manage_users"), "icon": "bi-people-fill"},
-        {"title": "Nouveaux clients", "subtitle": "Inscriptions publiques", "url": url_for("admin_users.vendor_requests"), "icon": "bi-person-check"},
+        {"title": "Nouveaux clients", "subtitle": "Anciens comptes clients", "url": url_for("admin_users.manage_customers"), "icon": "bi-person-check"},
         {"title": "Demandes modifications", "subtitle": "Validation nom boutique / email", "url": url_for("admin_users.vendor_change_requests"), "icon": "bi-pencil-square"},
         {"title": "Boutiques", "subtitle": "Annuaire & fiches boutiques", "url": url_for("admin_users.manage_shops"), "icon": "bi-shop"},
         {"title": "Catalogue & qualite", "subtitle": "Ruptures, images & offres", "url": url_for("admin_users.catalog_quality"), "icon": "bi-box-seam"},
@@ -2799,7 +2776,7 @@ def quick_search():
             for s in shops_rows
         ]
 
-        visible_roles = ("vendor",) if is_manager else ("admin", "manager", "vendor")
+        visible_roles = ("vendor", "customer") if is_manager else ("admin", "manager", "vendor", "customer")
         user_rows = (
             User.query
             .filter(User.role.in_(visible_roles))

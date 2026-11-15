@@ -1,4 +1,4 @@
-﻿{% extends "admin/base.html" %}
+{% extends "admin/base.html" %}
 
 {% block title %}Gestion des Boutiques | DealNova Admin{% endblock %}
 {% block page_title %}Boutiques{% endblock %}
@@ -301,7 +301,7 @@
         <p class="shops-subtitle">{{ 'Retrouvez les boutiques et leur statut.' if current_user.role == 'manager' else 'Gerez les vendeurs, statuts et informations de contact.' }}</p>
       </div>
       <div class="shops-cta">
-        <a href="{{ url_for('admin_users.vendor_requests') }}" class="btn btn-primary">
+        <a href="{{ url_for('admin_users.manage_customers') }}" class="btn btn-primary">
           <i class="bi bi-people"></i> Nouveaux clients
         </a>
       </div>

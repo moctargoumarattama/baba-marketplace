@@ -107,11 +107,12 @@ def test_phase1_dead_code_and_templates_cleaned():
         "def delete_archived_order(",
         "def deliveries_live(",
         "def deliveries_archives(",
+        "def deliveries(",
+        "def all_orders(",
+        "def order_detail(",
         "def whatsapp_promo_send_test(",
     ):
         assert removed not in admin_py
-    for kept in ("def deliveries(", "def all_orders(", "def order_detail("):
-        assert kept in admin_py
 
     admin_users_py = _read("app/routes/admin_users.py")
     for removed in (

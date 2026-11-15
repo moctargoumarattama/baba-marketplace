@@ -36,7 +36,6 @@ from .services.migration import (
     ensure_admin_performance_indexes,
     ensure_platform_settings_columns,
     ensure_promo_workflow_columns,
-    ensure_vendor_application_table,
     ensure_vendor_change_request_table,
     ensure_vendor_push_subscription_table,
     ensure_runtime_state_table,
@@ -187,7 +186,6 @@ def create_app(config_class=Config):
     with app.app_context():
         logging_service.setup_logging()
         ensure_featured_items_table()
-        ensure_vendor_application_table()
         ensure_vendor_change_request_table()
         ensure_vendor_push_subscription_table()
         ensure_platform_settings_columns()

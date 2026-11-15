@@ -2,7 +2,7 @@
 
 {% block title %}Nouveaux clients | DealNova Admin{% endblock %}
 {% block page_title %}Nouveaux clients{% endblock %}
-{% block body_attrs %}data-adm-page="vendor-requests"{% endblock %}
+{% block body_attrs %}data-adm-page="customers"{% endblock %}
 
 {% block head %}
 <style>
@@ -114,7 +114,7 @@
           <button class="btn btn-primary flex-fill" type="submit">
             <i class="bi bi-funnel-fill"></i> Filtrer
           </button>
-          <a class="btn btn-outline-secondary" href="{{ url_for('admin_users.vendor_requests') }}">
+          <a class="btn btn-outline-secondary" href="{{ url_for('admin_users.manage_customers') }}">
             <i class="bi bi-arrow-counterclockwise"></i>
           </a>
         </div>
@@ -187,7 +187,7 @@
     </div>
     {% if pagination.pages > 1 %}
     <div class="card-footer">
-      {% set endpoint = 'admin_users.vendor_requests' %}
+      {% set endpoint = 'admin_users.manage_customers' %}
       {% set params = {'search': search, 'per_page': per_page} %}
       {% set iter_args = {'left_edge': 1, 'left_current': 1, 'right_current': 2, 'right_edge': 1} %}
       {% include "admin/partials/_pagination.html" %}

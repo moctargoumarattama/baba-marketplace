@@ -1,4 +1,4 @@
-﻿# app/models/platform_settings.py
+# app/models/platform_settings.py
 
 from ..extensions import db
 
@@ -7,11 +7,6 @@ class PlatformSettings(db.Model):
     __tablename__ = "platform_settings"
 
     id = db.Column(db.Integer, primary_key=True)
-
-    # Commission plateforme (vendeur)
-    # ex: 10 = 10%
-    # Deprecated: seller commission is no longer applied to product/service orders.
-    seller_commission_percent = db.Column(db.Float, nullable=False, default=10.0)
 
     # Low stock threshold (vendor alerts)
     low_stock_threshold = db.Column(db.Integer, nullable=False, default=5)
@@ -50,4 +45,3 @@ class PlatformSettings(db.Model):
             db.session.add(instance)
             db.session.commit()
         return instance
-

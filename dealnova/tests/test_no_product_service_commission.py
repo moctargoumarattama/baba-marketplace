@@ -201,8 +201,9 @@ def test_vendor_earnings_paginates_with_sql_instead_of_memory_lists():
 
 def test_admin_order_detail_hides_vendor_payout_block_for_product_orders():
     assert not (ROOT / "app/templates/admin/order_detail.html").exists()
-    body = _function_body(_read("app/routes/admin.py"), "order_detail")
-    assert "admin.product_contacts" in body
+    admin_source = _read("app/routes/admin.py")
+    assert "def order_detail(" not in admin_source
+    assert '@bp.route("/order/<int:oid>")' not in admin_source
 
 
 def test_finance_labels_distinguish_subscriptions_location_and_other_revenue():

@@ -76,7 +76,7 @@
                             <p class="text-muted mb-0">{{ user.email }}</p>
                             <div class="mt-2">
                                 <span class="badge badge-{{ user.role }} badge-role fs-6">
-                                    {{ 'Gestionnaire' if user.role == 'manager' else user.role|title }}
+                                    {{ 'Gestionnaire' if user.role == 'manager' else ('Client' if user.role == 'customer' else user.role|title) }}
                                 </span>
                                 <span class="badge bg-{{ 'success' if user.is_active else 'secondary' }} fs-6"
                                       data-user-status="{{ user.id }}"
@@ -209,7 +209,7 @@
                                         <i class="bi bi-shop"></i> Voir la boutique
                                     </a>
                                 {% else %}
-                                    <a href="{{ url_for('admin_users.vendor_requests') }}"
+                                    <a href="{{ url_for('admin_users.manage_customers') }}"
                                        class="btn btn-outline-secondary btn-sm">
                                         <i class="bi bi-people"></i> Voir nouveaux clients
                                     </a>
@@ -323,7 +323,7 @@
                             <i class="bi bi-shop display-4 text-muted mb-3"></i>
                             <h5>Pas encore de boutique</h5>
                             <p class="text-muted">Cet utilisateur n'a pas encore créé de boutique.</p>
-                            <a href="{{ url_for('admin_users.vendor_requests') }}" 
+                            <a href="{{ url_for('admin_users.manage_customers') }}" 
                                class="btn btn-outline-secondary">
                                 <i class="bi bi-people"></i> Ouvrir nouveaux clients
                             </a>
@@ -390,7 +390,7 @@
                         
                         <div class="col-md-6">
                             <label for="role" class="form-label">Rôle</label>
-                            {% if current_user.role == 'admin' and user.role != 'vendor' %}
+                            {% if current_user.role == 'admin' and user.role in ['admin', 'manager'] %}
                             <select class="form-select" id="role" name="role">
                                 <option value="manager" {% if user.role == 'manager' %}selected{% endif %}>Gestionnaire</option>
                                 <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Administrateur</option>
@@ -399,7 +399,7 @@
                             <input type="text"
                                    class="form-control"
                                    id="role"
-                                   value="{{ 'Vendeur' if user.role == 'vendor' else ('Administrateur' if user.role == 'admin' else 'Gestionnaire') }}"
+                                   value="{{ 'Vendeur' if user.role == 'vendor' else ('Client' if user.role == 'customer' else ('Administrateur' if user.role == 'admin' else 'Gestionnaire')) }}"
                                    readonly>
                             {% endif %}
                         </div>

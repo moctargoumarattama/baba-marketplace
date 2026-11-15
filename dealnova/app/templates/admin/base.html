@@ -1016,7 +1016,7 @@
 
             <li class="nav-section-label">Vendeurs & Clients</li>
             <li class="nav-item"><a class="nav-link {% if 'user' in ep %}active{% endif %}" href="{{ url_for('admin_users.manage_users') }}"><i class="bi bi-people-fill"></i><span>Utilisateurs</span></a></li>
-            <li class="nav-item"><a class="nav-link {% if 'vendor_request' in ep %}active{% endif %}" href="{{ url_for('admin_users.vendor_requests') }}"><i class="bi bi-person-plus"></i><span>Nouveaux clients</span></a></li>
+            <li class="nav-item"><a class="nav-link {% if 'manage_customers' in ep %}active{% endif %}" href="{{ url_for('admin_users.manage_customers') }}"><i class="bi bi-person-plus"></i><span>Nouveaux clients</span></a></li>
             <li class="nav-item"><a class="nav-link {% if 'shop' in ep %}active{% endif %}" href="{{ url_for('admin_users.manage_shops') }}"><i class="bi bi-shop"></i><span>Boutiques</span></a></li>
             <li class="nav-item">
                 <a class="nav-link {% if 'vendor_change_request' in ep %}active{% endif %}" href="{{ url_for('admin_users.vendor_change_requests') }}">
